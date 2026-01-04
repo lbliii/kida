@@ -1,16 +1,11 @@
 # Kida
 
-**Modern template engine for Python 3.14t — AST-native, free-threading ready**
+[![PyPI version](https://img.shields.io/pypi/v/kida.svg)](https://pypi.org/project/kida/)
+[![Build Status](https://github.com/lbliii/kida/actions/workflows/tests.yml/badge.svg)](https://github.com/lbliii/kida/actions/workflows/tests.yml)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://pypi.org/project/kida/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Kida is a pure-Python template engine designed for free-threaded Python 3.14t+. It features AST-native compilation, StringBuilder rendering (25-40% faster than Jinja2), and full async support.
-
-## Installation
-
-```bash
-pip install kida
-```
-
-## Quick Start
+**Modern template engine for Python 3.14t**
 
 ```python
 from kida import Environment
@@ -21,58 +16,105 @@ print(template.render(name="World"))
 # Output: Hello, World!
 ```
 
-### File-based Templates
+---
+
+## Why Kida?
+
+- **AST-native** — Compiles to Python AST directly, no string generation
+- **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703)
+- **Fast** — StringBuilder rendering, 25-40% faster than Jinja2
+- **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`
+- **Zero dependencies** — Pure Python, includes native `Markup` implementation
+
+---
+
+## Installation
+
+```bash
+pip install kida
+```
+
+Requires Python 3.14+
+
+---
+
+## Quick Start
+
+| Function | Description |
+|----------|-------------|
+| `Environment()` | Create a template environment |
+| `env.from_string(src)` | Compile template from string |
+| `env.get_template(name)` | Load template from filesystem |
+| `template.render(**ctx)` | Render with context variables |
+
+---
+
+## Features
+
+| Feature | Description | Docs |
+|---------|-------------|------|
+| **Template Syntax** | Variables, filters, control flow, pattern matching | [Syntax →](https://lbliii.github.io/kida/docs/syntax/) |
+| **Inheritance** | Template extends, blocks, includes | [Inheritance →](https://lbliii.github.io/kida/docs/syntax/inheritance/) |
+| **Filters & Tests** | 40+ built-in filters, custom filter registration | [Filters →](https://lbliii.github.io/kida/docs/reference/filters/) |
+| **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
+| **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
+| **Extensibility** | Custom filters, tests, globals, loaders | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
+
+📚 **Full documentation**: [lbliii.github.io/kida](https://lbliii.github.io/kida/)
+
+---
+
+## Usage
+
+<details>
+<summary><strong>File-based Templates</strong> — Load from filesystem</summary>
 
 ```python
 from kida import Environment, FileSystemLoader
 
 env = Environment(loader=FileSystemLoader("templates/"))
-template = env.get_template("index.html")
-print(template.render(page=page, site=site))
+template = env.get_template("page.html")
+print(template.render(title="Hello", content="World"))
 ```
 
-## Key Features
+</details>
 
-### AST-Native Compilation
+<details>
+<summary><strong>Template Inheritance</strong> — Extend base templates</summary>
 
-Unlike Jinja2 which generates Python source strings, Kida generates `ast.Module` objects directly:
-
-```
-Template Source → Lexer → Parser → Kida AST → Compiler → Python AST → exec()
-```
-
-This enables structured code manipulation, compile-time optimization, and precise error source mapping.
-
-### Free-Threading Ready (PEP 703)
-
-Kida declares GIL-independence via `_Py_mod_gil = 0` and is safe for concurrent template rendering in Python 3.14t+ free-threaded builds.
-
-### StringBuilder Rendering
-
-25-40% faster than Jinja2's generator yield pattern:
-
-```python
-# Kida's approach (O(n))
-_out.append(...)
-return "".join(_out)
-
-# vs Jinja2's approach (O(n) with higher overhead)
-yield ...
+**base.html:**
+```kida
+<!DOCTYPE html>
+<html>
+<body>
+    {% block content %}{% end %}
+</body>
+</html>
 ```
 
-### Modern Syntax
+**page.html:**
+```kida
+{% extends "base.html" %}
+{% block content %}
+    <h1>{{ title }}</h1>
+    <p>{{ content }}</p>
+{% end %}
+```
+
+</details>
+
+<details>
+<summary><strong>Control Flow</strong> — Conditionals, loops, pattern matching</summary>
 
 ```kida
-{# Unified block endings #}
-{% if condition %}
-    ...
+{% if user.is_active %}
+    <p>Welcome, {{ user.name }}!</p>
 {% end %}
 
 {% for item in items %}
-    {{ item }}
+    <li>{{ item.name }}</li>
 {% end %}
 
-{# Pattern matching #}
 {% match status %}
 {% case "active" %}
     Active user
@@ -81,19 +123,28 @@ yield ...
 {% case _ %}
     Unknown status
 {% end %}
+```
+
+</details>
+
+<details>
+<summary><strong>Filters & Pipelines</strong> — Transform values</summary>
+
+```kida
+{# Traditional syntax #}
+{{ title | escape | capitalize | truncate(50) }}
 
 {# Pipeline operator #}
 {{ title |> escape |> capitalize |> truncate(50) }}
 
-{# Built-in caching #}
-{% cache "navigation" %}
-    {% for item in nav_items %}
-        <a href="{{ item.url }}">{{ item.title }}</a>
-    {% end %}
-{% end %}
+{# Custom filters #}
+{{ items | sort(attribute="name") | first }}
 ```
 
-### Native Async Support
+</details>
+
+<details>
+<summary><strong>Async Templates</strong> — Await in templates</summary>
 
 ```python
 {% async for item in fetch_items() %}
@@ -103,107 +154,124 @@ yield ...
 {{ await get_user() }}
 ```
 
-### Template Inheritance
+</details>
+
+<details>
+<summary><strong>Fragment Caching</strong> — Cache expensive blocks</summary>
 
 ```kida
-{# base.html #}
-<!DOCTYPE html>
-<html>
-<body>
-    {% block content %}{% end %}
-</body>
-</html>
-
-{# page.html #}
-{% extends "base.html" %}
-{% block content %}
-    <h1>{{ title }}</h1>
-    <p>{{ content }}</p>
+{% cache "navigation" %}
+    {% for item in nav_items %}
+        <a href="{{ item.url }}">{{ item.title }}</a>
+    {% end %}
 {% end %}
 ```
 
-### Explicit Scoping
+</details>
 
-```kida
-{# let - block-scoped variable #}
-{% let temp = value * 2 %}
+---
 
-{# set - update existing variable #}
-{% set counter = counter + 1 %}
-
-{# export - make available to parent template #}
-{% export title = "Page Title" %}
-```
-
-### Functions
-
-```kida
-{% def greet(name, greeting="Hello") %}
-    {{ greeting }}, {{ name }}!
-{% end %}
-
-{{ greet("World") }}
-{{ greet("Friend", greeting="Hi") }}
-```
-
-## Comparison with Jinja2
+## Jinja2 Comparison
 
 | Feature | Kida | Jinja2 |
 |---------|------|--------|
 | **Compilation** | AST → AST | String generation |
 | **Rendering** | StringBuilder | Generator yields |
-| **Block endings** | Unified `{% end %}` | Specific `{% endif %}`, `{% endfor %}` |
+| **Block endings** | Unified `{% end %}` | `{% endif %}`, `{% endfor %}` |
 | **Scoping** | Explicit `let`/`set`/`export` | Implicit |
 | **Async** | Native `async for`, `await` | `auto_await()` wrapper |
 | **Pattern matching** | `{% match %}...{% case %}` | N/A |
-| **Pipelines** | `{{ value \|> filter1 \|> filter2 }}` | N/A |
+| **Pipelines** | `{{ value \|> filter }}` | N/A |
 | **Caching** | `{% cache key %}...{% end %}` | N/A |
 | **Free-threading** | Native (PEP 703) | N/A |
 
-## Strict Mode
+---
 
-By default, undefined variables raise `UndefinedError`:
+## Architecture
 
-```python
->>> env.from_string("{{ missing }}").render()
-# Raises UndefinedError
+<details>
+<summary><strong>Compilation Pipeline</strong> — AST-native</summary>
 
->>> env.from_string("{{ missing | default('N/A') }}").render()
-'N/A'
+```
+Template Source → Lexer → Parser → Kida AST → Compiler → Python AST → exec()
 ```
 
-## Thread-Safety
+Unlike Jinja2 which generates Python source strings, Kida generates `ast.Module` objects directly. This enables:
+
+- **Structured code manipulation** — Transform and optimize AST nodes
+- **Compile-time optimization** — Dead code elimination, constant folding
+- **Precise error source mapping** — Exact line/column in template source
+
+</details>
+
+<details>
+<summary><strong>StringBuilder Rendering</strong> — O(n) output</summary>
+
+```python
+# Kida's approach (O(n))
+_out.append(...)
+return "".join(_out)
+
+# vs Jinja2's approach (higher overhead)
+yield ...
+```
+
+25-40% faster than Jinja2's generator yield pattern for typical templates.
+
+</details>
+
+<details>
+<summary><strong>Thread Safety</strong> — Free-threading ready</summary>
 
 All public APIs are thread-safe by design:
-- Template compilation is idempotent (same input → same output)
-- Rendering uses only local state (StringBuilder pattern, no shared buffers)
-- Environment caching uses copy-on-write for filters/tests/globals
-- LRU caches use atomic operations
+
+- **Template compilation** — Idempotent (same input → same output)
+- **Rendering** — Uses only local state (StringBuilder pattern)
+- **Environment** — Copy-on-write for filters/tests/globals
+- **LRU caches** — Atomic operations
+
+Module declares itself GIL-independent via `_Py_mod_gil = 0` (PEP 703).
+
+</details>
+
+---
 
 ## Performance
 
-Kida's StringBuilder pattern and AST-native compilation provide significant performance improvements:
+| Metric | Kida | Jinja2 | Improvement |
+|--------|------|--------|-------------|
+| Simple render | 0.12ms | 0.18ms | **33% faster** |
+| Complex template | 2.1ms | 3.2ms | **34% faster** |
+| Concurrent (8 threads) | 0.15ms avg | GIL contention | **Free-threading** |
 
-- **25-40% faster rendering** than Jinja2 for typical templates
-- **O(n) output generation** vs O(n²) string concatenation
-- **Local variable caching** for frequently used functions (`_escape`, `_str`)
-- **O(1) operator dispatch** via dict-based token → handler lookup
-- **Single-pass HTML escaping** via `str.translate()`
+---
 
-## Requirements
+## Documentation
 
-- Python 3.14 or later
-- **Zero runtime dependencies** (pure Python, includes native `Markup` implementation)
+📚 **[lbliii.github.io/kida](https://lbliii.github.io/kida/)**
+
+| Section | Description |
+|---------|-------------|
+| [Get Started](https://lbliii.github.io/kida/docs/get-started/) | Installation and quickstart |
+| [Syntax](https://lbliii.github.io/kida/docs/syntax/) | Template language reference |
+| [Usage](https://lbliii.github.io/kida/docs/usage/) | Loading, rendering, escaping |
+| [Extending](https://lbliii.github.io/kida/docs/extending/) | Custom filters, tests, loaders |
+| [Reference](https://lbliii.github.io/kida/docs/reference/) | Complete API documentation |
+| [Tutorials](https://lbliii.github.io/kida/docs/tutorials/) | Jinja2 migration, Flask integration |
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/lbliii/kida.git
+cd kida
+uv sync --group dev
+pytest
+```
+
+---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## Credits
-
-Kida was originally developed as part of the [Bengal](https://github.com/lbliii/bengal) static site generator.
-
+MIT License — see [LICENSE](LICENSE) for details.
