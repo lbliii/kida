@@ -1,0 +1,15 @@
+# Production Environment
+# =======================
+
+site:
+  # GitHub Pages project site: deployed at /kida
+  baseurl: "/kida"
+
+build:
+  incremental: true
+  strict_mode: true
+
+assets:
+  minify: true
+  fingerprint: true
+
