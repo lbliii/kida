@@ -1,4 +1,4 @@
-# Kida
+# )彡 Kida
 
 [![PyPI version](https://img.shields.io/pypi/v/kida.svg)](https://pypi.org/project/kida/)
 [![Build Status](https://github.com/lbliii/kida/actions/workflows/tests.yml/badge.svg)](https://github.com/lbliii/kida/actions/workflows/tests.yml)
