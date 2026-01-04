@@ -19,7 +19,7 @@ import html
 import re
 import warnings
 from collections.abc import Callable, Iterable
-from typing import Any, Self, SupportsIndex
+from typing import Any, Self, SupportsIndex, cast
 
 # =============================================================================
 # Core Escaping Infrastructure
@@ -247,10 +247,10 @@ class Markup(str):
         """Format string with %-style, escaping non-Markup args."""
         escaped_args: Any
         if isinstance(args, tuple):
-            args_tuple: tuple[Any, ...] = args
+            args_tuple = cast("tuple[Any, ...]", args)
             escaped_args = tuple(_escape_arg(a) for a in args_tuple)
         elif isinstance(args, dict):
-            args_dict: dict[str, Any] = args
+            args_dict = cast("dict[str, Any]", args)
             escaped_args = {k: _escape_arg(v) for k, v in args_dict.items()}
         else:
             escaped_args = _escape_arg(args)

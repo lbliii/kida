@@ -255,7 +255,7 @@ Feature cards:
 
 site:
   title: "Kida"
-  logo_text: "⚡"
+  logo_text: ")彡"
   description: "Modern template engine for Python 3.14t — AST-native, free-threading ready"
   language: "en"
 
