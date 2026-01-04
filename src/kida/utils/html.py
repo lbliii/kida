@@ -26,7 +26,7 @@ from typing import Any, Self, SupportsIndex, cast
 # =============================================================================
 
 # O(1) character class lookup (no regex in hot path)
-_ESCAPE_CHARS: frozenset[str] = frozenset('&<>"\'\x00')
+_ESCAPE_CHARS: frozenset[str] = frozenset("&<>\"'\x00")
 
 # Pre-compiled escape table for O(n) single-pass HTML escaping
 # Includes NUL byte stripping for security
@@ -55,58 +55,134 @@ _SPACELESS_RE = re.compile(r">\s+<")
 # Valid XML/HTML attribute name pattern (O(1) validation using character sets)
 # Per HTML5: attribute names are sequences of characters other than:
 # - ASCII whitespace, NUL, quotes, apostrophe, >, /, =
-_INVALID_ATTR_CHARS: frozenset[str] = frozenset(' \t\n\r\f\x00"\'>/=')
+_INVALID_ATTR_CHARS: frozenset[str] = frozenset(" \t\n\r\f\x00\"'>/=")
 
 # Event handler attributes that can execute JavaScript
 # Source: WHATWG HTML Living Standard + common SVG/MathML events
 # Last updated: 2026-01
-_EVENT_HANDLER_ATTRS: frozenset[str] = frozenset({
-    # Mouse events
-    'onclick', 'ondblclick', 'onmousedown', 'onmouseup', 'onmouseover',
-    'onmousemove', 'onmouseout', 'onmouseenter', 'onmouseleave', 'onwheel',
-    'oncontextmenu',
-    # Keyboard events
-    'onkeydown', 'onkeypress', 'onkeyup',
-    # Focus events
-    'onfocus', 'onblur', 'onfocusin', 'onfocusout',
-    # Form events
-    'onchange', 'oninput', 'oninvalid', 'onreset', 'onsubmit', 'onformdata',
-    'onselect',
-    # Drag events
-    'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover',
-    'ondragstart', 'ondrop',
-    # Clipboard events
-    'oncopy', 'oncut', 'onpaste',
-    # Media events
-    'onabort', 'oncanplay', 'oncanplaythrough', 'oncuechange',
-    'ondurationchange', 'onemptied', 'onended', 'onerror', 'onloadeddata',
-    'onloadedmetadata', 'onloadstart', 'onpause', 'onplay', 'onplaying',
-    'onprogress', 'onratechange', 'onseeked', 'onseeking', 'onstalled',
-    'onsuspend', 'ontimeupdate', 'onvolumechange', 'onwaiting',
-    # Page/Window events
-    'onload', 'onunload', 'onbeforeunload', 'onresize', 'onscroll',
-    'onhashchange', 'onpopstate', 'onpageshow', 'onpagehide',
-    'onoffline', 'ononline', 'onstorage', 'onmessage', 'onmessageerror',
-    # Print events
-    'onbeforeprint', 'onafterprint',
-    # Animation events
-    'onanimationstart', 'onanimationend', 'onanimationiteration',
-    'onanimationcancel',
-    # Transition events
-    'ontransitionrun', 'ontransitionstart', 'ontransitionend',
-    'ontransitioncancel',
-    # Touch events
-    'ontouchstart', 'ontouchend', 'ontouchmove', 'ontouchcancel',
-    # Pointer events
-    'onpointerdown', 'onpointerup', 'onpointermove', 'onpointerover',
-    'onpointerout', 'onpointerenter', 'onpointerleave', 'onpointercancel',
-    'ongotpointercapture', 'onlostpointercapture',
-    # Other events
-    'ontoggle', 'onsearch', 'onshow', 'onsecuritypolicyviolation',
-    'onslotchange', 'onbeforeinput', 'onbeforematch',
-    # Deprecated but still functional
-    'onmousewheel',
-})
+_EVENT_HANDLER_ATTRS: frozenset[str] = frozenset(
+    {
+        # Mouse events
+        "onclick",
+        "ondblclick",
+        "onmousedown",
+        "onmouseup",
+        "onmouseover",
+        "onmousemove",
+        "onmouseout",
+        "onmouseenter",
+        "onmouseleave",
+        "onwheel",
+        "oncontextmenu",
+        # Keyboard events
+        "onkeydown",
+        "onkeypress",
+        "onkeyup",
+        # Focus events
+        "onfocus",
+        "onblur",
+        "onfocusin",
+        "onfocusout",
+        # Form events
+        "onchange",
+        "oninput",
+        "oninvalid",
+        "onreset",
+        "onsubmit",
+        "onformdata",
+        "onselect",
+        # Drag events
+        "ondrag",
+        "ondragend",
+        "ondragenter",
+        "ondragleave",
+        "ondragover",
+        "ondragstart",
+        "ondrop",
+        # Clipboard events
+        "oncopy",
+        "oncut",
+        "onpaste",
+        # Media events
+        "onabort",
+        "oncanplay",
+        "oncanplaythrough",
+        "oncuechange",
+        "ondurationchange",
+        "onemptied",
+        "onended",
+        "onerror",
+        "onloadeddata",
+        "onloadedmetadata",
+        "onloadstart",
+        "onpause",
+        "onplay",
+        "onplaying",
+        "onprogress",
+        "onratechange",
+        "onseeked",
+        "onseeking",
+        "onstalled",
+        "onsuspend",
+        "ontimeupdate",
+        "onvolumechange",
+        "onwaiting",
+        # Page/Window events
+        "onload",
+        "onunload",
+        "onbeforeunload",
+        "onresize",
+        "onscroll",
+        "onhashchange",
+        "onpopstate",
+        "onpageshow",
+        "onpagehide",
+        "onoffline",
+        "ononline",
+        "onstorage",
+        "onmessage",
+        "onmessageerror",
+        # Print events
+        "onbeforeprint",
+        "onafterprint",
+        # Animation events
+        "onanimationstart",
+        "onanimationend",
+        "onanimationiteration",
+        "onanimationcancel",
+        # Transition events
+        "ontransitionrun",
+        "ontransitionstart",
+        "ontransitionend",
+        "ontransitioncancel",
+        # Touch events
+        "ontouchstart",
+        "ontouchend",
+        "ontouchmove",
+        "ontouchcancel",
+        # Pointer events
+        "onpointerdown",
+        "onpointerup",
+        "onpointermove",
+        "onpointerover",
+        "onpointerout",
+        "onpointerenter",
+        "onpointerleave",
+        "onpointercancel",
+        "ongotpointercapture",
+        "onlostpointercapture",
+        # Other events
+        "ontoggle",
+        "onsearch",
+        "onshow",
+        "onsecuritypolicyviolation",
+        "onslotchange",
+        "onbeforeinput",
+        "onbeforematch",
+        # Deprecated but still functional
+        "onmousewheel",
+    }
+)
 
 # =============================================================================
 # JavaScript Escaping
@@ -118,22 +194,24 @@ _EVENT_HANDLER_ATTRS: frozenset[str] = frozenset({
 # 2. Break out of <script> context (<, >, /)
 # 3. Break JavaScript parsing (U+2028, U+2029)
 # 4. Enable template literal injection (`, $)
-_JS_ESCAPE_TABLE = str.maketrans({
-    "\\": "\\\\",
-    '"': '\\"',
-    "'": "\\'",
-    "`": "\\`",      # Template literal delimiter
-    "$": "\\$",      # Template literal interpolation ${...}
-    "\n": "\\n",
-    "\r": "\\r",
-    "\t": "\\t",
-    "\x00": "\\x00",
-    "<": "\\x3c",    # Prevent </script> breaking out
-    ">": "\\x3e",
-    "/": "\\/",      # Prevent </script> and <!-- -->
-    "\u2028": "\\u2028",  # Line separator (breaks JS strings)
-    "\u2029": "\\u2029",  # Paragraph separator
-})
+_JS_ESCAPE_TABLE = str.maketrans(
+    {
+        "\\": "\\\\",
+        '"': '\\"',
+        "'": "\\'",
+        "`": "\\`",  # Template literal delimiter
+        "$": "\\$",  # Template literal interpolation ${...}
+        "\n": "\\n",
+        "\r": "\\r",
+        "\t": "\\t",
+        "\x00": "\\x00",
+        "<": "\\x3c",  # Prevent </script> breaking out
+        ">": "\\x3e",
+        "/": "\\/",  # Prevent </script> and <!-- -->
+        "\u2028": "\\u2028",  # Line separator (breaks JS strings)
+        "\u2029": "\\u2029",  # Paragraph separator
+    }
+)
 
 # =============================================================================
 # CSS Escaping
@@ -141,36 +219,47 @@ _JS_ESCAPE_TABLE = str.maketrans({
 
 # CSS escape table (O(n) single-pass translation)
 # Escapes characters that could break out of property values or @rules.
-_CSS_ESCAPE_TABLE = str.maketrans({
-    "\\": "\\\\",
-    '"': '\\"',
-    "'": "\\'",
-    "(": "\\(",
-    ")": "\\)",
-    "/": "\\/",
-    "<": "\\3c ",
-    ">": "\\3e ",
-    "&": "\\26 ",
-    "\x00": "",
-})
+_CSS_ESCAPE_TABLE = str.maketrans(
+    {
+        "\\": "\\\\",
+        '"': '\\"',
+        "'": "\\'",
+        "(": "\\(",
+        ")": "\\)",
+        "/": "\\/",
+        "<": "\\3c ",
+        ">": "\\3e ",
+        "&": "\\26 ",
+        "\x00": "",
+    }
+)
 
 # =============================================================================
 # URL Validation
 # =============================================================================
 
 # Safe URL schemes (frozenset for O(1) lookup)
-_SAFE_SCHEMES: frozenset[str] = frozenset({
-    'http', 'https', 'mailto', 'tel', 'ftp', 'ftps', 'sms',
-    # NOT included: javascript, vbscript, data (by default)
-})
+_SAFE_SCHEMES: frozenset[str] = frozenset(
+    {
+        "http",
+        "https",
+        "mailto",
+        "tel",
+        "ftp",
+        "ftps",
+        "sms",
+        # NOT included: javascript, vbscript, data (by default)
+    }
+)
 
 # Relative URL prefixes (checked with startswith for efficiency)
-_RELATIVE_PREFIXES: tuple[str, ...] = ('/', './', '../', '#', '?')
+_RELATIVE_PREFIXES: tuple[str, ...] = ("/", "./", "../", "#", "?")
 
 
 # =============================================================================
 # Markup Class
 # =============================================================================
+
 
 class Markup(str):
     """A string subclass marking content as safe (won't be auto-escaped).
@@ -384,6 +473,7 @@ class Markup(str):
 # Core Escaping Functions
 # =============================================================================
 
+
 def _escape_str(s: str) -> str:
     """Escape a string for HTML (internal helper).
 
@@ -472,6 +562,7 @@ def html_escape_filter(value: Any) -> Markup:
 # Attribute Functions
 # =============================================================================
 
+
 def _is_valid_attr_name(name: str) -> bool:
     """Check if attribute name is valid per HTML5 spec.
 
@@ -486,11 +577,8 @@ def _is_valid_attr_name(name: str) -> bool:
     """
     if not name:
         return False
-    # Check each character against invalid set
-    for char in name:
-        if char in _INVALID_ATTR_CHARS:
-            return False
-    return True
+    # Check each character against invalid set (O(n) single pass)
+    return all(char not in _INVALID_ATTR_CHARS for char in name)
 
 
 def xmlattr(
@@ -574,6 +662,7 @@ def xmlattr(
 # Context-Specific Escaping
 # =============================================================================
 
+
 def js_escape(value: Any) -> str:
     """Escape a value for use inside JavaScript string literals.
 
@@ -648,6 +737,7 @@ def css_escape(value: Any) -> str:
 # URL Validation
 # =============================================================================
 
+
 def url_is_safe(url: str, *, allow_data: bool = False) -> bool:
     """Check if a URL has a safe protocol scheme.
 
@@ -684,21 +774,21 @@ def url_is_safe(url: str, *, allow_data: bool = False) -> bool:
         return True
 
     # Protocol-relative URLs inherit page protocol
-    if url.startswith('//'):
+    if url.startswith("//"):
         return True
 
     # Find scheme (characters before first colon)
     # Use window-based scanning: O(n) single pass
     colon_pos = -1
     for i, char in enumerate(url):
-        if char == ':':
+        if char == ":":
             colon_pos = i
             break
         # Scheme chars: a-z, A-Z, 0-9, +, -, . (but must start with letter)
         if i == 0:
             if not char.isalpha():
                 return True  # No valid scheme, treated as relative
-        elif not (char.isalnum() or char in '+-.'):
+        elif not (char.isalnum() or char in "+-."):
             return True  # Invalid scheme char, treated as relative
 
     if colon_pos == -1:
@@ -707,7 +797,7 @@ def url_is_safe(url: str, *, allow_data: bool = False) -> bool:
     scheme = url[:colon_pos].lower()
 
     # Handle data: URLs separately
-    if scheme == 'data':
+    if scheme == "data":
         return allow_data
 
     return scheme in _SAFE_SCHEMES
@@ -741,6 +831,7 @@ def safe_url(url: str, *, fallback: str = "#") -> str:
 # =============================================================================
 # Utility Functions
 # =============================================================================
+
 
 def strip_tags(value: str) -> str:
     """Remove HTML tags from string.
@@ -812,6 +903,7 @@ def format_html(format_string: str, *args: Any, **kwargs: Any) -> Markup:
 # =============================================================================
 # Lazy Evaluation (SoftStr)
 # =============================================================================
+
 
 class SoftStr:
     """A string wrapper that defers __str__ evaluation.

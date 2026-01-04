@@ -20,7 +20,6 @@ Test Categories:
 """
 
 import warnings
-from typing import Any
 
 import pytest
 
@@ -38,10 +37,10 @@ from kida.utils.html import (
     xmlattr,
 )
 
-
 # =============================================================================
 # NUL Byte Handling Tests
 # =============================================================================
+
 
 class TestNULByteHandling:
     """NUL bytes can bypass filters in some contexts."""
@@ -86,6 +85,7 @@ class TestNULByteHandling:
 # =============================================================================
 # Unicode Edge Cases Tests
 # =============================================================================
+
 
 class TestUnicodeEdgeCases:
     """Unicode edge cases that could enable attacks."""
@@ -158,6 +158,7 @@ class TestUnicodeEdgeCases:
 # Double-Escape Prevention Tests
 # =============================================================================
 
+
 class TestDoubleEscapePrevention:
     """Ensure no double-escaping occurs."""
 
@@ -199,6 +200,7 @@ class TestDoubleEscapePrevention:
 # =============================================================================
 # Markup Operations Tests
 # =============================================================================
+
 
 class TestMarkupOperations:
     """Markup class operations maintain safety invariants."""
@@ -277,6 +279,7 @@ class TestMarkupOperations:
 # Known XSS Vectors Tests
 # =============================================================================
 
+
 class TestKnownXSSVectors:
     """Known XSS attack patterns from OWASP and security research."""
 
@@ -321,6 +324,7 @@ class TestKnownXSSVectors:
 # =============================================================================
 # xmlattr Tests
 # =============================================================================
+
 
 class TestXmlattr:
     """xmlattr() function tests."""
@@ -408,6 +412,7 @@ class TestXmlattr:
 # striptags Tests
 # =============================================================================
 
+
 class TestStriptags:
     """striptags method tests.
 
@@ -442,6 +447,7 @@ class TestStriptags:
 # unescape Tests
 # =============================================================================
 
+
 class TestUnescape:
     """unescape method tests."""
 
@@ -471,6 +477,7 @@ class TestUnescape:
 # =============================================================================
 # JavaScript Escaping Tests
 # =============================================================================
+
 
 class TestJSEscape:
     """JavaScript string escaping tests."""
@@ -554,6 +561,7 @@ class TestJSString:
 # CSS Escaping Tests
 # =============================================================================
 
+
 class TestCSSEscape:
     """CSS context escaping tests."""
 
@@ -587,6 +595,7 @@ class TestCSSEscape:
 # =============================================================================
 # URL Validation Tests
 # =============================================================================
+
 
 class TestURLIsSafe:
     """URL protocol validation tests."""
@@ -673,6 +682,7 @@ class TestSafeURL:
 # format_html Tests
 # =============================================================================
 
+
 class TestFormatHTML:
     """format_html() utility tests."""
 
@@ -705,6 +715,7 @@ class TestFormatHTML:
 # =============================================================================
 # SoftStr Tests
 # =============================================================================
+
 
 class TestSoftStr:
     """SoftStr lazy evaluation tests."""
@@ -773,6 +784,7 @@ class TestSoftStr:
 # strip_tags Standalone Function Tests
 # =============================================================================
 
+
 class TestStripTagsFunction:
     """strip_tags() standalone function tests."""
 
@@ -786,4 +798,3 @@ class TestStripTagsFunction:
         result = strip_tags("<p>test</p>")
         assert isinstance(result, str)
         assert not isinstance(result, Markup)
-

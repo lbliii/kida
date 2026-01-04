@@ -218,11 +218,8 @@ class TestEnvironmentFilters:
         assert tmpl.render() == "10-15"
 
     def test_override_builtin_filter(self):
-        """Override builtin filter works when optimization is disabled."""
-        # When filter inlining is enabled (default), built-in filters are inlined
-        # and bypass the filter registry. To use custom filter overrides,
-        # disable optimization.
-        env = Environment(optimized=False)
+        """Override builtin filter works with custom filter registry."""
+        env = Environment()
 
         def custom_upper(s):
             return s.upper() + "!"

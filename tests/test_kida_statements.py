@@ -219,7 +219,7 @@ class TestIncludeStatement:
             if i == 49:
                 templates[f"level{i}.html"] = f"Level {i}"
             else:
-                templates[f"level{i}.html"] = f"Level {i}{{% include 'level{i+1}.html' %}}"
+                templates[f"level{i}.html"] = f"Level {i}{{% include 'level{i + 1}.html' %}}"
 
         loader = DictLoader(templates)
         env = Environment(loader=loader)
@@ -240,7 +240,7 @@ class TestIncludeStatement:
             if i == 51:
                 templates[f"level{i}.html"] = f"Level {i}"
             else:
-                templates[f"level{i}.html"] = f"Level {i}{{% include 'level{i+1}.html' %}}"
+                templates[f"level{i}.html"] = f"Level {i}{{% include 'level{i + 1}.html' %}}"
 
         loader = DictLoader(templates)
         env = Environment(loader=loader)

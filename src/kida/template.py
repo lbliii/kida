@@ -43,7 +43,7 @@ from __future__ import annotations
 import weakref
 from typing import TYPE_CHECKING, Any
 
-from kida.utils.html import Markup, _SPACELESS_RE, html_escape
+from kida.utils.html import _SPACELESS_RE, Markup, html_escape
 
 if TYPE_CHECKING:
     from kida.environment import Environment
@@ -384,11 +384,11 @@ class Template:
 
             # Track include depth to prevent circular includes (DoS protection)
             depth = context.get("_include_depth", 0)
-            MAX_INCLUDE_DEPTH = 50
+            max_include_depth = 50
             # Check if the new depth would exceed the limit
-            if depth >= MAX_INCLUDE_DEPTH:
+            if depth >= max_include_depth:
                 raise TemplateRuntimeError(
-                    f"Maximum include depth exceeded ({MAX_INCLUDE_DEPTH}) when including '{template_name}'",
+                    f"Maximum include depth exceeded ({max_include_depth}) when including '{template_name}'",
                     template_name=self._name,
                     suggestion="Check for circular includes: A → B → A",
                 )
@@ -794,11 +794,11 @@ class Template:
             # Already enhanced, re-raise as-is
             raise
         except Exception as e:
-            # Check if this is an UndefinedError (from strict mode)
+            # Check if this is an UndefinedError or TemplateNotFoundError
             # These are already well-formatted, so don't wrap them
-            from kida.environment.exceptions import UndefinedError
+            from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
 
-            if isinstance(e, UndefinedError):
+            if isinstance(e, (UndefinedError, TemplateNotFoundError)):
                 raise
             # Enhance generic exceptions with template context
             raise self._enhance_error(e, ctx) from e
@@ -870,9 +870,9 @@ class Template:
         except TemplateRuntimeError:
             raise
         except Exception as e:
-            from kida.environment.exceptions import UndefinedError
+            from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
 
-            if isinstance(e, UndefinedError):
+            if isinstance(e, (UndefinedError, TemplateNotFoundError)):
                 raise
             raise self._enhance_error(e, ctx) from e
 
@@ -960,10 +960,10 @@ class Template:
         except TemplateRuntimeError:
             raise
         except Exception as e:
-            # Check if this is an UndefinedError (from strict mode)
-            from kida.environment.exceptions import UndefinedError
+            # Check if this is an UndefinedError or TemplateNotFoundError
+            from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
 
-            if isinstance(e, UndefinedError):
+            if isinstance(e, (UndefinedError, TemplateNotFoundError)):
                 raise
             raise self._enhance_error(e, ctx) from e
 

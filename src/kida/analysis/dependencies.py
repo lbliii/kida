@@ -121,16 +121,15 @@ class DependencyWalker:
         for attr in ("body", "else_", "empty", "elif_"):
             if hasattr(node, attr):
                 children = getattr(node, attr)
-                if children:
-                    if isinstance(children, (list, tuple)):
-                        for child in children:
-                            if hasattr(child, "lineno"):  # It's a node
-                                self._visit(child)
-                            elif isinstance(child, tuple):  # elif case
-                                test, body = child
-                                self._visit(test)
-                                for b in body:
-                                    self._visit(b)
+                if children and isinstance(children, (list, tuple)):
+                    for child in children:
+                        if hasattr(child, "lineno"):  # It's a node
+                            self._visit(child)
+                        elif isinstance(child, tuple):  # elif case
+                            test, body = child
+                            self._visit(test)
+                            for b in body:
+                                self._visit(b)
 
         # Handle expression attributes
         for attr in (

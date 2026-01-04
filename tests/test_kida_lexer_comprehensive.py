@@ -16,10 +16,10 @@ import pytest
 
 from kida._types import TokenType
 from kida.lexer import (
+    MAX_TOKENS,
     Lexer,
     LexerConfig,
     LexerError,
-    MAX_TOKENS,
     tokenize,
 )
 
@@ -605,10 +605,10 @@ class TestTokenLimit:
         # Each "{{ x }}" generates multiple tokens, so we need many of them
         # MAX_TOKENS is 100,000, so create a template with >100k tokens
         many_vars = "".join([f"{{{{ x{i} }}}}" for i in range(MAX_TOKENS // 3 + 1)])
-        
+
         with pytest.raises(LexerError) as exc_info:
             tokenize(many_vars)
-        
+
         error_msg = str(exc_info.value)
         assert "Token limit exceeded" in error_msg
         assert str(MAX_TOKENS) in error_msg

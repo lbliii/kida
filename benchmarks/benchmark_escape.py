@@ -26,7 +26,6 @@ from kida.utils.html import (
     xmlattr,
 )
 
-
 # =============================================================================
 # html_escape benchmarks
 # =============================================================================
@@ -258,4 +257,3 @@ def test_escape_optimized(benchmark: pytest.BenchmarkFixture) -> None:
     """Optimized escape for comparison."""
     content = "<script>alert('test & \"xss\"')</script>"
     benchmark(html_escape, content)
-

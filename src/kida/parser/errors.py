@@ -30,6 +30,16 @@ class ParseError(Exception):
         self.suggestion = suggestion
         super().__init__(self._format())
 
+    @property
+    def lineno(self) -> int:
+        """Line number where the error occurred (1-based)."""
+        return self.token.lineno
+
+    @property
+    def col_offset(self) -> int:
+        """Column offset where the error occurred (0-based)."""
+        return self.token.col_offset
+
     def _format(self) -> str:
         """Format error with source context like Rust/modern compilers."""
         # Header with location

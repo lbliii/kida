@@ -231,7 +231,7 @@ class TestNumericFilters:
         """int filter with strict mode raises error on conversion failure."""
         from kida.environment.exceptions import TemplateRuntimeError
 
-        tmpl = env.from_string("{{ 'abc'|int(0) }}")
+        tmpl = env.from_string("{{ 'abc'|int(strict=true) }}")
         with pytest.raises(TemplateRuntimeError) as exc_info:
             tmpl.render()
 
@@ -255,7 +255,7 @@ class TestNumericFilters:
         """float filter with strict mode raises error on conversion failure."""
         from kida.environment.exceptions import TemplateRuntimeError
 
-        tmpl = env.from_string("{{ 'abc'|float(0.0) }}")
+        tmpl = env.from_string("{{ 'abc'|float(strict=true) }}")
         with pytest.raises(TemplateRuntimeError) as exc_info:
             tmpl.render()
 
@@ -500,15 +500,12 @@ class TestCustomFilters:
         assert tmpl.render() == "15"
 
     def test_custom_filter_override(self, env):
-        """Override built-in filter works when optimization is disabled."""
-        # When filter inlining is enabled (default), built-in filters are inlined
-        # and bypass the filter registry. To use custom filter overrides,
-        # disable optimization.
-        env_no_opt = Environment(optimized=False)
+        """Override built-in filter works with custom filter registry."""
+        env_custom = Environment()
 
         def custom_upper(value):
             return value.upper() + "!"
 
-        env_no_opt.add_filter("upper", custom_upper)
-        tmpl = env_no_opt.from_string('{{ "hello"|upper }}')
+        env_custom.add_filter("upper", custom_upper)
+        tmpl = env_custom.from_string('{{ "hello"|upper }}')
         assert tmpl.render() == "HELLO!"

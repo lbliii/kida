@@ -51,8 +51,23 @@ line-length = 100
 target-version = "py314"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B"]
-ignore = ["E501"]                             # Line length handled by formatter
+# Enable Python upgrade rules and other quality checks
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "UP",  # pyupgrade - Python modernization
+    "B",   # flake8-bugbear - common bugs
+    "SIM", # flake8-simplify - simplify code
+    "I",   # isort - import sorting
+    "N",   # pep8-naming
+]
+ignore = ["E501"]  # Line length handled by formatter
+
+# Per-file ignore rules
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]   # Allow unused imports in __init__ files
+"tests/**/*.py" = ["S101"] # Allow assert in tests
 
 [dependency-groups]
 dev = [
@@ -61,9 +76,13 @@ dev = [
     "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.3.0",
+    "pytest-timeout>=2.3.0",   # Prevent hung tests
+    "hypothesis>=6.100.0",     # Property-based testing
     # Linting & Type Checking
     "pyright>=1.1",
     "ruff>=0.14.0",
+    # Pre-commit (optional, for local dev)
+    "pre-commit>=4.0.0",
 ]
 docs = [
     "bengal",

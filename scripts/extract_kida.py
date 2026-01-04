@@ -211,4 +211,3 @@ def verify_extraction() -> None:
 
 if __name__ == "__main__":
     main()
-
