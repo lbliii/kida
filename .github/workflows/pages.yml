@@ -45,9 +45,7 @@ jobs:
             bengal-${{ runner.os }}-
 
       - name: Install dependencies
-        run: |
-          uv sync --group dev
-          uv pip install bengal
+        run: uv sync --group dev --group docs
         env:
           PYTHON_GIL: "0"
 
