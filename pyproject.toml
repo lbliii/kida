@@ -23,7 +23,8 @@ classifiers = [
 dependencies = [] # Pure Python, zero runtime dependencies
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "pyright>=1.1", "ruff>=0.1"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "pytest-cov>=4.0", "pyright>=1.1", "ruff>=0.1"]
+docs = ["bengal"]
 
 [project.urls]
 Homepage = "https://github.com/lbliii/kida"
