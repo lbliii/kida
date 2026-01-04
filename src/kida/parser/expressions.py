@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kida._types import TokenType
+from kida._types import Token, TokenType
 from kida.nodes import (
     BinOp,
     BoolOp,
@@ -34,6 +34,7 @@ from kida.nodes import (
 
 if TYPE_CHECKING:
     from kida.nodes import Expr
+    from kida.parser.errors import ParseError
 
 # Python-style boolean/none keywords (canonical)
 # Lowercase also accepted for convenience
@@ -50,6 +51,22 @@ class ExpressionParsingMixin:
         - All from TokenNavigationMixin
         - _parse_call_args: method
     """
+
+    # Type stubs for TokenNavigationMixin methods (implemented by host class)
+    if TYPE_CHECKING:
+        _current: Token
+
+        def _advance(self) -> Token: ...
+        def _match(self, *types: TokenType) -> bool: ...
+        def _expect(self, token_type: TokenType) -> Token: ...
+        def _peek(self, offset: int = 0) -> Token: ...
+        def _error(
+            self,
+            message: str,
+            token: Token | None = None,
+            suggestion: str | None = None,
+        ) -> ParseError: ...
+        def _parse_call_args(self) -> tuple[list[Expr], dict[str, Expr]]: ...
 
     def _parse_expression(self) -> Expr:
         """Parse expression with ternary and null coalescing.

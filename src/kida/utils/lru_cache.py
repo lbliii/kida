@@ -26,7 +26,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
-from typing import Any, overload
+from typing import Any, cast, overload
 
 
 class LRUCache[K, V]:
@@ -177,7 +177,7 @@ class LRUCache[K, V]:
             self._misses += 1
 
         # Compute outside lock to avoid blocking other threads
-        value = factory(key) if pass_key else factory()  # type: ignore[call-arg]
+        value = cast("V", factory(key) if pass_key else factory())  # type: ignore[call-arg]
 
         # Store result
         with self._lock:

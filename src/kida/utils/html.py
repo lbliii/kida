@@ -19,7 +19,7 @@ import html
 import re
 import warnings
 from collections.abc import Callable, Iterable
-from typing import Any, Self, overload
+from typing import Any, Self, SupportsIndex
 
 # =============================================================================
 # Core Escaping Infrastructure
@@ -235,23 +235,26 @@ class Markup(str):
             other = _escape_str(other)
         return self.__class__(other.__add__(self))
 
-    def __mul__(self, n: int) -> Self:
+    def __mul__(self, n: SupportsIndex) -> Self:
         """Repeat string n times."""
         return self.__class__(super().__mul__(n))
 
-    def __rmul__(self, n: int) -> Self:
+    def __rmul__(self, n: SupportsIndex) -> Self:
         """Repeat string n times (reverse)."""
         return self.__class__(super().__mul__(n))
 
     def __mod__(self, args: Any) -> Self:
         """Format string with %-style, escaping non-Markup args."""
+        escaped_args: Any
         if isinstance(args, tuple):
-            args = tuple(_escape_arg(a) for a in args)
+            args_tuple: tuple[Any, ...] = args
+            escaped_args = tuple(_escape_arg(a) for a in args_tuple)
         elif isinstance(args, dict):
-            args = {k: _escape_arg(v) for k, v in args.items()}
+            args_dict: dict[str, Any] = args
+            escaped_args = {k: _escape_arg(v) for k, v in args_dict.items()}
         else:
-            args = _escape_arg(args)
-        return self.__class__(super().__mod__(args))
+            escaped_args = _escape_arg(args)
+        return self.__class__(super().__mod__(escaped_args))
 
     def format(self, *args: Any, **kwargs: Any) -> Self:
         """Format string, escaping non-Markup arguments."""
@@ -271,7 +274,7 @@ class Markup(str):
     def casefold(self) -> Self:
         return self.__class__(super().casefold())
 
-    def center(self, width: int, fillchar: str = " ") -> Self:
+    def center(self, width: SupportsIndex, fillchar: str = " ") -> Self:
         return self.__class__(super().center(width, fillchar))
 
     def lower(self) -> Self:
@@ -295,33 +298,32 @@ class Markup(str):
     def rstrip(self, chars: str | None = None) -> Self:
         return self.__class__(super().rstrip(chars))
 
-    def ljust(self, width: int, fillchar: str = " ") -> Self:
+    def ljust(self, width: SupportsIndex, fillchar: str = " ") -> Self:
         return self.__class__(super().ljust(width, fillchar))
 
-    def rjust(self, width: int, fillchar: str = " ") -> Self:
+    def rjust(self, width: SupportsIndex, fillchar: str = " ") -> Self:
         return self.__class__(super().rjust(width, fillchar))
 
-    def zfill(self, width: int) -> Self:
+    def zfill(self, width: SupportsIndex) -> Self:
         return self.__class__(super().zfill(width))
 
-    def replace(self, old: str, new: str, count: int = -1) -> Self:
+    def replace(self, old: str, new: str, count: SupportsIndex = -1) -> Self:
         return self.__class__(super().replace(old, new, count))
 
-    def expandtabs(self, tabsize: int = 8) -> Self:
+    def expandtabs(self, tabsize: SupportsIndex = 8) -> Self:
         return self.__class__(super().expandtabs(tabsize))
 
-    @overload
-    def split(self, sep: str | None = None, maxsplit: int = -1) -> list[Self]: ...
-    @overload
-    def split(self, sep: str, maxsplit: int = -1) -> list[Self]: ...
-
-    def split(self, sep: str | None = None, maxsplit: int = -1) -> list[Self]:
+    def split(  # type: ignore[override]
+        self, sep: str | None = None, maxsplit: SupportsIndex = -1
+    ) -> list[Self]:
         return [self.__class__(s) for s in super().split(sep, maxsplit)]
 
-    def rsplit(self, sep: str | None = None, maxsplit: int = -1) -> list[Self]:
+    def rsplit(  # type: ignore[override]
+        self, sep: str | None = None, maxsplit: SupportsIndex = -1
+    ) -> list[Self]:
         return [self.__class__(s) for s in super().rsplit(sep, maxsplit)]
 
-    def splitlines(self, keepends: bool = False) -> list[Self]:
+    def splitlines(self, keepends: bool = False) -> list[Self]:  # type: ignore[override]
         return [self.__class__(s) for s in super().splitlines(keepends)]
 
     def partition(self, sep: str) -> tuple[Self, Self, Self]:
@@ -848,8 +850,10 @@ class SoftStr:
         """
         value = str(self)
         # If the resolved value is already Markup, don't double-escape
-        if hasattr(self._value, "__html__"):
-            return self._value.__html__()
+        html_method = getattr(self._value, "__html__", None)
+        if html_method is not None:
+            result: str = html_method()
+            return result
         return html_escape(value)
 
     def __repr__(self) -> str:
