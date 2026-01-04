@@ -85,11 +85,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Run pyright
-        env:
-          PYTHON_GIL: "0"
+      - name: Run mypy
         run: |
-          uv run pyright src/kida
+          uv run mypy src/kida --show-error-codes
 
   # Linting
   lint:

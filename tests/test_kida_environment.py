@@ -133,9 +133,11 @@ class TestDictLoader:
 
     def test_template_not_found(self):
         """Template not found raises error."""
+        from kida import TemplateNotFoundError
+
         loader = DictLoader({})
         env = Environment(loader=loader)
-        with pytest.raises(Exception):  # TemplateNotFound or similar
+        with pytest.raises(TemplateNotFoundError):
             env.get_template("missing.html")
 
 
@@ -186,7 +188,8 @@ class TestTemplateCaching:
         tmpl2 = env.from_string("Hello")
 
         # from_string typically creates new template each time
-        # This is expected behavior
+        # This is expected behavior - templates are different objects
+        assert tmpl1 is not tmpl2
 
 
 class TestEnvironmentFilters:

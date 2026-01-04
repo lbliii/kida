@@ -183,7 +183,7 @@ class TestPythonKeywordsRegression:
         result = tmpl.render()
         assert "Hello" in result
 
-    def test_def_inside_if_True_with_inheritance(self) -> None:
+    def test_def_inside_if_true_with_inheritance(self) -> None:
         """Regression: def in conditional with extends."""
         loader = DictLoader(
             {
@@ -195,7 +195,7 @@ class TestPythonKeywordsRegression:
         result = env.get_template("child.html").render()
         assert "Helper" in result
 
-    def test_nested_if_True_blocks(self, env: Environment) -> None:
+    def test_nested_if_true_blocks(self, env: Environment) -> None:
         """Nested conditionals with True should all execute."""
         tmpl = env.from_string("""
 {% if True %}
@@ -209,7 +209,7 @@ inner
         assert "outer" in result
         assert "inner" in result
 
-    def test_for_loop_inside_if_True(self, env: Environment) -> None:
+    def test_for_loop_inside_if_true(self, env: Environment) -> None:
         """For loop inside {% if True %} should work."""
         tmpl = env.from_string("""
 {% if True %}
@@ -221,7 +221,7 @@ inner
         assert "2" in result
         assert "3" in result
 
-    def test_set_inside_if_True(self, env: Environment) -> None:
+    def test_set_inside_if_true(self, env: Environment) -> None:
         """Variable assignment inside {% if True %} should work."""
         tmpl = env.from_string("""
 {% if True %}

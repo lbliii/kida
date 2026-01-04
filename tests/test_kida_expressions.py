@@ -411,7 +411,6 @@ class TestAttributeAccess:
     def test_chained_access(self, env):
         """Chained attribute access."""
         tmpl = env.from_string("{{ data.level1.level2 }}")
-        data = {"level1": {"level2": "deep"}}
         # Create an object that supports dot access
         from types import SimpleNamespace
 
