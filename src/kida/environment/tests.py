@@ -73,13 +73,13 @@ def _apply_test(value: Any, test_name: str, *args: Any) -> bool:
     if test_name == "none":
         return value is None
     if test_name == "equalto" or test_name == "eq" or test_name == "sameas":
-        return args and value == args[0]
+        return bool(args) and value == args[0]
     if test_name == "odd":
         return isinstance(value, int) and value % 2 == 1
     if test_name == "even":
         return isinstance(value, int) and value % 2 == 0
     if test_name == "divisibleby":
-        return args and isinstance(value, int) and value % args[0] == 0
+        return bool(args) and isinstance(value, int) and value % args[0] == 0
     if test_name == "iterable":
         try:
             iter(value)
@@ -99,7 +99,7 @@ def _apply_test(value: Any, test_name: str, *args: Any) -> bool:
     if test_name == "false":
         return value is False
     if test_name == "match":
-        return args and _test_match(value, args[0])
+        return bool(args) and _test_match(value, args[0])
     # Fallback: truthy check
     return bool(value)
 
@@ -121,7 +121,7 @@ def _test_divisible_by(value: int, num: int) -> bool:
 
 def _test_eq(value: Any, other: Any) -> bool:
     """Test equality."""
-    return value == other
+    return bool(value == other)
 
 
 def _test_even(value: int) -> bool:
@@ -131,12 +131,12 @@ def _test_even(value: int) -> bool:
 
 def _test_ge(value: Any, other: Any) -> bool:
     """Test greater than or equal."""
-    return value >= other
+    return bool(value >= other)
 
 
 def _test_gt(value: Any, other: Any) -> bool:
     """Test greater than."""
-    return value > other
+    return bool(value > other)
 
 
 def _test_in(value: Any, seq: Any) -> bool:
@@ -155,7 +155,7 @@ def _test_iterable(value: Any) -> bool:
 
 def _test_le(value: Any, other: Any) -> bool:
     """Test less than or equal."""
-    return value <= other
+    return bool(value <= other)
 
 
 def _test_lower(value: str) -> bool:
@@ -165,7 +165,7 @@ def _test_lower(value: str) -> bool:
 
 def _test_lt(value: Any, other: Any) -> bool:
     """Test less than."""
-    return value < other
+    return bool(value < other)
 
 
 def _test_mapping(value: Any) -> bool:
@@ -175,7 +175,7 @@ def _test_mapping(value: Any) -> bool:
 
 def _test_ne(value: Any, other: Any) -> bool:
     """Test inequality."""
-    return value != other
+    return bool(value != other)
 
 
 def _test_none(value: Any) -> bool:
@@ -224,7 +224,7 @@ def _test_match(value: Any, pattern: str) -> bool:
 
 
 # Default tests
-DEFAULT_TESTS: dict[str, Callable] = {
+DEFAULT_TESTS: dict[str, Callable[..., bool]] = {
     "callable": _test_callable,
     "defined": _test_defined,
     "divisibleby": _test_divisible_by,

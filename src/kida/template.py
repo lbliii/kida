@@ -94,12 +94,12 @@ class LoopContext:
 
     __slots__ = ("_items", "_index", "_length")
 
-    def __init__(self, items: list) -> None:
+    def __init__(self, items: list[Any]) -> None:
         self._items = items
         self._length = len(items)
         self._index = 0
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         """Iterate through items, updating index for each."""
         for i, item in enumerate(self._items):
             self._index = i
@@ -182,7 +182,7 @@ class CachedBlocksDict:
 
     def __init__(
         self,
-        original: dict | None,
+        original: dict[str, Any] | None,
         cached: dict[str, str],
         cached_names: set[str],
         stats: dict[str, int] | None = None,
@@ -205,7 +205,7 @@ class CachedBlocksDict:
 
             # Return a wrapper function that matches the block function signature:
             # _block_name(ctx, _blocks)
-            def cached_block_func(_ctx: dict, _blocks: dict) -> str:
+            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
                 return cached_html
 
             return cached_block_func
@@ -232,7 +232,7 @@ class CachedBlocksDict:
             if self._stats is not None:
                 self._stats["hits"] = self._stats.get("hits", 0) + 1
 
-            def cached_block_func(_ctx: dict, _blocks: dict) -> str:
+            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
                 return cached_html
 
             return cached_block_func
@@ -249,7 +249,7 @@ class CachedBlocksDict:
             if self._stats is not None:
                 self._stats["hits"] = self._stats.get("hits", 0) + 1
 
-            def cached_block_func(_ctx: dict, _blocks: dict) -> str:
+            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
                 return cached_html
 
             return cached_block_func
@@ -263,11 +263,11 @@ class CachedBlocksDict:
         """Support 'key in dict' checks."""
         return key in self._original or key in self._cached_names
 
-    def keys(self):
+    def keys(self) -> set[str]:
         """Support .keys() iteration."""
         return self._original.keys() | self._cached_names
 
-    def copy(self) -> dict:
+    def copy(self) -> dict[str, Any]:
         """Support .copy() for embed/include operations."""
         result = self._original.copy()
         # Add cached wrappers to copy (properly capture in closure)
@@ -275,8 +275,8 @@ class CachedBlocksDict:
             cached_html = self._cached[name]
 
             # Create wrapper with proper closure capture
-            def make_wrapper(html: str, stats: dict[str, int] | None):
-                def wrapper(_ctx: dict, _blocks: dict) -> str:
+            def make_wrapper(html: str, stats: dict[str, int] | None) -> Any:
+                def wrapper(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
                     if stats is not None:
                         stats["hits"] = stats.get("hits", 0) + 1
                     return html
@@ -375,10 +375,10 @@ class Template:
         # Include helper - loads and renders included template
         def _include(
             template_name: str,
-            context: dict,
+            context: dict[str, Any],
             ignore_missing: bool = False,
             *,  # Force remaining args to be keyword-only
-            blocks: dict | None = None,  # RFC: kida-modern-syntax-features (embed)
+            blocks: dict[str, Any] | None = None,  # RFC: kida-modern-syntax-features (embed)
         ) -> str:
             from kida.environment.exceptions import TemplateRuntimeError
 
@@ -403,15 +403,16 @@ class Template:
                 # If blocks are provided (for embed), call the render function directly
                 # with blocks parameter
                 if blocks is not None and included._render_func is not None:
-                    return included._render_func(new_context, blocks)
-                return included.render(**new_context)
+                    result: str = included._render_func(new_context, blocks)
+                    return result
+                return str(included.render(**new_context))
             except Exception:
                 if ignore_missing:
                     return ""
                 raise
 
         # Extends helper - renders parent template with child's blocks
-        def _extends(template_name: str, context: dict, blocks: dict) -> str:
+        def _extends(template_name: str, context: dict[str, Any], blocks: dict[str, Any]) -> str:
             _env = env_ref()
             if _env is None:
                 raise RuntimeError("Environment has been garbage collected")
@@ -427,19 +428,21 @@ class Template:
             # Avoid double-wrapping if already a CachedBlocksDict.
             cached_blocks = context.get("_cached_blocks", {})
             cached_stats = context.get("_cached_stats")
+            blocks_to_use: dict[str, Any] | CachedBlocksDict = blocks
             if cached_blocks and not isinstance(blocks, CachedBlocksDict):
                 cached_block_names = set(cached_blocks.keys())
                 if cached_block_names:
                     # Wrap blocks dict with our cache-aware proxy
-                    blocks = CachedBlocksDict(
+                    blocks_to_use = CachedBlocksDict(
                         blocks, cached_blocks, cached_block_names, stats=cached_stats
                     )
 
             # Call parent's render function with blocks dict
-            return parent._render_func(context, blocks)
+            result: str = parent._render_func(context, blocks_to_use)
+            return result
 
         # Import macros from another template
-        def _import_macros(template_name: str, with_context: bool, context: dict) -> dict:
+        def _import_macros(template_name: str, with_context: bool, context: dict[str, Any]) -> dict[str, Any]:
             _env = env_ref()
             if _env is None:
                 raise RuntimeError("Environment has been garbage collected")
@@ -480,7 +483,7 @@ class Template:
             _env._fragment_cache.set(key, value)
 
         # Strict mode variable lookup helper
-        def _lookup(ctx: dict, var_name: str) -> Any:
+        def _lookup(ctx: dict[str, Any], var_name: str) -> Any:
             """Look up a variable in strict mode.
 
             In strict mode, undefined variables raise UndefinedError instead
@@ -501,7 +504,7 @@ class Template:
                 lineno = ctx.get("_line")
                 raise UndefinedError(var_name, template_name, lineno) from None
 
-        def _lookup_scope(ctx: dict, scope_stack: list, var_name: str) -> Any:
+        def _lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_name: str) -> Any:
             """Lookup variable in scope stack (top to bottom), then ctx.
 
             Checks scopes from innermost to outermost, then falls back to ctx.
@@ -789,7 +792,8 @@ class Template:
 
         # Render with error enhancement
         try:
-            return render_func(ctx, blocks_arg)
+            result: str = render_func(ctx, blocks_arg)
+            return result
         except TemplateRuntimeError:
             # Already enhanced, re-raise as-is
             raise
@@ -866,7 +870,8 @@ class Template:
 
         # Call block function
         try:
-            return block_func(ctx, {})
+            result: str = block_func(ctx, {})
+            return result
         except TemplateRuntimeError:
             raise
         except Exception as e:
@@ -956,7 +961,8 @@ class Template:
             return self.render(*args, **kwargs)
 
         try:
-            return await render_async_func(ctx)
+            result: str = await render_async_func(ctx)
+            return result
         except TemplateRuntimeError:
             raise
         except Exception as e:
@@ -1106,7 +1112,8 @@ class Template:
         meta = self.template_metadata()
         if meta is None:
             return frozenset()
-        return meta.all_dependencies()
+        result: frozenset[str] = meta.all_dependencies()
+        return result
 
     def _analyze(self) -> None:
         """Perform static analysis and cache results."""
@@ -1182,7 +1189,7 @@ class RenderedTemplate:
         """Render and return full string."""
         return self._template.render(self._context)
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         """Iterate over rendered chunks."""
         # For now, yield the whole thing
         yield str(self)

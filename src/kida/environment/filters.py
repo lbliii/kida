@@ -203,7 +203,7 @@ def _filter_length(value: Any) -> int:
         return 0
 
 
-def _filter_list(value: Any) -> list:
+def _filter_list(value: Any) -> list[Any]:
     """Convert to list."""
     return list(value)
 
@@ -247,7 +247,7 @@ def _filter_sort(
     reverse: bool = False,
     case_sensitive: bool = False,
     attribute: str | None = None,
-) -> list:
+) -> list[Any]:
     """Sort sequence with improved error handling for None values.
 
     When sorting fails due to None comparisons, provides detailed error
@@ -263,7 +263,7 @@ def _filter_sort(
     # Handle multi-attribute sorting (e.g., "weight,title")
     attributes = attribute.split(",") if attribute else []
 
-    def key_func(item):
+    def key_func(item: Any) -> Any:
         """Generate sort key with None-safe handling.
 
         Strategy: Use (is_none, sort_value) tuples where:
@@ -285,7 +285,7 @@ def _filter_sort(
             return _make_sort_key_string(val_str)  # Strings
 
         # Build tuple of values for multi-attribute sort
-        values = []
+        values: list[tuple[int, int, int | float | str]] = []
         for attr in attributes:
             attr = attr.strip()
             val = _filter_attr(item, attr)
@@ -425,10 +425,10 @@ def _filter_tojson(value: Any, indent: int | None = None) -> Any:
     return Markup(json.dumps(value, indent=indent, default=str))
 
 
-def _filter_batch(value: Any, linecount: int, fill_with: Any = None) -> list:
+def _filter_batch(value: Any, linecount: int, fill_with: Any = None) -> list[Any]:
     """Batch items into groups of linecount."""
-    result = []
-    batch: list = []
+    result: list[list[Any]] = []
+    batch: list[Any] = []
     for item in value:
         batch.append(item)
         if len(batch) >= linecount:
@@ -442,15 +442,15 @@ def _filter_batch(value: Any, linecount: int, fill_with: Any = None) -> list:
     return result
 
 
-def _filter_slice(value: Any, slices: int, fill_with: Any = None) -> list:
+def _filter_slice(value: Any, slices: int, fill_with: Any = None) -> list[Any]:
     """Slice items into number of groups."""
-    result: list[list] = [[] for _ in range(slices)]
+    result: list[list[Any]] = [[] for _ in range(slices)]
     for idx, item in enumerate(value):
         result[idx % slices].append(item)
     return result
 
 
-def _filter_take(value: Any, count: int) -> list:
+def _filter_take(value: Any, count: int) -> list[Any]:
     """Take the first N items from a sequence.
 
     Kida-native filter for readable pipeline operations.
@@ -474,7 +474,7 @@ def _filter_take(value: Any, count: int) -> list:
         return []
 
 
-def _filter_skip(value: Any, count: int) -> list:
+def _filter_skip(value: Any, count: int) -> list[Any]:
     """Skip the first N items from a sequence.
 
     Kida-native filter for readable pipeline operations.
@@ -498,7 +498,7 @@ def _filter_skip(value: Any, count: int) -> list:
         return []
 
 
-def _filter_compact(value: Any, *, truthy: bool = True) -> list:
+def _filter_compact(value: Any, *, truthy: bool = True) -> list[Any]:
     """Remove None values (and optionally all falsy values) from a sequence.
 
     Enables declarative list building with conditional items, replacing
@@ -543,7 +543,7 @@ def _filter_map(
     value: Any,
     *args: Any,
     attribute: str | None = None,
-) -> list:
+) -> list[Any]:
     """Map an attribute or method from a sequence."""
     if value is None:
         return []
@@ -558,7 +558,7 @@ def _filter_map(
         return []
 
 
-def _filter_selectattr(value: Any, attr: str, *args: Any) -> list:
+def _filter_selectattr(value: Any, attr: str, *args: Any) -> list[Any]:
     """Select items where attribute passes test."""
     from kida.environment.tests import _apply_test
 
@@ -575,7 +575,7 @@ def _filter_selectattr(value: Any, attr: str, *args: Any) -> list:
     return result
 
 
-def _filter_rejectattr(value: Any, attr: str, *args: Any) -> list:
+def _filter_rejectattr(value: Any, attr: str, *args: Any) -> list[Any]:
     """Reject items where attribute passes test."""
     from kida.environment.tests import _apply_test
 
@@ -592,7 +592,7 @@ def _filter_rejectattr(value: Any, attr: str, *args: Any) -> list:
     return result
 
 
-def _filter_select(value: Any, test_name: str | None = None, *args: Any) -> list:
+def _filter_select(value: Any, test_name: str | None = None, *args: Any) -> list[Any]:
     """Select items that pass a test."""
     from kida.environment.tests import _apply_test
 
@@ -601,7 +601,7 @@ def _filter_select(value: Any, test_name: str | None = None, *args: Any) -> list
     return [item for item in value if _apply_test(item, test_name, *args)]
 
 
-def _filter_reject(value: Any, test_name: str | None = None, *args: Any) -> list:
+def _filter_reject(value: Any, test_name: str | None = None, *args: Any) -> list[Any]:
     """Reject items that pass a test."""
     from kida.environment.tests import _apply_test
 
@@ -610,7 +610,7 @@ def _filter_reject(value: Any, test_name: str | None = None, *args: Any) -> list
     return [item for item in value if not _apply_test(item, test_name, *args)]
 
 
-def _filter_groupby(value: Any, attribute: str) -> list:
+def _filter_groupby(value: Any, attribute: str) -> list[Any]:
     """Group items by attribute with None-safe sorting.
 
     Items with None/empty values for the attribute are grouped together
@@ -623,7 +623,7 @@ def _filter_groupby(value: Any, attribute: str) -> list:
             return item.get(attribute)
         return getattr(item, attribute, None)
 
-    def sort_key(item: Any) -> tuple:
+    def sort_key(item: Any) -> tuple[Any, ...]:
         """None-safe sort key: (is_none, value_for_comparison)."""
         val = get_key(item)
         if val is None or val == "":
@@ -669,7 +669,7 @@ def _filter_pprint(value: Any) -> str:
     return pformat(value)
 
 
-def _filter_xmlattr(value: dict) -> Markup:
+def _filter_xmlattr(value: dict[str, Any]) -> Markup:
     """Convert dict to XML attributes.
 
     Returns Markup to prevent double-escaping when autoescape is enabled.
@@ -677,9 +677,9 @@ def _filter_xmlattr(value: dict) -> Markup:
     return xmlattr(value)
 
 
-def _filter_unique(value: Any, case_sensitive: bool = False, attribute: str | None = None) -> list:
+def _filter_unique(value: Any, case_sensitive: bool = False, attribute: str | None = None) -> list[Any]:
     """Return unique items."""
-    seen: set = set()
+    seen: set[Any] = set()
     result = []
     for item in value:
         val = getattr(item, attribute, None) if attribute else item
@@ -694,14 +694,14 @@ def _filter_unique(value: Any, case_sensitive: bool = False, attribute: str | No
 def _filter_min(value: Any, attribute: str | None = None) -> Any:
     """Return minimum value."""
     if attribute:
-        return min(value, key=lambda x: getattr(x, attribute, None))
+        return min(value, key=lambda x: getattr(x, attribute, None) or 0)  # type: ignore[arg-type]
     return min(value)
 
 
 def _filter_max(value: Any, attribute: str | None = None) -> Any:
     """Return maximum value."""
     if attribute:
-        return max(value, key=lambda x: getattr(x, attribute, None))
+        return max(value, key=lambda x: getattr(x, attribute, None) or 0)  # type: ignore[arg-type]
     return max(value)
 
 
@@ -782,11 +782,11 @@ def _filter_round(value: Any, precision: int = 0, method: str = "common") -> flo
     if method == "ceil":
         import math
 
-        return math.ceil(float(value) * (10**precision)) / (10**precision)
+        return float(math.ceil(float(value) * (10**precision)) / (10**precision))
     elif method == "floor":
         import math
 
-        return math.floor(float(value) * (10**precision)) / (10**precision)
+        return float(math.floor(float(value) * (10**precision)) / (10**precision))
     else:
         return round(float(value), precision)
 
@@ -820,15 +820,15 @@ def _filter_commas(value: Any) -> str:
 
 
 def _filter_dictsort(
-    value: dict,
+    value: dict[str, Any],
     case_sensitive: bool = False,
     by: str = "key",
     reverse: bool = False,
-) -> list:
+) -> list[tuple[str, Any]]:
     """Sort a dict and return list of (key, value) pairs."""
     if by == "value":
 
-        def sort_key(item: tuple) -> Any:
+        def sort_key(item: tuple[str, Any]) -> Any:
             val = item[1]
             if not case_sensitive and isinstance(val, str):
                 return val.lower()
@@ -836,7 +836,7 @@ def _filter_dictsort(
 
     else:
 
-        def sort_key(item: tuple) -> Any:
+        def sort_key(item: tuple[str, Any]) -> Any:
             val = item[0]
             if not case_sensitive and isinstance(val, str):
                 return val.lower()
@@ -951,7 +951,7 @@ def _filter_random(value: Any) -> Any:
     return random_module.choice(seq)
 
 
-def _filter_shuffle(value: Any) -> list:
+def _filter_shuffle(value: Any) -> list[Any]:
     """Return a shuffled copy of the sequence.
 
     Warning: This filter is impure (non-deterministic).
@@ -1070,7 +1070,7 @@ def _debug_repr(value: Any, max_len: int = 60) -> str:
 
 
 # Default filters - comprehensive set matching Jinja2
-DEFAULT_FILTERS: dict[str, Callable] = {
+DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {
     # Basic transformations
     "abs": _filter_abs,
     "capitalize": _filter_capitalize,

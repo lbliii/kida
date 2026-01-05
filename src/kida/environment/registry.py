@@ -5,8 +5,8 @@ Provides Jinja2-compatible dict-like interface for filters and tests.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING
+from collections.abc import Callable, ItemsView, KeysView, ValuesView
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from kida.environment.core import Environment
@@ -26,20 +26,21 @@ class FilterRegistry:
 
     __slots__ = ("_env", "_attr")
 
-    def __init__(self, env: Environment, attr: str):
+    def __init__(self, env: Environment, attr: str) -> None:
         self._env = env
         self._attr = attr
 
-    def _get_dict(self) -> dict[str, Callable]:
-        return getattr(self._env, self._attr)
+    def _get_dict(self) -> dict[str, Callable[..., Any]]:
+        result: dict[str, Callable[..., Any]] = getattr(self._env, self._attr)
+        return result
 
-    def _set_dict(self, d: dict[str, Callable]) -> None:
+    def _set_dict(self, d: dict[str, Callable[..., Any]]) -> None:
         setattr(self._env, self._attr, d)
 
-    def __getitem__(self, name: str) -> Callable:
+    def __getitem__(self, name: str) -> Callable[..., Any]:
         return self._get_dict()[name]
 
-    def __setitem__(self, name: str, func: Callable) -> None:
+    def __setitem__(self, name: str, func: Callable[..., Any]) -> None:
         new = self._get_dict().copy()
         new[name] = func
         self._set_dict(new)
@@ -47,24 +48,24 @@ class FilterRegistry:
     def __contains__(self, name: object) -> bool:
         return name in self._get_dict()
 
-    def get(self, name: str, default: Callable | None = None) -> Callable | None:
+    def get(self, name: str, default: Callable[..., Any] | None = None) -> Callable[..., Any] | None:
         return self._get_dict().get(name, default)
 
-    def update(self, mapping: dict[str, Callable]) -> None:
+    def update(self, mapping: dict[str, Callable[..., Any]]) -> None:
         """Batch update filters (Jinja2 compatibility)."""
         new = self._get_dict().copy()
         new.update(mapping)
         self._set_dict(new)
 
-    def copy(self) -> dict[str, Callable]:
+    def copy(self) -> dict[str, Callable[..., Any]]:
         """Return a copy of the underlying dict."""
         return self._get_dict().copy()
 
-    def keys(self):
+    def keys(self) -> KeysView[str]:
         return self._get_dict().keys()
 
-    def values(self):
+    def values(self) -> ValuesView[Callable[..., Any]]:
         return self._get_dict().values()
 
-    def items(self):
+    def items(self) -> ItemsView[str, Callable[..., Any]]:
         return self._get_dict().items()

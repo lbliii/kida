@@ -1,6 +1,6 @@
 # RFC: Type Suppression Reduction
 
-**Status**: Phase 1 Complete  
+**Status**: Phase 2 Complete  
 **Created**: 2026-01-04  
 **Updated**: 2026-01-04  
 **Depends On**: `rfc-type-checking-strategy.md` (Implemented)
@@ -27,12 +27,12 @@ Success: no issues found in 51 source files
 | `kida` | ~~1~~ 0 | 0 | ✅ Done |
 | `kida.bytecode_cache` | ~~1~~ 0 | 0 | ✅ Done |
 | `kida.analysis.*` | ~~2~~ 0 | 0 | ✅ Done |
-| `kida.template` | 4 | 1 | 🟡 Medium |
-| `kida.environment.*` | 6 | 2 | 🟡 Medium |
+| `kida.template` | ~~4~~ 0 | 0 | ✅ Done |
+| `kida.environment.*` | ~~6~~ 0 | 0 | ✅ Done |
 | `kida.parser.*` | 12 | 3 | 🔴 Major |
 | `kida.compiler.*` | 12 | 3 | 🔴 Major |
 
-**Total**: ~~38~~ 34 → 9 codes (Phase 1: -4 codes)
+**Total**: ~~38~~ 24 → 6 codes (Phase 1+2: -14 codes, 63% reduction)
 
 ---
 
@@ -317,9 +317,12 @@ Phase 1 (Quick Wins) - 1-2 hours:
   - [x] 1.3: analysis/*.py — isinstance checks (6 replacements)
   - [x] 1.4: analysis/purity.py — cast for dynamic handler dispatch
   
-Phase 2 (Medium) - 4-6 hours:
-  - [ ] 2.1: template.py — TypedDict, function annotations
-  - [ ] 2.2: environment/*.py — Callable protocols, Sequence returns
+Phase 2 (Medium) - Completed:
+  - [x] 2.1: template.py — Generic type params, function annotations
+  - [x] 2.2: environment/tests.py — bool() wrappers, Callable types
+  - [x] 2.3: environment/filters.py — list[Any], dict[str,Any], type annotations
+  - [x] 2.4: environment/registry.py — Callable[..., Any], return types
+  - [x] 2.5: environment/core.py — LRUCache types, Callable params
 
 Phase 3 (Future) - Optional:
   - [ ] 3.1: parser/ — Evaluate Protocol adoption if needed

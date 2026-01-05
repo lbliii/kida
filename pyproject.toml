@@ -79,30 +79,8 @@ disable_error_code = [
     "type-arg",           # Callable generic params
 ]
 
-# Environment module: Callable type args and dynamic dispatch
-[[tool.mypy.overrides]]
-module = ["kida.environment.*"]
-disable_error_code = [
-    "type-arg",
-    "no-any-return",
-    "return-value",
-    "arg-type",
-    "no-untyped-def",
-    "union-attr",
-]
-
-# Template module: complex dict types and dynamic rendering
-[[tool.mypy.overrides]]
-module = ["kida.template"]
-disable_error_code = [
-    "type-arg",
-    "no-any-return",
-    "no-untyped-def",
-    "assignment",
-]
-
 # =============================================================================
-# Phase 1 complete: kida, kida.bytecode_cache, kida.analysis.* overrides removed
+# Phase 1 & 2 complete: Only parser/compiler overrides remain (mixin patterns)
 # See: plan/rfc-type-suppression-reduction.md
 # =============================================================================
 

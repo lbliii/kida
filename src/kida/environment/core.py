@@ -172,12 +172,12 @@ class Environment:
     )
 
     # Filters and tests (copy-on-write)
-    _filters: dict[str, Callable] = field(default_factory=lambda: DEFAULT_FILTERS.copy())
-    _tests: dict[str, Callable] = field(default_factory=lambda: DEFAULT_TESTS.copy())
+    _filters: dict[str, Callable[..., Any]] = field(default_factory=lambda: DEFAULT_FILTERS.copy())
+    _tests: dict[str, Callable[..., Any]] = field(default_factory=lambda: DEFAULT_TESTS.copy())
 
     # Template cache (LRU with size limit)
-    _cache: LRUCache = field(init=False)
-    _fragment_cache: LRUCache = field(init=False)
+    _cache: LRUCache[str, Template] = field(init=False)
+    _fragment_cache: LRUCache[str, str] = field(init=False)
     # Source hashes for cache invalidation (template_name -> source_hash)
     _template_hashes: dict[str, str] = field(init=False, default_factory=dict)
     # Shared analysis cache (template_name -> TemplateMetadata)
@@ -254,7 +254,7 @@ class Environment:
         """Get tests (Jinja2-compatible interface)."""
         return FilterRegistry(self, "_tests")
 
-    def add_filter(self, name: str, func: Callable) -> None:
+    def add_filter(self, name: str, func: Callable[..., Any]) -> None:
         """Add a filter (copy-on-write).
 
         Args:
@@ -265,7 +265,7 @@ class Environment:
         new_filters[name] = func
         self._filters = new_filters
 
-    def add_test(self, name: str, func: Callable) -> None:
+    def add_test(self, name: str, func: Callable[..., Any]) -> None:
         """Add a test (copy-on-write).
 
         Args:
@@ -287,7 +287,7 @@ class Environment:
         new_globals[name] = value
         self.globals = new_globals
 
-    def update_filters(self, filters: dict[str, Callable]) -> None:
+    def update_filters(self, filters: dict[str, Callable[..., Any]]) -> None:
         """Add multiple filters at once (copy-on-write).
 
         Args:
@@ -300,7 +300,7 @@ class Environment:
         new_filters.update(filters)
         self._filters = new_filters
 
-    def update_tests(self, tests: dict[str, Callable]) -> None:
+    def update_tests(self, tests: dict[str, Callable[..., Any]]) -> None:
         """Add multiple tests at once (copy-on-write).
 
         Args:
@@ -335,7 +335,7 @@ class Environment:
             raise RuntimeError("No loader configured")
 
         # Check cache (thread-safe LRU)
-        cached = self._cache.get(name)
+        cached: Template | None = self._cache.get(name)
         if cached is not None:
             # With auto_reload=True, verify source hasn't changed
             if self.auto_reload:
@@ -346,10 +346,12 @@ class Environment:
                     self._analysis_cache.pop(name, None)  # Invalidate analysis cache
                 else:
                     # Source unchanged - return cached template
-                    return cached
+                    template: Template = cached
+                    return template
             else:
                 # auto_reload=False - return cached without checking
-                return cached
+                template = cached
+                return template
 
         # Load and compile
         source, filename = self.loader.get_source(name)
@@ -461,6 +463,8 @@ class Environment:
 
         try:
             # Load current source and compute hash
+            if self.loader is None:
+                return True
             source, _ = self.loader.get_source(name)
             from kida.bytecode_cache import hash_source
 
@@ -536,7 +540,7 @@ class Environment:
         """
         return self.from_string(source).render(*args, **kwargs)
 
-    def filter(self, name: str | None = None) -> Callable:
+    def filter(self, name: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a filter function.
 
         Args:
@@ -555,14 +559,14 @@ class Environment:
             ...     return value * 2
         """
 
-        def decorator(func: Callable) -> Callable:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             filter_name = name if name is not None else func.__name__
             self.add_filter(filter_name, func)
             return func
 
         return decorator
 
-    def test(self, name: str | None = None) -> Callable:
+    def test(self, name: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a test function.
 
         Args:
@@ -577,7 +581,7 @@ class Environment:
             ...     return value > 1 and all(value % i for i in range(2, value))
         """
 
-        def decorator(func: Callable) -> Callable:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             test_name = name if name is not None else func.__name__
             self.add_test(test_name, func)
             return func

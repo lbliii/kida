@@ -174,9 +174,8 @@ class TestNumericLiterals:
 
     def test_float_scientific_notation(self) -> None:
         """Float with scientific notation (if supported)."""
-        # This may or may not be supported
-        tokens = tokenize("{{ 1e10 }}")
-        # Should tokenize without error
+        # This may or may not be supported - just verify no error
+        list(tokenize("{{ 1e10 }}"))
 
 
 class TestOperators:
@@ -299,14 +298,14 @@ class TestComments:
 
     def test_simple_comment(self) -> None:
         """Simple comment."""
-        tokens = tokenize("{# comment #}")
         # Comments may produce COMMENT token or be stripped
         # At minimum, no error should occur
+        list(tokenize("{# comment #}"))
 
     def test_multiline_comment(self) -> None:
         """Multiline comment."""
-        tokens = tokenize("{# line1\nline2\nline3 #}")
         # Should not error
+        list(tokenize("{# line1\nline2\nline3 #}"))
 
     def test_comment_with_template_code(self) -> None:
         """Comment containing template syntax."""
@@ -344,9 +343,8 @@ class TestLineTracking:
         source = """{% for i in items %}
 {{ i }}
 {% endfor %}"""
-        tokens = tokenize(source)
-        # Find the NAME token 'i' inside the output
-        # It should be on line 2
+        # Find the NAME token 'i' inside the output - should be on line 2
+        list(tokenize(source))
 
 
 class TestKeywords:
@@ -463,15 +461,15 @@ class TestLexerConfig:
         """Trim blocks configuration."""
         config = LexerConfig(trim_blocks=True)
         lexer = Lexer("{% if true %}\ntest", config)
-        tokens = list(lexer.tokenize())
         # With trim_blocks, newline after block may be removed
+        list(lexer.tokenize())
 
     def test_lstrip_blocks(self) -> None:
         """Lstrip blocks configuration."""
         config = LexerConfig(lstrip_blocks=True)
         lexer = Lexer("    {% if true %}", config)
-        tokens = list(lexer.tokenize())
         # With lstrip_blocks, leading whitespace may be removed
+        list(lexer.tokenize())
 
 
 class TestErrorHandling:
@@ -485,19 +483,19 @@ class TestErrorHandling:
     def test_unclosed_variable(self) -> None:
         """Unclosed variable expression."""
         # May not raise during lexing, but during parsing
-        tokens = tokenize("{{ x")
         # At minimum, should not crash
+        list(tokenize("{{ x"))
 
     def test_unclosed_block(self) -> None:
         """Unclosed block tag."""
-        tokens = tokenize("{% if true")
         # At minimum, should not crash
+        list(tokenize("{% if true"))
 
     def test_invalid_operator(self) -> None:
         """Invalid operator sequence."""
         # Most invalid operators are parsed as separate tokens
-        tokens = tokenize("{{ a +++ b }}")
         # Should not crash
+        list(tokenize("{{ a +++ b }}"))
 
 
 class TestRawBlock:
@@ -505,8 +503,8 @@ class TestRawBlock:
 
     def test_raw_block_preserves_content(self) -> None:
         """Raw block preserves template syntax."""
-        tokens = tokenize("{% raw %}{{ x }}{% endraw %}")
         # Content inside raw should not be tokenized as VARIABLE_BEGIN
+        list(tokenize("{% raw %}{{ x }}{% endraw %}"))
 
 
 class TestSliceNotation:
@@ -592,8 +590,8 @@ class TestPerformance:
         """Lexer handles deeply nested blocks."""
         depth = 50
         template = "{% if true %}" * depth + "content" + "{% endif %}" * depth
-        tokens = tokenize(template)
         # Should complete without stack overflow
+        list(tokenize(template))
 
 
 class TestTokenLimit:

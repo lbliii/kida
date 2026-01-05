@@ -23,7 +23,7 @@ Disambiguation rules:
 
 import pytest
 
-from kida import Environment
+from kida import Environment, TemplateSyntaxError
 
 
 class TestMultiSetSyntax:
@@ -340,17 +340,17 @@ class TestMultiSetEdgeCases:
 
     def test_empty_not_allowed(self, env):
         """Empty set block is an error."""
-        with pytest.raises(Exception):  # TemplateSyntaxError
+        with pytest.raises(TemplateSyntaxError):
             env.from_string("{% set %}")
 
     def test_missing_value(self, env):
         """Missing value after = is an error."""
-        with pytest.raises(Exception):
+        with pytest.raises(TemplateSyntaxError):
             env.from_string("{% set a = %}")
 
     def test_missing_equals(self, env):
         """Missing = is an error."""
-        with pytest.raises(Exception):
+        with pytest.raises(TemplateSyntaxError):
             env.from_string("{% set a 1 %}")
 
     def test_complex_expression_chain(self, env):
