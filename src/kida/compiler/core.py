@@ -45,7 +45,7 @@ from kida.compiler.utils import OperatorUtilsMixin
 
 if TYPE_CHECKING:
     from kida.environment import Environment
-    from kida.nodes import Template as TemplateNode
+    from kida.nodes import Extends, Template as TemplateNode
 
 
 class Compiler(
@@ -290,7 +290,7 @@ class Compiler(
         self._blocks = {}
 
         # First pass: recursively collect ALL blocks (including nested) and find extends
-        extends_node = None
+        extends_node: Extends | None = None
         self._collect_blocks(node.body)
         for child in node.body:
             if type(child).__name__ == "Extends":

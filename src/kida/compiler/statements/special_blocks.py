@@ -626,7 +626,7 @@ class SpecialBlockMixin:
         )
 
         # Build filter call: _filters['name'](''.join(_filter_buf_N), *args, **kwargs)
-        filter_args = [
+        filter_args: list[ast.expr] = [
             ast.Call(
                 func=ast.Attribute(
                     value=ast.Constant(value=""),

@@ -6,11 +6,13 @@ Provides ParseError class with rich source context and suggestions.
 from __future__ import annotations
 
 from kida._types import Token
+from kida.environment.exceptions import TemplateSyntaxError
 
 
-class ParseError(Exception):
+class ParseError(TemplateSyntaxError):
     """Parser error with rich source context.
 
+    Inherits from TemplateSyntaxError to ensure consistent exception handling.
     Displays errors with source code snippets and visual pointers,
     matching the format used by the lexer for consistency.
     """
@@ -23,22 +25,22 @@ class ParseError(Exception):
         filename: str | None = None,
         suggestion: str | None = None,
     ):
-        self.message = message
         self.token = token
         self.source = source
-        self.filename = filename
         self.suggestion = suggestion
-        super().__init__(self._format())
+        self._col_offset = token.col_offset
+        # Initialize parent with TemplateSyntaxError signature
+        # Note: we override _format_message so the formatted output comes from there
+        super().__init__(message, token.lineno, filename, filename)
 
-    @property
-    def lineno(self) -> int:
-        """Line number where the error occurred (1-based)."""
-        return self.token.lineno
+    def _format_message(self) -> str:
+        """Override parent's formatting with rich source context."""
+        return self._format()
 
     @property
     def col_offset(self) -> int:
         """Column offset where the error occurred (0-based)."""
-        return self.token.col_offset
+        return self._col_offset
 
     def _format(self) -> str:
         """Format error with source context like Rust/modern compilers."""

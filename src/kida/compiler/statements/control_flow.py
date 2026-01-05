@@ -469,17 +469,10 @@ class ControlFlowMixin:
                 # Wildcard pattern: always matches, no bindings
                 return ast.Constant(value=True), []
             else:
-                # Variable pattern: compare subject to value of the variable
-                # In templates, {% case expected %} compares against expected's value
-                # rather than binding subject to expected (which is Python match behavior)
-                return (
-                    ast.Compare(
-                        left=subject_ast,
-                        ops=[ast.Eq()],
-                        comparators=[self._compile_expr(pattern)],
-                    ),
-                    [],
-                )
+                # Variable pattern: bind subject to the pattern name
+                # Like Python's match statement, names in patterns capture values
+                # e.g., {% case x %} binds subject to x, {% case a, b %} binds elements
+                return ast.Constant(value=True), [(pattern.name, subject_ast)]
 
         if isinstance(pattern, KidaTuple):
             # Match fixed-size tuple/sequence
