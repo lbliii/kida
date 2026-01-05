@@ -1,13 +1,17 @@
 """Special block parsing for Kida parser.
 
 Provides mixin for parsing special blocks (with, do, raw, capture, cache, filter_block).
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from kida._types import TokenType
+from kida._types import Token, TokenType
 from kida.nodes import (
     Block,
     Cache,
@@ -25,6 +29,7 @@ from kida.nodes import (
 
 if TYPE_CHECKING:
     from kida.nodes import Expr, Node
+    from kida.parser.errors import ParseError
 
 from kida.parser.blocks.core import BlockStackMixin
 
@@ -32,18 +37,44 @@ from kida.parser.blocks.core import BlockStackMixin
 class SpecialBlockParsingMixin(BlockStackMixin):
     """Mixin for parsing special blocks.
 
-    Required Host Attributes:
-        - All from BlockStackMixin
-        - All from TokenNavigationMixin
-        - _parse_body: method
-        - _parse_expression: method
-        - _parse_call_args: method
-        - _peek: method
-        - _match: method
-        - _advance: method
-        - _expect: method
-        - _error: method
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks. Inherits block stack management from BlockStackMixin.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Parser.__init__)
+        _tokens: Sequence[Token]
+        _pos: int
+        _block_stack: list[tuple[str, int, int]]
+
+        # From TokenNavigationMixin (ParserCoreProtocol members)
+        @property
+        def _current(self) -> Token: ...
+        def _peek(self, offset: int = 0) -> Token: ...
+        def _advance(self) -> Token: ...
+        def _expect(self, token_type: TokenType) -> Token: ...
+        def _match(self, *types: TokenType) -> bool: ...
+        def _error(
+            self,
+            message: str,
+            token: Token | None = None,
+            suggestion: str | None = None,
+        ) -> ParseError: ...
+
+        # From StatementParsingMixin
+        def _parse_body(self, stop_on_continuation: bool = False) -> list[Node]: ...
+        def _parse_tuple_or_expression(self) -> Expr: ...
+        def _skip_comment(self) -> None: ...
+
+        # From ExpressionParsingMixin
+        def _parse_expression(self) -> Expr: ...
+        def _parse_call_args(self) -> tuple[list[Expr], dict[str, Expr]]: ...
+
+        # From TemplateStructureBlockParsingMixin
+        def _parse_block_tag(self) -> Block: ...
 
     def _parse_with(self) -> Node:
         """Parse {% with %} in two forms:
@@ -79,9 +110,9 @@ class SpecialBlockParsingMixin(BlockStackMixin):
 
         # Peek ahead to see if next token is '='
         next_tok = self._peek(1)
-        return next_tok.type == TokenType.ASSIGN
+        return bool(next_tok.type == TokenType.ASSIGN)
 
-    def _parse_assignment_with(self, start) -> With:
+    def _parse_assignment_with(self, start: Token) -> With:
         """Parse assignment-style: {% with x = expr, y = expr2 %}...{% end %}.
 
         Always renders body with the specified variable bindings.
@@ -118,7 +149,7 @@ class SpecialBlockParsingMixin(BlockStackMixin):
             body=tuple(body),
         )
 
-    def _parse_conditional_with(self, start) -> WithConditional:
+    def _parse_conditional_with(self, start: Token) -> WithConditional:
         """Parse conditional: {% with expr %} or {% with expr as name %}...{% end %}.
 
         Renders body only if expr is truthy. Binds expr to 'name' or 'it'.

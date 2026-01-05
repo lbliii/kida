@@ -1,29 +1,62 @@
 """Variable block parsing for Kida parser.
 
 Provides mixin for parsing variable assignment statements (set, let, export).
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
 
-from kida._types import TokenType
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+from kida._types import Token, TokenType
 from kida.nodes import Export, Let, Set, Tuple
+
+if TYPE_CHECKING:
+    from kida.nodes import Expr
+    from kida.parser.errors import ParseError
+
 from kida.parser.blocks.core import BlockStackMixin
 
 
 class VariableBlockParsingMixin(BlockStackMixin):
     """Mixin for parsing variable assignment blocks.
 
-    Required Host Attributes:
-        - All from BlockStackMixin
-        - All from TokenNavigationMixin
-        - _parse_expression: method
-        - _parse_tuple_or_name: method
-        - _parse_tuple_or_expression: method
-        - _advance: method
-        - _expect: method
-        - _error: method
-        - _peek: method
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks. Inherits block stack management from BlockStackMixin.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Parser.__init__)
+        _tokens: Sequence[Token]
+        _pos: int
+        _block_stack: list[tuple[str, int, int]]
+
+        # From TokenNavigationMixin (ParserCoreProtocol members)
+        @property
+        def _current(self) -> Token: ...
+        def _peek(self, offset: int = 0) -> Token: ...
+        def _advance(self) -> Token: ...
+        def _expect(self, token_type: TokenType) -> Token: ...
+        def _match(self, *types: TokenType) -> bool: ...
+        def _error(
+            self,
+            message: str,
+            token: Token | None = None,
+            suggestion: str | None = None,
+        ) -> ParseError: ...
+
+        # From StatementParsingMixin
+        def _parse_tuple_or_name(self) -> Expr: ...
+        def _parse_tuple_or_expression(self) -> Expr: ...
+
+        # From ExpressionParsingMixin
+        def _parse_expression(self) -> Expr: ...
 
     def _parse_set(self) -> list[Set]:
         """Parse {% set x = expr %} or {% set x = 1, y = 2, z = 3 %}.
@@ -132,7 +165,7 @@ class VariableBlockParsingMixin(BlockStackMixin):
             return False
 
         next_next_token = self._peek(2)
-        return next_next_token.type == TokenType.ASSIGN
+        return bool(next_next_token.type == TokenType.ASSIGN)
 
     def _parse_let(self) -> Let | list[Let]:
         """Parse {% let x = expr %} or {% let x = 1, y = 2, z = 3 %}.

@@ -1,29 +1,54 @@
 """Core block stack management for Kida parser.
 
 Provides base mixin for managing block stack and unified {% end %} syntax.
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
 
 if TYPE_CHECKING:
-    pass
+    from kida.parser.errors import ParseError
 
 
 class BlockStackMixin:
     """Mixin for block stack management.
 
-    Required Host Attributes:
-        - _block_stack: list[tuple[str, int, int]]
-        - _current: Token (from TokenNavigationMixin)
-        - _error: method (from TokenNavigationMixin)
-        - _get_eof_error_suggestion: method
-        - _expect: method (from TokenNavigationMixin)
-        - _advance: method (from TokenNavigationMixin)
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Parser.__init__)
+        _tokens: Sequence[Token]
+        _pos: int
+        _block_stack: list[tuple[str, int, int]]
+        _source: str | None
+        _filename: str | None
+
+        # From TokenNavigationMixin (ParserCoreProtocol members)
+        @property
+        def _current(self) -> Token: ...
+        def _advance(self) -> Token: ...
+        def _expect(self, token_type: TokenType) -> Token: ...
+        def _error(
+            self,
+            message: str,
+            token: Token | None = None,
+            suggestion: str | None = None,
+        ) -> ParseError: ...
+
+        # From StatementParsingMixin
+        def _get_eof_error_suggestion(self, block_type: str) -> str: ...
 
     # All keywords that close blocks - used for universal end detection
     _END_KEYWORDS: frozenset[str] = frozenset(
@@ -60,7 +85,11 @@ class BlockStackMixin:
     # Block types that are loops (for break/continue validation)
     _LOOP_BLOCKS: frozenset[str] = frozenset({"for", "while"})
 
-    def _push_block(self, block_type: str, token: Token | None = None) -> None:
+    def _push_block(
+        self,
+        block_type: str,
+        token: Token | None = None,
+    ) -> None:
         """Push a block onto the stack when opening it.
 
         Args:
@@ -89,7 +118,8 @@ class BlockStackMixin:
                 suggestion="Remove this tag or add a matching opening tag",
             )
 
-        block_type, lineno, col = self._block_stack.pop()
+        popped: tuple[str, int, int] = self._block_stack.pop()
+        block_type, lineno, col = popped
 
         # If a specific block type is expected, validate it
         if expected and block_type != expected:

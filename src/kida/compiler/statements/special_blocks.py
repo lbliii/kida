@@ -1,6 +1,9 @@
 """Special block statement compilation for Kida compiler.
 
 Provides mixin for compiling special block statements (with, do, raw, capture, cache, filter_block).
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
@@ -15,11 +18,25 @@ if TYPE_CHECKING:
 class SpecialBlockMixin:
     """Mixin for compiling special block statements.
 
-    Required Host Attributes:
-        - _block_counter: int
-        - _compile_expr: method (from ExpressionCompilationMixin)
-        - _compile_node: method (from core)
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Compiler.__init__)
+        _block_counter: int
+
+        # From ExpressionCompilationMixin
+        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+
+        # From Compiler core
+        def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+
+        # From ControlFlowMixin
+        def _extract_names(self, node: Any) -> list[str]: ...
 
     def _compile_with(self, node: Any) -> list[ast.stmt]:
         """Compile {% with var=value, ... %}...{% endwith %.

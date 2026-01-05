@@ -1,14 +1,36 @@
+"""Variable assignment statement compilation for Kida compiler.
+
+Provides mixin for compiling variable assignment statements (set, let, export).
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
+"""
+
+from __future__ import annotations
+
 import ast
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    pass
 
 
 class VariableAssignmentMixin:
     """Mixin for compiling variable assignment statements.
 
-    Required Host Attributes:
-        - _compile_expr: method (from ExpressionCompilationMixin)
-        - _block_counter: int (for unique variable names)
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Compiler.__init__)
+        _block_counter: int
+
+        # From ExpressionCompilationMixin
+        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
 
     def _compile_set(self, node: Any) -> list[ast.stmt]:
         """Compile {% set %} - block-scoped variable assignment.

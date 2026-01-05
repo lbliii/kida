@@ -62,10 +62,11 @@ disallow_incomplete_defs = true
 # =============================================================================
 
 # Parser & Compiler: mixin patterns access attrs from host classes
+# NOTE: attr-defined errors eliminated via RFC rfc-mixin-protocol-typing.md
 [[tool.mypy.overrides]]
 module = ["kida.parser.*", "kida.compiler.*"]
 disable_error_code = [
-    "attr-defined",       # Mixin pattern: attrs defined in host class
+    # attr-defined: RESOLVED via hybrid protocol + inline declarations
     "no-any-return",      # Dynamic dispatch returns Any
     "arg-type",           # AST node type variance (list[Assign] vs list[stmt])
     "return-value",       # List invariance issues

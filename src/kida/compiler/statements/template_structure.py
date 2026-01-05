@@ -1,6 +1,9 @@
 """Template structure statement compilation for Kida compiler.
 
 Provides mixin for compiling template structure statements (block, include, from_import).
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
@@ -15,9 +18,16 @@ if TYPE_CHECKING:
 class TemplateStructureMixin:
     """Mixin for compiling template structure statements.
 
-    Required Host Attributes:
-        - _compile_expr: method (from ExpressionCompilationMixin)
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # From ExpressionCompilationMixin
+        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
 
     def _compile_block(self, node: Any) -> list[ast.stmt]:
         """Compile {% block name %} ... {% endblock %.

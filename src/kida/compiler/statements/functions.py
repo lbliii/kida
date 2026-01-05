@@ -1,6 +1,9 @@
 """Function statement compilation for Kida compiler.
 
 Provides mixin for compiling function statements (def, call_block, slot).
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
@@ -15,11 +18,22 @@ if TYPE_CHECKING:
 class FunctionCompilationMixin:
     """Mixin for compiling function statements.
 
-    Required Host Attributes:
-        - _locals: set[str]
-        - _compile_expr: method (from ExpressionCompilationMixin)
-        - _compile_node: method (from core)
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Compiler.__init__)
+        _locals: set[str]
+
+        # From ExpressionCompilationMixin
+        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+
+        # From Compiler core
+        def _compile_node(self, node: Any) -> list[ast.stmt]: ...
 
     def _compile_def(self, node: Any) -> list[ast.stmt]:
         """Compile {% def name(args) %}...{% enddef %.

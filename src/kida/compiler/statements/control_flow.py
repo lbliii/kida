@@ -1,6 +1,9 @@
 """Control flow statement compilation for Kida compiler.
 
 Provides mixin for compiling control flow statements (if, for).
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
@@ -15,11 +18,23 @@ if TYPE_CHECKING:
 class ControlFlowMixin:
     """Mixin for compiling control flow statements.
 
-    Required Host Attributes:
-        - _locals: set[str]
-        - _compile_expr: method (from ExpressionCompilationMixin)
-        - _compile_node: method (from core)
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Compiler.__init__)
+        _locals: set[str]
+        _block_counter: int
+
+        # From ExpressionCompilationMixin
+        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+
+        # From Compiler core
+        def _compile_node(self, node: Any) -> list[ast.stmt]: ...
 
     def _wrap_with_scope(self, body_stmts: list[ast.stmt]) -> list[ast.stmt]:
         """Wrap statements with scope push/pop for block-scoped variables.
@@ -143,7 +158,7 @@ class ControlFlowMixin:
             else_stmts = self._wrap_with_scope(else_stmts) if else_stmts else [ast.Pass()]
             if orelse:
                 # Attach to innermost elif's orelse
-                innermost = orelse[0]
+                innermost: ast.If = orelse[0]  # type: ignore[assignment]
                 while innermost.orelse and isinstance(innermost.orelse[0], ast.If):
                     innermost = innermost.orelse[0]
                 innermost.orelse = else_stmts

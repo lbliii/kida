@@ -1,17 +1,22 @@
 """Function block parsing for Kida parser.
 
 Provides mixin for parsing function related statements (def, call, slot).
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from kida._types import TokenType
+from kida._types import Token, TokenType
 from kida.nodes import CallBlock, Def, Slot
 
 if TYPE_CHECKING:
-    from kida.nodes import Expr
+    from kida.nodes import Expr, Node
+    from kida.parser.errors import ParseError
 
 from kida.parser.blocks.core import BlockStackMixin
 
@@ -19,17 +24,37 @@ from kida.parser.blocks.core import BlockStackMixin
 class FunctionBlockParsingMixin(BlockStackMixin):
     """Mixin for parsing function blocks.
 
-    Required Host Attributes:
-        - All from BlockStackMixin
-        - All from TokenNavigationMixin
-        - _parse_body: method
-        - _parse_expression: method
-        - _parse_call_args: method
-        - _match: method
-        - _advance: method
-        - _expect: method
-        - _error: method
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks. Inherits block stack management from BlockStackMixin.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Parser.__init__)
+        _tokens: Sequence[Token]
+        _pos: int
+        _block_stack: list[tuple[str, int, int]]
+
+        # From TokenNavigationMixin (ParserCoreProtocol members)
+        @property
+        def _current(self) -> Token: ...
+        def _advance(self) -> Token: ...
+        def _expect(self, token_type: TokenType) -> Token: ...
+        def _match(self, *types: TokenType) -> bool: ...
+        def _error(
+            self,
+            message: str,
+            token: Token | None = None,
+            suggestion: str | None = None,
+        ) -> ParseError: ...
+
+        # From StatementParsingMixin
+        def _parse_body(self, stop_on_continuation: bool = False) -> list[Node]: ...
+
+        # From ExpressionParsingMixin
+        def _parse_expression(self) -> Expr: ...
 
     def _parse_def(self) -> Def:
         """Parse {% def name(args) %}...{% end %} or {% enddef %.

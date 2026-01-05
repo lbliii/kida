@@ -1,9 +1,10 @@
-# RFC: Type-Safe Mixin Patterns via Protocol + Self
+# RFC: Type-Safe Mixin Patterns via Hybrid Protocol + Inline Declarations
 
 | Field | Value |
 |-------|-------|
 | **Status** | Draft |
 | **Created** | 2026-01-05 |
+| **Updated** | 2026-01-05 |
 | **Author** | Auto-generated |
 | **Depends On** | rfc-type-suppression-reduction.md (Phase 3) |
 | **Target** | Python 3.14+ |
@@ -12,9 +13,16 @@
 
 ## Executive Summary
 
-This RFC proposes converting Kida's parser and compiler mixins from runtime-only patterns to fully type-safe implementations using `typing.Protocol` and `typing.Self`. This eliminates the remaining 12 mypy error code suppressions while preserving the clean separation of concerns the mixin architecture provides.
+This RFC proposes converting Kida's parser and compiler mixins to type-safe implementations using a **hybrid approach**:
+
+1. **Minimal Core Protocol**: Small protocol (~16 members) containing only host attributes and frequently-used cross-mixin methods
+2. **Inline Type Declarations**: Each mixin declares its own requirements via `TYPE_CHECKING` blocks—self-documenting, no sync needed
+
+This eliminates ~539 mypy errors while keeping protocol maintenance minimal.
 
 **Key Outcome**: Remove all `[[tool.mypy.overrides]]` for parser/compiler modules.
+
+**Prior Art**: `ExpressionParsingMixin` already uses inline TYPE_CHECKING declarations (lines 56-69). This RFC formalizes and extends this proven pattern to all mixins.
 
 ---
 
@@ -57,39 +65,72 @@ class TokenNavigationMixin:
 
 ### Type Errors Suppressed
 
-Currently suppressing **12 error codes** across `kida.parser.*` and `kida.compiler.*`:
+Currently suppressing **12 error codes** across `kida.parser.*` and `kida.compiler.*`, masking **~539 individual errors**:
 
 | Code | Count | Root Cause |
 |------|-------|------------|
-| `attr-defined` | ~60 | Mixin accesses host/sibling attributes |
-| `no-any-return` | ~10 | Dynamic dispatch (`getattr`) returns `Any` |
-| `arg-type` | ~8 | AST node type variance (`list[If]` vs `list[stmt]`) |
-| `return-value` | ~5 | List invariance issues |
-| `assignment` | ~5 | AST node reassignment |
-| `operator` | ~3 | List concatenation type issues |
-| `no-untyped-def` | ~3 | Missing annotations on dynamic helpers |
-| `no-redef` | ~2 | Overloaded method patterns |
-| `call-arg` | ~2 | Constructor signature variance |
-| `func-returns-value` | ~1 | Optional return handling |
-| `override` | ~1 | Property vs attribute in mixins |
-| `type-arg` | ~1 | Callable generic parameters |
+| `attr-defined` | ~500 | Mixin accesses host/sibling attributes |
+| `override` | 1 | Property vs class variable conflict (see Known Issues) |
+| `no-any-return` | ~13 | Dynamic dispatch (`getattr`) returns `Any` |
+| `arg-type` | ~9 | AST node type variance |
+| `type-arg` | ~1 | Missing generic type parameters |
+| Other codes | ~15 | Various type issues |
 
-**Total**: ~100 individual errors masked by suppressions.
+**Total**: ~539 individual errors masked by 12 suppressed error codes.
+
+**Verified**: `uv run mypy src/kida/parser src/kida/compiler --strict --config-file=""` (2026-01-05)
 
 ### Why This Matters
 
 1. **No compile-time safety**: Interface drift between mixins and host is undetected
 2. **IDE limitations**: No autocomplete or go-to-definition for cross-mixin calls
 3. **Refactoring risk**: Renaming/removing attributes won't flag dependent mixins
-4. **Documentation drift**: "Required Host Attributes" docstrings can become stale
+4. **Documentation drift**: "Required Host Attributes" docstrings become stale
 
 ---
 
-## Proposed Solution
+## Proposed Solution: Hybrid Approach
 
-### Protocol + Self Pattern
+### Design Philosophy
 
-Define explicit protocols that capture the contract between mixins and their host class:
+Instead of one monolithic protocol with 45+ methods (high maintenance), use:
+
+1. **Minimal Core Protocol**: Only what's needed for cross-mixin calls
+2. **Inline Declarations**: Each mixin self-documents its requirements
+
+This reduces protocol maintenance from ~75 signatures to ~16.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Parser Class                            │
+│  (Provides all attributes and combines all mixin methods)       │
+└─────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │ structural typing verifies
+                              │
+┌─────────────────────────────────────────────────────────────────┐
+│                    ParserCoreProtocol                           │
+│  (Small: host attrs + token nav + error handling)               │
+│  ~16 members, rarely changes                                    │
+└─────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │ self: ParserCoreProtocol
+                              │
+┌──────────────┬──────────────┬──────────────┬───────────────────┐
+│ TokenNav     │ Expression   │ Statement    │ Block Parsing     │
+│ Mixin        │ Mixin        │ Mixin        │ Mixins            │
+│              │              │              │                   │
+│ (inline      │ (inline      │ (inline      │ (inline           │
+│  decls for   │  decls for   │  decls for   │  decls for        │
+│  own attrs)  │  own attrs)  │  own attrs)  │  own attrs)       │
+└──────────────┴──────────────┴──────────────┴───────────────────┘
+```
+
+### Core Protocol (Minimal)
+
+The protocol contains **only** what multiple mixins need to call:
 
 ```python
 # kida/parser/_protocols.py
@@ -101,19 +142,24 @@ from typing import TYPE_CHECKING, Protocol
 from kida._types import Token, TokenType
 
 if TYPE_CHECKING:
-    from kida.nodes import Expr, Node
     from kida.parser.errors import ParseError
 
 
-class ParserProtocol(Protocol):
-    """Contract for parser mixins.
+class ParserCoreProtocol(Protocol):
+    """Minimal contract for cross-mixin dependencies.
     
-    Defines all attributes and methods that mixins may access from the host
-    class or sibling mixins. Mypy verifies the final Parser class satisfies
-    this protocol structurally.
+    Contains ONLY:
+    1. Host class attributes (defined in Parser.__init__)
+    2. Token navigation methods (used by all parsing mixins)
+    3. Error handling (used everywhere)
+    
+    Individual mixin methods are NOT included—mixins declare
+    their own methods via inline TYPE_CHECKING declarations.
     """
     
-    # === Host Attributes ===
+    # ─────────────────────────────────────────────────────────────
+    # Host Attributes (from Parser.__init__)
+    # ─────────────────────────────────────────────────────────────
     _tokens: Sequence[Token]
     _pos: int
     _name: str | None
@@ -122,7 +168,10 @@ class ParserProtocol(Protocol):
     _autoescape: bool
     _block_stack: list[tuple[str, int, int]]
     
-    # === TokenNavigationMixin ===
+    # ─────────────────────────────────────────────────────────────
+    # Token Navigation (from TokenNavigationMixin)
+    # These are called by ALL other mixins, so they're in the protocol
+    # ─────────────────────────────────────────────────────────────
     @property
     def _current(self) -> Token: ...
     def _peek(self, offset: int = 0) -> Token: ...
@@ -135,25 +184,17 @@ class ParserProtocol(Protocol):
         token: Token | None = None,
         suggestion: str | None = None,
     ) -> ParseError: ...
-    
-    # === ExpressionParsingMixin ===
-    def _parse_expression(self) -> Expr: ...
-    def _parse_primary(self) -> Expr: ...
-    
-    # === StatementParsingMixin ===
-    def _parse_body(self, stop_on_continuation: bool = False) -> list[Node]: ...
-    def _parse_block_content(self) -> Node | list[Node] | None: ...
-    
-    # === BlockParsingMixin ===
-    def _push_block(self, block_type: str, lineno: int, col: int) -> None: ...
-    def _pop_block(self, expected_type: str | None = None) -> tuple[str, int, int]: ...
     def _format_open_blocks(self) -> str: ...
 ```
 
-Then update mixin signatures to use `Self` bounded by the protocol:
+**That's it.** ~16 members instead of ~75.
+
+### Mixin Pattern (Inline Declarations)
+
+Each mixin declares its own cross-mixin dependencies inline:
 
 ```python
-# kida/parser/tokens.py
+# kida/parser/statements.py
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -161,121 +202,213 @@ from typing import TYPE_CHECKING
 from kida._types import Token, TokenType
 
 if TYPE_CHECKING:
-    from kida.parser._protocols import ParserProtocol
-    from kida.parser.errors import ParseError
+    from kida.nodes import Data, Expr, Node, Output
+    from kida.parser._protocols import ParserCoreProtocol
 
 
-class TokenNavigationMixin:
-    """Mixin providing token stream navigation methods."""
-
-    @property
-    def _current(self: ParserProtocol) -> Token:
-        """Get current token."""
-        if self._pos < len(self._tokens):
-            return self._tokens[self._pos]
-        return Token(TokenType.EOF, "", 0, 0)
-
-    def _peek(self: ParserProtocol, offset: int = 0) -> Token:
-        """Peek at token at offset from current position."""
-        pos = self._pos + offset
-        if pos < len(self._tokens):
-            return self._tokens[pos]
-        return Token(TokenType.EOF, "", 0, 0)
-
-    def _advance(self: ParserProtocol) -> Token:
-        """Advance to next token and return current."""
-        token = self._current
-        self._pos += 1
-        return token
+class StatementParsingMixin:
+    """Mixin for parsing statements and template body."""
     
-    # ... etc
+    # ─────────────────────────────────────────────────────────────
+    # Cross-mixin dependencies (type-check only)
+    # These are methods from OTHER mixins that this mixin calls
+    # ─────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # From ExpressionParsingMixin
+        def _parse_expression(self) -> Expr: ...
+        
+        # From BlockParsingMixin  
+        def _parse_block_content(self) -> Node | list[Node] | None: ...
+        def _push_block(self, block_type: str, lineno: int, col: int) -> None: ...
+        def _pop_block(self, expected_type: str | None = None) -> tuple[str, int, int]: ...
+    
+    # ─────────────────────────────────────────────────────────────
+    # Implementation (uses ParserCoreProtocol for host attrs)
+    # ─────────────────────────────────────────────────────────────
+    
+    def _parse_body(
+        self: ParserCoreProtocol,
+        stop_on_continuation: bool = False,
+    ) -> list[Node]:
+        """Parse template body until end of input or block terminator."""
+        body: list[Node] = []
+        
+        while not self._match(TokenType.EOF):  # ✅ from protocol
+            token = self._current  # ✅ from protocol
+            
+            if token.type == TokenType.DATA:
+                body.append(self._parse_data())
+            elif token.type == TokenType.VARIABLE_BEGIN:
+                body.append(self._parse_output())
+            elif token.type == TokenType.BLOCK_BEGIN:
+                result = self._parse_block_content()  # ✅ declared above
+                # ... etc
+        
+        return body
+    
+    def _parse_output(self: ParserCoreProtocol) -> Output:
+        """Parse {{ expression }} output."""
+        self._expect(TokenType.VARIABLE_BEGIN)  # ✅ from protocol
+        expr = self._parse_expression()  # ✅ declared above
+        self._expect(TokenType.VARIABLE_END)  # ✅ from protocol
+        return Output(lineno=expr.lineno, col_offset=expr.col_offset, expr=expr)
 ```
 
-### Key Design Decisions
+### Why This Works
 
-#### 1. Single Protocol per Domain
+1. **`self: ParserCoreProtocol`** gives access to host attrs + token navigation
+2. **Inline `TYPE_CHECKING` declarations** tell mypy about sibling mixin methods
+3. **No protocol sync needed** for mixin-specific methods—they're declared where used
+4. **Self-documenting**: Each mixin shows exactly what it depends on
 
-One protocol for parser mixins, one for compiler mixins. This keeps the contract cohesive and avoids protocol fragmentation.
+---
+
+## Key Design Decisions
+
+### 1. What Goes in the Core Protocol?
+
+**Include** (called by 3+ mixins):
+- Host class attributes (`_tokens`, `_pos`, etc.)
+- Token navigation methods (`_current`, `_advance`, `_expect`, etc.)
+- Error handling (`_error`)
+
+**Exclude** (inline declarations instead):
+- Expression parsing methods (`_parse_expression`, etc.)
+- Statement parsing methods (`_parse_body`, etc.)
+- Block parsing methods (`_parse_if`, `_parse_for`, etc.)
+
+### 2. Protocol Location
 
 ```
-ParserProtocol    → All parser mixins
-CompilerProtocol  → All compiler mixins
+kida/parser/_protocols.py   → ParserCoreProtocol
+kida/compiler/_protocols.py → CompilerCoreProtocol
 ```
 
-#### 2. Protocol in TYPE_CHECKING Block
+Protocols are in `TYPE_CHECKING`-imported files, zero runtime cost.
 
-Protocols are only needed at type-check time, not runtime:
+### 3. Inline Declaration Pattern
 
 ```python
+class SomeMixin:
+    if TYPE_CHECKING:
+        # Declare methods from OTHER mixins that this one calls
+        def _other_mixin_method(self) -> ReturnType: ...
+    
+    def _my_method(self: CoreProtocol) -> Result:
+        # Can use:
+        # - self._tokens, self._pos (from protocol)
+        # - self._other_mixin_method() (from inline declaration)
+        pass
+```
+
+---
+
+## Known Issues to Resolve
+
+### 1. Property vs Class Variable Conflict (`override` error)
+
+**Problem**: `ExpressionParsingMixin` declares `_current: Token` as a class variable, but `TokenNavigationMixin` defines `_current` as a property. Mypy reports:
+
+```
+Cannot override writeable attribute "_current" in base "ExpressionParsingMixin"
+with read-only property in base "TokenNavigationMixin"  [override]
+```
+
+**Resolution**: During Phase 1, remove the `_current: Token` declaration from `ExpressionParsingMixin`. The protocol's `_current` property provides the type information.
+
+### 2. Existing Inline Pattern in ExpressionParsingMixin
+
+**Current state**: `ExpressionParsingMixin` already uses inline TYPE_CHECKING declarations:
+
+```python
+# expressions.py:55-69 (current)
 if TYPE_CHECKING:
-    from kida.parser._protocols import ParserProtocol
+    _current: Token  # ← REMOVE (causes override conflict)
+
+    def _advance(self) -> Token: ...
+    def _match(self, *types: TokenType) -> bool: ...
+    def _expect(self, token_type: TokenType) -> Token: ...
+    def _peek(self, offset: int = 0) -> Token: ...
+    def _error(...) -> ParseError: ...
+    def _parse_call_args(self) -> tuple[list[Expr], dict[str, Expr]]: ...
 ```
 
-This avoids circular imports and keeps runtime overhead at zero.
-
-#### 3. Self-Type Pattern
-
-Using `self: ParserProtocol` on mixin methods tells mypy "this method will only be called on objects that satisfy ParserProtocol":
-
-```python
-def _advance(self: ParserProtocol) -> Token:
-    # mypy knows self._pos exists and is int
-    # mypy knows self._tokens exists and is Sequence[Token]
-    token = self._current  # mypy knows this returns Token
-    self._pos += 1
-    return token
-```
-
-#### 4. Structural Typing
-
-Python protocols are structural (duck-typed), not nominal. The `Parser` class doesn't need to explicitly inherit from `ParserProtocol`—mypy verifies compatibility structurally.
+**Migration**: Convert to use `self: ParserCoreProtocol` annotation instead, keeping only non-protocol cross-mixin declarations (`_parse_call_args`).
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Parser Protocols (Est. 2 hours)
+### Phase 0: Proof of Concept (Est. 30 min)
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create `ParserProtocol` | `parser/_protocols.py` | 🔴 |
+| Create `ParserCoreProtocol` | `parser/_protocols.py` | 🔴 |
 | Update `TokenNavigationMixin` | `parser/tokens.py` | 🔴 |
+| Verify mypy passes | - | 🔴 |
+
+**Success Gate**: `uv run mypy src/kida/parser/tokens.py --strict --config-file=""` passes.
+
+### Phase 0.5: Validate Against Existing Pattern (Est. 30 min)
+
+| Task | Files | Status |
+|------|-------|--------|
+| Test protocol with `ExpressionParsingMixin` | `parser/expressions.py` | 🔴 |
+| Fix `_current` override conflict | `parser/expressions.py` | 🔴 |
+| Verify hybrid approach works | - | 🔴 |
+
+**Success Gate**: `ExpressionParsingMixin` compiles with protocol + remaining inline declarations.
+
+**Rationale**: `ExpressionParsingMixin` already uses the inline pattern—test the protocol integration there first to validate the approach before converting other mixins.
+
+### Phase 1: Parser Mixins (Est. 4-5 hours)
+
+| Task | Files | Status |
+|------|-------|--------|
 | Update `StatementParsingMixin` | `parser/statements.py` | 🔴 |
 | Update `ExpressionParsingMixin` | `parser/expressions.py` | 🔴 |
-| Update `BlockParsingMixin` | `parser/blocks/*.py` | 🔴 |
-| Verify mypy passes | - | 🔴 |
+| Update `BlockStackMixin` | `parser/blocks/core.py` | 🔴 |
+| Update all block parsing mixins | `parser/blocks/*.py` | 🔴 |
+| Verify mypy passes for parser/ | - | 🔴 |
 
-### Phase 2: Compiler Protocols (Est. 2 hours)
+### Phase 2: Compiler Mixins (Est. 2-3 hours)
 
 | Task | Files | Status |
 |------|-------|--------|
-| Create `CompilerProtocol` | `compiler/_protocols.py` | 🔴 |
-| Update `OperatorUtilsMixin` | `compiler/utils.py` | 🔴 |
-| Update `ExpressionCompilationMixin` | `compiler/expressions.py` | 🔴 |
-| Update `StatementCompilationMixin` | `compiler/statements/*.py` | 🔴 |
-| Verify mypy passes | - | 🔴 |
+| Create `CompilerCoreProtocol` | `compiler/_protocols.py` | 🔴 |
+| Update all compiler mixins | `compiler/**/*.py` | 🔴 |
+| Verify mypy passes for compiler/ | - | 🔴 |
 
-### Phase 3: Cleanup (Est. 30 min)
+### Phase 3: Cleanup (Est. 1 hour)
 
 | Task | Files | Status |
 |------|-------|--------|
 | Remove pyproject.toml overrides | `pyproject.toml` | 🔴 |
-| Update RFC status | `plan/rfc-type-suppression-reduction.md` | 🔴 |
+| Update dependent RFCs | `plan/*.md` | 🔴 |
 | Run full test suite | - | 🔴 |
+| Verify remaining suppressions (see Non-Goals) | `pyproject.toml` | 🔴 |
+
+**Total Estimated Time**: 8-10 hours
+
+| Phase | Estimate | Notes |
+|-------|----------|-------|
+| Phase 0: POC | 30 min | Protocol creation + TokenNavigationMixin |
+| Phase 0.5: Validate | 30 min | Test against existing ExpressionParsingMixin pattern |
+| Phase 1: Parser | 4-5 hours | 6 mixin files, resolve override conflicts |
+| Phase 2: Compiler | 2-3 hours | Similar pattern, fewer files |
+| Phase 3: Cleanup | 1 hour | Remove suppressions, update docs, full test |
 
 ---
 
 ## Protocol Specifications
 
-### ParserProtocol
+### ParserCoreProtocol
 
 ```python
-class ParserProtocol(Protocol):
-    """Complete contract for parser mixins."""
+class ParserCoreProtocol(Protocol):
+    """Minimal cross-mixin contract for parser."""
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Host Class Attributes (defined in Parser.__init__)
-    # ─────────────────────────────────────────────────────────────────────────
+    # Host Attributes
     _tokens: Sequence[Token]
     _pos: int
     _name: str | None
@@ -284,9 +417,7 @@ class ParserProtocol(Protocol):
     _autoescape: bool
     _block_stack: list[tuple[str, int, int]]
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # TokenNavigationMixin Methods
-    # ─────────────────────────────────────────────────────────────────────────
+    # Token Navigation (used by all mixins)
     @property
     def _current(self) -> Token: ...
     def _peek(self, offset: int = 0) -> Token: ...
@@ -299,89 +430,16 @@ class ParserProtocol(Protocol):
         token: Token | None = None,
         suggestion: str | None = None,
     ) -> ParseError: ...
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # ExpressionParsingMixin Methods
-    # ─────────────────────────────────────────────────────────────────────────
-    def _parse_expression(self) -> Expr: ...
-    def _parse_ternary(self) -> Expr: ...
-    def _parse_null_coalesce(self) -> Expr: ...
-    def _parse_or(self) -> Expr: ...
-    def _parse_and(self) -> Expr: ...
-    def _parse_not(self) -> Expr: ...
-    def _parse_comparison(self) -> Expr: ...
-    def _parse_range(self) -> Expr: ...
-    def _parse_concat(self) -> Expr: ...
-    def _parse_additive(self) -> Expr: ...
-    def _parse_multiplicative(self) -> Expr: ...
-    def _parse_power(self) -> Expr: ...
-    def _parse_unary(self) -> Expr: ...
-    def _parse_postfix(self) -> Expr: ...
-    def _parse_primary(self) -> Expr: ...
-    def _parse_list(self) -> Expr: ...
-    def _parse_dict(self) -> Expr: ...
-    def _parse_filter_chain(self, expr: Expr) -> Expr: ...
-    def _parse_test(self, expr: Expr) -> Expr: ...
-    def _parse_arguments(self) -> tuple[list[Expr], dict[str, Expr]]: ...
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # StatementParsingMixin Methods
-    # ─────────────────────────────────────────────────────────────────────────
-    def _parse_body(self, stop_on_continuation: bool = False) -> list[Node]: ...
-    def _parse_data(self) -> Data: ...
-    def _parse_output(self) -> Output: ...
-    def _parse_block(self) -> Node | list[Node] | None: ...
-    def _parse_block_content(self) -> Node | list[Node] | None: ...
-    def _skip_comment(self) -> None: ...
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # BlockParsingMixin Methods  
-    # ─────────────────────────────────────────────────────────────────────────
-    def _push_block(self, block_type: str, lineno: int, col: int) -> None: ...
-    def _pop_block(self, expected_type: str | None = None) -> tuple[str, int, int]: ...
-    def _peek_block(self) -> tuple[str, int, int] | None: ...
     def _format_open_blocks(self) -> str: ...
-    def _consume_end_tag(self) -> None: ...
-    def _get_eof_error_suggestion(self) -> str | None: ...
-    
-    # Block parsing methods (from blocks/*.py)
-    def _parse_if(self) -> If: ...
-    def _parse_unless(self) -> If: ...
-    def _parse_for(self) -> For: ...
-    def _parse_while(self) -> While: ...
-    def _parse_set(self) -> Node | list[Node]: ...
-    def _parse_let(self) -> Let: ...
-    def _parse_export(self) -> Export: ...
-    def _parse_block_tag(self) -> Block: ...
-    def _parse_extends(self) -> Extends: ...
-    def _parse_include(self) -> Include: ...
-    def _parse_import(self) -> Import: ...
-    def _parse_from_import(self) -> FromImport: ...
-    def _parse_with(self) -> With: ...
-    def _parse_do(self) -> Do: ...
-    def _parse_raw(self) -> Raw: ...
-    def _parse_def(self) -> Def: ...
-    def _parse_call(self) -> CallBlock: ...
-    def _parse_capture(self) -> Capture: ...
-    def _parse_cache(self) -> Cache: ...
-    def _parse_filter_block(self) -> FilterBlock: ...
-    def _parse_slot(self) -> Slot: ...
-    def _parse_match(self) -> Match: ...
-    def _parse_spaceless(self) -> Spaceless: ...
-    def _parse_embed(self) -> Embed: ...
-    def _parse_break(self) -> Break: ...
-    def _parse_continue(self) -> Continue: ...
 ```
 
-### CompilerProtocol
+### CompilerCoreProtocol
 
 ```python
-class CompilerProtocol(Protocol):
-    """Complete contract for compiler mixins."""
+class CompilerCoreProtocol(Protocol):
+    """Minimal cross-mixin contract for compiler."""
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Host Class Attributes (defined in Compiler.__init__)
-    # ─────────────────────────────────────────────────────────────────────────
+    # Host Attributes
     _env: Environment
     _name: str | None
     _filename: str | None
@@ -389,87 +447,99 @@ class CompilerProtocol(Protocol):
     _blocks: dict[str, Any]
     _block_counter: int
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # OperatorUtilsMixin Methods
-    # ─────────────────────────────────────────────────────────────────────────
+    # Core compilation (used by all mixins)
+    def _compile_expr(self, node: Any) -> ast.expr: ...
+    def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+    
+    # Operator utilities (used by expression compilation)
     def _get_binop(self, op: str) -> ast.operator: ...
     def _get_unaryop(self, op: str) -> ast.unaryop: ...
     def _get_cmpop(self, op: str) -> ast.cmpop: ...
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # ExpressionCompilationMixin Methods
-    # ─────────────────────────────────────────────────────────────────────────
-    def _compile_expr(self, node: Any) -> ast.expr: ...
-    def _wrap_coerce_numeric(self, expr: ast.expr) -> ast.expr: ...
-    def _is_potentially_string(self, node: Any) -> bool: ...
-    def _get_filter_suggestion(self, name: str) -> str | None: ...
-    def _get_test_suggestion(self, name: str) -> str | None: ...
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # StatementCompilationMixin Methods
-    # ─────────────────────────────────────────────────────────────────────────
-    def _compile_node(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_data(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_output(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_if(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_for(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_while(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_match(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_set(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_let(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_export(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_import(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_include(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_block(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_def(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_call_block(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_slot(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_from_import(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_with(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_with_conditional(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_do(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_raw(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_capture(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_cache(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_filter_block(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_break(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_continue(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_spaceless(self, node: Any) -> list[ast.stmt]: ...
-    def _compile_embed(self, node: Any) -> list[ast.stmt]: ...
 ```
 
 ---
 
-## Migration Strategy
+## Example Transformations
 
-### Step-by-Step for Each Mixin
+### Before (Current)
 
-1. **Add protocol import** (TYPE_CHECKING only):
-   ```python
-   if TYPE_CHECKING:
-       from kida.parser._protocols import ParserProtocol
-   ```
-
-2. **Update method signatures** with `self: ParserProtocol`:
-   ```python
-   def _advance(self: ParserProtocol) -> Token:
-   ```
-
-3. **Run mypy** on that file to verify
-4. **Repeat** for next mixin
-
-### Verification Commands
-
-```bash
-# Test single file
-uv run mypy src/kida/parser/tokens.py --strict
-
-# Test all parser files
-uv run mypy src/kida/parser/ --strict
-
-# Test full project (final verification)
-uv run mypy src/kida/ --strict
+```python
+# kida/parser/statements.py
+class StatementParsingMixin:
+    """Mixin for parsing statements.
+    
+    Required Host Attributes:
+        _tokens, _pos, _source, _filename, _autoescape, _block_stack
+    
+    Required Sibling Methods:
+        _current, _advance, _expect, _match, _error (TokenNavigationMixin)
+        _parse_expression (ExpressionParsingMixin)
+        _parse_block_content, _push_block, _pop_block (BlockParsingMixin)
+    """
+    
+    def _parse_body(self, stop_on_continuation: bool = False) -> list[Node]:
+        body: list[Node] = []
+        while not self._match(TokenType.EOF):  # ERROR: attr-defined
+            token = self._current  # ERROR: attr-defined
+            if token.type == TokenType.BLOCK_BEGIN:
+                result = self._parse_block_content()  # ERROR: attr-defined
+                # ...
+        return body
 ```
+
+### After (Hybrid Approach)
+
+```python
+# kida/parser/statements.py
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kida.nodes import Node
+    from kida.parser._protocols import ParserCoreProtocol
+
+
+class StatementParsingMixin:
+    """Mixin for parsing statements."""
+    
+    # Cross-mixin dependencies
+    if TYPE_CHECKING:
+        def _parse_expression(self) -> Expr: ...
+        def _parse_block_content(self) -> Node | list[Node] | None: ...
+        def _push_block(self, block_type: str, lineno: int, col: int) -> None: ...
+        def _pop_block(self, expected_type: str | None = None) -> tuple[str, int, int]: ...
+    
+    def _parse_body(
+        self: ParserCoreProtocol,  # ← Just the core protocol
+        stop_on_continuation: bool = False,
+    ) -> list[Node]:
+        body: list[Node] = []
+        while not self._match(TokenType.EOF):  # ✅ from core protocol
+            token = self._current  # ✅ from core protocol
+            if token.type == TokenType.BLOCK_BEGIN:
+                result = self._parse_block_content()  # ✅ from inline declaration
+                # ...
+        return body
+```
+
+---
+
+## Maintenance Burden Comparison
+
+| Approach | Protocol Size | When Adding New Tag |
+|----------|--------------|---------------------|
+| **Monolithic Protocol** | ~75 methods | Add to protocol + implement |
+| **Hybrid (this RFC)** | ~16 methods | Just implement (inline decl where needed) |
+
+**Protocol changes only needed when**:
+- Adding/changing host attributes (rare)
+- Adding/changing token navigation methods (very rare)
+
+**No protocol change needed when**:
+- Adding new template tags (`{% cache %}`, `{% match %}`, etc.)
+- Adding new expression operators
+- Changing block parsing logic
 
 ---
 
@@ -477,10 +547,12 @@ uv run mypy src/kida/ --strict
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Protocol becomes stale | Medium | Medium | CI enforces mypy strict; protocol drift = build failure |
-| Circular imports | Low | High | Protocol in `_protocols.py` with TYPE_CHECKING imports |
-| Performance regression | None | N/A | Protocols are erased at runtime |
-| Large diff size | Certain | Low | Mechanical changes; easy to review |
+| Inline declarations become stale | Low | Low | Mypy catches missing/wrong declarations |
+| Core protocol becomes stale | Low | Medium | Only ~16 members; CI verifies Parser satisfies it |
+| Circular imports | Low | High | All protocols in TYPE_CHECKING blocks |
+| Performance regression | None | N/A | Protocols erased at runtime |
+| Property/variable override conflicts | **Known** | Medium | Phase 0.5 validates; remove class var annotations |
+| MRO complications | Low | Medium | Test thoroughly; Parser class order unchanged |
 
 ---
 
@@ -488,92 +560,80 @@ uv run mypy src/kida/ --strict
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Suppressed error codes | 12 | 0 |
-| Modules with overrides | 2 (`parser.*`, `compiler.*`) | 0 |
+| Suppressed error codes | 12 | 3 (non-mixin issues) |
+| Individual errors masked | ~539 | ~25 (AST variance only) |
+| Protocol members to maintain | 0 | ~16 (stable) |
 | IDE autocomplete in mixins | ❌ | ✅ |
 | Compile-time interface safety | ❌ | ✅ |
+| Mixin dependency documentation | Docstrings (stale) | Inline declarations (verified) |
+
+---
+
+## Non-Goals
+
+This RFC does **not** address:
+
+1. **AST node type variance**: `arg-type` errors from `list[If]` vs `list[stmt]`
+2. **Dynamic dispatch typing**: `no-any-return` from `getattr()` dispatch
+3. **Compiler node type safety**: `Any` in `_compile_*` methods
+4. **Generic type parameters**: `type-arg` error for `Callable` in `compiler/core.py`
+
+**Expected remaining suppressions** after this RFC:
+
+```toml
+[[tool.mypy.overrides]]
+module = ["kida.parser.*", "kida.compiler.*"]
+disable_error_code = [
+    "arg-type",       # AST node list variance (list[If] vs list[stmt])
+    "no-any-return",  # Dynamic dispatch via getattr()
+    "type-arg",       # Callable generic parameters
+]
+```
+
+This reduces from 12 suppressed codes to 3, eliminating the mixin-related errors.
 
 ---
 
 ## Alternatives Considered
 
-### A. Composition Over Inheritance
+### A. Monolithic Protocol (Previous Version)
 
-Replace mixins with composed helper classes that receive explicit dependencies.
+Single protocol with all ~75 method signatures.
 
-**Rejected**: Would require major API changes and increase verbosity (`self.nav.current` vs `self._current`).
+**Rejected**: High maintenance burden. Every new template tag requires protocol update.
 
-### B. Abstract Base Classes
+### B. No Protocol (Pure Inline)
 
-Define abstract methods that subclasses must implement.
+Only inline declarations, no shared protocol.
 
-**Rejected**: ABCs require explicit inheritance; protocols are structural and more flexible.
+**Rejected**: Too much duplication. Every mixin would redeclare `_tokens`, `_current`, `_advance`, etc. (16 members × N mixins = maintenance nightmare).
 
-### C. Accept Suppressions Permanently
+### C. Composition Over Inheritance
 
-Keep the 12 error code suppressions as "acceptable technical debt."
+Replace mixins with composed helper classes.
 
-**Rejected**: Misses opportunity for full type safety now that Python 3.14 supports all required features.
+**Rejected**: Major API change. Would break existing architecture.
+
+### D. Accept Suppressions Permanently
+
+Keep suppressions as "acceptable debt."
+
+**Rejected**: 553 errors represent real refactoring risk.
 
 ---
 
 ## References
 
 - [PEP 544 – Protocols: Structural subtyping](https://peps.python.org/pep-0544/)
-- [PEP 673 – Self Type](https://peps.python.org/pep-0673/)
 - [mypy: Protocols and structural subtyping](https://mypy.readthedocs.io/en/stable/protocols.html)
 - [Kida RFC: Type Suppression Reduction](rfc-type-suppression-reduction.md)
 
 ---
 
-## Appendix: Example Transformation
-
-### Before (Current)
+## Appendix A: Full Mixin Example (Leaf Mixin)
 
 ```python
-# kida/parser/tokens.py
-class TokenNavigationMixin:
-    """Mixin providing token stream navigation methods.
-
-    Required Host Attributes:
-        - _tokens: Sequence[Token]
-        - _pos: int
-        - _source: str | None
-        - _filename: str | None
-    """
-
-    @property
-    def _current(self) -> Token:
-        """Get current token."""
-        if self._pos < len(self._tokens):  # ERROR: attr-defined
-            return self._tokens[self._pos]  # ERROR: attr-defined
-        return Token(TokenType.EOF, "", 0, 0)
-
-    def _error(
-        self,
-        message: str,
-        token: Token | None = None,
-        suggestion: str | None = None,
-    ) -> ParseError:
-        from kida.parser.errors import ParseError
-
-        full_message = message
-        if hasattr(self, "_block_stack") and self._block_stack:  # ERROR: attr-defined
-            full_message = f"{message}\n\n{self._format_open_blocks()}"  # ERROR: attr-defined
-
-        return ParseError(
-            message=full_message,
-            token=token or self._current,
-            source=self._source,  # ERROR: attr-defined
-            filename=self._filename,  # ERROR: attr-defined
-            suggestion=suggestion,
-        )
-```
-
-### After (With Protocol)
-
-```python
-# kida/parser/tokens.py
+# kida/parser/expressions.py
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -581,40 +641,86 @@ from typing import TYPE_CHECKING
 from kida._types import Token, TokenType
 
 if TYPE_CHECKING:
-    from kida.parser._protocols import ParserProtocol
-    from kida.parser.errors import ParseError
+    from kida.nodes import Expr
+    from kida.parser._protocols import ParserCoreProtocol
 
 
-class TokenNavigationMixin:
-    """Mixin providing token stream navigation methods."""
-
-    @property
-    def _current(self: ParserProtocol) -> Token:
-        """Get current token."""
-        if self._pos < len(self._tokens):  # ✅ mypy knows _pos: int, _tokens: Sequence[Token]
-            return self._tokens[self._pos]
-        return Token(TokenType.EOF, "", 0, 0)
-
-    def _error(
-        self: ParserProtocol,
-        message: str,
-        token: Token | None = None,
-        suggestion: str | None = None,
-    ) -> ParseError:
-        from kida.parser.errors import ParseError
-
-        full_message = message
-        if self._block_stack:  # ✅ mypy knows _block_stack exists
-            full_message = f"{message}\n\n{self._format_open_blocks()}"  # ✅ method in protocol
-
-        return ParseError(
-            message=full_message,
-            token=token or self._current,
-            source=self._source,  # ✅ mypy knows _source: str | None
-            filename=self._filename,  # ✅ mypy knows _filename: str | None
-            suggestion=suggestion,
-        )
+class ExpressionParsingMixin:
+    """Mixin for parsing expressions.
+    
+    This is a "leaf" mixin—it only depends on the core protocol,
+    not on other parsing mixins. No inline declarations needed.
+    """
+    
+    # ─────────────────────────────────────────────────────────────
+    # Cross-mixin dependencies
+    # ─────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Only non-protocol dependencies declared here
+        # (ExpressionParsingMixin calls _parse_call_args from FunctionBlockParsingMixin)
+        def _parse_call_args(self) -> tuple[list[Expr], dict[str, Expr]]: ...
+    
+    # NOTE: Do NOT declare _current, _advance, etc. here—they come from
+    # the protocol via `self: ParserCoreProtocol` annotation. Declaring
+    # them as class variables causes [override] errors with properties.
+    
+    def _parse_expression(self: ParserCoreProtocol) -> Expr:
+        """Parse a full expression."""
+        return self._parse_ternary()
+    
+    def _parse_ternary(self: ParserCoreProtocol) -> Expr:
+        """Parse ternary: expr if condition else expr."""
+        expr = self._parse_null_coalesce()
+        
+        if self._current.type == TokenType.NAME and self._current.value == "if":
+            self._advance()  # ✅ from core protocol
+            condition = self._parse_null_coalesce()
+            self._expect_name("else")
+            else_expr = self._parse_ternary()
+            return CondExpr(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                test=condition,
+                if_true=expr,
+                if_false=else_expr,
+            )
+        
+        return expr
+    
+    def _parse_primary(self: ParserCoreProtocol) -> Expr:
+        """Parse primary expression (literals, names, grouped)."""
+        token = self._current  # ✅ from core protocol
+        
+        if token.type == TokenType.INTEGER:
+            self._advance()
+            return Const(lineno=token.lineno, col_offset=token.col, value=int(token.value))
+        
+        if token.type == TokenType.NAME:
+            self._advance()
+            return Name(lineno=token.lineno, col_offset=token.col, id=token.value)
+        
+        if token.type == TokenType.LPAREN:
+            self._advance()
+            expr = self._parse_expression()  # ✅ calls self (same mixin)
+            self._expect(TokenType.RPAREN)  # ✅ from core protocol
+            return expr
+        
+        raise self._error(f"Unexpected token: {token.value}")  # ✅ from core protocol
+    
+    # ... more expression parsing methods
 ```
+
+## Appendix B: Migration Checklist Per Mixin
+
+For each mixin file, follow this checklist:
+
+- [ ] Add `from kida.parser._protocols import ParserCoreProtocol` in TYPE_CHECKING
+- [ ] Remove any class-level attribute declarations that duplicate protocol members
+- [ ] Add `self: ParserCoreProtocol` annotation to all public methods
+- [ ] Add inline TYPE_CHECKING declarations for non-protocol cross-mixin calls
+- [ ] Remove "Required Host Attributes" from docstring (now in protocol/inline)
+- [ ] Run `uv run mypy <file> --strict --config-file=""` to verify
+- [ ] Run tests: `uv run pytest tests/test_parser.py -x`
 
 ---
 
@@ -623,4 +729,10 @@ class TokenNavigationMixin:
 | Date | Author | Change |
 |------|--------|--------|
 | 2026-01-05 | Auto-generated | Initial draft |
-
+| 2026-01-05 | Review | Corrected error counts; added Phase 0 POC |
+| 2026-01-05 | Review | **Switched to hybrid approach**: minimal core protocol + inline declarations |
+| 2026-01-05 | Review | Added Known Issues section (property/class var override conflict) |
+| 2026-01-05 | Review | Added Phase 0.5 to validate against existing ExpressionParsingMixin pattern |
+| 2026-01-05 | Review | Added `_format_open_blocks` to protocol; updated member count to ~16 |
+| 2026-01-05 | Review | Updated time estimates (8-10 hours); added expected remaining suppressions |
+| 2026-01-05 | Review | Added Appendix B: Migration Checklist Per Mixin |

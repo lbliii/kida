@@ -1,6 +1,9 @@
 """Expression compilation for Kida compiler.
 
 Provides mixin for compiling Kida expression AST nodes to Python AST expressions.
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from kida.environment.exceptions import TemplateSyntaxError
 
 if TYPE_CHECKING:
-    pass
+    from kida.environment import Environment
 
 # Arithmetic operators that require numeric operands
 _ARITHMETIC_OPS = frozenset({"*", "/", "-", "+", "**", "//", "%"})
@@ -24,13 +27,23 @@ _POTENTIALLY_STRING_NODES = frozenset({"FuncCall", "Filter"})
 class ExpressionCompilationMixin:
     """Mixin for compiling expressions.
 
-    Required Host Attributes:
-        - _locals: set[str]
-        - _env: Environment (with strict mode setting)
-        - _get_binop: method (from OperatorUtilsMixin)
-        - _get_unaryop: method (from OperatorUtilsMixin)
-        - _get_cmpop: method (from OperatorUtilsMixin)
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        # Host attributes (from Compiler.__init__)
+        _env: Environment
+        _locals: set[str]
+        _block_counter: int
+
+        # From OperatorUtilsMixin
+        def _get_binop(self, op: str) -> ast.operator: ...
+        def _get_unaryop(self, op: str) -> ast.unaryop: ...
+        def _get_cmpop(self, op: str) -> ast.cmpop: ...
 
     def _get_filter_suggestion(self, name: str) -> str | None:
         """Find closest matching filter name for typo suggestions.

@@ -1,10 +1,14 @@
 """Expression parsing for Kida parser.
 
 Provides mixin for parsing expressions (ternary, binary, unary, primary, etc.).
+
+Uses inline TYPE_CHECKING declarations for host attributes and cross-mixin
+dependencies. See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
@@ -47,15 +51,30 @@ BOOL_KEYWORDS = BOOL_TRUE | BOOL_FALSE | BOOL_NONE
 class ExpressionParsingMixin:
     """Mixin for parsing expressions.
 
-    Required Host Attributes:
-        - All from TokenNavigationMixin
-        - _parse_call_args: method
+    Host attributes accessed via inline TYPE_CHECKING declarations.
+    See: plan/rfc-mixin-protocol-typing.md
     """
 
-    # Type stubs for TokenNavigationMixin methods (implemented by host class)
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes and cross-mixin dependencies (type-check only)
+    # NOTE: Do NOT declare _current as a class variable - it's a property in
+    # TokenNavigationMixin and declaring it here causes [override] errors
+    # ─────────────────────────────────────────────────────────────────────────
     if TYPE_CHECKING:
-        _current: Token
+        # From host (Parser.__init__)
+        _tokens: Sequence[Token]
+        _pos: int
+        _name: str | None
+        _filename: str | None
+        _source: str | None
+        _autoescape: bool
+        _block_stack: list[tuple[str, int, int]]
 
+        # From TokenNavigationMixin (via property)
+        @property
+        def _current(self) -> Token: ...
+
+        # From TokenNavigationMixin (methods)
         def _advance(self) -> Token: ...
         def _match(self, *types: TokenType) -> bool: ...
         def _expect(self, token_type: TokenType) -> Token: ...
@@ -66,7 +85,6 @@ class ExpressionParsingMixin:
             token: Token | None = None,
             suggestion: str | None = None,
         ) -> ParseError: ...
-        def _parse_call_args(self) -> tuple[list[Expr], dict[str, Expr]]: ...
 
     def _parse_expression(self) -> Expr:
         """Parse expression with ternary and null coalescing.
@@ -724,7 +742,11 @@ class ExpressionParsingMixin:
             suggestion="Expected a value (string, number, variable name, list, or dict)",
         )
 
-    def _parse_binary(self, operand_parser, *op_types: TokenType) -> Expr:
+    def _parse_binary(
+        self,
+        operand_parser: Callable[[], Expr],
+        *op_types: TokenType,
+    ) -> Expr:
         """Generic binary expression parser."""
         left = operand_parser()
 

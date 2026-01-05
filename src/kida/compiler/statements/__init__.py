@@ -9,6 +9,9 @@ The statements package is organized into logical modules:
     - template_structure: Template structure (block, include, from_import)
     - functions: Functions/macros (macro, def, call_block, slot)
     - special_blocks: Special blocks (with, do, raw, capture, cache, filter_block)
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
@@ -34,11 +37,8 @@ class StatementCompilationMixin(
     This class combines all statement compilation mixins into a single
     interface that can be inherited by the Compiler class.
 
-    Required Host Attributes:
-        - _locals: set[str]
-        - _block_counter: int
-        - _compile_expr: method (from ExpressionCompilationMixin)
-        - _compile_node: method (from core)
+    Host attributes and cross-mixin dependencies are declared via inline
+    TYPE_CHECKING blocks in each individual mixin.
     """
 
     pass

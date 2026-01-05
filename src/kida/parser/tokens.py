@@ -1,10 +1,14 @@
 """Token navigation utilities for Kida parser.
 
 Provides mixin for token stream navigation and basic parsing operations.
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
@@ -16,12 +20,20 @@ if TYPE_CHECKING:
 class TokenNavigationMixin:
     """Mixin providing token stream navigation methods.
 
-    Required Host Attributes:
-        - _tokens: Sequence[Token]
-        - _pos: int
-        - _source: str | None
-        - _filename: str | None
+    Host attributes accessed via inline TYPE_CHECKING declarations.
     """
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Host attributes (type-check only)
+    # ─────────────────────────────────────────────────────────────────────────
+    if TYPE_CHECKING:
+        _tokens: Sequence[Token]
+        _pos: int
+        _source: str | None
+        _filename: str | None
+        _block_stack: list[tuple[str, int, int]]
+
+        def _format_open_blocks(self) -> str: ...
 
     @property
     def _current(self) -> Token:

@@ -1,6 +1,9 @@
 """Compiler utilities for Kida.
 
 Provides operator mapping utilities for AST generation.
+
+Uses inline TYPE_CHECKING declarations for host attributes.
+See: plan/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ class OperatorUtilsMixin:
     """Mixin providing operator mapping utilities.
 
     Maps Kida operator strings to Python AST operator nodes.
+    No external dependencies - self-contained utility mixin.
     """
 
     def _get_binop(self, op: str) -> ast.operator:
