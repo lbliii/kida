@@ -7,7 +7,7 @@ and role classification into a unified analysis pass.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
@@ -16,11 +16,9 @@ from kida.analysis.landmarks import LandmarkDetector
 from kida.analysis.metadata import BlockMetadata, TemplateMetadata
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
+from kida.nodes import Block, Const, Data, Extends, Output, Template
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from kida.nodes import Block, Template
 
 
 class BlockAnalyzer:
@@ -91,17 +89,17 @@ class BlockAnalyzer:
 
         # Extract extends info
         # Extends can be on the Template node directly, or in the body
-        extends = None
+        extends: str | None = None
         if ast.extends:
             extends_expr = ast.extends.template
-            if type(extends_expr).__name__ == "Const":
+            if isinstance(extends_expr, Const) and isinstance(extends_expr.value, str):
                 extends = extends_expr.value
         else:
             # Check body for Extends node (parser puts it there)
             for node in ast.body:
-                if type(node).__name__ == "Extends":
+                if isinstance(node, Extends):
                     extends_expr = node.template
-                    if type(extends_expr).__name__ == "Const":
+                    if isinstance(extends_expr, Const) and isinstance(extends_expr.value, str):
                         extends = extends_expr.value
                     break
 
@@ -151,7 +149,7 @@ class BlockAnalyzer:
     def _collect_blocks_recursive(self, nodes: Any, blocks: list[Any]) -> None:
         """Recursively find Block nodes."""
         for node in nodes:
-            if type(node).__name__ == "Block":
+            if isinstance(node, Block):
                 blocks.append(node)
 
             # Recurse into containers
@@ -256,11 +254,9 @@ class BlockAnalyzer:
 
     def _check_emits_html(self, node: Any) -> bool:
         """Check if a node produces any output."""
-        node_type = type(node).__name__
-
-        if node_type == "Data" and node.value.strip():
+        if isinstance(node, Data) and node.value.strip():
             return True
-        if node_type == "Output":
+        if isinstance(node, Output):
             return True
 
         for attr in ("body", "else_", "empty"):

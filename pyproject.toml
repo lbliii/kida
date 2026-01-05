@@ -101,20 +101,10 @@ disable_error_code = [
     "assignment",
 ]
 
-# Analysis module: AST node attribute access
-[[tool.mypy.overrides]]
-module = ["kida.analysis.*"]
-disable_error_code = ["attr-defined", "no-any-return"]
-
-# Bytecode cache: marshal types
-[[tool.mypy.overrides]]
-module = ["kida.bytecode_cache"]
-disable_error_code = ["no-any-return"]
-
-# Top-level init: optional callback assignment
-[[tool.mypy.overrides]]
-module = ["kida"]
-disable_error_code = ["assignment"]
+# =============================================================================
+# Phase 1 complete: kida, kida.bytecode_cache, kida.analysis.* overrides removed
+# See: plan/rfc-type-suppression-reduction.md
+# =============================================================================
 
 [tool.ruff]
 line-length = 100

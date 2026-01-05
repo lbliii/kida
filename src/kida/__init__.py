@@ -74,6 +74,8 @@ Jinja2 Compatibility:
     >>> kida_ast = parser.parse()  # Produces Kida AST from Jinja2 syntax
 """
 
+from collections.abc import Callable
+
 from kida._types import Token, TokenType
 from kida.environment import (
     DictLoader,
@@ -89,6 +91,9 @@ from kida.utils.html import html_escape
 
 # Python 3.14+ t-string support (PEP 750)
 # Only import if string.templatelib is available
+# Type declaration before conditional import for mypy
+k: Callable[..., str] | None
+
 try:
     from kida.tstring import k
 except ImportError:

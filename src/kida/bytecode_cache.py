@@ -35,10 +35,8 @@ import marshal
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from types import CodeType
+from types import CodeType
+from typing import cast
 
 # Python version tag for cache invalidation across Python upgrades
 _PY_VERSION_TAG = f"py{sys.version_info.major}{sys.version_info.minor}"
@@ -117,7 +115,7 @@ class BytecodeCache:
 
         try:
             with open(path, "rb") as f:
-                return marshal.load(f)
+                return cast(CodeType, marshal.load(f))
         except (OSError, ValueError, EOFError):
             # Corrupted or incompatible cache file
             import contextlib

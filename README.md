@@ -181,8 +181,10 @@ print(template.render(title="Hello", content="World"))
 | **Scoping** | Explicit `let`/`set`/`export` | Implicit |
 | **Async** | Native `async for`, `await` | `auto_await()` wrapper |
 | **Pattern matching** | `{% match %}...{% case %}` | N/A |
-| **Pipelines** | `{{ value \|> filter }}` | N/A |
-| **Caching** | `{% cache key %}...{% end %}` | N/A |
+| **Null coalescing** | `{{ a ?? b }}` | `{{ a \| default(b) }}` |
+| **Optional chaining** | `{{ obj?.attr }}` | N/A |
+| **Pipeline syntax** | `{{ value \|> filter }}` | `{{ value \| filter }}` |
+| **Caching** | `{% cache key %}...{% end %}` | N/A (extension required) |
 | **Free-threading** | Native (PEP 703) | N/A |
 
 ---

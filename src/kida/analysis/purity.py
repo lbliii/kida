@@ -6,7 +6,7 @@ Pure blocks produce the same output for the same inputs.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
     from kida.nodes import Node
@@ -232,7 +232,7 @@ class PurityAnalyzer:
 
         handler = getattr(self, f"_visit_{node_type.lower()}", None)
         if handler:
-            return handler(node)
+            return cast(PurityLevel, handler(node))
 
         # Default: check children
         return self._visit_children(node)
