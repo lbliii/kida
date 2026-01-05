@@ -1,7 +1,8 @@
 # RFC: Type Suppression Reduction
 
-**Status**: Draft  
+**Status**: Phase 1 Complete  
 **Created**: 2026-01-04  
+**Updated**: 2026-01-04  
 **Depends On**: `rfc-type-checking-strategy.md` (Implemented)
 
 ---
@@ -23,15 +24,15 @@ Success: no issues found in 51 source files
 
 | Module | Codes Suppressed | Target | Status |
 |--------|-----------------|--------|--------|
-| `kida` | 1 | 0 | 🟢 Ready |
-| `kida.bytecode_cache` | 1 | 0 | 🟢 Ready |
-| `kida.analysis.*` | 2 | 0 | 🟢 Ready |
+| `kida` | ~~1~~ 0 | 0 | ✅ Done |
+| `kida.bytecode_cache` | ~~1~~ 0 | 0 | ✅ Done |
+| `kida.analysis.*` | ~~2~~ 0 | 0 | ✅ Done |
 | `kida.template` | 4 | 1 | 🟡 Medium |
 | `kida.environment.*` | 6 | 2 | 🟡 Medium |
 | `kida.parser.*` | 12 | 3 | 🔴 Major |
 | `kida.compiler.*` | 12 | 3 | 🔴 Major |
 
-**Total**: 38 → 9 codes
+**Total**: ~~38~~ 34 → 9 codes (Phase 1: -4 codes)
 
 ---
 
@@ -311,9 +312,10 @@ Keep 3 codes for genuine mixin patterns that can't be expressed:
 
 ```yaml
 Phase 1 (Quick Wins) - 1-2 hours:
-  - [ ] 1.1: kida/__init__.py — Callable type annotation for k
-  - [ ] 1.2: bytecode_cache.py — cast(CodeType, marshal.load(f))
-  - [ ] 1.3: analysis/*.py — isinstance checks (6 replacements)
+  - [x] 1.1: kida/__init__.py — Callable type annotation for k
+  - [x] 1.2: bytecode_cache.py — cast(CodeType, marshal.load(f))
+  - [x] 1.3: analysis/*.py — isinstance checks (6 replacements)
+  - [x] 1.4: analysis/purity.py — cast for dynamic handler dispatch
   
 Phase 2 (Medium) - 4-6 hours:
   - [ ] 2.1: template.py — TypedDict, function annotations

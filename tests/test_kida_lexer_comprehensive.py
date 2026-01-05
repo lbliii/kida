@@ -65,7 +65,7 @@ class TestUnicodeHandling:
     def test_unicode_variable_names(self) -> None:
         """Kida doesn't support unicode variable names."""
         # Kida requires ASCII identifiers
-        with pytest.raises(Exception):  # LexerError
+        with pytest.raises(LexerError):
             list(tokenize("{{ переменная }}"))
 
     def test_emoji_in_strings(self) -> None:
