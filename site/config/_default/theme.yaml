@@ -25,6 +25,7 @@ theme:
     # Content
     - content.code.copy
     - content.reading_time
+    - graph.contextual
 
     # Search (core feature + UI enhancements)
     - search
