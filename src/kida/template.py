@@ -338,6 +338,7 @@ class Template:
         "_name",
         "_filename",
         "_render_func",
+        "_render_async_func",
         "_optimized_ast",  # Preserved AST for introspection (or None)
         "_metadata_cache",  # Cached analysis results
         "_namespace",  # Compiled namespace with block functions
@@ -678,7 +679,7 @@ class Template:
 
         # Execute the code to get the render function
         namespace: dict[str, Any] = {
-            "__builtins__": {},
+            "__builtins__": {"__import__": __import__},  # allow imports inside compiled templates
             "_env": env,  # Direct ref needed during exec for globals access
             "_filters": env._filters,
             "_tests": env._tests,
@@ -714,6 +715,7 @@ class Template:
         }
         exec(code, namespace)
         self._render_func = namespace.get("render")
+        self._render_async_func = namespace.get("render_async")
         self._namespace = namespace  # Keep for render_block()
 
     @property
