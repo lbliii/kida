@@ -62,10 +62,9 @@ See [[docs/tutorials/migrate-from-jinja2|Migration Guide]].
 
 ### What Jinja2 features are missing?
 
-- `{% do %}` extension (use Python instead)
 - Sandboxed environment
 - LaTeX/RTF formatters (HTML only)
-- Line statements (`# for item in items`)
+- Line statements disabled by default (enable with `line_statement_prefix`)
 
 ### Do I need markupsafe?
 

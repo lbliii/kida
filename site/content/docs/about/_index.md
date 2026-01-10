@@ -2,7 +2,7 @@
 title: About
 description: Architecture, performance, and design philosophy
 draft: false
-weight: 80
+weight: 00
 lang: en
 type: doc
 tags:

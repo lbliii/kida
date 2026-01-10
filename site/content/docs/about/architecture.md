@@ -36,14 +36,14 @@ from kida.lexer import Lexer, LexerConfig
 
 lexer = Lexer("Hello, {{ name }}!", LexerConfig())
 tokens = list(lexer.tokenize())
-# [TEXT("Hello, "), VAR_START, NAME("name"), VAR_END, TEXT("!")]
+# [DATA("Hello, "), VARIABLE_BEGIN, NAME("name"), VARIABLE_END, DATA("!"), EOF]
 ```
 
 **Token types**:
-- `TEXT` — Raw text content
-- `VAR_START` / `VAR_END` — `{{` and `}}`
-- `BLOCK_START` / `BLOCK_END` — `{%` and `%}`
-- `NAME`, `STRING`, `NUMBER` — Expression tokens
+- `DATA` — Raw text content
+- `VARIABLE_BEGIN` / `VARIABLE_END` — `{{` and `}}`
+- `BLOCK_BEGIN` / `BLOCK_END` — `{%` and `%}`
+- `NAME`, `STRING`, `INTEGER`, `FLOAT` — Expression tokens
 
 ### 2. Parser
 
@@ -52,16 +52,16 @@ Builds an immutable Kida AST from the token stream.
 ```python
 from kida.parser import Parser
 
-parser = Parser(tokens, name="template.html", source=source)
+parser = Parser(tokens, name="template.html", filename="template.html", source=source)
 ast = parser.parse()
 ```
 
 **AST nodes**:
-- `TemplateNode` — Root container
-- `TextNode` — Static text
-- `OutputNode` — `{{ expr }}`
-- `IfNode`, `ForNode`, `MatchNode` — Control flow
-- `BlockNode`, `ExtendsNode` — Inheritance
+- `Template` — Root container
+- `Data` — Static text
+- `Output` — `{{ expr }}`
+- `If`, `For`, `Match` — Control flow
+- `Block`, `Extends` — Inheritance
 
 ### 3. Compiler
 
@@ -85,7 +85,9 @@ code = compiler.compile(ast, name="template.html")
 Wraps the compiled code with the render interface.
 
 ```python
-template = Template(env, code, name="template.html")
+# Templates are created internally by Environment
+# Direct construction (for reference):
+template = Template(env, code, name="template.html", filename="template.html")
 html = template.render(name="World")
 ```
 
@@ -106,7 +108,7 @@ def _render(context):
 **Benefits**:
 - O(n) string construction (vs O(n²) concatenation)
 - Lower memory churn than generators
-- 25-40% faster than Jinja2's yield-based approach
+- Faster than yield-based approaches (see [[docs/about/performance|benchmarks]])
 
 ## Caching Architecture
 
@@ -117,14 +119,15 @@ Three cache layers:
 Persists compiled bytecode via `marshal`:
 
 ```python
+from pathlib import Path
 from kida.bytecode_cache import BytecodeCache
 
-cache = BytecodeCache("__pycache__/kida/")
+cache = BytecodeCache(Path(".kida-cache"))
 cache.set(name, source_hash, code)
 cached = cache.get(name, source_hash)
 ```
 
-**Benefits**: 90%+ cold-start improvement for serverless.
+**Benefits**: Significant cold-start improvement for serverless deployments.
 
 ### Template Cache (Memory)
 

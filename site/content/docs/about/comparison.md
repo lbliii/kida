@@ -25,7 +25,7 @@ Comprehensive comparison of Kida and Jinja2.
 |---------|------|--------|
 | **Compilation** | AST → AST | String generation |
 | **Rendering** | StringBuilder O(n) | Generator yields |
-| **Free-threading** | Native (PEP 703) | N/A |
+| **Free-threading** | Native (PEP 703, Python 3.14t+) | N/A |
 | **Dependencies** | Zero | markupsafe |
 | **Block endings** | Unified `{% end %}` | `{% endif %}`, etc. |
 | **Pattern matching** | `{% match %}` | N/A |
@@ -132,12 +132,16 @@ Both syntaxes work in Kida.
 env.filters["double"] = lambda x: x * 2
 ```
 
-**Kida**:
+**Kida** (Jinja2-compatible + additional APIs):
 
 ```python
+# Jinja2-compatible dict style (also works in Kida)
+env.filters["double"] = lambda x: x * 2
+
+# Method style
 env.add_filter("double", lambda x: x * 2)
 
-# Or decorator
+# Decorator style
 @env.filter()
 def double(value):
     return value * 2
@@ -182,13 +186,9 @@ env = Environment(
 
 ## Performance
 
-| Template | Kida | Jinja2 | Speedup |
-|----------|------|--------|---------|
-| Small | 0.3ms | 0.5ms | 1.6x |
-| Medium | 2ms | 3.5ms | 1.75x |
-| Large | 15ms | 25ms | 1.67x |
+Kida's StringBuilder pattern provides consistent performance improvements over Jinja2's generator-based rendering across template sizes.
 
-Kida's StringBuilder pattern is 25-40% faster than Jinja2's generators.
+See [[docs/about/performance|Performance Benchmarks]] for detailed measurements and methodology.
 
 ## When to Use Kida
 

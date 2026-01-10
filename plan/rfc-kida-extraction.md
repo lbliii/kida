@@ -28,7 +28,7 @@ Kida is a pure-Python template engine designed for free-threaded Python 3.14t+. 
 - **Free-threading ready** — GIL-independent via `_Py_mod_gil = 0`
 - **Modern syntax** — Unified `{% end %}`, pattern matching, pipelines
 - **Native async** — True async/await (no `auto_await()` wrappers)
-- **Jinja2 compatible** — Parses existing Jinja2 templates via `compat.jinja`
+- **Jinja2 compatible** — Accepts Jinja2 syntax natively (block endings, filters, inheritance)
 
 Currently embedded at `bengal/rendering/kida/`, making it unavailable to the broader Python ecosystem.
 
@@ -709,7 +709,7 @@ plan/rfc-kida-spec-driven-testing.md        # Update references
 | **Pipelines** | `{{ value \|> filter1 \|> filter2 }}` | N/A |
 | **Caching** | `{% cache key %}...{% end %}` | N/A |
 | **Free-threading** | Native (PEP 703) | N/A |
-| **Jinja2 templates** | ✅ Supported via compat parser | N/A |
+| **Jinja2 templates** | ✅ Native syntax support | N/A |
 
 ---
 

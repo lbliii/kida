@@ -1,0 +1,33 @@
+# External References Configuration
+# ==================================
+# Enables cross-project documentation linking via [[ext:project:target]] syntax.
+# See: Bengal RFC plan/rfc-external-references.md
+
+external_refs:
+  enabled: true
+
+  # Export xref.json for other sites to consume
+  # This generates /xref.json with all pages, classes, functions indexed
+  export_index: true
+
+  # Cache directory for fetched indexes from other Bengal sites
+  cache_dir: ".bengal/cache/external_refs"
+  default_cache_days: 7
+
+  # URL templates for instant, offline resolution of common libraries
+  templates:
+    # Python standard library
+    python: "https://docs.python.org/3/library/{module}.html#{name}"
+    typing: "https://docs.python.org/3/library/typing.html#{name}"
+
+  # Bengal ecosystem indexes (import other Bengal sites' xref.json)
+  indexes:
+    # Link to Rosettes syntax highlighting docs
+    - name: rosettes
+      url: "https://llane.github.io/rosettes/xref.json"
+      cache_days: 7
+
+    # Link to Bengal framework docs
+    - name: bengal
+      url: "https://bengal.dev/xref.json"
+      cache_days: 7
