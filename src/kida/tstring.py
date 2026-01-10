@@ -6,17 +6,33 @@ interpolation and filters within Python code.
 
 from __future__ import annotations
 
-from typing import Any
-
-try:  # Python <3.14 fallback: allow tests and callers to pass compatible objects
-    import string.templatelib as templatelib
-except ImportError:  # pragma: no cover - exercised via fallback path
-    templatelib = None
+from importlib import import_module
+from types import ModuleType
+from typing import Any, Protocol, cast, runtime_checkable
 
 from kida.utils.html import html_escape
 
 
-def k(template: Any) -> str:
+@runtime_checkable
+class TemplateProtocol(Protocol):
+    strings: tuple[str, ...]
+    interpolations: tuple[Any, ...]
+
+
+class TemplateLibProtocol(Protocol):
+    Template: type[TemplateProtocol]
+
+
+templatelib_module: ModuleType | None
+try:  # Python <3.14 fallback: allow tests and callers to pass compatible objects
+    templatelib_module = import_module("string.templatelib")
+except ImportError:  # pragma: no cover - exercised via fallback path
+    templatelib_module = None
+
+templatelib: TemplateLibProtocol | None = cast(TemplateLibProtocol | None, templatelib_module)
+
+
+def k(template: TemplateProtocol) -> str:
     """The `k` tag for Kida template strings.
 
     Example:
@@ -27,7 +43,9 @@ def k(template: Any) -> str:
     Note: Currently supports simple interpolation. Future versions will
     integrate with the Kida compiler for filter support.
     """
-    if templatelib is not None and not isinstance(template, templatelib.Template):
+    # Accept any object that structurally matches the template protocol, even
+    # when the stdlib templatelib module is available (tests pass SimpleNamespace).
+    if not isinstance(template, TemplateProtocol):
         raise TypeError("k() expects a string.templatelib.Template or compatible object")
 
     strings = template.strings
