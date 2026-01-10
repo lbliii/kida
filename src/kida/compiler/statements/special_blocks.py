@@ -520,7 +520,8 @@ class SpecialBlockMixin:
             cache_set_args.append(ast.Constant(value=None))
 
         else_body.append(
-            ast.Expr(
+            ast.Assign(
+                targets=[ast.Name(id="_cached", ctx=ast.Store())],
                 value=ast.Call(
                     func=ast.Name(id="_cache_set", ctx=ast.Load()),
                     args=cache_set_args,

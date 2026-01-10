@@ -476,14 +476,15 @@ class Template:
                 return None
             return _env._fragment_cache.get(key)
 
-        def _cache_set(key: str, value: str, ttl: str | None = None) -> None:
-            """Set cached fragment (TTL is configured at Environment level)."""
+        def _cache_set(key: str, value: str, ttl: str | None = None) -> str:
+            """Set cached fragment (TTL is configured at Environment level) and return stored value."""
             _env = env_ref()
             if _env is None:
-                return
+                return value
+
             # Note: Per-key TTL would require a more sophisticated cache.
             # Currently uses environment-level TTL for all fragments.
-            _env._fragment_cache.set(key, value)
+            return _env._fragment_cache.get_or_set(key, lambda: value)
 
         # Strict mode variable lookup helper
         def _lookup(ctx: dict[str, Any], var_name: str) -> Any:
