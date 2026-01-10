@@ -56,11 +56,15 @@ class TestMatchStatement:
         assert "Post" in template.render(page={"type": "post"})
         assert "Page" in template.render(page={"type": "other"})
 
-    def test_match_case_with_expression(self, env):
-        """Case patterns can be expressions."""
+    def test_match_case_with_guard_comparison(self, env):
+        """Case patterns can compare against context variables using guards.
+
+        In Kida's pattern matching, bare names bind to the match subject.
+        To compare against an existing context variable, use a guard clause.
+        """
         template = env.from_string("""
         {% match value %}
-            {% case expected %}Matched expected
+            {% case v if v == expected %}Matched expected
             {% case _ %}No match
         {% end %}
         """)
