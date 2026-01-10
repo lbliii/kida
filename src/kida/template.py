@@ -936,9 +936,25 @@ class Template:
         )
 
     async def render_async(self, *args: Any, **kwargs: Any) -> str:
-        """Render template asynchronously.
+        """Async wrapper for synchronous render.
 
-        For templates with async expressions or async for loops.
+        Runs the synchronous `render()` method in a thread pool to avoid
+        blocking the event loop. This is useful when calling from async code
+        (e.g., FastAPI, aiohttp handlers).
+
+        Note:
+            Template rendering itself is synchronous. Async filters, globals,
+            or callables are NOT awaited during rendering. Load async data
+            before calling render:
+
+            ```python
+            # Good: load async data first
+            data = await fetch_data()
+            html = await template.render_async(data=data)
+
+            # Bad: async callable in template won't be awaited
+            html = await template.render_async(fetch=fetch_data)  # fetch() returns coroutine!
+            ```
 
         Args:
             *args: Single dict of context variables
@@ -947,37 +963,9 @@ class Template:
         Returns:
             Rendered template as string
         """
-        from kida.environment.exceptions import TemplateRuntimeError
+        import asyncio
 
-        # Build context
-        ctx: dict[str, Any] = {}
-        ctx.update(self._env.globals)
-        if args and isinstance(args[0], dict):
-            ctx.update(args[0])
-        ctx.update(kwargs)
-
-        # Inject template metadata for error context
-        ctx["_template"] = self._name
-        ctx["_line"] = 0
-
-        # Check for async render function
-        render_async_func = getattr(self, "_render_async_func", None)
-        if render_async_func is None:
-            # Fall back to sync render
-            return self.render(*args, **kwargs)
-
-        try:
-            result: str = await render_async_func(ctx)
-            return result
-        except TemplateRuntimeError:
-            raise
-        except Exception as e:
-            # Check if this is an UndefinedError or TemplateNotFoundError
-            from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
-
-            if isinstance(e, (UndefinedError, TemplateNotFoundError)):
-                raise
-            raise self._enhance_error(e, ctx) from e
+        return await asyncio.to_thread(self.render, *args, **kwargs)
 
     @staticmethod
     def _escape(value: Any) -> str:
