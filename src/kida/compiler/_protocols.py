@@ -62,4 +62,3 @@ class CompilerCoreProtocol(Protocol):
     def _get_cmpop(self, op: str) -> ast.cmpop:
         """Map comparison operator string to AST operator."""
         ...
-

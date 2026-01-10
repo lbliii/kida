@@ -39,11 +39,11 @@ Create a base template with blocks that can be overridden:
             <nav>{% block nav %}{% end %}</nav>
         {% end %}
     </header>
-    
+
     <main>
         {% block content %}{% end %}
     </main>
-    
+
     <footer>
         {% block footer %}
             <p>&copy; 2024</p>
@@ -226,4 +226,3 @@ base.html           ← Site-wide structure
 - [[docs/syntax/includes|Includes]] — Include partials
 - [[docs/syntax/functions|Functions]] — Reusable template functions
 - [[docs/usage/loading-templates|Loading Templates]] — Template loaders
-

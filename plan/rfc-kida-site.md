@@ -316,12 +316,12 @@ autodoc:
 
 theme:
   name: default
-  
+
   features:
     syntax_highlighting: true
     search: true
     toc: true
-    
+
   colors:
     # Accent color for Kida branding
     primary: "#7c3aed"  # Purple (template/magic feel)
@@ -335,12 +335,12 @@ theme:
 build:
   output_dir: "public"
   clean: true
-  
+
   # Asset handling
   assets:
     minify_css: true
     minify_js: true
-    
+
   # HTML output
   html:
     pretty: false
@@ -357,7 +357,7 @@ content:
   markdown:
     smart_punctuation: true
     heading_anchors: true
-    
+
   # Code blocks
   code:
     syntax_highlighting: true
@@ -375,7 +375,7 @@ fonts:
     family: "Outfit"
     weights: [400, 600, 700]
     source: "local"
-    
+
   code:
     family: "JetBrains Mono"
     weights: [400, 500]
@@ -634,19 +634,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      
+
       - name: Install dependencies
         run: |
           pip install bengal kida
-      
+
       - name: Build site
         run: bengal build site/
-      
+
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4

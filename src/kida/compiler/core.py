@@ -45,7 +45,8 @@ from kida.compiler.utils import OperatorUtilsMixin
 
 if TYPE_CHECKING:
     from kida.environment import Environment
-    from kida.nodes import Extends, Template as TemplateNode
+    from kida.nodes import Extends
+    from kida.nodes import Template as TemplateNode
 
 
 class Compiler(

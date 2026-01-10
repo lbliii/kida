@@ -205,4 +205,3 @@ env.get_template(Templates.HOME)
 - [[docs/usage/loading-templates|Loading Templates]] — Loader configuration
 - [[docs/extending/custom-loaders|Custom Loaders]] — Build custom loaders
 - [[docs/usage/error-handling|Error Handling]] — Exception handling
-

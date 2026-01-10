@@ -227,4 +227,3 @@ def home():
 - [[docs/extending/custom-filters|Custom Filters]] — Build domain-specific filters
 - [[docs/usage/escaping|Escaping]] — HTML security
 - [[docs/about/performance|Performance]] — Production optimization
-

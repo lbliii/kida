@@ -102,18 +102,18 @@ from kida import Environment, TemplateNotFoundError
 class DatabaseLoader:
     def __init__(self, connection):
         self.conn = connection
-    
+
     def get_source(self, name: str) -> tuple[str, str | None]:
         """Return (source, filename) for template."""
         row = self.conn.execute(
             "SELECT source FROM templates WHERE name = ?", (name,)
         ).fetchone()
-        
+
         if not row:
             raise TemplateNotFoundError(f"Template '{name}' not found")
-        
+
         return row[0], f"db://{name}"
-    
+
     def list_templates(self) -> list[str]:
         """Return all available template names."""
         rows = self.conn.execute("SELECT name FROM templates").fetchall()
@@ -183,4 +183,3 @@ Compiled bytecode is persisted to disk and loaded on subsequent runs.
 - [[docs/reference/api|API Reference]] — Environment, loaders
 - [[docs/extending/custom-loaders|Custom Loaders]] — Build custom loaders
 - [[docs/about/performance|Performance]] — Caching optimization
-

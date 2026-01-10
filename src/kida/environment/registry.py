@@ -48,7 +48,9 @@ class FilterRegistry:
     def __contains__(self, name: object) -> bool:
         return name in self._get_dict()
 
-    def get(self, name: str, default: Callable[..., Any] | None = None) -> Callable[..., Any] | None:
+    def get(
+        self, name: str, default: Callable[..., Any] | None = None
+    ) -> Callable[..., Any] | None:
         return self._get_dict().get(name, default)
 
     def update(self, mapping: dict[str, Callable[..., Any]]) -> None:

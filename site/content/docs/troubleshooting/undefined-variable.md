@@ -174,4 +174,3 @@ def validate_context(context, required):
 - [[docs/usage/error-handling|Error Handling]] — Exception types
 - [[docs/syntax/variables|Variables]] — Variable access patterns
 - [[docs/reference/filters|Filters]] — The default filter
-

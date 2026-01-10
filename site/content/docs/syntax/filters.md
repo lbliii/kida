@@ -168,4 +168,3 @@ Mark content as trusted HTML:
 - [[docs/reference/filters|Filter Reference]] — Complete filter list
 - [[docs/extending/custom-filters|Custom Filters]] — Create your own filters
 - [[docs/syntax/variables|Variables]] — Output expressions
-

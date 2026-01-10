@@ -216,10 +216,10 @@ def _include(template_name, context, ignore_missing=False, *, blocks=None):
 
 # After
 def _include(
-    template_name: str, 
-    context: dict[str, Any], 
-    ignore_missing: bool = False, 
-    *, 
+    template_name: str,
+    context: dict[str, Any],
+    ignore_missing: bool = False,
+    *,
     blocks: dict[str, Any] | None = None
 ) -> str:
 ```
@@ -278,7 +278,7 @@ class ParserProtocol(Protocol):
 class StatementParsingMixin:
     # Type stub declares mixin implements protocol when combined
     _current: Token  # Declare expected attrs
-    
+
     def _parse_if(self: ParserProtocol) -> If:
         # Now mypy knows self has _current, _advance, etc.
         ...
@@ -316,7 +316,7 @@ Phase 1 (Quick Wins) - 1-2 hours:
   - [x] 1.2: bytecode_cache.py — cast(CodeType, marshal.load(f))
   - [x] 1.3: analysis/*.py — isinstance checks (6 replacements)
   - [x] 1.4: analysis/purity.py — cast for dynamic handler dispatch
-  
+
 Phase 2 (Medium) - Completed:
   - [x] 2.1: template.py — Generic type params, function annotations
   - [x] 2.2: environment/tests.py — bool() wrappers, Callable types
@@ -386,7 +386,7 @@ disable_error_code = [
 [[tool.mypy.overrides]]
 module = ["kida.environment.*"]
 disable_error_code = [
-    "type-arg", "no-any-return", "return-value", 
+    "type-arg", "no-any-return", "return-value",
     "arg-type", "no-untyped-def", "union-attr",
 ]
 

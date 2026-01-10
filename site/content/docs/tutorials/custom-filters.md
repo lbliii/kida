@@ -101,7 +101,7 @@ def slugify(value):
     """Convert text to URL slug."""
     if value is None:
         return ""
-    
+
     import re
     text = str(value).lower()
     text = re.sub(r"[^\w\s-]", "", text)
@@ -120,11 +120,11 @@ def highlight(value, term):
     """Highlight search term in text."""
     if not term or not value:
         return value
-    
+
     # Escape the text first
     escaped = Markup.escape(str(value))
     term_escaped = Markup.escape(term)
-    
+
     # Replace with highlighted version
     highlighted = str(escaped).replace(
         term,
@@ -165,16 +165,16 @@ def filesize(value, binary=False):
     """Format bytes as human-readable size."""
     if value is None:
         return "0 B"
-    
+
     value = float(value)
     base = 1024 if binary else 1000
     suffix = "iB" if binary else "B"
-    
+
     for unit in ["", "K", "M", "G", "T"]:
         if abs(value) < base:
             return f"{value:.1f} {unit}{suffix}"
         value /= base
-    
+
     return f"{value:.1f} P{suffix}"
 ```
 
@@ -218,14 +218,14 @@ def json_pretty(value, indent=2):
 ```python
 def test_format_price():
     env = Environment()
-    
+
     @env.filter()
     def format_price(value, currency="$"):
         return f"{currency}{value:,.2f}"
-    
+
     template = env.from_string("{{ amount | format_price }}")
     assert template.render(amount=1234.5) == "$1,234.50"
-    
+
     template = env.from_string("{{ amount | format_price('€') }}")
     assert template.render(amount=100) == "€100.00"
 ```
@@ -250,11 +250,11 @@ def safe_divide(value, divisor):
 def initials(name, separator=""):
     """
     Extract initials from a name.
-    
+
     Args:
         name: Full name string
         separator: Character between initials
-    
+
     Returns:
         Initials string (e.g., "JD" for "John Doe")
     """
@@ -286,4 +286,3 @@ def increment_counter(value):
 - [[docs/extending/custom-filters|Custom Filters Reference]] — Full filter API
 - [[docs/reference/filters|Built-in Filters]] — Filter reference
 - [[docs/extending/custom-tests|Custom Tests]] — Create test functions
-

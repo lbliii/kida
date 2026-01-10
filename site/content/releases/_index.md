@@ -48,4 +48,3 @@ pip install kida
 # Specific version
 pip install kida==0.1.0
 ```
-

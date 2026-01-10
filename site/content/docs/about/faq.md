@@ -221,4 +221,3 @@ See CONTRIBUTING.md in the repository.
 - [[docs/about/comparison|Comparison]] — Kida vs Jinja2
 - [[docs/tutorials/migrate-from-jinja2|Migration]] — Moving from Jinja2
 - [[docs/troubleshooting/|Troubleshooting]] — Common issues
-

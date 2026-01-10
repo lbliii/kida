@@ -54,7 +54,7 @@ class TokenNavigationMixin:
         - _source: str | None
         - _filename: str | None
     """
-    
+
     @property
     def _current(self) -> Token:
         # ERROR: "TokenNavigationMixin" has no attribute "_tokens" [attr-defined]
@@ -147,16 +147,16 @@ if TYPE_CHECKING:
 
 class ParserCoreProtocol(Protocol):
     """Minimal contract for cross-mixin dependencies.
-    
+
     Contains ONLY:
     1. Host class attributes (defined in Parser.__init__)
     2. Token navigation methods (used by all parsing mixins)
     3. Error handling (used everywhere)
-    
+
     Individual mixin methods are NOT included—mixins declare
     their own methods via inline TYPE_CHECKING declarations.
     """
-    
+
     # ─────────────────────────────────────────────────────────────
     # Host Attributes (from Parser.__init__)
     # ─────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ class ParserCoreProtocol(Protocol):
     _source: str | None
     _autoescape: bool
     _block_stack: list[tuple[str, int, int]]
-    
+
     # ─────────────────────────────────────────────────────────────
     # Token Navigation (from TokenNavigationMixin)
     # These are called by ALL other mixins, so they're in the protocol
@@ -208,7 +208,7 @@ if TYPE_CHECKING:
 
 class StatementParsingMixin:
     """Mixin for parsing statements and template body."""
-    
+
     # ─────────────────────────────────────────────────────────────
     # Cross-mixin dependencies (type-check only)
     # These are methods from OTHER mixins that this mixin calls
@@ -216,26 +216,26 @@ class StatementParsingMixin:
     if TYPE_CHECKING:
         # From ExpressionParsingMixin
         def _parse_expression(self) -> Expr: ...
-        
+
         # From BlockParsingMixin  
         def _parse_block_content(self) -> Node | list[Node] | None: ...
         def _push_block(self, block_type: str, lineno: int, col: int) -> None: ...
         def _pop_block(self, expected_type: str | None = None) -> tuple[str, int, int]: ...
-    
+
     # ─────────────────────────────────────────────────────────────
     # Implementation (uses ParserCoreProtocol for host attrs)
     # ─────────────────────────────────────────────────────────────
-    
+
     def _parse_body(
         self: ParserCoreProtocol,
         stop_on_continuation: bool = False,
     ) -> list[Node]:
         """Parse template body until end of input or block terminator."""
         body: list[Node] = []
-        
+
         while not self._match(TokenType.EOF):  # ✅ from protocol
             token = self._current  # ✅ from protocol
-            
+
             if token.type == TokenType.DATA:
                 body.append(self._parse_data())
             elif token.type == TokenType.VARIABLE_BEGIN:
@@ -243,9 +243,9 @@ class StatementParsingMixin:
             elif token.type == TokenType.BLOCK_BEGIN:
                 result = self._parse_block_content()  # ✅ declared above
                 # ... etc
-        
+
         return body
-    
+
     def _parse_output(self: ParserCoreProtocol) -> Output:
         """Parse {{ expression }} output."""
         self._expect(TokenType.VARIABLE_BEGIN)  # ✅ from protocol
@@ -293,7 +293,7 @@ class SomeMixin:
     if TYPE_CHECKING:
         # Declare methods from OTHER mixins that this one calls
         def _other_mixin_method(self) -> ReturnType: ...
-    
+
     def _my_method(self: CoreProtocol) -> Result:
         # Can use:
         # - self._tokens, self._pos (from protocol)
@@ -407,7 +407,7 @@ if TYPE_CHECKING:
 ```python
 class ParserCoreProtocol(Protocol):
     """Minimal cross-mixin contract for parser."""
-    
+
     # Host Attributes
     _tokens: Sequence[Token]
     _pos: int
@@ -416,7 +416,7 @@ class ParserCoreProtocol(Protocol):
     _source: str | None
     _autoescape: bool
     _block_stack: list[tuple[str, int, int]]
-    
+
     # Token Navigation (used by all mixins)
     @property
     def _current(self) -> Token: ...
@@ -438,7 +438,7 @@ class ParserCoreProtocol(Protocol):
 ```python
 class CompilerCoreProtocol(Protocol):
     """Minimal cross-mixin contract for compiler."""
-    
+
     # Host Attributes
     _env: Environment
     _name: str | None
@@ -446,11 +446,11 @@ class CompilerCoreProtocol(Protocol):
     _locals: set[str]
     _blocks: dict[str, Any]
     _block_counter: int
-    
+
     # Core compilation (used by all mixins)
     def _compile_expr(self, node: Any) -> ast.expr: ...
     def _compile_node(self, node: Any) -> list[ast.stmt]: ...
-    
+
     # Operator utilities (used by expression compilation)
     def _get_binop(self, op: str) -> ast.operator: ...
     def _get_unaryop(self, op: str) -> ast.unaryop: ...
@@ -467,16 +467,16 @@ class CompilerCoreProtocol(Protocol):
 # kida/parser/statements.py
 class StatementParsingMixin:
     """Mixin for parsing statements.
-    
+
     Required Host Attributes:
         _tokens, _pos, _source, _filename, _autoescape, _block_stack
-    
+
     Required Sibling Methods:
         _current, _advance, _expect, _match, _error (TokenNavigationMixin)
         _parse_expression (ExpressionParsingMixin)
         _parse_block_content, _push_block, _pop_block (BlockParsingMixin)
     """
-    
+
     def _parse_body(self, stop_on_continuation: bool = False) -> list[Node]:
         body: list[Node] = []
         while not self._match(TokenType.EOF):  # ERROR: attr-defined
@@ -502,14 +502,14 @@ if TYPE_CHECKING:
 
 class StatementParsingMixin:
     """Mixin for parsing statements."""
-    
+
     # Cross-mixin dependencies
     if TYPE_CHECKING:
         def _parse_expression(self) -> Expr: ...
         def _parse_block_content(self) -> Node | list[Node] | None: ...
         def _push_block(self, block_type: str, lineno: int, col: int) -> None: ...
         def _pop_block(self, expected_type: str | None = None) -> tuple[str, int, int]: ...
-    
+
     def _parse_body(
         self: ParserCoreProtocol,  # ← Just the core protocol
         stop_on_continuation: bool = False,
@@ -647,11 +647,11 @@ if TYPE_CHECKING:
 
 class ExpressionParsingMixin:
     """Mixin for parsing expressions.
-    
+
     This is a "leaf" mixin—it only depends on the core protocol,
     not on other parsing mixins. No inline declarations needed.
     """
-    
+
     # ─────────────────────────────────────────────────────────────
     # Cross-mixin dependencies
     # ─────────────────────────────────────────────────────────────
@@ -659,19 +659,19 @@ class ExpressionParsingMixin:
         # Only non-protocol dependencies declared here
         # (ExpressionParsingMixin calls _parse_call_args from FunctionBlockParsingMixin)
         def _parse_call_args(self) -> tuple[list[Expr], dict[str, Expr]]: ...
-    
+
     # NOTE: Do NOT declare _current, _advance, etc. here—they come from
     # the protocol via `self: ParserCoreProtocol` annotation. Declaring
     # them as class variables causes [override] errors with properties.
-    
+
     def _parse_expression(self: ParserCoreProtocol) -> Expr:
         """Parse a full expression."""
         return self._parse_ternary()
-    
+
     def _parse_ternary(self: ParserCoreProtocol) -> Expr:
         """Parse ternary: expr if condition else expr."""
         expr = self._parse_null_coalesce()
-        
+
         if self._current.type == TokenType.NAME and self._current.value == "if":
             self._advance()  # ✅ from core protocol
             condition = self._parse_null_coalesce()
@@ -684,29 +684,29 @@ class ExpressionParsingMixin:
                 if_true=expr,
                 if_false=else_expr,
             )
-        
+
         return expr
-    
+
     def _parse_primary(self: ParserCoreProtocol) -> Expr:
         """Parse primary expression (literals, names, grouped)."""
         token = self._current  # ✅ from core protocol
-        
+
         if token.type == TokenType.INTEGER:
             self._advance()
             return Const(lineno=token.lineno, col_offset=token.col, value=int(token.value))
-        
+
         if token.type == TokenType.NAME:
             self._advance()
             return Name(lineno=token.lineno, col_offset=token.col, id=token.value)
-        
+
         if token.type == TokenType.LPAREN:
             self._advance()
             expr = self._parse_expression()  # ✅ calls self (same mixin)
             self._expect(TokenType.RPAREN)  # ✅ from core protocol
             return expr
-        
+
         raise self._error(f"Unexpected token: {token.value}")  # ✅ from core protocol
-    
+
     # ... more expression parsing methods
 ```
 

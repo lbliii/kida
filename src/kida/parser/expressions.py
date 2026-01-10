@@ -546,8 +546,6 @@ class ExpressionParsingMixin:
 
         Design: Mixing | and |> is not allowed. Error on | after |>.
         """
-        from collections.abc import Sequence
-
         steps: list[tuple[str, Sequence[Expr], dict[str, Expr]]] = []
 
         while self._match(TokenType.PIPELINE):

@@ -86,4 +86,3 @@ class ParserCoreProtocol(Protocol):
     def _format_open_blocks(self) -> str:
         """Format the current block stack for error messages."""
         ...
-

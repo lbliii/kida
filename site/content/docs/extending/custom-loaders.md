@@ -28,7 +28,7 @@ class Loader:
     def get_source(self, name: str) -> tuple[str, str | None]:
         """Return (source, filename) for template."""
         ...
-    
+
     def list_templates(self) -> list[str]:
         """Return list of all template names."""
         ...
@@ -44,19 +44,19 @@ from kida import Environment, TemplateNotFoundError
 class DatabaseLoader:
     def __init__(self, connection):
         self.conn = connection
-    
+
     def get_source(self, name: str) -> tuple[str, str | None]:
         row = self.conn.execute(
             "SELECT source FROM templates WHERE name = ?",
             (name,)
         ).fetchone()
-        
+
         if not row:
             raise TemplateNotFoundError(f"Template '{name}' not found")
-        
+
         # Return (source, filename for error messages)
         return row[0], f"db://{name}"
-    
+
     def list_templates(self) -> list[str]:
         rows = self.conn.execute(
             "SELECT name FROM templates"
@@ -80,16 +80,16 @@ class RedisLoader:
     def __init__(self, host="localhost", port=6379, prefix="templates:"):
         self.client = redis.Redis(host=host, port=port)
         self.prefix = prefix
-    
+
     def get_source(self, name: str) -> tuple[str, str | None]:
         key = f"{self.prefix}{name}"
         source = self.client.get(key)
-        
+
         if source is None:
             raise TemplateNotFoundError(f"Template '{name}' not found")
-        
+
         return source.decode("utf-8"), f"redis://{key}"
-    
+
     def list_templates(self) -> list[str]:
         pattern = f"{self.prefix}*"
         keys = self.client.keys(pattern)
@@ -111,18 +111,18 @@ class HTTPLoader:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
         self.client = httpx.Client()
-    
+
     def get_source(self, name: str) -> tuple[str, str | None]:
         url = f"{self.base_url}/{name}"
-        
+
         try:
             response = self.client.get(url)
             response.raise_for_status()
         except httpx.HTTPError:
             raise TemplateNotFoundError(f"Template '{name}' not found")
-        
+
         return response.text, url
-    
+
     def list_templates(self) -> list[str]:
         # Could fetch index from server
         return []
@@ -141,16 +141,16 @@ from kida import TemplateNotFoundError
 class ChainLoader:
     def __init__(self, loaders: list):
         self.loaders = loaders
-    
+
     def get_source(self, name: str) -> tuple[str, str | None]:
         for loader in self.loaders:
             try:
                 return loader.get_source(name)
             except TemplateNotFoundError:
                 continue
-        
+
         raise TemplateNotFoundError(f"Template '{name}' not found in any loader")
-    
+
     def list_templates(self) -> list[str]:
         templates = set()
         for loader in self.loaders:
@@ -174,15 +174,15 @@ Route templates by prefix:
 class PrefixLoader:
     def __init__(self, loaders: dict):
         self.loaders = loaders  # {"prefix/": loader}
-    
+
     def get_source(self, name: str) -> tuple[str, str | None]:
         for prefix, loader in self.loaders.items():
             if name.startswith(prefix):
                 template_name = name[len(prefix):]
                 return loader.get_source(template_name)
-        
+
         raise TemplateNotFoundError(f"No loader for '{name}'")
-    
+
     def list_templates(self) -> list[str]:
         templates = []
         for prefix, loader in self.loaders.items():
@@ -219,16 +219,16 @@ class CachedLoader:
         self._get_source = lru_cache(maxsize=maxsize)(
             self._get_source_uncached
         )
-    
+
     def _get_source_uncached(self, name: str):
         return self.loader.get_source(name)
-    
+
     def get_source(self, name: str) -> tuple[str, str | None]:
         return self._get_source(name)
-    
+
     def list_templates(self) -> list[str]:
         return self.loader.list_templates()
-    
+
     def clear_cache(self):
         self._get_source.cache_clear()
 
@@ -249,11 +249,11 @@ class ThreadSafeLoader:
     def __init__(self, loader):
         self.loader = loader
         self._lock = threading.Lock()
-    
+
     def get_source(self, name: str) -> tuple[str, str | None]:
         with self._lock:
             return self.loader.get_source(name)
-    
+
     def list_templates(self) -> list[str]:
         with self._lock:
             return self.loader.list_templates()
@@ -270,7 +270,7 @@ def get_source(self, name):
     if not self._exists(name):
         # ✅ Raise proper exception
         raise TemplateNotFoundError(f"Template '{name}' not found")
-    
+
     # ❌ Don't return None
     # return None
 ```
@@ -299,4 +299,3 @@ def get_source(self, name):
 - [[docs/usage/loading-templates|Loading Templates]] — FileSystemLoader, DictLoader
 - [[docs/reference/api|API Reference]] — Loader protocol
 - [[docs/about/architecture|Architecture]] — Template compilation pipeline
-

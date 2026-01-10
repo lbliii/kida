@@ -70,4 +70,3 @@ safe_html = Markup("<b>Bold</b>")
 ```
 
 See the [[docs/reference/api|API Quick Reference]] for common patterns.
-

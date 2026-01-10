@@ -167,4 +167,3 @@ Available globals: `range`, `dict`, `list`, `set`, `tuple`, `len`, `str`, `int`,
 - [[docs/syntax/filters|Filters]] — Transform output values
 - [[docs/syntax/control-flow|Control Flow]] — Conditionals and loops
 - [[docs/reference/filters|Filter Reference]] — All built-in filters
-

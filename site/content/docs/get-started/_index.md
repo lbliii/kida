@@ -74,4 +74,3 @@ Step-by-step migration with API mapping.
 - [[docs/reference/api|API Reference]] — Environment, Template, Loaders
 - [[docs/syntax/filters|Filters]] — All built-in filters
 - [[docs/about/comparison|vs Jinja2]] — Feature comparison
-

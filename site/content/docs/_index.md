@@ -106,4 +106,3 @@ Technical specifications, troubleshooting, and design details.
 :::{/card}
 
 :::{/cards}
-

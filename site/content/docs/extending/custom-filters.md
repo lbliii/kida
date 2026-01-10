@@ -222,11 +222,11 @@ def safe_divide(value, divisor):
 def initials(name, separator=""):
     """
     Extract initials from a name.
-    
+
     Args:
         name: Full name string
         separator: Character between initials
-    
+
     Returns:
         Initials (e.g., "JD" for "John Doe")
     """
@@ -242,4 +242,3 @@ def initials(name, separator=""):
 - [[docs/reference/filters|Built-in Filters]] — All built-in filters
 - [[docs/tutorials/custom-filters|Custom Filters Tutorial]] — Step-by-step guide
 - [[docs/syntax/filters|Filter Syntax]] — Using filters in templates
-

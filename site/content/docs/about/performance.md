@@ -224,4 +224,3 @@ print(f"Size: {sys.getsizeof(template)} bytes")
 - [[docs/about/architecture|Architecture]] — How Kida works
 - [[docs/reference/configuration|Configuration]] — Cache options
 - [[docs/syntax/caching|Caching]] — Fragment cache syntax
-

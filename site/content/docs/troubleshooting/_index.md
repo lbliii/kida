@@ -40,4 +40,3 @@ Template loading and path issues.
 :::{/card}
 
 :::{/cards}
-

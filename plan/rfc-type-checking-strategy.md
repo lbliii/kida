@@ -22,7 +22,7 @@ Kida uses cooperative multiple inheritance (mixin pattern) to organize complex p
 # statements.py
 class StatementParsingMixin:
     """Mixin for parsing template statements."""
-    
+
     def _parse_body(self) -> list[Node]:
         # Accesses self._current, self._advance, etc.
         # These are defined in TokenNavigationMixin, not here
@@ -46,11 +46,11 @@ class Parser(
 Pyright in strict mode (`typeCheckingMode = "strict"`) cannot resolve cross-mixin attribute access:
 
 ```
-src/kida/parser/statements.py:144:23 - error: Cannot access attribute "_current" 
+src/kida/parser/statements.py:144:23 - error: Cannot access attribute "_current"
     for class "StatementParsingMixin*"
     Attribute "_current" is unknown (reportAttributeAccessIssue)
 
-src/kida/parser/statements.py:147:17 - error: Type of "_advance" is unknown 
+src/kida/parser/statements.py:147:17 - error: Type of "_advance" is unknown
     (reportUnknownMemberType)
 ```
 

@@ -82,4 +82,3 @@ env.add_global("site_name", "My Site")
 # {% if count is even %}
 # {{ site_name }}
 ```
-

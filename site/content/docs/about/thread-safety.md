@@ -186,4 +186,3 @@ Free-threading removes the GIL bottleneck for CPU-bound template rendering.
 - [[docs/about/architecture|Architecture]] — Rendering internals
 - [[docs/about/performance|Performance]] — Optimization tips
 - [[docs/syntax/async|Async]] — Async template rendering
-

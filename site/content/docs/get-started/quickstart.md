@@ -36,7 +36,7 @@ Create `templates/hello.html`:
 </head>
 <body>
     <h1>Hello, {{ name }}!</h1>
-    
+
     {% if items %}
     <ul>
         {% for item in items %}
@@ -87,7 +87,7 @@ Output:
 </head>
 <body>
     <h1>Hello, World!</h1>
-    
+
     <ul>
         <li>Apple</li>
         <li>Banana</li>
@@ -125,4 +125,3 @@ Loading templates, contexts, escaping, error handling.
 :::{/card}
 
 :::{/cards}
-

@@ -169,4 +169,3 @@ env.cache_info()  # Shows template cache stats
 - [[docs/syntax/inheritance|Inheritance]] — Template inheritance
 - [[docs/syntax/functions|Functions]] — Reusable functions
 - [[docs/usage/loading-templates|Loading Templates]] — Template loaders
-

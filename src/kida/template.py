@@ -442,7 +442,9 @@ class Template:
             return result
 
         # Import macros from another template
-        def _import_macros(template_name: str, with_context: bool, context: dict[str, Any]) -> dict[str, Any]:
+        def _import_macros(
+            template_name: str, with_context: bool, context: dict[str, Any]
+        ) -> dict[str, Any]:
             _env = env_ref()
             if _env is None:
                 raise RuntimeError("Environment has been garbage collected")
@@ -504,7 +506,9 @@ class Template:
                 lineno = ctx.get("_line")
                 raise UndefinedError(var_name, template_name, lineno) from None
 
-        def _lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_name: str) -> Any:
+        def _lookup_scope(
+            ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_name: str
+        ) -> Any:
             """Lookup variable in scope stack (top to bottom), then ctx.
 
             Checks scopes from innermost to outermost, then falls back to ctx.

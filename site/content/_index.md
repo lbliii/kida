@@ -115,4 +115,3 @@ dependencies = []  # Zero!
 ```
 
 Includes a native `Markup` class for safe HTML handling—no markupsafe required.
-

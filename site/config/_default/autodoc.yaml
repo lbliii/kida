@@ -51,4 +51,3 @@ autodoc:
   # OpenAPI Documentation (Kida has no OpenAPI)
   openapi:
     enabled: false
-

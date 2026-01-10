@@ -141,9 +141,9 @@ Each function should do one thing:
 ```kida
 {# Good: Single purpose #}
 {% def user_avatar(user, size=32) %}
-    <img src="{{ user.avatar_url }}" 
-         alt="{{ user.name }}" 
-         width="{{ size }}" 
+    <img src="{{ user.avatar_url }}"
+         alt="{{ user.name }}"
+         width="{{ size }}"
          height="{{ size }}">
 {% end %}
 
@@ -171,4 +171,3 @@ Each function should do one thing:
 - [[docs/syntax/inheritance|Inheritance]] — Extend base templates
 - [[docs/syntax/includes|Includes]] — Include partials
 - [[docs/extending/custom-filters|Custom Filters]] — Python-defined filters
-

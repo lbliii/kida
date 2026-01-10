@@ -345,4 +345,3 @@ env.clear_fragment_cache()
 - [[docs/reference/api|API Reference]] — Environment methods
 - [[docs/usage/loading-templates|Loading Templates]] — Loader configuration
 - [[docs/about/performance|Performance]] — Optimization tips
-

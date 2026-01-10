@@ -229,4 +229,3 @@ See [[docs/tutorials/migrate-from-jinja2|Migration Guide]] for details.
 - [[docs/tutorials/migrate-from-jinja2|Migration Guide]] — Step-by-step migration
 - [[docs/about/performance|Performance]] — Detailed benchmarks
 - [[docs/about/architecture|Architecture]] — How Kida works
-

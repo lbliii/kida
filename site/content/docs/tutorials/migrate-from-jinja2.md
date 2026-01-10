@@ -250,4 +250,3 @@ env.add_filter('name', func)  # Not env.filters['name'] = func
 - [[docs/syntax/control-flow|Control Flow]] — New pattern matching syntax
 - [[docs/about/comparison|Comparison]] — Full Kida vs Jinja2 comparison
 - [[docs/about/performance|Performance]] — Benchmark results
-

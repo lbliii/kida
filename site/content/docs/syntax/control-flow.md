@@ -188,4 +188,3 @@ Trim whitespace with `-`:
 - [[docs/syntax/variables|Variables]] — Output expressions
 - [[docs/syntax/filters|Filters]] — Transform values
 - [[docs/syntax/functions|Functions]] — Reusable template functions
-

@@ -24,4 +24,3 @@ html_output:
 health_check:
   enabled: true
   verbose: false
-

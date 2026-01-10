@@ -29,4 +29,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
 [0.1.0]: https://github.com/lbliii/kida/releases/tag/v0.1.0
-

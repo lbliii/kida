@@ -12,4 +12,3 @@ build:
 assets:
   minify: true
   fingerprint: true
-

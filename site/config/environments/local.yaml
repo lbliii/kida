@@ -11,4 +11,3 @@ build:
 assets:
   minify: false
   fingerprint: false
-

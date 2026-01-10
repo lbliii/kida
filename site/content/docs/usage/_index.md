@@ -71,4 +71,3 @@ html = template.render(title="Hello", items=[1, 2, 3])
 template = env.from_string("{{ name }}")
 html = template.render(name="World")
 ```
-

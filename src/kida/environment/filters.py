@@ -677,7 +677,9 @@ def _filter_xmlattr(value: dict[str, Any]) -> Markup:
     return xmlattr(value)
 
 
-def _filter_unique(value: Any, case_sensitive: bool = False, attribute: str | None = None) -> list[Any]:
+def _filter_unique(
+    value: Any, case_sensitive: bool = False, attribute: str | None = None
+) -> list[Any]:
     """Return unique items."""
     seen: set[Any] = set()
     result = []

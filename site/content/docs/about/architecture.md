@@ -173,4 +173,3 @@ Parses most Jinja2 templates. Migration path is smooth.
 - [[docs/about/performance|Performance]] — Benchmarks
 - [[docs/about/thread-safety|Thread Safety]] — Free-threading details
 - [[docs/reference/api|API Reference]] — Public interface
-

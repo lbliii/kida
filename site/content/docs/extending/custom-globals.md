@@ -176,7 +176,7 @@ def render_with_context(template_name, **context):
     # Add request-specific globals
     env.add_global("current_user", get_current_user())
     env.add_global("csrf_token", generate_csrf())
-    
+
     return env.render(template_name, **context)
 ```
 
@@ -189,7 +189,7 @@ class Helpers:
     @staticmethod
     def format_date(dt, pattern="%Y-%m-%d"):
         return dt.strftime(pattern)
-    
+
     @staticmethod
     def truncate(text, length=100):
         if len(text) <= length:
@@ -245,4 +245,3 @@ def log_and_add(a, b):
 - [[docs/usage/rendering-contexts|Rendering Contexts]] — Pass variables to templates
 - [[docs/extending/custom-filters|Custom Filters]] — Transform values
 - [[docs/reference/api|API Reference]] — Environment.add_global()
-

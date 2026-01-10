@@ -79,4 +79,3 @@ with ThreadPoolExecutor(max_workers=4) as executor:
 ```
 
 See [[docs/about/thread-safety|Thread Safety]] for details on Kida's free-threading support.
-

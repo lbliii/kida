@@ -141,7 +141,7 @@ Caches can be nested:
         {% cache "popular-tags" %}
             {{ render_tag_cloud() }}
         {% end %}
-        
+
         {% cache "recent-posts" %}
             {{ render_recent_posts() }}
         {% end %}
@@ -166,4 +166,3 @@ env = Environment(
 - [[docs/about/performance|Performance]] — Performance optimization
 - [[docs/reference/configuration|Configuration]] — Environment options
 - [[docs/usage/rendering-contexts|Rendering Contexts]] — Context passing
-

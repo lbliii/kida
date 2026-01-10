@@ -55,4 +55,3 @@ All configuration options explained.
 :::{/card}
 
 :::{/cards}
-

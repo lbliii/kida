@@ -289,12 +289,12 @@ The LRUCache is ~228 lines, generic, and explicitly designed to be portable:
    ```bash
    # Main test suite
    cp -r tests/rendering/kida/* kida/tests/
-   
+
    # Unit tests
    cp tests/unit/rendering/kida/* kida/tests/unit/
    cp tests/unit/rendering/test_kida_thread_safety.py kida/tests/
    cp tests/unit/rendering/test_template_cycles.py kida/tests/
-   
+
    # Additional tests
    cp tests/kida/* kida/tests/
    ```
@@ -483,18 +483,18 @@ def main() -> None:
         if should_skip(py_file):
             stats["skipped"] += 1
             continue
-            
+
         rel_path = py_file.relative_to(source_src)
         dest_path = src_dir / rel_path
 
         content = py_file.read_text()
         transformed = transform_file(content)
         transform_count = len(content) - len(transformed.replace("kida.", "bengal.rendering.kida."))
-        
+
         if not args.dry_run:
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             dest_path.write_text(transformed)
-        
+
         stats["source"] += 1
         print(f"  ✓ {rel_path}")
 
@@ -508,7 +508,7 @@ def main() -> None:
     utils_dir = src_dir / "utils"
     if not args.dry_run:
         utils_dir.mkdir(exist_ok=True)
-    
+
     lru_cache_src = BENGAL_ROOT / "bengal" / "utils" / "lru_cache.py"
     if not args.dry_run:
         content = lru_cache_src.read_text()
@@ -528,7 +528,7 @@ def main() -> None:
         (BENGAL_ROOT / "tests" / "unit" / "rendering" / "kida", test_dir / "unit"),
         (BENGAL_ROOT / "tests" / "kida", test_dir / "misc"),
     ]
-    
+
     for source_dir, dest_base in test_sources:
         if not source_dir.exists():
             continue
@@ -536,17 +536,17 @@ def main() -> None:
             if should_skip(py_file):
                 stats["skipped"] += 1
                 continue
-                
+
             rel_path = py_file.relative_to(source_dir)
             dest_path = dest_base / rel_path
 
             content = py_file.read_text()
             transformed = transform_file(content)
-            
+
             if not args.dry_run:
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                 dest_path.write_text(transformed)
-            
+
             stats["tests"] += 1
             print(f"  ✓ {dest_base.name}/{rel_path}")
 
@@ -583,16 +583,16 @@ def verify_extraction() -> None:
     """Verify extraction succeeded."""
     print("🔍 Verifying extraction...\n")
     errors = []
-    
+
     src_dir = KIDA_ROOT / "src" / "kida"
-    
+
     # Check for Bengal imports
     for py_file in src_dir.rglob("*.py"):
         content = py_file.read_text()
         if "from bengal" in content or "import bengal" in content:
             rel_path = py_file.relative_to(KIDA_ROOT)
             errors.append(f"Bengal import found in {rel_path}")
-    
+
     # Check key files exist
     required = [
         src_dir / "__init__.py",
@@ -603,7 +603,7 @@ def verify_extraction() -> None:
     for path in required:
         if not path.exists():
             errors.append(f"Missing required file: {path.relative_to(KIDA_ROOT)}")
-    
+
     if errors:
         print("❌ Verification failed:")
         for error in errors:
@@ -881,4 +881,3 @@ Update references in Bengal documentation (`site/content/docs/theming/templating
 **External Resources:**
 - PEP 703: Making the Global Interpreter Lock Optional
 - Jinja2 documentation: https://jinja.palletsprojects.com/
-

@@ -189,7 +189,7 @@ def render_safely(template, **context):
     missing = [k for k in required if k not in context]
     if missing:
         raise ValueError(f"Missing context: {missing}")
-    
+
     return template.render(**context)
 ```
 
@@ -215,4 +215,3 @@ def render_safely(template, **context):
 - [[docs/troubleshooting/undefined-variable|Undefined Variable]] — Debug undefined errors
 - [[docs/troubleshooting/template-not-found|Template Not Found]] — Fix loading issues
 - [[docs/reference/api|API Reference]] — Exception classes
-

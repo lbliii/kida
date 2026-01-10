@@ -106,4 +106,3 @@ Kida extends Jinja2 syntax with:
 - **Pattern matching** — `{% match status %}{% case "active" %}...{% end %}`
 - **Pipeline operator** — `{{ title |> escape |> upper |> truncate(50) }}`
 - **Built-in caching** — `{% cache "sidebar" %}...{% end %}`
-

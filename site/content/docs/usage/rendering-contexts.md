@@ -230,4 +230,3 @@ template.render(
 - [[docs/usage/escaping|Escaping]] — HTML escaping
 - [[docs/extending/custom-globals|Custom Globals]] — Add global functions
 - [[docs/reference/api|API Reference]] — Environment.render()
-

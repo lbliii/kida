@@ -43,11 +43,11 @@ async def main():
             {{ item }}
         {% end %}
     """)
-    
+
     async def items():
         for i in range(3):
             yield i
-    
+
     result = await template.render_async(items=items())
     print(result)
 
@@ -106,7 +106,7 @@ async def render_dashboard():
         fetch_posts(),
         fetch_stats(),
     )
-    
+
     template = env.get_template("dashboard.html")
     return await template.render_async(
         user=user,
@@ -184,4 +184,3 @@ html = template.render(users=users, posts=posts)
 - [[docs/about/thread-safety|Thread Safety]] — Free-threading support
 - [[docs/about/performance|Performance]] — Performance optimization
 - [[docs/reference/api|API Reference]] — Template.render_async()
-
