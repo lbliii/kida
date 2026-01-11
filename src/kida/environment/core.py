@@ -89,7 +89,10 @@ class Environment:
         Three cache layers for optimal performance:
         - **Bytecode cache** (disk): Persistent compiled bytecode via marshal.
           Auto-enabled for FileSystemLoader in `__pycache__/kida/`.
-          Provides 90%+ cold-start improvement for serverless.
+          Current cold-start gain is modest (~7-8% median in
+          `benchmarks/benchmark_cold_start.py`); most startup time is import
+          cost, so lazy imports or pre-compilation are required for larger
+          improvements.
         - **Template cache** (memory): Compiled Template objects (keyed by name)
         - **Fragment cache** (memory): `{% cache key %}` block outputs
 

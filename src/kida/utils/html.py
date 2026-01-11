@@ -479,15 +479,11 @@ def _escape_str(s: str) -> str:
 
     Uses O(n) single-pass str.translate() for all strings.
 
-    The previous implementation used a frozenset intersection check as a
-    "fast path" for strings without special characters. However, benchmarks
-    showed this was actually slower (~750ns vs ~330ns for typical strings)
-    because frozenset.intersection() has to iterate the entire string and
-    allocate a temporary set even when returning empty.
-
-    For strings under 1KB, translate() is always faster than the intersection
-    check. For very large strings (>1KB), we keep the check to avoid
-    allocating a large output string when no escaping is needed.
+    Rationale: benchmarks on 2026-01-11 (Python 3.14) showed the previous
+    frozenset intersection "fast path" was slower for 64–8192 byte inputs
+    with no escapable characters (154ns → 5.9µs for translate-only vs
+    569ns → 50µs with intersection). We now always translate; CPython
+    returns the original string when no substitutions are needed.
 
     Args:
         s: String to escape.
@@ -498,13 +494,6 @@ def _escape_str(s: str) -> str:
     Complexity:
         O(n) single pass. No backtracking, no regex.
     """
-    # For typical strings (< 1KB), just translate directly
-    # translate() returns the same object if no changes needed (CPython optimization)
-    if len(s) < 1024:
-        return s.translate(_ESCAPE_TABLE)
-    # For large strings, check first to avoid full allocation when no escaping needed
-    if not _ESCAPE_CHARS.intersection(s):
-        return s
     return s.translate(_ESCAPE_TABLE)
 
 
@@ -534,8 +523,7 @@ def html_escape(value: Any) -> str:
 
     Optimizations:
         1. Skip Markup objects (already safe)
-        2. Fast path check - if no escapable chars, return as-is
-        3. Single-pass translation instead of 5 chained .replace()
+        2. Single-pass translation instead of 5 chained .replace()
 
     This is ~3-5x faster than the naive approach for escape-heavy content.
 

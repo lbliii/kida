@@ -22,7 +22,7 @@ print(template.render(name="World"))
 
 - **AST-native** — Compiles to Python AST directly, no string generation
 - **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703)
-- **Fast** — Benchmarks: 3.5x (minimal), 1.6x (small), ~1.0x (medium), 1.2x (large), 1.7x (complex); cold-start +13% with bytecode cache (details in performance docs)
+- **Fast** — Benchmarks on 3.14t: 3.6x (minimal), 1.7x (small), 1.1x (medium), ~1.0x (large), 1.2x (complex); cold-start +7-8% with bytecode cache (details in performance docs)
 - **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`
 - **Zero dependencies** — Pure Python, includes native `Markup` implementation
 
@@ -268,8 +268,9 @@ Module declares itself GIL-independent via `_Py_mod_gil = 0` (PEP 703).
 ```bash
 git clone https://github.com/lbliii/kida.git
 cd kida
-uv sync --group dev
-pytest
+# Uses Python 3.14t by default (.python-version)
+uv sync --group dev --python 3.14t
+PYTHON_GIL=0 uv run --python 3.14t pytest
 ```
 
 ---

@@ -1,9 +1,11 @@
 """Cold-start performance benchmarks.
 
 Measures time from fresh import to first render completion.
-Validates the "90%+ cold-start improvement" claim.
 
 Run with: python benchmarks/benchmark_cold_start.py
+
+Current finding (2026-01-11): bytecode cache improves Kida cold-start by
+~7-8% median; import time dominates. Update docs if this changes.
 """
 
 from __future__ import annotations

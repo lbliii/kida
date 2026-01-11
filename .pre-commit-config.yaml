@@ -1,6 +1,11 @@
 # Pre-commit hooks for Kida
 # Install: pip install pre-commit && pre-commit install
 # Run manually: pre-commit run --all-files
+#
+# Note: Kida requires Python 3.14+ (uses t-string syntax from PEP 750)
+
+default_language_version:
+  python: python3.14
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit

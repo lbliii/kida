@@ -14,10 +14,14 @@ Requirements:
 
 from __future__ import annotations
 
+import timeit
+
 import pytest
 
 from kida import Markup
 from kida.utils.html import (
+    _ESCAPE_CHARS,
+    _ESCAPE_TABLE,
     css_escape,
     html_escape,
     js_escape,
@@ -79,6 +83,35 @@ def test_escape_long_string_with_special(benchmark: pytest.BenchmarkFixture) -> 
     """
     text = "User said: 'Hello & goodbye' at <time> on day #1. " * 50
     benchmark(html_escape, text)
+
+
+# =============================================================================
+# Escape threshold crossover (regression guard for Issue #2)
+# =============================================================================
+
+
+def _escape_with_intersection(s: str) -> str:
+    """Previous fast-path: check set intersection before translate()."""
+    if not _ESCAPE_CHARS.intersection(s):
+        return s
+    return s.translate(_ESCAPE_TABLE)
+
+
+@pytest.mark.parametrize("size", [64, 128, 256, 512, 1024, 2048, 4096, 8192])
+def test_escape_translate_beats_intersection_for_no_special_chars(size: int) -> None:
+    """Translate-only must stay faster than intersection + translate.
+
+    This guards against reintroducing the slower "fast path" that built a
+    set to detect escapable characters before translating. Measurements on
+    2026-01-11 showed translate-only wins by 3-10x for 64-8192 byte strings
+    with no escapable characters.
+    """
+
+    s = "x" * size  # No escapable characters
+    translate = timeit.timeit(lambda: s.translate(_ESCAPE_TABLE), number=20000)
+    intersection = timeit.timeit(lambda: _escape_with_intersection(s), number=20000)
+
+    assert translate <= intersection
 
 
 # =============================================================================
