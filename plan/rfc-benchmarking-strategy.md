@@ -142,15 +142,21 @@ print(end - start)
 
 **Purpose:** Understand memory footprint for capacity planning.
 
+**Methodology:**
+Standardize on `tracemalloc` for memory profiling to avoid external dependencies and capture precise allocation snapshots.
+
 **Metrics:**
-- Template object size (bytes)
-- Peak memory during render
+- Template object size (bytes) via `sys.getsizeof`
+- Peak memory during render via `tracemalloc.get_traced_memory()`
 - Cache memory overhead (per template)
 - Bytecode cache disk usage
 
 ### Category 5: Concurrency / Free-Threading
 
 **Purpose:** Validate thread-safety claims and measure concurrent performance.
+
+**Methodology:**
+Use `threading.Barrier` to synchronize thread start times, ensuring peak contention during measurement windows.
 
 **Tests:**
 1. **Single-threaded baseline**: 1 thread, N renders
@@ -582,6 +588,34 @@ if __name__ == "__main__":
     run_cold_start_suite()
 ```
 
+## Result Reporting & Metadata
+
+### Environment Metadata
+To ensure reproducibility, every benchmark run must capture:
+- **Python**: Version, implementation (CPython/GraalPy), and build (GIL/Free-threaded)
+- **OS**: System name, release, and machine architecture
+- **CPU**: Model name, core count, and current frequency (if available)
+- **Kida**: Version/Commit hash
+- **Jinja2**: Version
+
+### Result Schema (JSON)
+Benchmarks should output a structured JSON file for automated ingestion:
+
+```json
+{
+  "timestamp": "2026-01-10T12:00:00Z",
+  "environment": { "python": "3.14t", "os": "darwin", "cpu": "Apple M3" },
+  "results": [
+    {
+      "name": "render_small",
+      "kida": { "mean": 0.32, "median": 0.31, "p99": 0.45 },
+      "jinja2": { "mean": 0.51, "median": 0.50, "p99": 0.62 },
+      "ratio": 1.59
+    }
+  ]
+}
+```
+
 ---
 
 ## Execution Plan
@@ -617,8 +651,9 @@ if __name__ == "__main__":
 ### Phase 5: CI Integration (1 day)
 
 - [ ] Add benchmark job to GitHub Actions (non-blocking)
+- [ ] **Variance Mitigation**: Configure job to report "Relative Speedup" (Kida/Jinja2) rather than absolute time to account for shared runner variance.
 - [ ] Configure benchmark comparison for PRs
-- [ ] Set up performance regression alerts (>10% slowdown)
+- [ ] Set up performance regression alerts (>10% slowdown in relative performance)
 
 ---
 
@@ -639,6 +674,7 @@ if __name__ == "__main__":
 - [ ] Users can run benchmarks on their own hardware
 - [ ] CI catches performance regressions before merge
 - [ ] Methodology documented for transparency
+- [ ] Benchmark results are exported in structured JSON for long-term tracking
 
 ---
 
@@ -655,10 +691,9 @@ if __name__ == "__main__":
 
 ## Open Questions
 
-1. **Which Jinja2 version to compare against?** Recommend latest stable (3.1.x).
+1. **Which Jinja2 version to compare against?** Resolved: Use latest stable (3.1.x) pinned in `requirements-dev.lock`.
 2. **Include other engines?** (Mako, Django Templates) — Defer to future RFC.
-3. **Memory benchmark methodology?** `tracemalloc` vs `memory_profiler`?
-4. **Publish benchmark results?** Consider automated reporting to docs site.
+3. **Automated Reporting?** Resolved: Phase 5 includes automated reporting to a hidden `.benchmarks/` directory for regression analysis.
 
 ---
 

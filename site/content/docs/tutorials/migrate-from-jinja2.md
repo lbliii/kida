@@ -74,7 +74,7 @@ env = Environment(
 )
 ```
 
-Note: Kida does not use extensions. Features like `do` are built-in.
+Note: Kida does not use Jinja2-style extensions. For side effects, use `{% set _ = expr %}`.
 
 ## Step 4: Rewrite Block Endings
 
