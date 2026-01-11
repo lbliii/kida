@@ -39,6 +39,13 @@ def render_concurrently(env: Environment, workers: int, iterations: int) -> floa
 
 @pytest.mark.benchmark(group="threading:render")
 @pytest.mark.parametrize("workers", [1, 2, 4, 8])
-def test_threaded_render(benchmark: BenchmarkFixture, kida_env: Environment, workers: int) -> None:
-    elapsed = benchmark(render_concurrently, kida_env, workers, 100)
-    assert elapsed >= 0.0
+def test_threaded_render(
+    benchmark: BenchmarkFixture, kida_env: Environment, workers: int, gc_disabled
+) -> None:
+    # Use pedantic mode for better statistical control in concurrent tests
+    benchmark.pedantic(
+        render_concurrently,
+        args=(kida_env, workers, 100),
+        rounds=5,
+        iterations=1,
+    )

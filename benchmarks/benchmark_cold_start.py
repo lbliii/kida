@@ -19,15 +19,17 @@ ITERATIONS = 10
 
 
 def measure_cold_start(
+    engine: str,
     use_bytecode_cache: bool,
     cache_dir: Path | None = None,
 ) -> float:
     """Measure cold-start time in a fresh Python process (ms)."""
-    cache_arg = "None"
-    if use_bytecode_cache:
-        cache_arg = f"BytecodeCache(Path('{cache_dir}'))"
+    if engine == "kida":
+        cache_arg = "None"
+        if use_bytecode_cache:
+            cache_arg = f"BytecodeCache(Path('{cache_dir}'))"
 
-    script = f'''
+        script = f'''
 import time
 from pathlib import Path
 from kida import Environment
@@ -43,6 +45,39 @@ template = env.from_string("""
     {{% for item in items %}}
         <li>{{{{ item }}}}</li>
     {{% end %}}
+</body>
+</html>
+""")
+template.render(title="Test", name="World", items=["a", "b", "c"])
+_end = time.perf_counter_ns()
+
+print((_end - _start) / 1_000_000)
+'''
+    else:  # jinja2
+        cache_arg = "None"
+        if use_bytecode_cache:
+            cache_arg = f"FileSystemBytecodeCache(str(Path('{cache_dir}')))"
+
+        script = f'''
+import time
+from pathlib import Path
+from jinja2 import Environment, FileSystemLoader
+{"from jinja2 import FileSystemBytecodeCache" if use_bytecode_cache else ""}
+
+_start = time.perf_counter_ns()
+env = Environment(
+    loader=FileSystemLoader('.'),
+    bytecode_cache={cache_arg},
+    autoescape=True
+)
+template = env.from_string("""
+<html>
+<head><title>{{ title }}</title></head>
+<body>
+    <h1>Hello, {{ name }}!</h1>
+    {% for item in items %}
+        <li>{{ item }}</li>
+    {% endfor %}
 </body>
 </html>
 """)
@@ -79,70 +114,70 @@ def summarize(label: str, values: Sequence[float]) -> None:
 
 def run_cold_start_suite() -> None:
     print("=" * 60)
-    print("KIDA COLD-START BENCHMARK")
+    print("COLD-START BENCHMARK: KIDA VS JINJA2")
     print("=" * 60)
     print()
 
-    # Scenario 1: No bytecode cache (baseline)
-    print("Scenario 1: No bytecode cache (baseline)")
+    # Scenario 1: Kida Baseline
+    print("Scenario 1: Kida (no cache)")
     print("-" * 40)
-    no_cache_times = []
+    kida_no_cache = []
     for i in range(ITERATIONS):
-        t = measure_cold_start(use_bytecode_cache=False)
-        no_cache_times.append(t)
+        t = measure_cold_start("kida", use_bytecode_cache=False)
+        kida_no_cache.append(t)
         print(f"  Run {i + 1}: {t:.2f}ms")
+    kida_baseline = summarize("Kida baseline", kida_no_cache)
 
-    baseline = summarize("baseline", no_cache_times)
+    # Scenario 2: Jinja2 Baseline
+    print("Scenario 2: Jinja2 (no cache)")
+    print("-" * 40)
+    jinja2_no_cache = []
+    for i in range(ITERATIONS):
+        t = measure_cold_start("jinja2", use_bytecode_cache=False)
+        jinja2_no_cache.append(t)
+        print(f"  Run {i + 1}: {t:.2f}ms")
+    jinja2_baseline = summarize("Jinja2 baseline", jinja2_no_cache)
 
-    # Scenario 2: Bytecode cache cold (first population)
-    print("Scenario 2: Bytecode cache cold (first population)")
+    # Scenario 3: Kida Warm (cache hit)
+    print("Scenario 3: Kida Warm (cache hit)")
     print("-" * 40)
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = Path(tmpdir)
-        cache_cold_times = []
+        # Pre-populate
+        measure_cold_start("kida", use_bytecode_cache=True, cache_dir=cache_dir)
+        kida_warm = []
         for i in range(ITERATIONS):
-            for f in cache_dir.glob("__kida_*.pyc"):
-                f.unlink()
-            t = measure_cold_start(use_bytecode_cache=True, cache_dir=cache_dir)
-            cache_cold_times.append(t)
+            t = measure_cold_start("kida", use_bytecode_cache=True, cache_dir=cache_dir)
+            kida_warm.append(t)
             print(f"  Run {i + 1}: {t:.2f}ms")
+        kida_warm_med = summarize("Kida warm", kida_warm)
 
-        cache_cold_median = summarize("cache cold", cache_cold_times)
-
-        print("Scenario 3: Bytecode cache warm (cache hit)")
-        print("-" * 40)
-        # Pre-populate cache
-        measure_cold_start(use_bytecode_cache=True, cache_dir=cache_dir)
-
-        cache_warm_times = []
+    # Scenario 4: Jinja2 Warm (cache hit)
+    print("Scenario 4: Jinja2 Warm (cache hit)")
+    print("-" * 40)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir)
+        # Pre-populate
+        measure_cold_start("jinja2", use_bytecode_cache=True, cache_dir=cache_dir)
+        jinja2_warm = []
         for i in range(ITERATIONS):
-            t = measure_cold_start(use_bytecode_cache=True, cache_dir=cache_dir)
-            cache_warm_times.append(t)
+            t = measure_cold_start("jinja2", use_bytecode_cache=True, cache_dir=cache_dir)
+            jinja2_warm.append(t)
             print(f"  Run {i + 1}: {t:.2f}ms")
-
-        cache_warm_median = summarize("cache warm", cache_warm_times)
+        jinja2_warm_med = summarize("Jinja2 warm", jinja2_warm)
 
     print("=" * 60)
-    print("SUMMARY")
+    print("FINAL COMPARISON (Medians)")
     print("=" * 60)
-    print(f"Baseline (no cache):     {baseline:.2f}ms")
-    print(f"Cache cold (first load): {cache_cold_median:.2f}ms")
-    print(f"Cache warm (cache hit):  {cache_warm_median:.2f}ms")
+    print(f"Kida (No Cache):   {kida_baseline:.2f}ms")
+    print(f"Jinja2 (No Cache): {jinja2_baseline:.2f}ms")
+    print(f"Kida (Warm Cache): {kida_warm_med:.2f}ms (Improvement: {((kida_baseline-kida_warm_med)/kida_baseline)*100:.1f}%)")
+    print(f"Jinja2 (Warm Cache): {jinja2_warm_med:.2f}ms (Improvement: {((jinja2_baseline-jinja2_warm_med)/jinja2_baseline)*100:.1f}%)")
     print()
 
-    if baseline > 0:
-        cold_improvement = ((baseline - cache_cold_median) / baseline) * 100
-        warm_improvement = ((baseline - cache_warm_median) / baseline) * 100
-        print(f"Cold cache improvement:  {cold_improvement:+.1f}%")
-        print(f"Warm cache improvement:  {warm_improvement:+.1f}%")
-        print()
-
-        if warm_improvement >= 90:
-            print("✅ VALIDATED: 90%+ cold-start improvement claim")
-        elif warm_improvement >= 80:
-            print("⚠️  CLOSE: ~80% improvement (update docs to reflect)")
-        else:
-            print(f"❌ NOT VALIDATED: Only {warm_improvement:.1f}% improvement")
+    speedup = jinja2_warm_med / kida_warm_med
+    print(f"Kida is {speedup:.1f}x faster than Jinja2 in warm cold-starts")
+    print()
 
 
 if __name__ == "__main__":

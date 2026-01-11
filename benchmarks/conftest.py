@@ -61,6 +61,17 @@ def collect_environment_metadata() -> dict[str, object]:
     }
 
 
+@pytest.fixture
+def gc_disabled():
+    """Disable garbage collection during the benchmark run to reduce variance."""
+    import gc
+
+    gc.collect()
+    gc.disable()
+    yield
+    gc.enable()
+
+
 @pytest.fixture(scope="session")
 def environment_metadata() -> dict[str, object]:
     """Write environment metadata to .benchmarks for ingestion."""
@@ -87,19 +98,33 @@ def template_loader() -> Callable[[str, str], str]:
 def kida_env(tmp_path_factory: pytest.TempPathFactory) -> KidaEnvironment:
     cache_dir = tmp_path_factory.mktemp("kida-bytecode-cache")
     loader = KidaFileSystemLoader(str(TEMPLATE_DIR))
-    # Benchmarks should avoid per-render mtime/hash checks on parent templates.
-    # Use auto_reload=False to prevent repeated get_source() calls under inheritance.
+    # Benchmarks should reflect production performance:
+    # 1. auto_reload=False: Skip mtime checks
+    # 2. preserve_ast=False: Minimize memory footprint (Kida feature)
+    # 3. bytecode_cache: Persistent compiled templates
     return KidaEnvironment(
         loader=loader,
         bytecode_cache=BytecodeCache(cache_dir),
         auto_reload=False,
+        preserve_ast=False,
     )
 
 
 @pytest.fixture(scope="session")
-def jinja2_env() -> Jinja2Environment:
+def jinja2_env(tmp_path_factory: pytest.TempPathFactory) -> Jinja2Environment:
+    from jinja2 import FileSystemBytecodeCache
+
+    cache_dir = tmp_path_factory.mktemp("jinja2-bytecode-cache")
     loader = Jinja2FileSystemLoader(str(JINJA2_TEMPLATE_DIR))
-    return Jinja2Environment(loader=loader, autoescape=True)
+    # Ensure Jinja2 is competitive:
+    # 1. auto_reload=False: Disable filesystem polling
+    # 2. FileSystemBytecodeCache: Enable persistent compilation caching
+    return Jinja2Environment(
+        loader=loader,
+        autoescape=True,
+        auto_reload=False,
+        bytecode_cache=FileSystemBytecodeCache(str(cache_dir)),
+    )
 
 
 @pytest.fixture(scope="session")

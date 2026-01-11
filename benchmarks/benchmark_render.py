@@ -121,3 +121,45 @@ def test_compile_small_jinja2(
 ) -> None:
     source = template_loader("small.html", engine="jinja2")
     benchmark(jinja2_env.from_string, source)
+
+
+# =============================================================================
+# Kida Specific Features
+# =============================================================================
+
+
+@pytest.mark.benchmark(group="kida:t-string")
+def test_render_t_string_kida(benchmark: BenchmarkFixture) -> None:
+    """Kida: Optimized t-string interpolation (k-tag)."""
+    from kida import k
+
+    def run():
+        name = "World"
+        items = ["a", "b", "c"]
+        # Use t-string literal for zero-parser-overhead interpolation
+        return k(t"Hello {name}, items: {items}")
+
+    benchmark(run)
+
+
+@pytest.mark.benchmark(group="kida:fragment-cache")
+def test_render_fragment_cache_kida(benchmark: BenchmarkFixture, kida_env: KidaEnvironment) -> None:
+    """Kida: Fragment caching via {% cache %}.
+
+    This feature is unique to Kida and provides significant speedups for
+    partially static templates.
+    """
+    source = """
+    {% cache "bench-key" ttl=300 %}
+        <ul>
+        {% for i in range(100) %}
+            <li>Item {{ i }}</li>
+        {% end %}
+        </ul>
+    {% end %}
+    """
+    template = kida_env.from_string(source)
+    # Warm up the cache
+    template.render()
+    # Benchmark cache hit performance
+    benchmark(template.render)

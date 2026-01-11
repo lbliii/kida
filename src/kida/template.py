@@ -49,6 +49,33 @@ if TYPE_CHECKING:
     from kida.environment import Environment
 
 
+# =============================================================================
+# Shared Base Namespace (Performance Optimization)
+# =============================================================================
+# Static entries shared across all Template instances to avoid repeated
+# dictionary construction. These are copied once per Template.__init__
+# instead of constructed fresh each time.
+#
+# Thread-Safety: This dict is read-only after module load.
+# =============================================================================
+
+_STATIC_NAMESPACE: dict[str, Any] = {
+    "__builtins__": {"__import__": __import__},
+    "_Markup": Markup,
+    "_str": str,
+    "_len": len,
+    "_range": range,
+    "_list": list,
+    "_dict": dict,
+    "_set": set,
+    "_tuple": tuple,
+    "_isinstance": isinstance,
+    "_bool": bool,
+    "_int": int,
+    "_float": float,
+}
+
+
 class LoopContext:
     """Loop iteration metadata accessible as `loop` inside `{% for %}` blocks.
 
@@ -679,41 +706,34 @@ class Template:
             return str(value)
 
         # Execute the code to get the render function
-        namespace: dict[str, Any] = {
-            "__builtins__": {"__import__": __import__},  # allow imports inside compiled templates
-            "_env": env,  # Direct ref needed during exec for globals access
-            "_filters": env._filters,
-            "_tests": env._tests,
-            "_escape": self._escape,
-            "_getattr": self._safe_getattr,
-            "_getattr_none": self._getattr_preserve_none,  # RFC: kida-modern-syntax-features
-            "_lookup": _lookup,  # Variable lookup with UndefinedError
-            "_lookup_scope": _lookup_scope,  # Scope-aware variable lookup
-            "_default_safe": _default_safe,  # Default filter helper
-            "_is_defined": _is_defined,  # Is defined test helper
-            "_null_coalesce": _null_coalesce,  # Null coalesce with undefined handling
-            "_coerce_numeric": _coerce_numeric,  # Numeric coercion for macro arithmetic
-            "_spaceless": _spaceless,  # RFC: kida-modern-syntax-features
-            "_str_safe": _str_safe,  # RFC: kida-modern-syntax-features - None to empty string
-            "_include": _include,
-            "_extends": _extends,
-            "_import_macros": _import_macros,
-            "_cache_get": _cache_get,
-            "_cache_set": _cache_set,
-            "_Markup": Markup,
-            "_LoopContext": LoopContext,
-            "_str": str,
-            "_len": len,
-            "_range": range,
-            "_list": list,
-            "_dict": dict,
-            "_set": set,
-            "_tuple": tuple,
-            "_isinstance": isinstance,
-            "_bool": bool,
-            "_int": int,
-            "_float": float,
-        }
+        # Start with shared static namespace (copied once, not constructed)
+        namespace: dict[str, Any] = _STATIC_NAMESPACE.copy()
+
+        # Add per-template dynamic entries
+        namespace.update(
+            {
+                "_env": env,  # Direct ref needed during exec for globals access
+                "_filters": env._filters,
+                "_tests": env._tests,
+                "_escape": self._escape,
+                "_getattr": self._safe_getattr,
+                "_getattr_none": self._getattr_preserve_none,
+                "_lookup": _lookup,
+                "_lookup_scope": _lookup_scope,
+                "_default_safe": _default_safe,
+                "_is_defined": _is_defined,
+                "_null_coalesce": _null_coalesce,
+                "_coerce_numeric": _coerce_numeric,
+                "_spaceless": _spaceless,
+                "_str_safe": _str_safe,
+                "_include": _include,
+                "_extends": _extends,
+                "_import_macros": _import_macros,
+                "_cache_get": _cache_get,
+                "_cache_set": _cache_set,
+                "_LoopContext": LoopContext,
+            }
+        )
         exec(code, namespace)
         self._render_func = namespace.get("render")
         self._render_async_func = namespace.get("render_async")

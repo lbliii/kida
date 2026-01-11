@@ -11,9 +11,11 @@ from kida import DictLoader, Environment
 @pytest.mark.benchmark(group="scaling:variables")
 @pytest.mark.parametrize("count", [10, 100, 1000, 10000])
 def test_variable_scaling(benchmark: BenchmarkFixture, kida_env: Environment, count: int) -> None:
-    template = kida_env.from_string("{% for value in values %}{{ value }}{% end %}")
-    values = [str(i) for i in range(count)]
-    benchmark(template.render, values=values)
+    # Use discrete variable tags to isolate variable access from loop overhead
+    template_source = "".join([f"{{{{ v{i} }}}}" for i in range(count)])
+    template = kida_env.from_string(template_source)
+    context = {f"v{i}": str(i) for i in range(count)}
+    benchmark(template.render, **context)
 
 
 @pytest.mark.benchmark(group="scaling:loops")
