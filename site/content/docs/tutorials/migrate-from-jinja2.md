@@ -1,6 +1,6 @@
 ---
 title: Migrate from Jinja2
-description: Switch from Jinja2 to Kida for template rendering
+description: Rewrite Jinja2 templates for Kida
 draft: false
 weight: 10
 lang: en
@@ -18,13 +18,16 @@ icon: arrow-right
 
 # Migrate from Jinja2
 
-Switch from Jinja2 to Kida for faster, safer template rendering.
+Guide for rewriting Jinja2 templates in Kida syntax.
+
+:::note[Not a Drop-In Replacement]
+Kida is **not** compatible with Jinja2. Templates must be rewritten using Kida syntax. This guide helps you translate common patterns.
+:::
 
 ## Prerequisites
 
 - Python 3.14+
-- Existing Jinja2 templates
-- Basic understanding of template syntax
+- Familiarity with Jinja2 template syntax
 
 ## Step 1: Install Kida
 
@@ -38,14 +41,14 @@ pip install kida
 
 ```python
 from jinja2 import Environment, FileSystemLoader
-from jinja2 import Markup
+from markupsafe import Markup
 ```
 
 **After (Kida):**
 
 ```python
 from kida import Environment, FileSystemLoader
-from kida import Markup
+from kida import Markup  # Built-in, no markupsafe
 ```
 
 ## Step 3: Update Environment Creation
@@ -55,7 +58,8 @@ from kida import Markup
 ```python
 env = Environment(
     loader=FileSystemLoader('templates'),
-    autoescape=True,
+    autoescape=select_autoescape(),
+    extensions=['jinja2.ext.do'],
 )
 ```
 
@@ -65,30 +69,48 @@ env = Environment(
 env = Environment(
     loader=FileSystemLoader('templates'),
     autoescape=True,
+    cache_size=400,
+    fragment_ttl=300.0,
 )
 ```
 
-Most Environment options are compatible!
+Note: Kida does not use extensions. Features like `do` are built-in.
 
-## Step 4: Update Block Endings (Optional)
+## Step 4: Rewrite Block Endings
 
-Kida supports both Jinja2 endings and unified `{% end %}`:
+Convert specific endings to unified `{% end %}`:
 
-**Jinja2 style (works in Kida):**
+**Jinja2:**
 
-```kida
-{% if condition %}...{% endif %}
-{% for item in items %}...{% endfor %}
+```jinja2
+{% if condition %}
+    content
+{% endif %}
+
+{% for item in items %}
+    {{ item }}
+{% endfor %}
+
+{% block content %}
+    ...
+{% endblock %}
 ```
 
-**Kida style (recommended):**
+**Kida:**
 
 ```kida
-{% if condition %}...{% end %}
-{% for item in items %}...{% end %}
-```
+{% if condition %}
+    content
+{% end %}
 
-You can migrate gradually—both syntaxes work.
+{% for item in items %}
+    {{ item }}
+{% end %}
+
+{% block content %}
+    ...
+{% end %}
+```
 
 ## Step 5: Update Custom Filters
 
@@ -108,11 +130,8 @@ def format_money(value, currency='$'):
     return f'{currency}{value:,.2f}'
 
 env.add_filter('money', format_money)
-```
 
-Or use the decorator:
-
-```python
+# Or use the decorator
 @env.filter()
 def format_money(value, currency='$'):
     return f'{currency}{value:,.2f}'
@@ -133,11 +152,8 @@ env.tests['prime'] = is_prime
 
 ```python
 env.add_test('prime', is_prime)
-```
 
-Or use the decorator:
-
-```python
+# Or use the decorator
 @env.test()
 def is_prime(n):
     return n > 1 and all(n % i for i in range(2, n))
@@ -153,34 +169,25 @@ def is_prime(n):
 | `Template.render()` | `Template.render()` |
 | `Template.render_async()` | `Template.render_async()` |
 | `Markup` (markupsafe) | `Markup` (built-in) |
-| `env.filters[name]` | `env.add_filter(name, func)` |
-| `env.tests[name]` | `env.add_test(name, func)` |
-| `env.globals[name]` | `env.add_global(name, value)` |
-| `{% endif %}` | `{% end %}` (or `{% endif %}`) |
-| `{% endfor %}` | `{% end %}` (or `{% endfor %}`) |
+| `env.filters[name] = func` | `env.add_filter(name, func)` |
+| `env.tests[name] = func` | `env.add_test(name, func)` |
+| `env.globals[name] = value` | `env.add_global(name, value)` |
 
-## Syntax Differences
+## Syntax Translation
 
-| Feature | Jinja2 | Kida |
-|---------|--------|------|
-| Block endings | `{% endif %}`, `{% endfor %}` | Unified `{% end %}` |
-| Pipeline | N/A | `{{ x \|> a \|> b }}` |
-| Pattern matching | N/A | `{% match %}...{% case %}` |
-| Block caching | N/A | `{% cache key %}...{% end %}` |
+| Jinja2 | Kida |
+|--------|------|
+| `{% endif %}` | `{% end %}` |
+| `{% endfor %}` | `{% end %}` |
+| `{% endblock %}` | `{% end %}` |
+| `{% endmacro %}` | `{% end %}` |
+| `{{ x \| filter }}` | `{{ x \|> filter }}` (pipeline) |
+| `{% if %}...{% elif %}...{% endif %}` | `{% match %}...{% case %}...{% end %}` |
+| N/A | `{% cache key %}...{% end %}` |
 
-## New Features to Explore
+## New Features
 
-After migrating, try these Kida features:
-
-### Unified Block Endings
-
-```kida
-{% if condition %}
-    {% for item in items %}
-        {{ item }}
-    {% end %}
-{% end %}
-```
+After migrating, explore Kida-only features:
 
 ### Pipeline Operator
 
@@ -211,7 +218,7 @@ After migrating, try these Kida features:
 
 ## Verification
 
-After migration, verify:
+After migration, verify templates render correctly:
 
 ```python
 from kida import Environment
@@ -229,7 +236,7 @@ print("✅ Migration successful!")
 
 **Error**: `ImportError: cannot import name 'Markup' from 'markupsafe'`
 
-**Fix**: Import from Kida instead:
+**Fix**: Import from Kida:
 
 ```python
 from kida import Markup  # Not from markupsafe
@@ -239,14 +246,24 @@ from kida import Markup  # Not from markupsafe
 
 **Error**: `TypeError: 'FilterRegistry' object does not support item assignment`
 
-**Fix**: Use `add_filter()` instead of dictionary assignment:
+**Fix**: Use `add_filter()`:
 
 ```python
 env.add_filter('name', func)  # Not env.filters['name'] = func
 ```
 
-## Next Steps
+### Block Endings
 
-- [[docs/syntax/control-flow|Control Flow]] — New pattern matching syntax
-- [[docs/about/comparison|Comparison]] — Full Kida vs Jinja2 comparison
+**Error**: `TemplateSyntaxError: Unexpected tag 'endif'`
+
+**Fix**: Use unified `{% end %}`:
+
+```kida
+{% if x %}...{% end %}  # Not {% endif %}
+```
+
+## See Also
+
+- [[docs/syntax/control-flow|Control Flow]] — Pattern matching syntax
+- [[docs/about/comparison|Comparison]] — Kida vs Jinja2
 - [[docs/about/performance|Performance]] — Benchmark results

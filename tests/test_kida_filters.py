@@ -1,7 +1,7 @@
 """Test filter functionality in Kida template engine.
 
 Based on Jinja2's test_filters.py.
-Tests all built-in filters for correctness and Jinja2 compatibility.
+Tests all built-in filters for correctness.
 """
 
 import pytest

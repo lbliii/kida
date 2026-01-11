@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Free-threading ready — GIL-independent via `_Py_mod_gil = 0` for Python 3.14t+
 - Modern syntax — unified `{% end %}`, pattern matching, pipelines
 - Native async — true async/await support (no `auto_await()` wrappers)
-- Jinja2 compatible — parses existing Jinja2 templates
 - Built-in caching — `{% cache key %}...{% end %}` directive
 - Pipeline operator — `{{ value |> filter1 |> filter2 }}`
 - Pattern matching — `{% match %}...{% case %}` syntax

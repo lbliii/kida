@@ -417,14 +417,14 @@ class TestInheritanceWithScoping:
         env = Environment(loader=loader)
         assert env.get_template("child.html").render() == "<html>exported</html>"
 
-    def test_do_in_child_executes(self):
-        """{% do %} in child template should execute before blocks."""
+    def test_set_in_child_executes(self):
+        """{% set %} in child template should execute before blocks."""
         loader = DictLoader(
             {
                 "base.html": "<html>{% block content %}{% endblock %}</html>",
                 "child.html": (
                     '{% extends "base.html" %}'
-                    '{% do my_dict.update({"a": 1}) %}'
+                    '{% set _ = my_dict.update({"a": 1}) %}'
                     "{% block content %}{{ my_dict.a }}{% endblock %}"
                 ),
             }

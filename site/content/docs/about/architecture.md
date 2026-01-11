@@ -167,10 +167,6 @@ No string manipulation or regex. The entire pipeline operates on structured AST 
 
 Pure Python, no runtime dependencies. Includes native `Markup` class.
 
-### 4. Jinja2 Compatible
-
-Parses most Jinja2 templates. Migration path is smooth.
-
 ## See Also
 
 - [[docs/about/performance|Performance]] — Benchmarks

@@ -65,19 +65,6 @@ Strict Mode (default):
     >>> env.from_string("{{ missing }}").render()  # Raises UndefinedError
     >>> env.from_string("{{ missing | default('N/A') }}").render()
     'N/A'
-
-Jinja2 Compatibility:
-    Kida accepts most Jinja2 syntax natively — no special parser needed:
-    - Jinja2 block endings: `{% endif %}`, `{% endfor %}`, `{% endblock %}`
-    - Traditional filter syntax: `{{ x | filter1 | filter2 }}`
-    - Template inheritance: `{% extends %}`, `{% block %}`, `{% include %}`
-
-    Most Jinja2 templates work unchanged:
-
-    >>> from kida import Environment  # Drop-in replacement
-    >>> env = Environment()
-    >>> env.from_string("{% if x %}yes{% endif %}").render(x=True)
-    'yes'
 """
 
 from collections.abc import Callable

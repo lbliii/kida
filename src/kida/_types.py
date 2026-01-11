@@ -212,7 +212,6 @@ KEYWORDS = frozenset(
         "endraw",
         "autoescape",
         "endautoescape",
-        "do",  # Statement expression
         # Pattern matching (Kida-native)
         "match",
         "case",

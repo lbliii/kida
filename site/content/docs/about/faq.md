@@ -47,24 +47,7 @@ Kida uses modern Python features and is designed for the free-threaded future.
 
 ---
 
-## Compatibility
-
-### Can I use my existing Jinja2 templates?
-
-Yes! Kida parses Jinja2 syntax. Most templates work unchanged:
-
-```python
-# Just change the import
-from kida import Environment, FileSystemLoader
-```
-
-See [[docs/tutorials/migrate-from-jinja2|Migration Guide]].
-
-### What Jinja2 features are missing?
-
-- Sandboxed environment
-- LaTeX/RTF formatters (HTML only)
-- Line statements disabled by default (enable with `line_statement_prefix`)
+## Dependencies
 
 ### Do I need markupsafe?
 
@@ -93,8 +76,6 @@ Unified endings are:
     {% end %}
 {% end %}
 ```
-
-Kida still accepts `{% endif %}`, `{% endfor %}`, etc. for compatibility.
 
 ### What's the pipeline operator?
 
@@ -218,5 +199,4 @@ See CONTRIBUTING.md in the repository.
 ## See Also
 
 - [[docs/about/comparison|Comparison]] — Kida vs Jinja2
-- [[docs/tutorials/migrate-from-jinja2|Migration]] — Moving from Jinja2
 - [[docs/troubleshooting/|Troubleshooting]] — Common issues

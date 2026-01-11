@@ -1,6 +1,6 @@
 """Filter and test registry for Kida environment.
 
-Provides Jinja2-compatible dict-like interface for filters and tests.
+Provides dict-like interface for filters and tests.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class FilterRegistry:
         return self._get_dict().get(name, default)
 
     def update(self, mapping: dict[str, Callable[..., Any]]) -> None:
-        """Batch update filters (Jinja2 compatibility)."""
+        """Batch update filters."""
         new = self._get_dict().copy()
         new.update(mapping)
         self._set_dict(new)

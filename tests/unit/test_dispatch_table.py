@@ -83,7 +83,6 @@ class TestDispatchTableKeywords:
             "from",
             # Scope and execution
             "with",
-            "do",
             "raw",
             "def",
             "call",

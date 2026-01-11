@@ -519,16 +519,6 @@ class Autoescape(Node):
 
 
 @dataclass(frozen=True, slots=True)
-class Do(Node):
-    """Expression statement: {% do expr %}
-
-    Evaluate expression for side effects, discard result.
-    """
-
-    expr: Expr
-
-
-@dataclass(frozen=True, slots=True)
 class Raw(Node):
     """Raw block (no template processing): {% raw %}...{% end %}"""
 

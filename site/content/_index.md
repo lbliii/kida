@@ -62,9 +62,9 @@ Built for Python 3.14t (PEP 703). Renders templates concurrently without the GIL
 Unified `{% end %}` for all blocks. Pattern matching with `{% match %}`. Pipelines with `|>`. Built-in caching.
 :::{/card}
 
-:::{card} Jinja2 Compatible
-:icon: arrows-angle-contract
-Parses existing Jinja2 templates. Migration path from Jinja2 is smooth—most templates work unchanged.
+:::{card} Zero Dependencies
+:icon: package
+Pure Python with no runtime dependencies. Includes native `Markup` class—no markupsafe required.
 :::{/card}
 
 :::{/cards}

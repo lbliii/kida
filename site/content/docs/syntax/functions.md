@@ -99,7 +99,7 @@ Functions can capture block content using `caller()`:
 {% end %}
 ```
 
-## Macros (Jinja2 Compatibility)
+## Macros
 
 Kida also supports the `{% macro %}` syntax:
 

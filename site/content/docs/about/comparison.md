@@ -61,8 +61,6 @@ Comprehensive comparison of Kida and Jinja2.
 {% end %}
 ```
 
-Kida also supports Jinja2-style endings for compatibility.
-
 ### Pipeline Operator
 
 **Jinja2**:
@@ -71,13 +69,11 @@ Kida also supports Jinja2-style endings for compatibility.
 {{ title | escape | upper | truncate(50) }}
 ```
 
-**Kida** (pipeline):
+**Kida**:
 
 ```kida
 {{ title |> escape |> upper |> truncate(50) }}
 ```
-
-Both syntaxes work in Kida.
 
 ### Pattern Matching
 
@@ -132,12 +128,9 @@ Both syntaxes work in Kida.
 env.filters["double"] = lambda x: x * 2
 ```
 
-**Kida** (Jinja2-compatible + additional APIs):
+**Kida**:
 
 ```python
-# Jinja2-compatible dict style (also works in Kida)
-env.filters["double"] = lambda x: x * 2
-
 # Method style
 env.add_filter("double", lambda x: x * 2)
 
@@ -210,22 +203,7 @@ Keep Jinja2 if you:
 - Have heavy investment in Jinja2 tooling
 - Need the sandboxed environment
 
-## Migration
-
-Most Jinja2 templates work unchanged in Kida:
-
-```python
-# Before
-from jinja2 import Environment, FileSystemLoader
-
-# After
-from kida import Environment, FileSystemLoader
-```
-
-See [[docs/tutorials/migrate-from-jinja2|Migration Guide]] for details.
-
 ## See Also
 
-- [[docs/tutorials/migrate-from-jinja2|Migration Guide]] — Step-by-step migration
 - [[docs/about/performance|Performance]] — Detailed benchmarks
 - [[docs/about/architecture|Architecture]] — How Kida works

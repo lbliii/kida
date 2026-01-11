@@ -1,6 +1,6 @@
 """Test advanced Kida template features.
 
-Tests for Kida-native features that go beyond Jinja2 compatibility:
+Tests for Kida-native features:
 - {% def %} - functions with lexical scoping
 - {% call %} / {% slot %} - component patterns
 - {% capture %} - capture block content to variable

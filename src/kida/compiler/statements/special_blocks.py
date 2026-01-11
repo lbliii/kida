@@ -1,6 +1,6 @@
 """Special block statement compilation for Kida compiler.
 
-Provides mixin for compiling special block statements (with, do, raw, capture, cache, filter_block).
+Provides mixin for compiling special block statements (with, raw, capture, cache, filter_block).
 
 Uses inline TYPE_CHECKING declarations for host attributes.
 See: plan/rfc-mixin-protocol-typing.md
@@ -309,15 +309,6 @@ class SpecialBlockMixin:
         )
 
         return stmts
-
-    def _compile_do(self, node: Any) -> list[ast.stmt]:
-        """Compile {% do expr %.
-
-        Expression statement for side effects - just evaluate the expression
-        and discard the result.
-        """
-        expr = self._compile_expr(node.expr)
-        return [ast.Expr(value=expr)]
 
     def _compile_raw(self, node: Any) -> list[ast.stmt]:
         """Compile {% raw %}...{% endraw %.

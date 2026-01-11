@@ -246,12 +246,12 @@ class Environment:
 
     @property
     def filters(self) -> FilterRegistry:
-        """Get filters (Jinja2-compatible interface)."""
+        """Get filters as dict-like registry."""
         return FilterRegistry(self, "_filters")
 
     @property
     def tests(self) -> FilterRegistry:
-        """Get tests (Jinja2-compatible interface)."""
+        """Get tests as dict-like registry."""
         return FilterRegistry(self, "_tests")
 
     def add_filter(self, name: str, func: Callable[..., Any]) -> None:

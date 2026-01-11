@@ -1,6 +1,6 @@
 """Special block parsing for Kida parser.
 
-Provides mixin for parsing special blocks (with, do, raw, capture, cache, filter_block).
+Provides mixin for parsing special blocks (with, raw, capture, cache, filter_block).
 
 Uses inline TYPE_CHECKING declarations for host attributes.
 See: plan/rfc-mixin-protocol-typing.md
@@ -17,7 +17,6 @@ from kida.nodes import (
     Cache,
     Capture,
     Const,
-    Do,
     Embed,
     Filter,
     FilterBlock,
@@ -202,22 +201,6 @@ class SpecialBlockParsingMixin(BlockStackMixin):
             target=target,
             body=tuple(body),
             empty=tuple(empty),
-        )
-
-    def _parse_do(self) -> Do:
-        """Parse {% do expr %.
-
-        Expression statement for side effects (e.g., list.append).
-        The result is discarded.
-        """
-        start = self._advance()  # consume 'do'
-        expr = self._parse_expression()
-        self._expect(TokenType.BLOCK_END)
-
-        return Do(
-            lineno=start.lineno,
-            col_offset=start.col_offset,
-            expr=expr,
         )
 
     def _parse_raw(self) -> Raw:

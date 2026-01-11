@@ -524,7 +524,6 @@ class Compiler(
                 "FromImport": self._compile_from_import,
                 "With": self._compile_with,
                 "WithConditional": self._compile_with_conditional,
-                "Do": self._compile_do,
                 "Raw": self._compile_raw,
                 "Capture": self._compile_capture,
                 "Cache": self._compile_cache,

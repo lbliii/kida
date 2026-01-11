@@ -162,7 +162,7 @@ kida/site/
 
 Hero section with:
 - Tagline: "Modern template engine for Python 3.14t"
-- Key features: AST-native, free-threading ready, Jinja2 compatible
+- Key features: AST-native, free-threading ready, zero dependencies
 - Quick install: `pip install kida`
 - Minimal example showing template rendering
 
@@ -170,7 +170,7 @@ Feature cards:
 - **AST-Native Compilation**: No string manipulation
 - **Free-Threading Ready**: PEP 703 compliant
 - **Modern Syntax**: Unified `{% end %}`, pattern matching, pipelines
-- **Jinja2 Compatible**: Parses existing Jinja2 templates
+- **Zero Dependencies**: Pure Python, includes native Markup class
 
 #### Get Started Section
 
@@ -471,9 +471,9 @@ Built for Python 3.14t (PEP 703). Renders templates concurrently without the GIL
 Unified `{% end %}` for all blocks. Pattern matching with `{% match %}`. Pipelines with `|>`. Built-in caching.
 :::{/card}
 
-:::{card} Jinja2 Compatible
-:icon: arrows-angle-contract
-Parses existing Jinja2 templates. Migration path from Jinja2 is smooth—most templates work unchanged.
+:::{card} Zero Dependencies
+:icon: package
+Pure Python with no runtime dependencies. Includes native `Markup` class—no markupsafe required.
 :::{/card}
 
 :::{/cards}
@@ -862,11 +862,9 @@ env = Environment(
 )
 ```
 
-Most Environment options are compatible!
+## Step 4: Update Block Endings
 
-## Step 4: Update Block Endings (Optional)
-
-Kida supports both Jinja2 endings and unified `{% end %}`:
+Update to unified `{% end %}` syntax:
 
 **Jinja2 style (works in Kida):**
 

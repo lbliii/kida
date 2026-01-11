@@ -21,7 +21,7 @@ icon: code
 
 # Syntax
 
-Kida uses a Jinja2-compatible syntax with modern enhancements.
+Kida's template syntax for expressions, control flow, and composition.
 
 ## Quick Reference
 
@@ -98,11 +98,9 @@ Kida uses a Jinja2-compatible syntax with modern enhancements.
 
 :::{/cards}
 
-## Modern Syntax Features
+## Key Features
 
-Kida extends Jinja2 syntax with:
-
-- **Unified `{% end %}`** — No more `{% endif %}`, `{% endfor %}`, etc.
+- **Unified `{% end %}`** — Clean, consistent block endings
 - **Pattern matching** — `{% match status %}{% case "active" %}...{% end %}`
 - **Pipeline operator** — `{{ title |> escape |> upper |> truncate(50) }}`
 - **Built-in caching** — `{% cache "sidebar" %}...{% end %}`

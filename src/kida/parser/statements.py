@@ -47,7 +47,6 @@ _BLOCK_PARSERS: dict[str, str] = {
     "from": "_parse_from_import",
     # Scope and execution
     "with": "_parse_with",
-    "do": "_parse_do",
     "raw": "_parse_raw",
     "def": "_parse_def",
     "call": "_parse_call",
