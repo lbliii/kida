@@ -1,0 +1,20 @@
+{% extends "complex/base.html" %}
+
+{% block head %}
+    <meta name="description" content="{{ description }}">
+{% end %}
+
+{% block header %}
+    <h1>{{ heading }}</h1>
+    <nav>
+        <ul>
+        {% for link in nav %}
+            <li><a href="{{ link.href }}">{{ link.label }}</a></li>
+        {% end %}
+        </ul>
+    </nav>
+{% end %}
+
+{% block content %}
+    {% block page_content %}{% end %}
+{% end %}

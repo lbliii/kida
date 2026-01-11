@@ -1,0 +1,25 @@
+<html>
+<head><title>Product Catalog</title></head>
+<body>
+    <nav>
+    {% for cat in categories %}
+        <a href="#{{ cat | lower | replace(" ", "-") }}">{{ cat }}</a>
+    {% endfor %}
+    </nav>
+
+    <main>
+    {% for item in items %}
+        <article id="item-{{ item.id }}">
+            <h2>{{ item.name | escape }}</h2>
+            <p class="price">${{ item.price | round(2) }}</p>
+        </article>
+    {% endfor %}
+    </main>
+
+    <aside>
+    {% for value in vars %}
+        <div>{{ value }}</div>
+    {% endfor %}
+    </aside>
+</body>
+</html>

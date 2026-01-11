@@ -21,13 +21,47 @@ Kida is designed for high-performance template rendering.
 
 ## Benchmarks
 
-Comparison with Jinja2 (same templates, same data):
+Methodology: `pytest-benchmark`, identical templates and contexts, `auto_reload=false`, bytecode cache enabled. Units are mean times. JSON exports live in `.benchmarks/`.
 
-| Template Size | Kida | Jinja2 | Speedup |
-|---------------|------|--------|---------|
-| Small (10 vars) | 0.3ms | 0.5ms | 1.6x |
-| Medium (100 vars) | 2ms | 3.5ms | 1.75x |
-| Large (1000 vars) | 15ms | 25ms | 1.67x |
+### CPython 3.14 (GIL on)
+
+| Template                | Kida   | Jinja2 | Speedup |
+| ----------------------- | ------ | ------ | ------- |
+| Minimal (hello)         | 1.06µs | 3.72µs | 3.5x    |
+| Small (10 vars)         | 4.65µs | 7.60µs | 1.6x    |
+| Medium (100 vars)       | 0.260ms| 0.264ms| ~1.0x   |
+| Large (1000 loop items) | 2.75ms | 3.24ms | 1.18x   |
+| Complex (inheritance)   | 15.5µs | 26.7µs | 1.7x    |
+
+### CPython 3.14t (free-threaded, `PYTHON_GIL=0`)
+
+| Template                | Kida   | Jinja2 | Speedup |
+| ----------------------- | ------ | ------ | ------- |
+| Minimal (hello)         | 1.13µs | 4.06µs | 3.6x    |
+| Small (10 vars)         | 4.44µs | 8.03µs | 1.8x    |
+| Medium (100 vars)       | 0.265ms| 0.378ms| 1.4x    |
+| Large (1000 loop items) | 2.81ms | 2.73ms | ~1.0x   |
+| Complex (inheritance)   | 17.2µs | 22.9µs | 1.3x    |
+
+### Where to Improve Next
+
+- Medium templates (GIL on): parity — target >1.2x speedup.
+- Large templates (free-threaded): parity — aim for consistent win.
+- Cold-start: bytecode cache delivers +13.4% (28.83ms → 24.97ms); 90% claim not yet validated.
+
+Run locally:
+
+```bash
+# GIL on
+uv run pytest benchmarks/benchmark_render.py --benchmark-only \
+  --benchmark-json .benchmarks/render_auto_reload_off.json \
+  --override-ini "python_files=benchmark_*.py test_*.py"
+
+# Free-threaded
+PYTHON_GIL=0 uv run --python 3.14t pytest benchmarks/benchmark_render.py \
+  --benchmark-only --benchmark-json .benchmarks/render_free_thread.json \
+  --override-ini "python_files=benchmark_*.py test_*.py"
+```
 
 ## Why Kida is Fast
 
@@ -86,10 +120,10 @@ handler = HANDLERS.get(token.value)
 
 ### Compile-Time Optimization
 
-AST manipulation enables optimizations before code generation:
-- Constant folding
-- Dead code elimination
-- Static expression evaluation
+Kida is AST-native and ready for more passes, but today relies on:
+
+- Python’s optimizer for constant folding
+- Planned (not yet shipped): dead code elimination and richer static eval
 
 ## Caching Strategies
 
@@ -116,7 +150,7 @@ env = Environment(
 )
 ```
 
-**Cold-start improvement**: 90%+
+Cold-start improvement (measured): ~13% with bytecode cache enabled (baseline 28.83ms → 24.97ms). Claim will be updated as further optimizations land.
 
 ### Fragment Cache
 

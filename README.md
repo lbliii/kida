@@ -22,7 +22,7 @@ print(template.render(name="World"))
 
 - **AST-native** — Compiles to Python AST directly, no string generation
 - **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703)
-- **Fast** — StringBuilder rendering, 25-40% faster than Jinja2
+- **Fast** — Benchmarks: 3.5x (minimal), 1.6x (small), ~1.0x (medium), 1.2x (large), 1.7x (complex); cold-start +13% with bytecode cache (details in performance docs)
 - **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`
 - **Zero dependencies** — Pure Python, includes native `Markup` implementation
 

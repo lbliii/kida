@@ -1,0 +1,21 @@
+{% extends "complex/layout.html" %}
+
+{% block page_content %}
+<article>
+    <h2>{{ article.title }}</h2>
+    <p>{{ article.subtitle }}</p>
+
+    <section>
+    {% for section in article.sections %}
+        <h3>{{ section.title }}</h3>
+        <p>{{ section.body }}</p>
+    {% end %}
+    </section>
+
+    <aside>
+    {% for tag in article.tags %}
+        <span class="tag">{{ tag }}</span>
+    {% end %}
+    </aside>
+</article>
+{% end %}

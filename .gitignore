@@ -22,6 +22,7 @@ env/
 .coverage
 htmlcov/
 .tox/
+.benchmarks/
 
 # Type checking
 .pyright/
