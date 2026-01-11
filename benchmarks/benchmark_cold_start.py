@@ -30,7 +30,7 @@ def measure_cold_start(
         if use_bytecode_cache:
             cache_arg = f"BytecodeCache(Path('{cache_dir}'))"
 
-        script = f'''
+        script = f"""
 import time
 from pathlib import Path
 from kida import Environment, FileSystemLoader
@@ -46,13 +46,13 @@ template.render(title="Test", name="World", items=["a", "b", "c"])
 _end = time.perf_counter_ns()
 
 print((_end - _start) / 1_000_000)
-'''
+"""
     else:  # jinja2
         cache_arg = "None"
         if use_bytecode_cache:
             cache_arg = f"FileSystemBytecodeCache(str(Path('{cache_dir}')))"
 
-        script = f'''
+        script = f"""
 import time
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
@@ -69,7 +69,7 @@ template.render(title="Test", name="World", items=["a", "b", "c"])
 _end = time.perf_counter_ns()
 
 print((_end - _start) / 1_000_000)
-'''
+"""
 
     result = subprocess.run(
         [sys.executable, "-c", script],
@@ -106,7 +106,7 @@ def run_cold_start_suite() -> None:
         base_path = Path(base_tmp)
         template_dir = base_path / "templates"
         template_dir.mkdir()
-        
+
         # Create a realistic large template for both engines
         template_content = """
 <html>
@@ -116,7 +116,7 @@ def run_cold_start_suite() -> None:
     {% for item in items %}
         <li>{{ item }}</li>
     {% endfor %}
-    
+
     {% for i in range(500) %}
         <p>Iteration {{ i }}: {{ title }} - {{ name }}</p>
         <div>
@@ -133,8 +133,10 @@ def run_cold_start_suite() -> None:
 """
         # Note: Kida uses {% end %} but Jinja2 uses {% endfor %}/{% endif %}.
         # We will adjust the template content for each engine in the script.
-        
-        kida_template = template_content.replace("{% endfor %}", "{% end %}").replace("{% endif %}", "{% end %}")
+
+        kida_template = template_content.replace("{% endfor %}", "{% end %}").replace(
+            "{% endif %}", "{% end %}"
+        )
         (template_dir / "bench.html").write_text(kida_template)
 
         # Scenario 1: Kida Baseline
@@ -168,10 +170,14 @@ def run_cold_start_suite() -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_dir = Path(tmpdir)
             # Pre-populate
-            measure_cold_start("kida", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir)
+            measure_cold_start(
+                "kida", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir
+            )
             kida_warm = []
             for i in range(ITERATIONS):
-                t = measure_cold_start("kida", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir)
+                t = measure_cold_start(
+                    "kida", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir
+                )
                 kida_warm.append(t)
                 print(f"  Run {i + 1}: {t:.2f}ms")
             kida_warm_med = summarize("Kida warm", kida_warm)
@@ -184,10 +190,17 @@ def run_cold_start_suite() -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_dir = Path(tmpdir)
             # Pre-populate
-            measure_cold_start("jinja2", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir)
+            measure_cold_start(
+                "jinja2", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir
+            )
             jinja2_warm = []
             for i in range(ITERATIONS):
-                t = measure_cold_start("jinja2", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir)
+                t = measure_cold_start(
+                    "jinja2",
+                    use_bytecode_cache=True,
+                    cache_dir=cache_dir,
+                    template_dir=template_dir,
+                )
                 jinja2_warm.append(t)
                 print(f"  Run {i + 1}: {t:.2f}ms")
             jinja2_warm_med = summarize("Jinja2 warm", jinja2_warm)
@@ -197,8 +210,12 @@ def run_cold_start_suite() -> None:
     print("=" * 60)
     print(f"Kida (No Cache):   {kida_baseline:.2f}ms")
     print(f"Jinja2 (No Cache): {jinja2_baseline:.2f}ms")
-    print(f"Kida (Warm Cache): {kida_warm_med:.2f}ms (Improvement: {((kida_baseline-kida_warm_med)/kida_baseline)*100:.1f}%)")
-    print(f"Jinja2 (Warm Cache): {jinja2_warm_med:.2f}ms (Improvement: {((jinja2_baseline-jinja2_warm_med)/jinja2_baseline)*100:.1f}%)")
+    print(
+        f"Kida (Warm Cache): {kida_warm_med:.2f}ms (Improvement: {((kida_baseline - kida_warm_med) / kida_baseline) * 100:.1f}%)"
+    )
+    print(
+        f"Jinja2 (Warm Cache): {jinja2_warm_med:.2f}ms (Improvement: {((jinja2_baseline - jinja2_warm_med) / jinja2_baseline) * 100:.1f}%)"
+    )
     print()
 
     speedup = jinja2_warm_med / kida_warm_med

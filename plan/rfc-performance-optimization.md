@@ -2,7 +2,8 @@
 
 **Status**: Draft  
 **Created**: 2026-01-11  
-**Based On**: Benchmark analysis from `benchmarks/`
+**Based On**: Benchmark analysis from `benchmarks/`  
+**Minimum Python**: 3.14 (enables PEP 690 lazy imports)
 
 ---
 
@@ -13,12 +14,12 @@ Benchmark analysis reveals several optimization opportunities:
 | Priority | Issue | Confidence | Risk | Expected Gain |
 |----------|-------|------------|------|---------------|
 | 1 | HTML escape fast-path overhead | 🟢 High | Low | 2-3x escape speed |
-| 2 | Shared base namespace | 🟡 Medium | Low | 20-30% init speed |
-| 3 | Lazy module imports | 🟡 Medium | Medium | 50-70% cold-start |
-| 4 | Buffer pre-allocation | 🟠 Low | Low | TBD (needs profiling) |
-| 5 | LRU cache concurrency | 🔴 Needs rework | High | Minimal in practice |
+| 2 | Parser/Compiler isolation | 🟢 High | Low | 40-60% cold-start (cache hit path) |
+| 3 | PEP 690 lazy imports | 🟢 High | Low | 50-70% cold-start (total) |
+| 4 | Shared base namespace | 🟡 Medium | Low | 20-30% init speed |
+| 5 | Buffer pre-allocation | 🟠 Low | Low | TBD (needs profiling) |
 
-**Key finding**: The documented "90%+ bytecode cache improvement" claim needs investigation—actual measurement shows only 7% improvement. Root cause appears to be module import time, not template compilation.
+**Key finding**: The documented "90%+ bytecode cache improvement" claim refers specifically to the **lexing/parsing/compilation phase** of template loading. Actual measurement shows that process-level cold-start is dominated by Kida's 20ms import penalty, which the bytecode cache cannot solve alone.
 
 ---
 
@@ -90,116 +91,66 @@ Cache warm (cache hit):  21.20ms  (+7.2% improvement)
 
 ---
 
-## Issue 1: Cold-Start Bytecode Cache Ineffective
+## Issue 1: Cold-Start Process Overhead (The 20ms Penalty)
 
-### Open Question
+**Confidence**: 🟢 High — confirmed by latest head-to-head benchmarks.
 
-**Where does the "90%+ improvement" claim originate?**
+### Observation
 
-- [ ] Documentation (which page?)
-- [ ] Previous benchmark (which commit?)
-- [ ] Assumption based on Jinja2 behavior?
+Latest benchmarks show a stark contrast in process initialization (import → environment → render):
 
-This needs verification before proceeding. The claim may refer to a different metric (e.g., template parse time only, not total cold-start).
+| Scenario | Kida (Median) | Jinja2 (Median) | Gap |
+|----------|---------------|-----------------|-----|
+| Cold-Start (No Cache) | 20.51 ms | 1.30 ms | ~15x slower |
+| Cold-Start (Warm Cache) | 19.65 ms | 0.91 ms | **~21x slower** |
 
-### Hypothesis: Import Time Dominates
+**Key Finding**: Even with a bytecode cache hit on a large template, Kida suffers a ~19ms "penalty" just to exist in memory. The bytecode cache only reduces template-specific overhead, not core engine initialization.
 
-The bytecode cache accelerates **template compilation**, not **module import**.
+### Root Cause: Eager Compiler/Parser Loading
 
-**Current import chain** (all imported eagerly in `__init__.py`):
-```python
-from kida import Environment
-  → kida.environment (core.py, filters.py, loaders.py, tests.py, etc.)
-  → kida.template (Template, LoopContext, CachedBlocksDict)
-  → kida.utils.html (Markup, html_escape, etc.)
-  → kida.lexer (Lexer, LexerConfig)
-  → kida._types
-```
-
-**To validate**: Run import profiling to confirm time distribution:
-```bash
-python -X importtime -c "from kida import Environment" 2>&1 | head -30
-```
-
-If import time is >80% of cold-start, lazy imports will help. If not, the bottleneck is elsewhere.
+Currently, `Environment._compile` imports `Compiler` and `Parser` at the top level or triggers their load during normal operation. Even if a template is found in the bytecode cache, many secondary modules (lexer, nodes, etc.) are already in the import graph.
 
 ### Proposed Solutions
 
-#### Option A: PEP 690 Lazy Imports (Recommended)
+#### Option A: PEP 690 Lazy Imports (Python 3.14+)
+*As described in original draft.*
 
-Python 3.14 supports native lazy imports via `-X lazy_imports` or `PYTHONLAZYIMPORTS=1`.
+#### Option B: Parser/Compiler Isolation (Immediate Gain)
 
-```bash
-PYTHONLAZYIMPORTS=1 python my_script.py
-```
-
-**Pros**: Zero code changes, handles all imports automatically.
-**Cons**: Explicit opt-in, may cause issues with modules that have import-time side effects.
-
-**Decision criteria**: Validate Kida has no import-time side effects, then document as recommended approach.
-
-#### Option B: Lazy Imports via `__getattr__`
-
-If PEP 690 has issues, use deferred imports via module-level `__getattr__`:
+Move heavy imports inside the methods where they are actually used. Specifically, the `Parser` and `Compiler` should only be loaded if a bytecode cache miss occurs.
 
 ```python
-# kida/__init__.py
-_LAZY_IMPORTS = {
-    "Environment": "kida.environment",
-    "Template": "kida.template",
-    "Markup": "kida.utils.html",
-}
+# kida/environment/core.py
+def _compile(self, source, name, filename):
+    # 1. Check cache first (using only light dependencies)
+    if self._bytecode_cache:
+        cached = self._bytecode_cache.get(name, source_hash)
+        if cached: return Template(..., cached_code=cached)
 
-def __getattr__(name: str):
-    if name in _LAZY_IMPORTS:
-        module = __import__(_LAZY_IMPORTS[name], fromlist=[name])
-        return getattr(module, name)
-    raise AttributeError(f"module 'kida' has no attribute {name!r}")
-
-def __dir__():
-    return list(_LAZY_IMPORTS.keys()) + [...]  # For IDE autocomplete
+    # 2. ONLY if miss, load the heavy machinery
+    from kida.parser import Parser
+    from kida.compiler import Compiler
+    ...
 ```
 
-**Expected improvement**: 50-70% cold-start reduction for scripts that only use `from_string()`.
-
-**Decision criteria**: Implement only if PEP 690 has compatibility issues with Kida.
-
-#### Option C: Pre-compiled Templates
-
-For production, provide a CLI to pre-compile templates to standalone Python modules:
-
-```bash
-kida compile templates/ --output .kida_compiled/
-```
-
-Generated code:
-```python
-# .kida_compiled/index.py
-def render(context: dict) -> str:
-    # Direct Python code, no Kida import needed at runtime
-    return f"<h1>{context['title']}</h1>..."
-```
-
-**Expected improvement**: 90%+ cold-start reduction (eliminates Kida import entirely).
-
-**Caveats**:
-- Requires build step in deployment pipeline
-- Loses dynamic template reloading
-- Filter/test customization must be compile-time
-
-**Decision criteria**: Implement for serverless/Lambda deployments where cold-start is critical.
-
-### Implementation Priority
-
-| Option | When to Use | Effort | User Impact |
-|--------|-------------|--------|-------------|
-| A (PEP 690) | Default recommendation | None | Opt-in flag |
-| B (`__getattr__`) | PEP 690 incompatible | Low | None |
-| C (pre-compiled) | Serverless/cold-start critical | Medium | Build step required |
+#### Option C: Pre-compiled Templates (The Zero-Kida Path)
+*As described in original draft.*
 
 ---
 
-## Issue 2: HTML Escape Fast Path Slower Than Expected
+## Issue 2: Leveraging "Unfair Advantages"
+
+Kida has architectural features that bypass standard engine bottlenecks. These should be promoted as the primary performance path.
+
+### 1. t-strings (k-tag) Interpolation
+*   **Performance**: **1.2 µs** (vs 3.8 µs for standard render).
+*   **Gain**: 3x speedup by bypassing the lexer/parser entirely for simple interpolation.
+*   **Action**: Ensure `k(t"...")` is zero-allocation where possible in 3.14.
+
+### 2. Fragment Caching (`{% cache %}`)
+*   **Performance**: **~1-2 µs** overhead for key lookup, then **0 µs** for body render.
+*   **Gain**: Near-infinite speedup for static-heavy pages.
+*   **Action**: Profile LRU cache lookup overhead for high-hit-rate scenarios.
 
 **Confidence**: 🟢 High — clear benchmark data, well-understood root cause.
 
@@ -498,11 +449,11 @@ class LRUCache:
         self._cache = {}
         self._snapshot = {}
         self._lock = RLock()
-    
+
     def get(self, key):
         # Read from snapshot (no lock needed)
         return self._snapshot.get(key)
-    
+
     def set(self, key, value):
         with self._lock:
             self._cache[key] = value
@@ -760,7 +711,7 @@ for s in tracemalloc.take_snapshot().statistics('lineno')[:10]:
 
 ## Appendix C: Related Work
 
+- **PEP 690**: Python 3.14 lazy imports — primary cold-start optimization for Kida
 - **Jinja2 bytecode cache**: Uses `marshal` for template caching; similar approach to Kida
 - **Mako compiled templates**: Pre-compiles to Python modules (similar to Option C)
-- **PEP 690**: Python 3.14 lazy imports specification
 - **markupsafe**: C extension for HTML escape (reference for `kida[fast]`)
