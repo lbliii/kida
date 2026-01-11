@@ -22,6 +22,7 @@ def measure_cold_start(
     engine: str,
     use_bytecode_cache: bool,
     cache_dir: Path | None = None,
+    template_dir: Path | None = None,
 ) -> float:
     """Measure cold-start time in a fresh Python process (ms)."""
     if engine == "kida":
@@ -32,22 +33,15 @@ def measure_cold_start(
         script = f'''
 import time
 from pathlib import Path
-from kida import Environment
+from kida import Environment, FileSystemLoader
 {"from kida.bytecode_cache import BytecodeCache" if use_bytecode_cache else ""}
 
 _start = time.perf_counter_ns()
-env = Environment(bytecode_cache={cache_arg})
-template = env.from_string("""
-<html>
-<head><title>{{{{ title }}}}</title></head>
-<body>
-    <h1>Hello, {{{{ name }}}}!</h1>
-    {{% for item in items %}}
-        <li>{{{{ item }}}}</li>
-    {{% end %}}
-</body>
-</html>
-""")
+env = Environment(
+    loader=FileSystemLoader('{template_dir}'),
+    bytecode_cache={cache_arg}
+)
+template = env.get_template("bench.html")
 template.render(title="Test", name="World", items=["a", "b", "c"])
 _end = time.perf_counter_ns()
 
@@ -66,21 +60,11 @@ from jinja2 import Environment, FileSystemLoader
 
 _start = time.perf_counter_ns()
 env = Environment(
-    loader=FileSystemLoader('.'),
+    loader=FileSystemLoader('{template_dir}'),
     bytecode_cache={cache_arg},
     autoescape=True
 )
-template = env.from_string("""
-<html>
-<head><title>{{ title }}</title></head>
-<body>
-    <h1>Hello, {{ name }}!</h1>
-    {% for item in items %}
-        <li>{{ item }}</li>
-    {% endfor %}
-</body>
-</html>
-""")
+template = env.get_template("bench.html")
 template.render(title="Test", name="World", items=["a", "b", "c"])
 _end = time.perf_counter_ns()
 
@@ -118,53 +102,95 @@ def run_cold_start_suite() -> None:
     print("=" * 60)
     print()
 
-    # Scenario 1: Kida Baseline
-    print("Scenario 1: Kida (no cache)")
-    print("-" * 40)
-    kida_no_cache = []
-    for i in range(ITERATIONS):
-        t = measure_cold_start("kida", use_bytecode_cache=False)
-        kida_no_cache.append(t)
-        print(f"  Run {i + 1}: {t:.2f}ms")
-    kida_baseline = summarize("Kida baseline", kida_no_cache)
+    with tempfile.TemporaryDirectory() as base_tmp:
+        base_path = Path(base_tmp)
+        template_dir = base_path / "templates"
+        template_dir.mkdir()
+        
+        # Create a realistic large template for both engines
+        template_content = """
+<html>
+<head><title>{{ title }}</title></head>
+<body>
+    <h1>Hello, {{ name }}!</h1>
+    {% for item in items %}
+        <li>{{ item }}</li>
+    {% endfor %}
+    
+    {% for i in range(500) %}
+        <p>Iteration {{ i }}: {{ title }} - {{ name }}</p>
+        <div>
+            <span>Nested content for {{ i }}</span>
+            {% if i % 2 == 0 %}
+                <b>Even iteration</b>
+            {% else %}
+                <i>Odd iteration</i>
+            {% endif %}
+        </div>
+    {% endfor %}
+</body>
+</html>
+"""
+        # Note: Kida uses {% end %} but Jinja2 uses {% endfor %}/{% endif %}.
+        # We will adjust the template content for each engine in the script.
+        
+        kida_template = template_content.replace("{% endfor %}", "{% end %}").replace("{% endif %}", "{% end %}")
+        (template_dir / "bench.html").write_text(kida_template)
 
-    # Scenario 2: Jinja2 Baseline
-    print("Scenario 2: Jinja2 (no cache)")
-    print("-" * 40)
-    jinja2_no_cache = []
-    for i in range(ITERATIONS):
-        t = measure_cold_start("jinja2", use_bytecode_cache=False)
-        jinja2_no_cache.append(t)
-        print(f"  Run {i + 1}: {t:.2f}ms")
-    jinja2_baseline = summarize("Jinja2 baseline", jinja2_no_cache)
-
-    # Scenario 3: Kida Warm (cache hit)
-    print("Scenario 3: Kida Warm (cache hit)")
-    print("-" * 40)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cache_dir = Path(tmpdir)
-        # Pre-populate
-        measure_cold_start("kida", use_bytecode_cache=True, cache_dir=cache_dir)
-        kida_warm = []
+        # Scenario 1: Kida Baseline
+        print("Scenario 1: Kida (no cache)")
+        print("-" * 40)
+        kida_no_cache = []
         for i in range(ITERATIONS):
-            t = measure_cold_start("kida", use_bytecode_cache=True, cache_dir=cache_dir)
-            kida_warm.append(t)
+            t = measure_cold_start("kida", use_bytecode_cache=False, template_dir=template_dir)
+            kida_no_cache.append(t)
             print(f"  Run {i + 1}: {t:.2f}ms")
-        kida_warm_med = summarize("Kida warm", kida_warm)
+        kida_baseline = summarize("Kida baseline", kida_no_cache)
 
-    # Scenario 4: Jinja2 Warm (cache hit)
-    print("Scenario 4: Jinja2 Warm (cache hit)")
-    print("-" * 40)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cache_dir = Path(tmpdir)
-        # Pre-populate
-        measure_cold_start("jinja2", use_bytecode_cache=True, cache_dir=cache_dir)
-        jinja2_warm = []
+        # Update template for Jinja2
+        (template_dir / "bench.html").write_text(template_content)
+
+        # Scenario 2: Jinja2 Baseline
+        print("Scenario 2: Jinja2 (no cache)")
+        print("-" * 40)
+        jinja2_no_cache = []
         for i in range(ITERATIONS):
-            t = measure_cold_start("jinja2", use_bytecode_cache=True, cache_dir=cache_dir)
-            jinja2_warm.append(t)
+            t = measure_cold_start("jinja2", use_bytecode_cache=False, template_dir=template_dir)
+            jinja2_no_cache.append(t)
             print(f"  Run {i + 1}: {t:.2f}ms")
-        jinja2_warm_med = summarize("Jinja2 warm", jinja2_warm)
+        jinja2_baseline = summarize("Jinja2 baseline", jinja2_no_cache)
+
+        # Scenario 3: Kida Warm (cache hit)
+        print("Scenario 3: Kida Warm (cache hit)")
+        print("-" * 40)
+        # Restore Kida template
+        (template_dir / "bench.html").write_text(kida_template)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir)
+            # Pre-populate
+            measure_cold_start("kida", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir)
+            kida_warm = []
+            for i in range(ITERATIONS):
+                t = measure_cold_start("kida", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir)
+                kida_warm.append(t)
+                print(f"  Run {i + 1}: {t:.2f}ms")
+            kida_warm_med = summarize("Kida warm", kida_warm)
+
+        # Scenario 4: Jinja2 Warm (cache hit)
+        print("Scenario 4: Jinja2 Warm (cache hit)")
+        print("-" * 40)
+        # Restore Jinja2 template
+        (template_dir / "bench.html").write_text(template_content)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir)
+            # Pre-populate
+            measure_cold_start("jinja2", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir)
+            jinja2_warm = []
+            for i in range(ITERATIONS):
+                t = measure_cold_start("jinja2", use_bytecode_cache=True, cache_dir=cache_dir, template_dir=template_dir)
+                jinja2_warm.append(t)
+                print(f"  Run {i + 1}: {t:.2f}ms")
+            jinja2_warm_med = summarize("Jinja2 warm", jinja2_warm)
 
     print("=" * 60)
     print("FINAL COMPARISON (Medians)")

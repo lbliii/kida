@@ -150,7 +150,7 @@ def test_render_fragment_cache_kida(benchmark: BenchmarkFixture, kida_env: KidaE
     partially static templates.
     """
     source = """
-    {% cache "bench-key" ttl=300 %}
+    {% cache "bench-key", ttl=300 %}
         <ul>
         {% for i in range(100) %}
             <li>Item {{ i }}</li>
