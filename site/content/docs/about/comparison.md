@@ -179,7 +179,33 @@ env = Environment(
 
 ## Performance
 
-Kida's StringBuilder pattern provides consistent performance improvements over Jinja2's generator-based rendering across template sizes.
+### Single-Threaded
+
+| Template | Kida | Jinja2 | Speedup |
+|----------|------|--------|---------|
+| Minimal | 0.94µs | 3.21µs | **3.4x** |
+| Small | 3.78µs | 6.38µs | 1.7x |
+| Medium | 214µs | 229µs | 1.07x |
+| Large | 2.27ms | 2.48ms | 1.09x |
+
+### Concurrent (Free-Threading)
+
+**This is the real differentiator.** Under concurrent workloads on Python 3.14t:
+
+| Workers | Kida | Jinja2 | Speedup |
+|---------|------|--------|---------|
+| 1 | 3.31ms | 3.49ms | 1.05x |
+| 2 | 2.09ms | 2.51ms | 1.20x |
+| 4 | 1.53ms | 2.05ms | 1.34x |
+| 8 | 2.06ms | 3.74ms | **1.81x** |
+
+Kida's advantage grows with concurrency because:
+
+1. **Thread-safe design**: Copy-on-write updates, no locks
+2. **GIL independence**: Declares `_Py_mod_gil = 0`
+3. **No shared mutable state**: Renders use only local variables
+
+Jinja2 shows *negative scaling* at 8 workers (slower than 4 workers), indicating internal contention.
 
 See [[docs/about/performance|Performance Benchmarks]] for detailed measurements and methodology.
 

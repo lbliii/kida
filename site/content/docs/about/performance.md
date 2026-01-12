@@ -37,21 +37,47 @@ Methodology: `pytest-benchmark`, identical templates and contexts, `auto_reload=
 
 ### CPython 3.14t (free-threaded, `PYTHON_GIL=0`, 3.14.2+ft)
 
-Benchmarks re-run after pinning the repo to Python 3.14t:
+Single-threaded benchmarks re-run after pinning the repo to Python 3.14t:
 
 | Template                | Kida    | Jinja2  | Speedup |
 | ----------------------- | ------- | ------- | ------- |
-| Minimal (hello)         | 0.96µs  | 3.46µs  | 3.6x    |
-| Small (10 vars)         | 3.79µs  | 6.42µs  | 1.7x    |
-| Medium (100 vars)       | 0.225ms | 0.243ms | 1.1x    |
-| Large (1000 loop items) | 2.49ms  | 2.57ms  | ~1.0x   |
-| Complex (inheritance)   | 14.9µs  | 18.3µs  | 1.2x    |
+| Minimal (hello)         | 0.94µs  | 3.21µs  | 3.4x    |
+| Small (10 vars)         | 3.78µs  | 6.38µs  | 1.7x    |
+| Medium (100 vars)       | 0.214ms | 0.229ms | 1.07x   |
+| Large (1000 loop items) | 2.27ms  | 2.48ms  | 1.09x   |
+| Complex (inheritance)   | 14.6µs  | 18.3µs  | 1.26x   |
+
+### Concurrent Performance (Free-Threading)
+
+**This is where Kida shines.** Under concurrent workloads, Kida's thread-safe design delivers significant advantages:
+
+| Workers | Kida    | Jinja2  | Speedup |
+| ------- | ------- | ------- | ------- |
+| 1       | 3.31ms  | 3.49ms  | 1.05x   |
+| 2       | 2.09ms  | 2.51ms  | 1.20x   |
+| 4       | 1.53ms  | 2.05ms  | 1.34x   |
+| 8       | 2.06ms  | 3.74ms  | **1.81x** |
+
+**Key finding**: Jinja2 has *negative scaling* at 8 workers (slower than 4 workers), while Kida maintains gains. This reveals internal contention in Jinja2 that hurts it under high concurrency.
+
+| Metric | Single-Threaded | 8 Workers |
+| ------ | --------------- | --------- |
+| Kida advantage | 5-10% | **81%** |
+
+### Lexer Optimization
+
+The lexer uses compiled regex for delimiter detection, achieving 49x faster `_find_next_construct()` compared to multiple `str.find()` calls:
+
+| Method | Time | Speedup |
+| ------ | ---- | ------- |
+| `re.search()` (current) | 6.97µs | 49x |
+| `str.find()` × 3 (old) | 343µs | baseline |
 
 ### Where to Improve Next
 
-- Medium templates (GIL on): parity — target >1.2x speedup.
-- Large templates (free-threaded): parity — aim for consistent win.
-- Cold-start: bytecode cache delivers +7-8% median (42.37ms → 39.18ms in `benchmarks/benchmark_cold_start.py`); larger gains require lazy imports or precompiled templates.
+- Medium templates (single-threaded): marginal gains remaining
+- Concurrent workloads: already optimized for free-threading
+- Cold-start: bytecode cache delivers +7-8% median (42.37ms → 39.18ms in `benchmarks/benchmark_cold_start.py`); larger gains require lazy imports or precompiled templates
 
 Run locally:
 
