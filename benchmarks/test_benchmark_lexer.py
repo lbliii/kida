@@ -9,7 +9,6 @@ This benchmark establishes baselines before any FSM refactoring.
 from __future__ import annotations
 
 import re
-import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -120,67 +119,6 @@ def test_lexer_tokenize_baseline(benchmark: BenchmarkFixture, template: str, nam
         if mean_time > 0:
             tokens_per_sec = token_count / mean_time
             print(f"\n  {name}: {token_count} tokens, {tokens_per_sec:,.0f} tok/s")
-
-
-# =============================================================================
-# Method-Level Profiling
-# =============================================================================
-
-
-def _profile_lexer_methods(template: str) -> dict[str, float]:
-    """Profile time spent in each lexer method."""
-    import functools
-
-    timings: dict[str, float] = {}
-
-    def timed(name: str, func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            start = time.perf_counter_ns()
-            result = func(*args, **kwargs)
-            elapsed = time.perf_counter_ns() - start
-            timings[name] = timings.get(name, 0) + elapsed
-            return result
-
-        return wrapper
-
-    # Create lexer and patch methods
-    lexer = Lexer(template)
-
-    original_find = lexer._find_next_construct
-    original_next = lexer._next_code_token
-
-    lexer._find_next_construct = timed("_find_next_construct", original_find)
-    lexer._next_code_token = timed("_next_code_token", original_next)
-
-    # Tokenize
-    start_total = time.perf_counter_ns()
-    tokens = list(lexer.tokenize())
-    total_time = time.perf_counter_ns() - start_total
-
-    timings["total"] = total_time
-    timings["token_count"] = len(tokens)
-
-    return timings
-
-
-@pytest.mark.benchmark(group="lexer:profile")
-def test_lexer_method_profile(benchmark: BenchmarkFixture) -> None:
-    """Profile where time is spent in the lexer."""
-
-    def run():
-        return _profile_lexer_methods(MEDIUM)
-
-    result = benchmark(run)
-
-    # Print breakdown
-    total = result.get("total", 1)
-    print("\n  Method Time Breakdown (MEDIUM template):")
-    for name, ns in sorted(result.items()):
-        if name not in ("total", "token_count"):
-            pct = (ns / total) * 100
-            print(f"    {name}: {ns / 1000:.1f}µs ({pct:.1f}%)")
-    print(f"    Total: {total / 1000:.1f}µs, {result.get('token_count', 0)} tokens")
 
 
 # =============================================================================
