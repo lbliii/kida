@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [] # Pure Python, zero runtime dependencies
 
 [project.optional-dependencies]
-docs = ["bengal"]
+docs = ["bengal>=0.1.8"]
 
 [project.urls]
 Homepage = "https://github.com/lbliii/kida"
@@ -125,4 +125,4 @@ dev = [
     # Pre-commit (optional, for local dev)
     "pre-commit>=4.0.0",
 ]
-docs = ["bengal"]
+docs = ["bengal>=0.1.8"]
