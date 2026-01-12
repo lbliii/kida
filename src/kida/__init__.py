@@ -81,6 +81,17 @@ from kida.environment import (
 )
 from kida.template import LoopContext, Markup, Template
 from kida.utils.html import html_escape
+from kida.utils.workers import (
+    Environment as WorkerEnvironment,
+)
+from kida.utils.workers import (
+    WorkloadProfile,
+    WorkloadType,
+    get_optimal_workers,
+    get_profile,
+    is_free_threading_enabled,
+    should_parallelize,
+)
 
 # Python 3.14+ t-string support (PEP 750)
 # Only import if string.templatelib is available
@@ -118,6 +129,14 @@ __all__ = [
     # Types
     "Token",
     "TokenType",
+    # Worker auto-tuning
+    "WorkerEnvironment",
+    "WorkloadProfile",
+    "WorkloadType",
+    "get_optimal_workers",
+    "get_profile",
+    "is_free_threading_enabled",
+    "should_parallelize",
 ]
 
 

@@ -3,6 +3,7 @@
 This benchmark measures the REAL advantage of Kida on free-threaded Python:
 - Single-threaded baseline for both engines
 - Multi-threaded scaling with true parallelism (no GIL)
+- Auto-tuned worker count using kida.utils.workers
 
 Run with: pytest benchmarks/test_benchmark_concurrent.py --benchmark-only -v
 """
@@ -20,6 +21,12 @@ from jinja2 import Environment as Jinja2Environment
 from pytest_benchmark.fixture import BenchmarkFixture
 
 from kida import Environment as KidaEnvironment
+from kida.utils.workers import (
+    WorkloadType,
+    get_optimal_workers,
+    is_free_threading_enabled,
+    should_parallelize,
+)
 
 if TYPE_CHECKING:
     pass
@@ -198,14 +205,68 @@ def test_8workers_jinja2(benchmark: BenchmarkFixture, jinja2_env: Jinja2Environm
 
 
 # =============================================================================
-# Summary: Print GIL status at session start
+# Auto-Tuned Workers (using kida.utils.workers)
+# =============================================================================
+
+
+@pytest.mark.benchmark(group="concurrent:auto-tuned")
+def test_autotuned_kida(benchmark: BenchmarkFixture, kida_env: KidaEnvironment) -> None:
+    """Kida: Auto-tuned worker count based on workload."""
+    template = kida_env.from_string(TEMPLATE_SOURCE_KIDA)
+
+    # Auto-tune for 100 render tasks
+    task_count = 100
+    if should_parallelize(task_count, workload_type=WorkloadType.RENDER):
+        workers = get_optimal_workers(task_count, workload_type=WorkloadType.RENDER)
+    else:
+        workers = 1
+
+    iterations_per_worker = task_count // workers
+
+    def run():
+        return render_concurrent(
+            template, CONTEXT, workers=workers, iterations_per_worker=iterations_per_worker
+        )
+
+    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+
+
+@pytest.mark.benchmark(group="concurrent:auto-tuned")
+def test_autotuned_jinja2(benchmark: BenchmarkFixture, jinja2_env: Jinja2Environment) -> None:
+    """Jinja2: Same auto-tuned worker count for fair comparison."""
+    template = jinja2_env.from_string(TEMPLATE_SOURCE_JINJA2)
+
+    # Use same auto-tuning as Kida
+    task_count = 100
+    if should_parallelize(task_count, workload_type=WorkloadType.RENDER):
+        workers = get_optimal_workers(task_count, workload_type=WorkloadType.RENDER)
+    else:
+        workers = 1
+
+    iterations_per_worker = task_count // workers
+
+    def run():
+        return render_concurrent(
+            template, CONTEXT, workers=workers, iterations_per_worker=iterations_per_worker
+        )
+
+    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+
+
+# =============================================================================
+# Summary: Print GIL status and auto-tuning info at session start
 # =============================================================================
 
 
 def pytest_configure(config):
-    """Print free-threading status at test session start."""
+    """Print free-threading status and auto-tuning info at test session start."""
     gil_enabled = sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True
+    free_threading = is_free_threading_enabled()
+    optimal_workers = get_optimal_workers(100, workload_type=WorkloadType.RENDER)
+
     print(f"\n{'=' * 60}")
     print(f"Python {sys.version}")
     print(f"GIL enabled: {gil_enabled}")
+    print(f"Free-threading: {free_threading}")
+    print(f"Auto-tuned workers (100 tasks): {optimal_workers}")
     print(f"{'=' * 60}\n")

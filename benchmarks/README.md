@@ -59,6 +59,27 @@ Same total work (100 renders), distributed across workers:
 
 ---
 
+### Auto-Tuned Workers
+
+Kida includes a worker auto-tuner that selects optimal parallelism:
+
+| Mode | Kida | Jinja2 | Kida Advantage |
+|------|------|--------|----------------|
+| **Auto-tuned** | 1.55ms | 2.50ms | **1.61x faster** 🚀 |
+
+```python
+from kida import get_optimal_workers, should_parallelize, WorkloadType
+
+# Auto-tune based on task count and workload
+task_count = 100
+if should_parallelize(task_count):
+    workers = get_optimal_workers(task_count, workload_type=WorkloadType.RENDER)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        results = list(executor.map(template.render, contexts))
+```
+
+---
+
 ## Running Benchmarks
 
 ```bash
