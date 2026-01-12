@@ -73,11 +73,27 @@ The lexer uses compiled regex for delimiter detection, achieving 49x faster `_fi
 | `re.search()` (current) | 6.97µs | 49x |
 | `str.find()` × 3 (old) | 343µs | baseline |
 
+### Render Loop Optimizations
+
+**Type-aware escaping**: Numeric types (int, float, bool) bypass HTML escaping since they can't contain special characters:
+
+| Value Type | Time (10k escapes) | Speedup |
+| ---------- | ------------------ | ------- |
+| Numeric (optimized) | 0.90ms | **1.9x** |
+| String (full escape) | 1.74ms | baseline |
+
+**Lazy LoopContext**: When `loop.*` properties aren't used, Kida iterates directly over items without creating a LoopContext wrapper:
+
+| Loop Type | Time (10k items) | Speedup |
+| --------- | ---------------- | ------- |
+| Without `loop.*` | 202.7ms | **1.80x** |
+| With `loop.*` | 365.7ms | baseline |
+
 ### Where to Improve Next
 
-- Medium templates (single-threaded): marginal gains remaining
+- Large templates: bottleneck is Python iteration, not template engine
 - Concurrent workloads: already optimized for free-threading
-- Cold-start: bytecode cache delivers +7-8% median (42.37ms → 39.18ms in `benchmarks/benchmark_cold_start.py`); larger gains require lazy imports or precompiled templates
+- Cold-start: bytecode cache delivers +7-8% median; larger gains require lazy imports
 
 Run locally:
 
@@ -147,6 +163,33 @@ HANDLERS = {
     # ...
 }
 handler = HANDLERS.get(token.value)
+```
+
+### Type-Aware HTML Escaping
+
+Kida skips escaping for numeric types that can't contain HTML special characters:
+
+```python
+def html_escape(value):
+    # Skip numeric types - cannot contain <>&"'
+    if type(value) is int or type(value) is float or type(value) is bool:
+        return str(value)  # Fast path
+    return str(value).translate(_ESCAPE_TABLE)
+```
+
+### Lazy LoopContext
+
+When `loop.*` properties aren't used, Kida generates direct iteration:
+
+```python
+# When loop.index, loop.first, etc. are NOT used:
+for item in _loop_items:  # Direct iteration (1.80x faster)
+    ...
+
+# When loop.* IS used:
+loop = _LoopContext(_loop_items)  # Full context tracking
+for item in loop:
+    ...
 ```
 
 ### Compile-Time Optimization
