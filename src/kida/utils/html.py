@@ -510,7 +510,7 @@ def _escape_arg(value: Any) -> Any:
 
 
 def html_escape(value: Any) -> str:
-    """O(n) single-pass HTML escaping.
+    """O(n) single-pass HTML escaping with type optimization.
 
     Returns plain str (for template._escape use).
 
@@ -523,9 +523,11 @@ def html_escape(value: Any) -> str:
 
     Optimizations:
         1. Skip Markup objects (already safe)
-        2. Single-pass translation instead of 5 chained .replace()
+        2. Skip numeric types (int, float, bool) - cannot contain HTML chars
+        3. Single-pass translation instead of 5 chained .replace()
 
-    This is ~3-5x faster than the naive approach for escape-heavy content.
+    The numeric type optimization provides ~2.5x speedup for number-heavy
+    templates (benchmarks/test_benchmark_optimization_levers.py).
 
     Args:
         value: Value to escape (will be converted to string)
@@ -537,6 +539,16 @@ def html_escape(value: Any) -> str:
     # Must check before str() conversion since str(Markup) returns plain str
     if isinstance(value, Markup):
         return str(value)
+
+    # Optimization: numeric types cannot contain HTML special characters
+    # Use type() instead of isinstance() to exclude subclasses that might
+    # override __str__ with HTML content
+    # Note: This is safe because int/float/bool.__str__ always returns
+    # decimal digits, signs, decimal points, 'e', 'True', or 'False'
+    value_type = type(value)
+    if value_type is int or value_type is float or value_type is bool:
+        return str(value)
+
     s = str(value)
     return _escape_str(s)
 
