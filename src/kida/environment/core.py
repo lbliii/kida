@@ -147,6 +147,14 @@ class Environment:
     trim_blocks: bool = False
     lstrip_blocks: bool = False
 
+    # F-string optimization (RFC: fstring-code-generation)
+    # When True, consecutive output nodes are coalesced into single f-string appends
+    fstring_coalescing: bool = True
+
+    # User-defined pure filters (extends built-in set for f-string coalescing)
+    # Filters in this set are assumed to have no side effects and can be coalesced
+    pure_filters: set[str] = field(default_factory=set)
+
     # Globals (available in all templates)
     # Includes Python builtins commonly used in templates
     globals: dict[str, Any] = field(

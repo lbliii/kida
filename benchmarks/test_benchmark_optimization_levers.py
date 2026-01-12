@@ -437,3 +437,101 @@ def test_optimized_combined(benchmark: BenchmarkFixture) -> None:
     """Combined optimizations."""
     result = benchmark(render_optimized)
     assert len(result) > 0
+
+
+# =============================================================================
+# Bottleneck 5: F-String Coalescing (RFC: fstring-code-generation)
+# =============================================================================
+
+
+def render_mixed_template_non_coalesced() -> str:
+    """Non-coalesced: Multiple appends per output segment."""
+    buf: list[str] = []
+    append = buf.append
+    for item in ITEMS:
+        # Non-coalesced (multiple appends)
+        append('<div id="')
+        append(str(item["id"]).translate(_ESCAPE_TABLE))
+        append('" class="item">')
+        # Control flow break
+        if item["id"] % 2 == 0:
+            append('<span class="even">')
+        else:
+            append('<span class="odd">')
+        # More non-coalesced appends
+        append(str(item["name"]).translate(_ESCAPE_TABLE))
+        append(' - ')
+        append(str(item["data"]["x"]).translate(_ESCAPE_TABLE))
+        append('</span></div>\n')
+    return "".join(buf)
+
+
+def render_mixed_template_coalesced() -> str:
+    """Coalesced: f-strings for consecutive outputs."""
+    buf: list[str] = []
+    append = buf.append
+    for item in ITEMS:
+        # Coalesced block 1
+        append(f'<div id="{str(item["id"]).translate(_ESCAPE_TABLE)}" class="item">')
+        # Control flow break
+        if item["id"] % 2 == 0:
+            append('<span class="even">')
+        else:
+            append('<span class="odd">')
+        # Coalesced block 2
+        append(f'{str(item["name"]).translate(_ESCAPE_TABLE)} - {str(item["data"]["x"]).translate(_ESCAPE_TABLE)}</span></div>\n')
+    return "".join(buf)
+
+
+def render_simple_template_non_coalesced() -> str:
+    """Simple template (no control flow): non-coalesced."""
+    buf: list[str] = []
+    append = buf.append
+    for item in ITEMS:
+        append('<div id="')
+        append(str(item["id"]).translate(_ESCAPE_TABLE))
+        append('" class="')
+        append(str(item["name"]).translate(_ESCAPE_TABLE))
+        append('">')
+        append(str(item["name"]).translate(_ESCAPE_TABLE))
+        append('</div>\n')
+    return "".join(buf)
+
+
+def render_simple_template_coalesced() -> str:
+    """Simple template (no control flow): fully coalesced."""
+    buf: list[str] = []
+    append = buf.append
+    e = _ESCAPE_TABLE
+    for item in ITEMS:
+        # Single f-string for entire output
+        append(f'<div id="{str(item["id"]).translate(e)}" class="{str(item["name"]).translate(e)}">{str(item["name"]).translate(e)}</div>\n')
+    return "".join(buf)
+
+
+@pytest.mark.benchmark(group="lever:coalescing")
+def test_mixed_template_non_coalesced(benchmark: BenchmarkFixture) -> None:
+    """Mixed template with control flow: non-coalesced appends."""
+    result = benchmark(render_mixed_template_non_coalesced)
+    assert len(result) > 0
+
+
+@pytest.mark.benchmark(group="lever:coalescing")
+def test_mixed_template_coalesced(benchmark: BenchmarkFixture) -> None:
+    """Mixed template with control flow: f-string coalesced."""
+    result = benchmark(render_mixed_template_coalesced)
+    assert len(result) > 0
+
+
+@pytest.mark.benchmark(group="lever:coalescing")
+def test_simple_template_non_coalesced(benchmark: BenchmarkFixture) -> None:
+    """Simple template (no control flow): non-coalesced appends."""
+    result = benchmark(render_simple_template_non_coalesced)
+    assert len(result) > 0
+
+
+@pytest.mark.benchmark(group="lever:coalescing")
+def test_simple_template_coalesced(benchmark: BenchmarkFixture) -> None:
+    """Simple template (no control flow): fully coalesced."""
+    result = benchmark(render_simple_template_coalesced)
+    assert len(result) > 0

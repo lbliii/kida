@@ -39,6 +39,7 @@ import ast
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
 from kida.compiler.statements import StatementCompilationMixin
 from kida.compiler.utils import OperatorUtilsMixin
@@ -53,6 +54,7 @@ class Compiler(
     OperatorUtilsMixin,
     ExpressionCompilationMixin,
     StatementCompilationMixin,
+    FStringCoalescingMixin,
 ):
     """Compile Kida AST to Python code objects.
 
@@ -238,9 +240,8 @@ class Compiler(
             ),
         ]
 
-        # Compile block body
-        for child in block_node.body:
-            body.extend(self._compile_node(child))
+        # Compile block body with f-string coalescing
+        body.extend(self._compile_body_with_coalescing(list(block_node.body)))
 
         # return ''.join(buf)
         body.append(
@@ -415,9 +416,8 @@ class Compiler(
                 )
             )
 
-            # Compile template body
-            for child in node.body:
-                body.extend(self._compile_node(child))
+            # Compile template body with f-string coalescing
+            body.extend(self._compile_body_with_coalescing(list(node.body)))
 
             # return ''.join(buf)
             body.append(
