@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `{% do %}` directive — use `{% set _ = expr %}` for side effects instead
 
+## [0.1.1] - 2026-01-12
+
+### Fixed
+
+- **`__html__` protocol support** — `html_escape()` now respects the `__html__` protocol, enabling interoperability with `markupsafe.Markup` and other libraries that implement this standard. Previously, only Kida's native `Markup` class was recognized as safe, causing double-escaping of content from external libraries.
+
 ## [0.1.0] - 2026-01-04
 
 ### Added

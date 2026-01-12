@@ -523,8 +523,9 @@ def html_escape(value: Any) -> str:
 
     Optimizations:
         1. Skip Markup objects (already safe)
-        2. Skip numeric types (int, float, bool) - cannot contain HTML chars
-        3. Single-pass translation instead of 5 chained .replace()
+        2. Skip objects with __html__() method (protocol-based safety)
+        3. Skip numeric types (int, float, bool) - cannot contain HTML chars
+        4. Single-pass translation instead of 5 chained .replace()
 
     The numeric type optimization provides ~2.5x speedup for number-heavy
     templates (benchmarks/test_benchmark_optimization_levers.py).
@@ -539,6 +540,12 @@ def html_escape(value: Any) -> str:
     # Must check before str() conversion since str(Markup) returns plain str
     if isinstance(value, Markup):
         return str(value)
+
+    # Check __html__ protocol (supports markupsafe.Markup and similar)
+    # This enables interoperability with other template engines
+    html_method = getattr(value, "__html__", None)
+    if html_method is not None:
+        return str(html_method())
 
     # Optimization: numeric types cannot contain HTML special characters
     # Use type() instead of isinstance() to exclude subclasses that might

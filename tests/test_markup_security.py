@@ -38,6 +38,107 @@ from kida.utils.html import (
 )
 
 # =============================================================================
+# __html__ Protocol Interoperability Tests
+# =============================================================================
+
+
+class TestHtmlProtocolInterop:
+    """Test interoperability with objects implementing __html__ protocol.
+
+    The __html__ protocol is the standard way to mark content as safe.
+    Libraries like MarkupSafe, Jinja2, and others use this pattern.
+    Kida must recognize any object with __html__() as safe to avoid
+    double-escaping content from other libraries.
+    """
+
+    def test_markupsafe_markup_not_escaped(self) -> None:
+        """MarkupSafe Markup objects should not be escaped."""
+        pytest.importorskip("markupsafe")
+        from markupsafe import Markup as MSMarkup
+
+        safe = MSMarkup("<b>bold</b>")
+        result = html_escape(safe)
+        assert result == "<b>bold</b>"
+        assert "&lt;" not in result
+
+    def test_custom_html_class_not_escaped(self) -> None:
+        """Any object with __html__() should not be escaped."""
+
+        class CustomSafe:
+            def __init__(self, content: str) -> None:
+                self._content = content
+
+            def __html__(self) -> str:
+                return self._content
+
+        safe = CustomSafe("<i>italic</i>")
+        result = html_escape(safe)
+        assert result == "<i>italic</i>"
+        assert "&lt;" not in result
+
+    def test_html_method_result_used(self) -> None:
+        """The __html__() method result is used, not __str__()."""
+
+        class TransformingSafe:
+            def __str__(self) -> str:
+                return "wrong"
+
+            def __html__(self) -> str:
+                return "<span>correct</span>"
+
+        obj = TransformingSafe()
+        result = html_escape(obj)
+        assert result == "<span>correct</span>"
+        assert "wrong" not in result
+
+    def test_html_returning_escaped_content(self) -> None:
+        """Objects that return pre-escaped content are not double-escaped."""
+
+        class PreEscaped:
+            def __html__(self) -> str:
+                return "&lt;already&gt;"
+
+        obj = PreEscaped()
+        result = html_escape(obj)
+        assert result == "&lt;already&gt;"
+        assert "&amp;lt;" not in result
+
+    def test_markupsafe_in_template(self) -> None:
+        """MarkupSafe Markup renders correctly in templates."""
+        pytest.importorskip("markupsafe")
+        from markupsafe import Markup as MSMarkup
+
+        from kida import Environment
+
+        env = Environment()
+        t = env.from_string("{{ content }}")
+
+        safe = MSMarkup("<svg><path/></svg>")
+        result = t.render(content=safe)
+        assert result == "<svg><path/></svg>"
+        assert "&lt;" not in result
+
+    def test_custom_safe_in_template(self) -> None:
+        """Custom __html__ objects render correctly in templates."""
+        from kida import Environment
+
+        class Icon:
+            def __init__(self, svg: str) -> None:
+                self.svg = svg
+
+            def __html__(self) -> str:
+                return self.svg
+
+        env = Environment()
+        t = env.from_string("Icon: {{ icon }}")
+
+        icon = Icon('<svg width="24"><circle/></svg>')
+        result = t.render(icon=icon)
+        assert '<svg width="24">' in result
+        assert "&lt;" not in result
+
+
+# =============================================================================
 # NUL Byte Handling Tests
 # =============================================================================
 
