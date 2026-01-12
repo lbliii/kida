@@ -3,25 +3,45 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.Python
 
 # Build artifacts
 build/
 dist/
-*.egg-info/
-*.egg
+downloads/
+eggs/
 .eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Virtual environments
 .venv/
+.venv-*/
 venv/
-.env/
+venv-*/
+venv-3.14/
+venv-3.14t/
+.tmp-venv/
+ENV/
 env/
+.env
 
 # Testing
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
-.tox/
+coverage.xml
+*.cover
+.hypothesis/
 .benchmarks/
 
 # Type checking
@@ -38,8 +58,19 @@ htmlcov/
 *.swo
 *~
 
-# macOS
+# OS
 .DS_Store
+Thumbs.db
 
-# Site build output (bengal)
+# Project specific - Bengal site output
 public/
+.bengal/
+.bengal.pid
+*.log
+
+# Temporary test output
+.pytest_cache/last_failure.txt
+.pytest_cache/junit.xml
+
+# Benchmark output
+benchmarks/output/

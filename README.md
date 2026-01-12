@@ -31,7 +31,7 @@ print(template.render(name="World"))
 ## Installation
 
 ```bash
-pip install kida
+pip install kida-templates
 ```
 
 Requires Python 3.14+
