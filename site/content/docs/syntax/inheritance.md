@@ -12,13 +12,14 @@ keywords:
 - extends
 - block
 - inheritance
-- super
 icon: layers
 ---
 
 # Inheritance
 
 Template inheritance lets you build a base template with common structure and override specific sections in child templates.
+
+> **Note:** Unlike Jinja2, Kida does not support `super()`. Child blocks fully replace parent content. For "add-to" patterns, define explicit extension blocks in your base template (e.g., `{% block extra_head %}{% end %}`).
 
 ## Base Template
 
@@ -71,6 +72,178 @@ Extend the base and override blocks:
 
 Result: The child template inherits all of `base.html`, with the `title` and `content` blocks replaced.
 
+## Real-World Examples
+
+### Documentation Site
+
+A three-column documentation layout extending a base template:
+
+```kida
+{# layouts/base.html #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Docs{% end %}</title>
+    <link rel="stylesheet" href="/css/main.css">
+    {% block extra_head %}{% end %}
+</head>
+<body>
+    <header>{% include "partials/nav.html" %}</header>
+    <main>{% block content %}{% end %}</main>
+    <footer>{% include "partials/footer.html" %}</footer>
+    {% block extra_scripts %}{% end %}
+</body>
+</html>
+```
+
+```kida
+{# layouts/docs.html #}
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="docs-layout">
+    <nav class="docs-sidebar">
+        {% block sidebar %}
+            {% include "partials/docs-nav.html" %}
+        {% end %}
+    </nav>
+    <article class="docs-content">
+        <h1>{% block page_title %}{% end %}</h1>
+        {% block article %}{% end %}
+    </article>
+    <aside class="docs-toc">
+        {% block toc %}{% end %}
+    </aside>
+</div>
+{% end %}
+```
+
+```kida
+{# pages/getting-started.html #}
+{% extends "layouts/docs.html" %}
+
+{% block title %}Getting Started - MyProject{% end %}
+{% block page_title %}Getting Started{% end %}
+
+{% block article %}
+<p>Welcome to the quick start guide.</p>
+{{ content }}
+{% end %}
+
+{% block toc %}
+<nav class="toc">
+    <h3>On this page</h3>
+    {{ toc_html }}
+</nav>
+{% end %}
+```
+
+### Extension Blocks Pattern
+
+Since Kida doesn't support `super()`, use explicit extension blocks to add content without replacing the parent:
+
+```kida
+{# base.html #}
+<head>
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    {% block extra_head %}{% end %}  {# Extension point #}
+</head>
+<body>
+    {% block content %}{% end %}
+    
+    <script src="/js/main.js"></script>
+    {% block extra_scripts %}{% end %}  {# Extension point #}
+</body>
+```
+
+```kida
+{# blog/post.html #}
+{% extends "base.html" %}
+
+{% block extra_head %}
+    {# Adds to head without replacing base styles #}
+    <link rel="stylesheet" href="/css/syntax-highlight.css">
+    <meta property="og:title" content="{{ post.title }}">
+{% end %}
+
+{% block content %}
+<article class="blog-post">
+    <h1>{{ post.title }}</h1>
+    <time>{{ post.date | dateformat }}</time>
+    {{ post.content }}
+</article>
+{% end %}
+
+{% block extra_scripts %}
+    {# Adds to scripts without replacing main.js #}
+    <script src="/js/syntax-highlight.js"></script>
+{% end %}
+```
+
+### Blog with Author Layout
+
+Multi-level inheritance for a blog:
+
+```kida
+{# layouts/base.html #}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}Blog{% end %}</title>
+</head>
+<body>
+    {% block body %}{% end %}
+</body>
+</html>
+```
+
+```kida
+{# layouts/blog.html #}
+{% extends "layouts/base.html" %}
+
+{% block body %}
+<div class="blog-container">
+    <aside class="blog-sidebar">
+        {% block sidebar %}
+            {% include "partials/recent-posts.html" %}
+        {% end %}
+    </aside>
+    <main class="blog-main">
+        {% block main %}{% end %}
+    </main>
+</div>
+{% end %}
+```
+
+```kida
+{# blog/post.html #}
+{% extends "layouts/blog.html" %}
+
+{% block title %}{{ post.title }} - Blog{% end %}
+
+{% block main %}
+<article>
+    <header>
+        <h1>{{ post.title }}</h1>
+        <p class="byline">
+            By <a href="{{ post.author.url }}">{{ post.author.name }}</a>
+            on {{ post.date | dateformat('%B %d, %Y') }}
+        </p>
+    </header>
+    <div class="post-content">
+        {{ post.content }}
+    </div>
+    <footer>
+        {% for tag in post.tags %}
+            <a href="/tags/{{ tag }}/" class="tag">{{ tag }}</a>
+        {% end %}
+    </footer>
+</article>
+{% end %}
+```
+
 ## Block Scoping
 
 Blocks can be nested:
@@ -95,37 +268,9 @@ Blocks can be nested:
 {% end %}
 ```
 
-## super()
-
-Include the parent block's content:
-
-```kida
-{# base.html #}
-{% block head %}
-    <link rel="stylesheet" href="/css/base.css">
-{% end %}
-```
-
-```kida
-{# child.html #}
-{% extends "base.html" %}
-
-{% block head %}
-    {{ super() }}
-    <link rel="stylesheet" href="/css/page.css">
-{% end %}
-```
-
-Output:
-
-```html
-<link rel="stylesheet" href="/css/base.css">
-<link rel="stylesheet" href="/css/page.css">
-```
-
 ## Multiple Levels
 
-Inheritance can be multi-level:
+Inheritance can be multi-level. Each child completely replaces the parent's block:
 
 ```kida
 {# base.html #}
@@ -136,7 +281,7 @@ Inheritance can be multi-level:
 {# layout.html #}
 {% extends "base.html" %}
 {% block content %}
-    <div class="layout">{{ super() }}</div>
+    <div class="layout">Layout content</div>
 {% end %}
 ```
 
@@ -144,8 +289,9 @@ Inheritance can be multi-level:
 {# page.html #}
 {% extends "layout.html" %}
 {% block content %}
-    {{ super() }}
-    <p>Page content</p>
+    <div class="layout">
+        <p>Page content</p>
+    </div>
 {% end %}
 ```
 

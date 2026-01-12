@@ -72,7 +72,7 @@ Kida's template syntax for expressions, control flow, and composition.
 :icon: layers
 :link: ./inheritance
 :description: Extend and override base templates
-`{% extends %}`, `{% block %}`, `{{ super() }}`
+`{% extends %}`, `{% block %}`
 :::{/card}
 
 :::{card} Includes

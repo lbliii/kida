@@ -73,9 +73,9 @@ class TestBasicInheritance:
 class TestBlockBehavior:
     """Block behavior and features."""
 
-    @pytest.mark.xfail(reason="super() may not be implemented")
+    @pytest.mark.xfail(reason="super() is not implemented - blocks fully replace parent content")
     def test_super(self, env):
-        """super() includes parent block content."""
+        """super() includes parent block content (not supported)."""
         tmpl = env.get_template("super_test.html")
         result = tmpl.render()
         assert "Base body" in result
