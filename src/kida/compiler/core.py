@@ -468,12 +468,24 @@ class Compiler(
     )
 
     def _make_line_marker(self, lineno: int) -> ast.stmt:
-        """Generate ctx['_line'] = lineno statement for error tracking."""
+        """Generate RenderContext line update for error tracking.
+
+        Generates: _get_render_ctx().line = lineno
+
+        This updates the ContextVar-stored RenderContext instead of
+        polluting the user's ctx dict.
+
+        RFC: kida-contextvar-patterns
+        """
         return ast.Assign(
             targets=[
-                ast.Subscript(
-                    value=ast.Name(id="ctx", ctx=ast.Load()),
-                    slice=ast.Constant(value="_line"),
+                ast.Attribute(
+                    value=ast.Call(
+                        func=ast.Name(id="_get_render_ctx", ctx=ast.Load()),
+                        args=[],
+                        keywords=[],
+                    ),
+                    attr="line",
                     ctx=ast.Store(),
                 )
             ],

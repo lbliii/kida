@@ -412,32 +412,40 @@ class Template:
             *,  # Force remaining args to be keyword-only
             blocks: dict[str, Any] | None = None,  # RFC: kida-modern-syntax-features (embed)
         ) -> str:
-            from kida.environment.exceptions import TemplateRuntimeError
+            from kida.render_context import (
+                get_render_context_required,
+                reset_render_context,
+                set_render_context,
+            )
 
-            # Track include depth to prevent circular includes (DoS protection)
-            depth = context.get("_include_depth", 0)
-            max_include_depth = 50
-            # Check if the new depth would exceed the limit
-            if depth >= max_include_depth:
-                raise TemplateRuntimeError(
-                    f"Maximum include depth exceeded ({max_include_depth}) when including '{template_name}'",
-                    template_name=self._name,
-                    suggestion="Check for circular includes: A → B → A",
-                )
+            render_ctx = get_render_context_required()
+
+            # Check include depth (DoS protection)
+            render_ctx.check_include_depth(template_name)
 
             _env = env_ref()
             if _env is None:
                 raise RuntimeError("Environment has been garbage collected")
             try:
                 included = _env.get_template(template_name)
-                # Create new context with incremented depth
-                new_context = {**context, "_include_depth": depth + 1}
-                # If blocks are provided (for embed), call the render function directly
-                # with blocks parameter
-                if blocks is not None and included._render_func is not None:
-                    result: str = included._render_func(new_context, blocks)
-                    return result
-                return str(included.render(**new_context))
+
+                # Create child context with incremented depth
+                child_ctx = render_ctx.child_context(template_name)
+
+                # Set child context for the included template's render
+                token = set_render_context(child_ctx)
+                try:
+                    # If blocks are provided (for embed), call the render function directly
+                    # with blocks parameter
+                    if blocks is not None and included._render_func is not None:
+                        result: str = included._render_func(context, blocks)
+                        return result
+                    # Call _render_func directly to avoid context manager overhead
+                    if included._render_func is not None:
+                        return included._render_func(context, None)
+                    return str(included.render(**context))
+                finally:
+                    reset_render_context(token)
             except Exception:
                 if ignore_missing:
                     return ""
@@ -445,6 +453,10 @@ class Template:
 
         # Extends helper - renders parent template with child's blocks
         def _extends(template_name: str, context: dict[str, Any], blocks: dict[str, Any]) -> str:
+            from kida.render_context import get_render_context_required
+
+            render_ctx = get_render_context_required()
+
             _env = env_ref()
             if _env is None:
                 raise RuntimeError("Environment has been garbage collected")
@@ -455,18 +467,18 @@ class Template:
                     f"Template '{template_name}' not properly compiled: "
                     f"_render_func is None. Check for syntax errors in the template."
                 )
-            # Apply cached blocks wrapper if available (RFC: kida-template-introspection)
+            # Apply cached blocks wrapper from RenderContext (RFC: kida-template-introspection)
             # This ensures parent templates also use cached blocks automatically.
             # Avoid double-wrapping if already a CachedBlocksDict.
-            cached_blocks = context.get("_cached_blocks", {})
-            cached_stats = context.get("_cached_stats")
             blocks_to_use: dict[str, Any] | CachedBlocksDict = blocks
-            if cached_blocks and not isinstance(blocks, CachedBlocksDict):
-                cached_block_names = set(cached_blocks.keys())
-                if cached_block_names:
+            if render_ctx.cached_blocks and not isinstance(blocks, CachedBlocksDict):
+                if render_ctx.cached_block_names:
                     # Wrap blocks dict with our cache-aware proxy
                     blocks_to_use = CachedBlocksDict(
-                        blocks, cached_blocks, cached_block_names, stats=cached_stats
+                        blocks,
+                        render_ctx.cached_blocks,
+                        render_ctx.cached_block_names,
+                        stats=render_ctx.cache_stats,
                     )
 
             # Call parent's render function with blocks dict
@@ -530,13 +542,15 @@ class Template:
                 - Error path: Raises UndefinedError with template context
             """
             from kida.environment.exceptions import UndefinedError
+            from kida.render_context import get_render_context
 
             try:
                 return ctx[var_name]
             except KeyError:
-                # Get template context for better error messages
-                template_name = ctx.get("_template")
-                lineno = ctx.get("_line")
+                # Get template context from RenderContext for better error messages
+                render_ctx = get_render_context()
+                template_name = render_ctx.template_name if render_ctx else None
+                lineno = render_ctx.line if render_ctx else None
                 raise UndefinedError(var_name, template_name, lineno) from None
 
         def _lookup_scope(
@@ -558,9 +572,11 @@ class Template:
 
             # Not found - raise UndefinedError
             from kida.environment.exceptions import UndefinedError
+            from kida.render_context import get_render_context
 
-            template_name = ctx.get("_template")
-            lineno = ctx.get("_line")
+            render_ctx = get_render_context()
+            template_name = render_ctx.template_name if render_ctx else None
+            lineno = render_ctx.line if render_ctx else None
             raise UndefinedError(var_name, template_name, lineno) from None
 
         # Default filter helper
@@ -713,6 +729,9 @@ class Template:
         # Start with shared static namespace (copied once, not constructed)
         namespace: dict[str, Any] = _STATIC_NAMESPACE.copy()
 
+        # Import RenderContext getter for generated code
+        from kida.render_context import get_render_context_required
+
         # Add per-template dynamic entries
         namespace.update(
             {
@@ -736,6 +755,8 @@ class Template:
                 "_cache_get": _cache_get,
                 "_cache_set": _cache_set,
                 "_LoopContext": LoopContext,
+                # RFC: kida-contextvar-patterns - for generated code line tracking
+                "_get_render_ctx": get_render_context_required,
             }
         )
         exec(code, namespace)
@@ -764,6 +785,10 @@ class Template:
     def render(self, *args: Any, **kwargs: Any) -> str:
         """Render template with given context.
 
+        User context is now CLEAN - no internal keys injected.
+        Internal state (_template, _line, _include_depth, _cached_blocks,
+        _cached_stats) is managed via RenderContext ContextVar.
+
         Args:
             *args: Single dict of context variables
             **kwargs: Context variables as keyword arguments
@@ -778,8 +803,9 @@ class Template:
             'Hello, World!'
         """
         from kida.environment.exceptions import TemplateRuntimeError
+        from kida.render_context import render_context
 
-        # Build context
+        # Build context (CLEAN - no internal keys!)
         ctx: dict[str, Any] = {}
 
         # Add globals
@@ -797,52 +823,64 @@ class Template:
         # Add keyword args
         ctx.update(kwargs)
 
-        # Inject template metadata for error context
-        ctx["_template"] = self._name
-        ctx["_line"] = 0
+        # Extract internal state from kwargs (backward compat for Bengal)
+        # These are removed from user ctx and moved to RenderContext
+        cached_blocks = ctx.pop("_cached_blocks", {})
+        cache_stats = ctx.pop("_cached_stats", None)
 
-        # Automatic cached block optimization (RFC: kida-template-introspection)
-        # Inject site-scoped cached blocks into the root render call if available.
-        # This enables O(1) block reuse across the entire site.
-        cached_blocks = ctx.get("_cached_blocks", {})
-        cached_stats = ctx.get("_cached_stats")
+        # Also remove legacy internal keys if passed (backward compat)
+        ctx.pop("_template", None)
+        ctx.pop("_line", None)
+        ctx.pop("_include_depth", None)
+
         render_func = self._render_func
 
         if render_func is None:
             raise RuntimeError("Template not properly compiled")
 
-        # Prepare blocks dictionary (inject cache wrapper if site-scoped blocks exist)
-        blocks_arg = None
-        if cached_blocks:
-            cached_block_names = set(cached_blocks.keys())
-            if cached_block_names:
-                # Wrap a fresh dict with our cache-aware proxy
-                blocks_arg = CachedBlocksDict(
-                    None, cached_blocks, cached_block_names, stats=cached_stats
-                )
+        with render_context(
+            template_name=self._name,
+            filename=self._filename,
+            cached_blocks=cached_blocks,
+            cache_stats=cache_stats,
+        ) as render_ctx:
+            # Prepare blocks dictionary (inject cache wrapper if site-scoped blocks exist)
+            blocks_arg = None
+            if render_ctx.cached_blocks:
+                cached_block_names = render_ctx.cached_block_names
+                if cached_block_names:
+                    # Wrap a fresh dict with our cache-aware proxy
+                    blocks_arg = CachedBlocksDict(
+                        None,
+                        render_ctx.cached_blocks,
+                        cached_block_names,
+                        stats=render_ctx.cache_stats,
+                    )
 
-        # Render with error enhancement
-        try:
-            result: str = render_func(ctx, blocks_arg)
-            return result
-        except TemplateRuntimeError:
-            # Already enhanced, re-raise as-is
-            raise
-        except Exception as e:
-            # Check if this is an UndefinedError or TemplateNotFoundError
-            # These are already well-formatted, so don't wrap them
-            from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
-
-            if isinstance(e, (UndefinedError, TemplateNotFoundError)):
+            # Render with error enhancement
+            try:
+                result: str = render_func(ctx, blocks_arg)
+                return result
+            except TemplateRuntimeError:
+                # Already enhanced, re-raise as-is
                 raise
-            # Enhance generic exceptions with template context
-            raise self._enhance_error(e, ctx) from e
+            except Exception as e:
+                # Check if this is an UndefinedError or TemplateNotFoundError
+                # These are already well-formatted, so don't wrap them
+                from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
+
+                if isinstance(e, (UndefinedError, TemplateNotFoundError)):
+                    raise
+                # Enhance generic exceptions with template context from RenderContext
+                raise self._enhance_error(e, render_ctx) from e
 
     def render_block(self, block_name: str, *args: Any, **kwargs: Any) -> str:
         """Render a single block from the template.
 
         Renders just the named block, useful for caching blocks that
         only depend on site-wide context (e.g., navigation, footer).
+
+        User context is CLEAN - no internal keys injected.
 
         Args:
             block_name: Name of the block to render (e.g., "nav", "footer")
@@ -866,6 +904,7 @@ class Template:
             Use with templates that define the blocks you want to cache.
         """
         from kida.environment.exceptions import TemplateRuntimeError
+        from kida.render_context import render_context
 
         # Look up block function
         func_name = f"_block_{block_name}"
@@ -883,7 +922,7 @@ class Template:
                 f"Available blocks: {available}"
             )
 
-        # Build context (same as render())
+        # Build clean user context
         ctx: dict[str, Any] = {}
         ctx.update(self._env.globals)
 
@@ -896,21 +935,24 @@ class Template:
                 )
 
         ctx.update(kwargs)
-        ctx["_template"] = self._name
-        ctx["_line"] = 0
 
-        # Call block function
-        try:
-            result: str = block_func(ctx, {})
-            return result
-        except TemplateRuntimeError:
-            raise
-        except Exception as e:
-            from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
-
-            if isinstance(e, (UndefinedError, TemplateNotFoundError)):
+        # NO internal keys injected - use RenderContext
+        with render_context(
+            template_name=self._name,
+            filename=self._filename,
+        ) as render_ctx:
+            # Call block function
+            try:
+                result: str = block_func(ctx, {})
+                return result
+            except TemplateRuntimeError:
                 raise
-            raise self._enhance_error(e, ctx) from e
+            except Exception as e:
+                from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
+
+                if isinstance(e, (UndefinedError, TemplateNotFoundError)):
+                    raise
+                raise self._enhance_error(e, render_ctx) from e
 
     def list_blocks(self) -> list[str]:
         """List all blocks defined in this template.
@@ -928,19 +970,29 @@ class Template:
             if k.startswith("_block_") and callable(self._namespace[k])
         ]
 
-    def _enhance_error(self, error: Exception, ctx: dict[str, Any]) -> Exception:
-        """Enhance a generic exception with template context.
+    def _enhance_error(
+        self, error: Exception, render_ctx: Any  # RenderContext, but avoid import
+    ) -> Exception:
+        """Enhance a generic exception with template context from RenderContext.
 
         Converts generic Python exceptions into TemplateRuntimeError with
-        template name and line number context.
+        template name and line number context read from RenderContext.
+
+        Args:
+            error: The original exception
+            render_ctx: RenderContext with template_name and line
+
+        Returns:
+            Enhanced TemplateRuntimeError or NoneComparisonError
         """
         from kida.environment.exceptions import (
             NoneComparisonError,
             TemplateRuntimeError,
         )
 
-        template_name = ctx.get("_template")
-        lineno = ctx.get("_line")
+        # Read from RenderContext instead of ctx dict
+        template_name = render_ctx.template_name
+        lineno = render_ctx.line
         error_str = str(error)
 
         # Handle None comparison errors specially
