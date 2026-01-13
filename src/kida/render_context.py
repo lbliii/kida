@@ -1,7 +1,7 @@
 """Kida RenderContext — per-render state isolated from user context.
 
 This module implements ContextVar-based render state management, replacing
-the internal keys (_template, _line, _include_depth, _cached_blocks, 
+the internal keys (_template, _line, _include_depth, _cached_blocks,
 _cached_stats) that were previously injected into the user's ctx dict.
 
 Benefits:
@@ -17,10 +17,11 @@ RFC: kida-contextvar-patterns
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass

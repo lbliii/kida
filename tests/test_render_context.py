@@ -349,9 +349,8 @@ class TestRenderAccumulator:
 
         from kida.render_accumulator import profiled_render, timed_block
 
-        with profiled_render() as metrics:
-            with timed_block("test_block"):
-                time.sleep(0.01)  # 10ms
+        with profiled_render() as metrics, timed_block("test_block"):
+            time.sleep(0.01)  # 10ms
 
         assert "test_block" in metrics.block_timings
         # Should be at least 10ms (might be slightly more due to overhead)

@@ -40,11 +40,12 @@ Example:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Any, Iterator
+from typing import Any
 
 
 @dataclass

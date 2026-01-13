@@ -214,7 +214,7 @@ class CachedBlocksDict:
         self,
         original: dict[str, Any] | None,
         cached: dict[str, str],
-        cached_names: set[str],
+        cached_names: frozenset[str] | set[str],
         stats: dict[str, int] | None = None,
     ):
         # Ensure original is a dict even if None is passed
@@ -448,7 +448,8 @@ class Template:
                         return result
                     # Call _render_func directly to avoid context manager overhead
                     if included._render_func is not None:
-                        return included._render_func(context, None)
+                        result = included._render_func(context, None)
+                        return str(result) if result is not None else ""
                     return str(included.render(**context))
                 finally:
                     reset_render_context(token)
@@ -477,15 +478,18 @@ class Template:
             # This ensures parent templates also use cached blocks automatically.
             # Avoid double-wrapping if already a CachedBlocksDict.
             blocks_to_use: dict[str, Any] | CachedBlocksDict = blocks
-            if render_ctx.cached_blocks and not isinstance(blocks, CachedBlocksDict):
-                if render_ctx.cached_block_names:
-                    # Wrap blocks dict with our cache-aware proxy
-                    blocks_to_use = CachedBlocksDict(
-                        blocks,
-                        render_ctx.cached_blocks,
-                        render_ctx.cached_block_names,
-                        stats=render_ctx.cache_stats,
-                    )
+            if (
+                render_ctx.cached_blocks
+                and not isinstance(blocks, CachedBlocksDict)
+                and render_ctx.cached_block_names
+            ):
+                # Wrap blocks dict with our cache-aware proxy
+                blocks_to_use = CachedBlocksDict(
+                    blocks,
+                    render_ctx.cached_blocks,
+                    render_ctx.cached_block_names,
+                    stats=render_ctx.cache_stats,
+                )
 
             # Call parent's render function with blocks dict
             result: str = parent._render_func(context, blocks_to_use)
