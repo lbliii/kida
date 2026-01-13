@@ -300,6 +300,31 @@ template.render(
 
 ## Profiling
 
+### Render Accumulator (Opt-in)
+
+Profile template rendering with detailed block timings:
+
+```python
+from kida.render_accumulator import profiled_render
+
+with profiled_render() as metrics:
+    html = template.render(page=page, site=site)
+
+print(metrics.summary())
+# {
+#   "total_ms": 12.5,
+#   "blocks": {
+#     "content": {"ms": 8.2, "calls": 1},
+#     "nav": {"ms": 2.1, "calls": 1},
+#   },
+#   "includes": {"partials/sidebar.html": 2},
+#   "macros": {"render_card": 15},
+#   "filters": {"escape": 45, "truncate": 12},
+# }
+```
+
+**Zero overhead when disabled**—profiling only runs inside `profiled_render()`.
+
 ### Template Cache Stats
 
 ```python

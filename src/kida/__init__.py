@@ -80,6 +80,18 @@ from kida.environment import (
     TemplateSyntaxError,
     UndefinedError,
 )
+from kida.render_accumulator import (
+    RenderAccumulator,
+    get_accumulator,
+    profiled_render,
+    timed_block,
+)
+from kida.render_context import (
+    RenderContext,
+    get_render_context,
+    get_render_context_required,
+    render_context,
+)
 from kida.template import LoopContext, Markup, Template
 from kida.utils.html import html_escape
 from kida.utils.workers import (
@@ -127,6 +139,16 @@ __all__ = [
     "Markup",
     "html_escape",
     "LoopContext",
+    # RenderContext (RFC: contextvar-patterns)
+    "RenderContext",
+    "render_context",
+    "get_render_context",
+    "get_render_context_required",
+    # RenderAccumulator (profiling)
+    "RenderAccumulator",
+    "profiled_render",
+    "get_accumulator",
+    "timed_block",
     # Types
     "Token",
     "TokenType",

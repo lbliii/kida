@@ -59,16 +59,25 @@ def add_filter(self, name, func):
     self._filters = new_filters
 ```
 
-### Local Rendering State
+### RenderContext Isolation
 
-Each `render()` call uses only local variables:
+Each `render()` call creates an isolated `RenderContext` via ContextVar:
 
 ```python
+from kida.render_context import render_context
+
 def render(self, **context):
-    _out = []  # Local buffer
-    # ... render logic uses only local state
-    return "".join(_out)
+    with render_context(template_name=self._name) as ctx:
+        _out = []  # Local buffer
+        # ctx.line updated during render for error tracking
+        # No internal keys pollute user context
+        return "".join(_out)
 ```
+
+**Benefits**:
+- **Thread isolation**: ContextVars are thread-local by design
+- **Async safety**: Propagates correctly to `asyncio.to_thread()` in Python 3.14
+- **Clean user context**: No internal keys (`_template`, `_line`) injected
 
 No shared mutable state between render calls.
 

@@ -110,6 +110,39 @@ def _render(context):
 - Lower memory churn than generators
 - Faster than yield-based approaches (see [[docs/about/performance|benchmarks]])
 
+### RenderContext
+
+Per-render state is managed via `RenderContext` (ContextVar-based):
+
+```python
+from kida.render_context import RenderContext, render_context
+
+@dataclass
+class RenderContext:
+    template_name: str | None = None
+    line: int = 0                    # Updated during render for errors
+    include_depth: int = 0           # DoS protection for circular includes
+    cached_blocks: dict[str, str]    # Site-scoped block cache
+```
+
+**Key benefit**: User context is completely clean—no internal keys like `_template` or `_line` are injected. Error tracking and include depth are managed in the ContextVar.
+
+### Render Profiling
+
+Opt-in profiling via `RenderAccumulator`:
+
+```python
+from kida.render_accumulator import profiled_render
+
+with profiled_render() as metrics:
+    html = template.render(page=page)
+
+print(metrics.summary())
+# {"total_ms": 12.5, "blocks": {...}, "includes": {...}}
+```
+
+Zero overhead when disabled (default).
+
 ## Caching Architecture
 
 Three cache layers:

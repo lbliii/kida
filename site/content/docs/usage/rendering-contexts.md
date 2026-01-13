@@ -177,6 +177,25 @@ html2 = template.render(x=2)
 
 Globals are shared but render context is isolated.
 
+### Clean User Context
+
+Your context dictionary remains **completely clean**—no internal keys are injected:
+
+```python
+ctx = {"name": "World", "items": [1, 2, 3]}
+template.render(ctx)
+
+# ctx is unchanged after render()
+# No _template, _line, _include_depth keys added
+assert "_template" not in ctx
+```
+
+Internal state (template name, line number for errors, include depth) is managed via `RenderContext` ContextVar, not your dictionary. This means you can safely use variable names like `_template` or `_line` in your templates:
+
+```kida
+{{ _template }}  {# Works! Your variable, not internal state #}
+```
+
 ## Best Practices
 
 ### Keep Context Flat

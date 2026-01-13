@@ -85,8 +85,10 @@ class Compiler(
 
     Line Tracking:
         For nodes that can cause runtime errors (Output, For, If, etc.),
-        injects `ctx['_line'] = N` before the node's code. This enables
-        rich error messages with source line numbers.
+        generates `_get_render_ctx().line = N` before the node's code.
+        This updates the ContextVar-stored RenderContext instead of polluting
+        the user's ctx dict, enabling rich error messages with source line
+        numbers while keeping user context clean.
 
     Example:
             >>> from kida import Environment

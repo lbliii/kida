@@ -316,6 +316,90 @@ Available as `loop` variable inside for loops.
 {% end %}
 ```
 
+---
+
+## RenderContext
+
+Per-render state management via ContextVar.
+
+```python
+from kida.render_context import (
+    RenderContext,
+    render_context,
+    get_render_context,
+)
+```
+
+### RenderContext Dataclass
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `template_name` | `str \| None` | Current template name |
+| `filename` | `str \| None` | Source file path |
+| `line` | `int` | Current line (for errors) |
+| `include_depth` | `int` | Include nesting depth |
+| `max_include_depth` | `int` | Max depth (default: 50) |
+| `cached_blocks` | `dict[str, str]` | Site-scoped block cache |
+
+### Methods
+
+| Method | Description |
+|--------|-------------|
+| `check_include_depth(name)` | Raise if depth exceeded |
+| `child_context(name)` | Create child with incremented depth |
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `get_render_context()` | Get current context (None if not rendering) |
+| `get_render_context_required()` | Get context or raise RuntimeError |
+| `render_context(...)` | Context manager for render scope |
+
+---
+
+## RenderAccumulator
+
+Opt-in profiling for template rendering.
+
+```python
+from kida.render_accumulator import (
+    RenderAccumulator,
+    profiled_render,
+    get_accumulator,
+)
+```
+
+### Usage
+
+```python
+with profiled_render() as metrics:
+    html = template.render(page=page)
+
+summary = metrics.summary()
+# {"total_ms": 12.5, "blocks": {...}, "includes": {...}}
+```
+
+### RenderAccumulator Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `block_timings` | `dict[str, BlockTiming]` | Block render times |
+| `macro_calls` | `dict[str, int]` | Macro call counts |
+| `include_counts` | `dict[str, int]` | Include counts |
+| `filter_calls` | `dict[str, int]` | Filter usage counts |
+| `total_duration_ms` | `float` | Total render time |
+
+### Methods
+
+| Method | Description |
+|--------|-------------|
+| `record_block(name, ms)` | Record block timing |
+| `record_macro(name)` | Record macro call |
+| `record_include(name)` | Record include |
+| `record_filter(name)` | Record filter usage |
+| `summary()` | Get metrics dict |
+
 ## See Also
 
 - [[docs/reference/filters|Filters Reference]] — All built-in filters
