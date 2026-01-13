@@ -257,7 +257,6 @@ class TestIncludeStatement:
 class TestIncludeIgnoreMissing:
     """include with ignore missing."""
 
-    @pytest.mark.xfail(reason="ignore missing may not be implemented")
     def test_ignore_missing(self):
         """Include with ignore missing."""
         loader = DictLoader(

@@ -1,50 +1,41 @@
 ---
 title: Releases
-description: Kida release history and changelog
-draft: false
+description: Stay up to date with Kida's latest features, improvements, and fixes. Each release includes detailed notes about what's new, what changed, and how to upgrade.
+type: changelog
 weight: 90
+draft: false
 lang: en
-type: doc
-tags:
-- releases
-- changelog
-keywords:
-- releases
-- changelog
-- versions
-category: releases
+icon: calendar
+tags: [releases, changelog, version history]
+keywords: [releases, changelog, version, updates]
+category: changelog
 cascade:
-  type: doc
-icon: tag
+  type: changelog
 ---
 
-# Releases
+## Quick Upgrade
 
-Kida version history and changelog.
+To upgrade to the latest version:
 
-## Latest Release
-
-:::{card} v0.1.0
-:icon: tag
-:link: ./0.1.0
-:description: Initial public release
-First public release with core template engine features.
-:::{/card}
-
-## Version Policy
-
-Kida follows [Semantic Versioning](https://semver.org/):
-
-- **MAJOR**: Breaking API changes
-- **MINOR**: New features (backward compatible)
-- **PATCH**: Bug fixes (backward compatible)
-
-## Installation
+:::{tab-set}
+:::{tab-item} UV
 
 ```bash
-# Latest stable
-pip install kida
-
-# Specific version
-pip install kida==0.1.0
+uv pip install --upgrade kida-templates
 ```
+
+:::
+
+:::{tab-item} pip
+
+```bash
+pip install --upgrade kida-templates
+```
+
+:::
+
+:::{/tab-set}
+
+## Browse Releases
+
+Releases appear below in reverse chronological order (newest first). Click any release to read the full details.

@@ -7,9 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-01-13
+
 ### Added
 
+- **RenderContext** — ContextVar-based per-render state management. Isolates internal state (`_template`, `_line`, `_include_depth`, `_cached_blocks`) from user context. User `ctx` dicts are now clean with no internal key pollution. Thread-safe and async-safe via Python 3.14 ContextVar propagation.
+
+- **RenderAccumulator** — opt-in profiling for template rendering. Collects block render times, macro call counts, include/embed counts, and filter usage. Zero overhead when disabled.
+
+  ```python
+  from kida import profiled_render
+
+  with profiled_render() as metrics:
+      html = template.render(page=page)
+  
+  print(metrics.summary())
+  # {"total_ms": 12.5, "blocks": {"content": {"ms": 8.2, "calls": 1}}, ...}
+  ```
+
+- **Public API exports** — `RenderContext`, `RenderAccumulator`, `profiled_render`, `get_accumulator`, `timed_block`, `render_context`, `get_render_context`, `get_render_context_required` now exported from `kida`.
+
 - **F-string coalescing optimization** — consecutive template outputs are merged into single f-string appends, reducing function call overhead by ~11% in output-heavy templates. Controlled via `Environment.fstring_coalescing` (enabled by default) and `Environment.pure_filters` for custom filter registration.
+
+### Changed
+
+- **Clean user context** — template rendering no longer injects internal keys (`_template`, `_line`, `_include_depth`, `_cached_blocks`, `_cached_stats`) into user context. Users can now safely use `_template` or `_line` as variable names without collision.
 
 ### Removed
 
@@ -43,4 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.1.2]: https://github.com/lbliii/kida/releases/tag/v0.1.2
+[0.1.1]: https://github.com/lbliii/kida/releases/tag/v0.1.1
 [0.1.0]: https://github.com/lbliii/kida/releases/tag/v0.1.0
