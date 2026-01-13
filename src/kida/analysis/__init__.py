@@ -4,19 +4,19 @@ Static analysis of compiled templates for caching optimization,
 validation, and tooling support.
 
 Core Capabilities:
-    - Block enumeration: "What blocks does this template define?"
-    - Dependency analysis: "What context variables does this block need?"
-    - Purity inference: "Is this block deterministic?"
-    - Role classification: "Is this navigation, content, or sidebar?"
-    - Cache scope: "Can this be cached per-page or per-site?"
+- Block enumeration: "What blocks does this template define?"
+- Dependency analysis: "What context variables does this block need?"
+- Purity inference: "Is this block deterministic?"
+- Role classification: "Is this navigation, content, or sidebar?"
+- Cache scope: "Can this be cached per-page or per-site?"
 
 Design Principles:
-    1. Zero syntax changes — Templates work exactly as before
-    2. Zero author burden — Introspection is automatic, not annotated
-    3. Zero runtime impact — Analysis happens at compile time
-    4. Conservative claims — When uncertain, report "unknown"
-    5. Standalone-ready — API designed for Kida as independent package
-    6. Configurable — Memory/analysis trade-off controllable via Environment
+1. Zero syntax changes — Templates work exactly as before
+2. Zero author burden — Introspection is automatic, not annotated
+3. Zero runtime impact — Analysis happens at compile time
+4. Conservative claims — When uncertain, report "unknown"
+5. Standalone-ready — API designed for Kida as independent package
+6. Configurable — Memory/analysis trade-off controllable via Environment
 
 Example:
     >>> from kida import Environment
@@ -28,8 +28,9 @@ Example:
     ...     print(f"Nav can be cached site-wide, depends on: {nav.depends_on}")
 
 Thread-Safety:
-    All analysis classes are stateless or use immutable results.
-    Safe for concurrent use across threads.
+All analysis classes are stateless or use immutable results.
+Safe for concurrent use across threads.
+
 """
 
 from __future__ import annotations

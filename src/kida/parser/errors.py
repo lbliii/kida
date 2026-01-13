@@ -11,10 +11,11 @@ from kida.environment.exceptions import TemplateSyntaxError
 
 class ParseError(TemplateSyntaxError):
     """Parser error with rich source context.
-
+    
     Inherits from TemplateSyntaxError to ensure consistent exception handling.
     Displays errors with source code snippets and visual pointers,
     matching the format used by the lexer for consistency.
+        
     """
 
     def __init__(

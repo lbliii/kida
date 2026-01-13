@@ -11,32 +11,33 @@ from dataclasses import dataclass
 @dataclass(frozen=True, slots=True)
 class AnalysisConfig:
     """Configuration for template analysis.
-
+    
     Allows customization of naming conventions for cache scope inference.
     Frameworks can override defaults for their specific conventions.
-
+    
     Attributes:
         page_prefixes: Variable prefixes indicating per-page scope.
             Variables starting with these are considered page-specific
             and blocks using them get cache_scope="page".
-
+    
         site_prefixes: Variable prefixes indicating site-wide scope.
             Variables starting with these are considered site-wide
             and blocks using only these get cache_scope="site".
-
+    
         extra_pure_functions: Additional functions to treat as pure.
             Extend the built-in list of known pure functions.
-
+    
         extra_impure_filters: Additional filters to treat as impure.
             Extend the built-in list of known impure filters.
-
+    
     Example:
-        >>> # Custom configuration for a blog framework
-        >>> config = AnalysisConfig(
-        ...     page_prefixes=frozenset({"post.", "post", "article.", "article"}),
-        ...     site_prefixes=frozenset({"settings.", "settings", "global."}),
-        ... )
-        >>> analyzer = BlockAnalyzer(config=config)
+            >>> # Custom configuration for a blog framework
+            >>> config = AnalysisConfig(
+            ...     page_prefixes=frozenset({"post.", "post", "article.", "article"}),
+            ...     site_prefixes=frozenset({"settings.", "settings", "global."}),
+            ... )
+            >>> analyzer = BlockAnalyzer(config=config)
+        
     """
 
     # Naming conventions for cache scope inference

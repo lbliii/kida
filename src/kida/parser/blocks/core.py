@@ -19,9 +19,10 @@ if TYPE_CHECKING:
 
 class BlockStackMixin:
     """Mixin for block stack management.
-
+    
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
+        
     """
 
     # ─────────────────────────────────────────────────────────────────────────

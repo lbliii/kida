@@ -17,9 +17,10 @@ if TYPE_CHECKING:
 
 class FunctionCompilationMixin:
     """Mixin for compiling function statements.
-
+    
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
+        
     """
 
     # ─────────────────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ Architecture:
     ```
 
 StringBuilder Pattern:
-    Generated code uses `buf.append()` + `''.join(buf)`:
+Generated code uses `buf.append()` + `''.join(buf)`:
     ```python
     def render(ctx, _blocks=None):
         buf = []
@@ -22,20 +22,21 @@ StringBuilder Pattern:
         _append(_e(_s(ctx["name"])))
         return ''.join(buf)
     ```
-    This is O(n) vs O(n²) for string concatenation.
+This is O(n) vs O(n²) for string concatenation.
 
 Memory Safety:
-    Uses `weakref.ref(env)` to break potential cycles:
-    `Template → (weak) → Environment → cache → Template`
+Uses `weakref.ref(env)` to break potential cycles:
+`Template → (weak) → Environment → cache → Template`
 
 Thread-Safety:
-    - Templates are immutable after construction
-    - `render()` creates only local state (buf list)
-    - Multiple threads can call `render()` concurrently
+- Templates are immutable after construction
+- `render()` creates only local state (buf list)
+- Multiple threads can call `render()` concurrently
 
 Complexity:
-    - `render()`: O(n) where n = output size
-    - `_escape()`: O(n) single-pass via `str.translate()`
+- `render()`: O(n) where n = output size
+- `_escape()`: O(n) single-pass via `str.translate()`
+
 """
 
 from __future__ import annotations
@@ -78,10 +79,10 @@ _STATIC_NAMESPACE: dict[str, Any] = {
 
 class LoopContext:
     """Loop iteration metadata accessible as `loop` inside `{% for %}` blocks.
-
+    
     Provides index tracking, boundary detection, and utility methods for
     common iteration patterns. All properties are computed on-access.
-
+    
     Properties:
         index: 1-based iteration count (1, 2, 3, ...)
         index0: 0-based iteration count (0, 1, 2, ...)
@@ -92,31 +93,32 @@ class LoopContext:
         revindex0: Reverse 0-based index (counts down to 0)
         previtem: Previous item in sequence (None on first)
         nextitem: Next item in sequence (None on last)
-
+    
     Methods:
         cycle(*values): Return values[index % len(values)]
-
+    
     Example:
-        ```jinja
-        <ul>
-        {% for item in items %}
-            <li class="{{ loop.cycle('odd', 'even') }}">
-                {{ loop.index }}/{{ loop.length }}: {{ item }}
-                {% if loop.first %}← First{% endif %}
-                {% if loop.last %}← Last{% endif %}
-            </li>
-        {% end %}
-        </ul>
-        ```
-
+            ```jinja
+            <ul>
+            {% for item in items %}
+                <li class="{{ loop.cycle('odd', 'even') }}">
+                    {{ loop.index }}/{{ loop.length }}: {{ item }}
+                    {% if loop.first %}← First{% endif %}
+                    {% if loop.last %}← Last{% endif %}
+                </li>
+            {% end %}
+            </ul>
+            ```
+    
     Output:
-        ```html
-        <ul>
-            <li class="odd">1/3: Apple ← First</li>
-            <li class="even">2/3: Banana</li>
-            <li class="odd">3/3: Cherry ← Last</li>
-        </ul>
-        ```
+            ```html
+            <ul>
+                <li class="odd">1/3: Apple ← First</li>
+                <li class="even">2/3: Banana</li>
+                <li class="odd">3/3: Cherry ← Last</li>
+            </ul>
+            ```
+        
     """
 
     __slots__ = ("_items", "_index", "_length")
@@ -197,12 +199,13 @@ class LoopContext:
 
 class CachedBlocksDict:
     """Dict wrapper that returns cached HTML for site-scoped blocks.
-
+    
     Used by Kida's block cache optimization to intercept .get() calls
     from templates and return pre-rendered HTML for site-wide blocks
     (nav, footer, etc.).
-
+    
     Complexity: O(1) for lookups.
+        
     """
 
     __slots__ = ("_original", "_cached", "_cached_names", "_stats")
@@ -316,47 +319,48 @@ class CachedBlocksDict:
 
 class Template:
     """Compiled template ready for rendering.
-
+    
     Wraps a compiled code object containing a `render(ctx, _blocks)` function.
     Templates are immutable and thread-safe for concurrent `render()` calls.
-
+    
     Thread-Safety:
         - Template object is immutable after construction
         - Each `render()` call creates local state only (buf list)
         - Multiple threads can render the same template simultaneously
-
+    
     Memory Safety:
         Uses `weakref.ref(env)` to prevent circular reference leaks:
         `Template → (weak) → Environment → _cache → Template`
-
+    
     Attributes:
         name: Template identifier (for error messages)
         filename: Source file path (for error messages)
-
+    
     Methods:
         render(**context): Render template with given variables
         render_async(**context): Async render for templates with await
-
+    
     Error Enhancement:
         Runtime errors are caught and enhanced with template context:
-        ```
-        TemplateRuntimeError: 'NoneType' has no attribute 'title'
-          Location: article.html:15
-          Expression: {{ post.title }}
-          Values:
-            post = None (NoneType)
-          Suggestion: Check if 'post' is defined before accessing .title
-        ```
-
+            ```
+            TemplateRuntimeError: 'NoneType' has no attribute 'title'
+              Location: article.html:15
+              Expression: {{ post.title }}
+              Values:
+                post = None (NoneType)
+              Suggestion: Check if 'post' is defined before accessing .title
+            ```
+    
     Example:
-        >>> from kida import Environment
-        >>> env = Environment()
-        >>> t = env.from_string("Hello, {{ name | upper }}!")
-        >>> t.render(name="World")
-        'Hello, WORLD!'
-
-        >>> t.render({"name": "World"})  # Dict context also works
-        'Hello, WORLD!'
+            >>> from kida import Environment
+            >>> env = Environment()
+            >>> t = env.from_string("Hello, {{ name | upper }}!")
+            >>> t.render(name="World")
+            'Hello, WORLD!'
+    
+            >>> t.render({"name": "World"})  # Dict context also works
+            'Hello, WORLD!'
+        
     """
 
     __slots__ = (
@@ -1189,9 +1193,10 @@ class Template:
 
 class RenderedTemplate:
     """Lazy rendered template (for streaming).
-
+    
     Allows iteration over rendered chunks for streaming output.
     Not implemented in initial version.
+        
     """
 
     __slots__ = ("_template", "_context")

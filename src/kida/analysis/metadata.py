@@ -13,45 +13,46 @@ from typing import Literal
 @dataclass(frozen=True, slots=True)
 class BlockMetadata:
     """Metadata about a template block, inferred from static analysis.
-
+    
     All fields are conservative estimates:
     - `depends_on` may include unused paths (over-approximation)
     - `is_pure` defaults to "unknown" when uncertain
     - `inferred_role` is heuristic, not semantic truth
-
+    
     Thread-safe: Immutable after creation.
-
+    
     Attributes:
         name: Block identifier (e.g., "nav", "content", "sidebar")
-
+    
         emits_html: True if block produces any output.
             Used to detect empty blocks.
-
+    
         emits_landmarks: HTML5 landmark elements emitted (nav, main, header, etc.).
             Detected from static HTML in Data nodes.
-
+    
         inferred_role: Heuristic classification based on name and landmarks.
             One of: "navigation", "content", "sidebar", "header", "footer", "unknown"
-
+    
         depends_on: Context paths this block may access (conservative superset).
             Example: frozenset({"page.title", "site.pages", "config.theme"})
-
+    
         is_pure: Whether block output is deterministic for same inputs.
             - "pure": Deterministic, safe to cache
             - "impure": Uses random/shuffle/etc, must re-render
             - "unknown": Cannot determine, treat as potentially impure
-
+    
         cache_scope: Recommended caching granularity.
             - "site": Cache once per site build (no page-specific deps)
             - "page": Cache per page (has page-specific deps)
             - "none": Cannot cache (impure)
             - "unknown": Cannot determine
-
+    
     Example:
-        >>> meta = template.block_metadata()
-        >>> nav = meta.get("nav")
-        >>> if nav and nav.is_cacheable():
-        ...     cached = cache.get_or_render("nav", ...)
+            >>> meta = template.block_metadata()
+            >>> nav = meta.get("nav")
+            >>> if nav and nav.is_cacheable():
+            ...     cached = cache.get_or_render("nav", ...)
+        
     """
 
     name: str
@@ -107,30 +108,31 @@ class BlockMetadata:
 @dataclass(frozen=True, slots=True)
 class TemplateMetadata:
     """Metadata about a complete template.
-
+    
     Aggregates block metadata and tracks template-level information
     like inheritance and top-level dependencies.
-
+    
     Attributes:
         name: Template identifier (e.g., "page.html")
-
+    
         extends: Parent template name from {% extends %}, or None.
             Example: "base.html"
-
+    
         blocks: Mapping of block name → BlockMetadata.
             All blocks defined in this template.
-
+    
         top_level_depends_on: Context paths used outside blocks.
             Captures dependencies from:
             - Code before/after blocks
             - Dynamic extends expressions
             - Template-level set/let statements
-
+    
     Example:
-        >>> meta = template.template_metadata()
-        >>> print(f"Extends: {meta.extends}")
-        >>> print(f"Blocks: {list(meta.blocks.keys())}")
-        >>> print(f"All deps: {meta.all_dependencies()}")
+            >>> meta = template.template_metadata()
+            >>> print(f"Extends: {meta.extends}")
+            >>> print(f"Blocks: {list(meta.blocks.keys())}")
+            >>> print(f"All deps: {meta.all_dependencies()}")
+        
     """
 
     name: str | None

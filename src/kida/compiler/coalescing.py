@@ -7,24 +7,25 @@ instead of multiple `buf.append()` calls, reducing function call overhead
 by ~37% in output-heavy templates.
 
 Example transformation:
-    Before (5 function calls):
-        _append('<div id="')
-        _append(_e(item["id"]))
-        _append('">')
-        _append(_e(item["name"]))
-        _append('</div>')
+Before (5 function calls):
+    _append('<div id="')
+    _append(_e(item["id"]))
+    _append('">')
+    _append(_e(item["name"]))
+    _append('</div>')
 
-    After (1 function call):
-        _append(f'<div id="{_e(item["id"])}">{_e(item["name"])}</div>')
+After (1 function call):
+    _append(f'<div id="{_e(item["id"])}">{_e(item["name"])}</div>')
 
 Design:
-    - Only coalesce consecutive Data and simple Output nodes
-    - Fall back to separate appends for complex expressions (function calls, etc.)
-    - Use ast.JoinedStr for f-string generation (handles brace escaping automatically)
-    - Detect backslashes in expressions (f-strings don't allow them)
+- Only coalesce consecutive Data and simple Output nodes
+- Fall back to separate appends for complex expressions (function calls, etc.)
+- Use ast.JoinedStr for f-string generation (handles brace escaping automatically)
+- Detect backslashes in expressions (f-strings don't allow them)
 
 Uses inline TYPE_CHECKING declarations for host attributes.
 See: plan/rfc-mixin-protocol-typing.md
+
 """
 
 from __future__ import annotations
@@ -66,9 +67,10 @@ _BUILTIN_PURE_FILTERS: frozenset[str] = frozenset({
 
 class FStringCoalescingMixin:
     """Mixin for f-string coalescing optimization.
-
+    
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
+        
     """
 
     # ─────────────────────────────────────────────────────────────────────────

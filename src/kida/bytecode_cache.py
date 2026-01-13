@@ -4,12 +4,12 @@ Persists compiled template code objects to disk for near-instant
 cold-start loading. Uses marshal for code object serialization.
 
 Cache Invalidation:
-    Uses source hash in filename. When source changes, hash changes,
-    and old cache entry becomes orphan (cleaned up lazily).
+Uses source hash in filename. When source changes, hash changes,
+and old cache entry becomes orphan (cleaned up lazily).
 
 Thread-Safety:
-    File writes use atomic rename pattern to prevent corruption.
-    Multiple processes can safely share the cache directory.
+File writes use atomic rename pattern to prevent corruption.
+Multiple processes can safely share the cache directory.
 
 Example:
     >>> from pathlib import Path
@@ -26,6 +26,7 @@ Example:
     >>> # Cache stats
     >>> stats = cache.stats()
     >>> print(f"Cached: {stats['file_count']} templates")
+
 """
 
 from __future__ import annotations
@@ -44,28 +45,29 @@ _PY_VERSION_TAG = f"py{sys.version_info.major}{sys.version_info.minor}"
 
 class BytecodeCache:
     """Persist compiled template bytecode to disk.
-
+    
     Uses marshal for code object serialization (Python stdlib).
-
+    
     Thread-Safety:
         File writes use atomic rename pattern to prevent corruption.
         Multiple processes can safely share the cache directory.
-
+    
     Cache Invalidation:
         Uses source hash in filename. When source changes, hash changes,
         and old cache entry becomes orphan (cleaned up lazily).
-
+    
     Example:
-        >>> cache = BytecodeCache(Path(".kida-cache"))
-        >>>
-        >>> # Miss: compile and cache
-        >>> code = cache.get("base.html", source_hash)
-        >>> if code is None:
-        ...     code = compile_template(source)
-        ...     cache.set("base.html", source_hash, code)
-        >>>
-        >>> # Hit: instant load
-        >>> code = cache.get("base.html", source_hash)
+            >>> cache = BytecodeCache(Path(".kida-cache"))
+            >>>
+            >>> # Miss: compile and cache
+            >>> code = cache.get("base.html", source_hash)
+            >>> if code is None:
+            ...     code = compile_template(source)
+            ...     cache.set("base.html", source_hash, code)
+            >>>
+            >>> # Hit: instant load
+            >>> code = cache.get("base.html", source_hash)
+        
     """
 
     def __init__(

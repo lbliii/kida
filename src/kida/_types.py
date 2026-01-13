@@ -3,32 +3,33 @@
 Defines the fundamental types used throughout the Kida pipeline:
 
 Types:
-    - `Token`: Single lexer output unit with type, value, and location
-    - `TokenType`: Enum classifying token types (operators, literals, etc.)
+- `Token`: Single lexer output unit with type, value, and location
+- `TokenType`: Enum classifying token types (operators, literals, etc.)
 
 Constants:
-    - `KEYWORDS`: Frozenset of reserved words recognized by parser
-    - `PRECEDENCE`: Dict mapping token types to operator precedence
+- `KEYWORDS`: Frozenset of reserved words recognized by parser
+- `PRECEDENCE`: Dict mapping token types to operator precedence
 
 Thread-Safety:
-    All types are immutable (frozen dataclasses, enums) for safe
-    concurrent access during template compilation.
+All types are immutable (frozen dataclasses, enums) for safe
+concurrent access during template compilation.
 
 Token Categories:
-    - **Delimiters**: `BLOCK_BEGIN`, `VARIABLE_BEGIN`, etc.
-    - **Literals**: `STRING`, `INTEGER`, `FLOAT`
-    - **Identifiers**: `NAME` (variables, keywords)
-    - **Operators**: `ADD`, `SUB`, `MUL`, `EQ`, `AND`, etc.
-    - **Punctuation**: `DOT`, `COMMA`, `PIPE`, `LPAREN`, etc.
-    - **Special**: `EOF`, `DATA` (raw text)
+- **Delimiters**: `BLOCK_BEGIN`, `VARIABLE_BEGIN`, etc.
+- **Literals**: `STRING`, `INTEGER`, `FLOAT`
+- **Identifiers**: `NAME` (variables, keywords)
+- **Operators**: `ADD`, `SUB`, `MUL`, `EQ`, `AND`, etc.
+- **Punctuation**: `DOT`, `COMMA`, `PIPE`, `LPAREN`, etc.
+- **Special**: `EOF`, `DATA` (raw text)
 
 Example:
     >>> from kida._types import Token, TokenType
     >>> token = Token(TokenType.NAME, "user", lineno=1, col_offset=5)
     >>> token.type == TokenType.NAME
-    True
+True
     >>> token.value
     'user'
+
 """
 
 from dataclasses import dataclass
@@ -37,7 +38,7 @@ from enum import Enum
 
 class TokenType(Enum):
     """Classification of lexer tokens.
-
+    
     Categories:
         - Delimiters: Block, variable, comment markers
         - Literals: Strings, numbers, booleans
@@ -45,6 +46,7 @@ class TokenType(Enum):
         - Operators: Arithmetic, comparison, logical
         - Punctuation: Parentheses, brackets, dots
         - Special: EOF, whitespace, data (raw text)
+        
     """
 
     # Delimiters
@@ -127,21 +129,22 @@ class TokenType(Enum):
 @dataclass(frozen=True, slots=True)
 class Token:
     """A single token from the lexer.
-
+    
     Attributes:
         type: Classification of this token
         value: The actual text/value of the token
         lineno: 1-based line number in source
         col_offset: 0-based column offset in source
-
+    
     Immutable by design for thread-safety.
-
+    
     Example:
-        >>> token = Token(TokenType.NAME, "user", 1, 5)
-        >>> token.type
+            >>> token = Token(TokenType.NAME, "user", 1, 5)
+            >>> token.type
         <TokenType.NAME: 'name'>
-        >>> token.value
-        'user'
+            >>> token.value
+            'user'
+        
     """
 
     type: TokenType

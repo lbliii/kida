@@ -23,9 +23,10 @@ from kida.parser.blocks.core import BlockStackMixin
 
 class VariableBlockParsingMixin(BlockStackMixin):
     """Mixin for parsing variable assignment blocks.
-
+    
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks. Inherits block stack management from BlockStackMixin.
+        
     """
 
     # ─────────────────────────────────────────────────────────────────────────

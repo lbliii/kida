@@ -4,21 +4,22 @@ Multi-set syntax allows comma-separated independent variable assignments
 in a single {% set %} block, reducing template verbosity.
 
 Syntax:
-    {% set name1 = expr1, name2 = expr2, name3 = expr3 %}
+{% set name1 = expr1, name2 = expr2, name3 = expr3 %}
 
 With line breaks:
-    {% set
-        name1 = expr1,
-        name2 = expr2,
-        name3 = expr3
-    %}
+{% set
+    name1 = expr1,
+    name2 = expr2,
+    name3 = expr3
+%}
 
 Trailing comma is allowed for easier editing.
 
 Disambiguation rules:
-    - {% set a = 1, b = 2 %} → multi-set (two vars)
-    - {% set a = 1, 2, 3 %} → single var with tuple value
-    - {% set a, b = 1, 2 %} → tuple unpacking (unchanged)
+- {% set a = 1, b = 2 %} → multi-set (two vars)
+- {% set a = 1, 2, 3 %} → single var with tuple value
+- {% set a, b = 1, 2 %} → tuple unpacking (unchanged)
+
 """
 
 import pytest

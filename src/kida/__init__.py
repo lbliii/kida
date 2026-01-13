@@ -17,54 +17,55 @@ File-based templates:
     >>> template.render(page=page, site=site)
 
 Architecture:
-    Template Source → Lexer → Parser → Kida AST → Compiler → Python AST → exec()
+Template Source → Lexer → Parser → Kida AST → Compiler → Python AST → exec()
 
-    Pipeline stages:
-    1. **Lexer**: Tokenizes template source into token stream
-    2. **Parser**: Builds immutable Kida AST from tokens
-    3. **Compiler**: Transforms Kida AST to Python AST
-    4. **Template**: Wraps compiled code with render() interface
+Pipeline stages:
+1. **Lexer**: Tokenizes template source into token stream
+2. **Parser**: Builds immutable Kida AST from tokens
+3. **Compiler**: Transforms Kida AST to Python AST
+4. **Template**: Wraps compiled code with render() interface
 
-    Unlike Jinja2 which generates Python source strings, Kida generates
-    `ast.Module` objects directly, enabling structured code manipulation,
-    compile-time optimization, and precise error source mapping.
+Unlike Jinja2 which generates Python source strings, Kida generates
+`ast.Module` objects directly, enabling structured code manipulation,
+compile-time optimization, and precise error source mapping.
 
 Thread-Safety:
-    All public APIs are thread-safe by design:
-    - Template compilation is idempotent (same input → same output)
-    - Rendering uses only local state (StringBuilder pattern, no shared buffers)
-    - Environment caching uses copy-on-write for filters/tests/globals
-    - LRU caches use atomic operations (no locks required)
+All public APIs are thread-safe by design:
+- Template compilation is idempotent (same input → same output)
+- Rendering uses only local state (StringBuilder pattern, no shared buffers)
+- Environment caching uses copy-on-write for filters/tests/globals
+- LRU caches use atomic operations (no locks required)
 
 Free-Threading (PEP 703):
-    Declares GIL-independence via `_Py_mod_gil = 0` attribute.
-    Safe for concurrent template rendering in Python 3.14t+ free-threaded builds.
+Declares GIL-independence via `_Py_mod_gil = 0` attribute.
+Safe for concurrent template rendering in Python 3.14t+ free-threaded builds.
 
 Performance Optimizations:
-    - StringBuilder pattern: O(n) output vs O(n²) string concatenation
-    - Local variable caching: `_escape`, `_str` bound once per render
-    - O(1) operator dispatch: dict-based token → handler lookup
-    - Single-pass HTML escaping via `str.translate()`
-    - Compiled regex patterns at class level (immutable)
+- StringBuilder pattern: O(n) output vs O(n²) string concatenation
+- Local variable caching: `_escape`, `_str` bound once per render
+- O(1) operator dispatch: dict-based token → handler lookup
+- Single-pass HTML escaping via `str.translate()`
+- Compiled regex patterns at class level (immutable)
 
 Key Differences from Jinja2:
-    - **Rendering**: StringBuilder pattern (25-40% faster than generator yields)
-    - **Compilation**: AST-to-AST (no string manipulation or regex)
-    - **Async**: Native async/await (no `auto_await()` wrappers)
-    - **Scoping**: Explicit `{% let %}`, `{% set %}`, `{% export %}` semantics
-    - **Syntax**: Unified `{% end %}` for all blocks (like Go templates)
-    - **Filters**: Protocol-based dispatch with compile-time binding
-    - **Caching**: Built-in `{% cache key %}...{% end %}` directive
-    - **Pipeline**: `|>` operator for readable filter chains
-    - **Pattern Matching**: `{% match %}...{% case %}` for cleaner branching
+- **Rendering**: StringBuilder pattern (25-40% faster than generator yields)
+- **Compilation**: AST-to-AST (no string manipulation or regex)
+- **Async**: Native async/await (no `auto_await()` wrappers)
+- **Scoping**: Explicit `{% let %}`, `{% set %}`, `{% export %}` semantics
+- **Syntax**: Unified `{% end %}` for all blocks (like Go templates)
+- **Filters**: Protocol-based dispatch with compile-time binding
+- **Caching**: Built-in `{% cache key %}...{% end %}` directive
+- **Pipeline**: `|>` operator for readable filter chains
+- **Pattern Matching**: `{% match %}...{% case %}` for cleaner branching
 
 Strict Mode (default):
-    Undefined variables raise `UndefinedError` instead of silently returning
-    empty string. Use `| default(fallback)` for optional variables:
+Undefined variables raise `UndefinedError` instead of silently returning
+empty string. Use `| default(fallback)` for optional variables:
 
     >>> env.from_string("{{ missing }}").render()  # Raises UndefinedError
     >>> env.from_string("{{ missing | default('N/A') }}").render()
     'N/A'
+
 """
 
 from collections.abc import Callable

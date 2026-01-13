@@ -4,65 +4,66 @@ Filters transform values in template expressions using the pipe syntax:
 `{{ value | filter }}` or `{{ value | filter(arg1, arg2) }}`
 
 Constants for sort key tuples:
-    SORT_KEY_NONE: (1, 0, 0) - Used for None/empty values (sorts last)
-    SORT_KEY_NUMERIC: (0, 0, value) - Used for numeric values
-    SORT_KEY_STRING: (0, 1, value) - Used for string values
+SORT_KEY_NONE: (1, 0, 0) - Used for None/empty values (sorts last)
+SORT_KEY_NUMERIC: (0, 0, value) - Used for numeric values
+SORT_KEY_STRING: (0, 1, value) - Used for string values
 
 Categories:
-    **String Manipulation**:
-        - `capitalize`, `lower`, `upper`, `title`: Case conversion
-        - `trim`/`strip`: Remove whitespace
-        - `truncate`: Shorten with ellipsis
-        - `replace`, `striptags`: Text transformation
-        - `center`, `indent`, `wordwrap`: Formatting
+**String Manipulation**:
+    - `capitalize`, `lower`, `upper`, `title`: Case conversion
+    - `trim`/`strip`: Remove whitespace
+    - `truncate`: Shorten with ellipsis
+    - `replace`, `striptags`: Text transformation
+    - `center`, `indent`, `wordwrap`: Formatting
 
-    **HTML/Security**:
-        - `escape`/`e`: HTML entity encoding (auto-applied with autoescape)
-        - `safe`: Mark content as trusted HTML (skip escaping)
-        - `striptags`: Remove HTML tags
+**HTML/Security**:
+    - `escape`/`e`: HTML entity encoding (auto-applied with autoescape)
+    - `safe`: Mark content as trusted HTML (skip escaping)
+    - `striptags`: Remove HTML tags
 
-    **Collections**:
-        - `first`, `last`: Get endpoints
-        - `length`/`count`: Item count
-        - `sort`: Sort sequence (with `attribute=` for objects)
-        - `reverse`: Reverse order
-        - `unique`: Remove duplicates
-        - `batch`, `slice`: Group items
-        - `map`, `select`, `reject`: Functional operations
-        - `selectattr`, `rejectattr`: Filter by attribute
-        - `groupby`: Group by attribute
-        - `join`: Concatenate with separator
+**Collections**:
+    - `first`, `last`: Get endpoints
+    - `length`/`count`: Item count
+    - `sort`: Sort sequence (with `attribute=` for objects)
+    - `reverse`: Reverse order
+    - `unique`: Remove duplicates
+    - `batch`, `slice`: Group items
+    - `map`, `select`, `reject`: Functional operations
+    - `selectattr`, `rejectattr`: Filter by attribute
+    - `groupby`: Group by attribute
+    - `join`: Concatenate with separator
 
-    **Numbers**:
-        - `abs`, `round`, `int`, `float`: Math operations
-        - `filesizeformat`: Human-readable file sizes
+**Numbers**:
+    - `abs`, `round`, `int`, `float`: Math operations
+    - `filesizeformat`: Human-readable file sizes
 
-    **Type Conversion**:
-        - `string`, `int`, `float`, `list`: Type coercion
-        - `tojson`: JSON serialization (auto-escaped)
+**Type Conversion**:
+    - `string`, `int`, `float`, `list`: Type coercion
+    - `tojson`: JSON serialization (auto-escaped)
 
-    **Debugging**:
-        - `debug`: Print variable info to stderr
-        - `pprint`: Pretty-print value
+**Debugging**:
+    - `debug`: Print variable info to stderr
+    - `pprint`: Pretty-print value
 
-    **Validation**:
-        - `default`/`d`: Fallback for None/undefined
-        - `require`: Raise error if None
+**Validation**:
+    - `default`/`d`: Fallback for None/undefined
+    - `require`: Raise error if None
 
 None-Resilient Behavior:
-    Filters handle None gracefully (like Hugo):
-    - `{{ none | default('N/A') }}` -> `'N/A'`
-    - `{{ none | length }}` -> `0`
-    - `{{ none | first }}` -> `None`
+Filters handle None gracefully (like Hugo):
+- `{{ none | default('N/A') }}` -> `'N/A'`
+- `{{ none | length }}` -> `0`
+- `{{ none | first }}` -> `None`
 
 Custom Filters:
     >>> env.add_filter('double', lambda x: x * 2)
     >>> env.add_filter('money', lambda x, currency='$': f'{currency}{x:,.2f}')
 
-    Or with decorator:
+Or with decorator:
     >>> @env.filter()
     ... def reverse_words(s):
     ...     return ' '.join(s.split()[::-1])
+
 """
 
 from __future__ import annotations
@@ -110,9 +111,10 @@ def _filter_capitalize(value: str) -> str:
 
 def _filter_default(value: Any, default: Any = "", boolean: bool = False) -> Any:
     """Return default if value is undefined or falsy.
-
+    
     With None-resilient handling, empty string is treated as missing (like None).
     This matches Hugo behavior where nil access returns empty string.
+        
     """
     if boolean:
         return value or default
@@ -122,9 +124,10 @@ def _filter_default(value: Any, default: Any = "", boolean: bool = False) -> Any
 
 def _filter_escape(value: Any) -> Markup:
     """HTML-escape the value.
-
+    
     Returns a Markup object so the result won't be escaped again by autoescape.
     Uses optimized html_escape_filter from utils.html module.
+        
     """
     return html_escape_filter(value)
 
@@ -141,26 +144,27 @@ def _filter_first(value: Any) -> Any:
 
 def _filter_int(value: Any, default: int = 0, strict: bool = False) -> int:
     """Convert to integer.
-
+    
     Args:
         value: Value to convert to integer.
         default: Default value to return if conversion fails (default: 0).
         strict: If True, raise TemplateRuntimeError on conversion failure
             instead of returning default (default: False).
-
+    
     Returns:
         Integer value, or default if conversion fails and strict=False.
-
+    
     Raises:
         TemplateRuntimeError: If strict=True and conversion fails.
-
+    
     Examples:
-        >>> _filter_int("42")
+            >>> _filter_int("42")
         42
-        >>> _filter_int("not a number")
+            >>> _filter_int("not a number")
         0
-        >>> _filter_int("not a number", strict=True)
+            >>> _filter_int("not a number", strict=True)
         TemplateRuntimeError: Cannot convert str to int: 'not a number'
+        
     """
     try:
         return int(value)
@@ -228,16 +232,17 @@ def _filter_reverse(value: Any) -> Any:
 
 def _filter_safe(value: Any, reason: str | None = None) -> Any:
     """Mark value as safe (no HTML escaping).
-
+    
     Args:
         value: Content to mark as safe for raw HTML output.
         reason: Optional documentation of why this content is trusted.
             Purely for code review and audit purposes - not used at runtime.
-
+    
     Example:
         {{ content | safe }}
         {{ user_html | safe(reason="sanitized by bleach library") }}
         {{ cms_block | safe(reason="trusted CMS output, admin-only") }}
+        
     """
     return Markup(str(value))
 
@@ -249,9 +254,10 @@ def _filter_sort(
     attribute: str | None = None,
 ) -> list[Any]:
     """Sort sequence with improved error handling for None values.
-
+    
     When sorting fails due to None comparisons, provides detailed error
     showing which items have None values for the sort attribute.
+        
     """
     from kida.environment.exceptions import NoneComparisonError
 
@@ -366,10 +372,11 @@ def _filter_title(value: str) -> str:
 
 def _filter_trim(value: str, chars: str | None = None) -> str:
     """Strip whitespace or specified characters.
-
+    
     Args:
         value: String to trim
         chars: Optional characters to strip (default: whitespace)
+        
     """
     return str(value).strip(chars)
 
@@ -382,16 +389,17 @@ def _filter_truncate(
     leeway: int | None = None,
 ) -> str:
     """Truncate string to specified length.
-
+    
     Args:
         value: String to truncate
         length: Maximum length including end marker
         killwords: If False (default), truncate at word boundary; if True, cut mid-word
         end: String to append when truncated (default: "...")
         leeway: Allow slightly longer strings before truncating (Jinja2 compat, ignored)
-
+    
     Returns:
         Truncated string with end marker if truncated
+        
     """
     value = str(value)
     if len(value) <= length:
@@ -452,19 +460,20 @@ def _filter_slice(value: Any, slices: int, fill_with: Any = None) -> list[Any]:
 
 def _filter_take(value: Any, count: int) -> list[Any]:
     """Take the first N items from a sequence.
-
+    
     Kida-native filter for readable pipeline operations.
-
+    
     Example:
         {{ items |> take(5) }}
         {{ posts |> sort(attribute='date', reverse=true) |> take(3) }}
-
+    
     Args:
         value: Sequence to take from
         count: Number of items to take
-
+    
     Returns:
         List of first N items (or fewer if sequence is shorter)
+        
     """
     if value is None:
         return []
@@ -476,19 +485,20 @@ def _filter_take(value: Any, count: int) -> list[Any]:
 
 def _filter_skip(value: Any, count: int) -> list[Any]:
     """Skip the first N items from a sequence.
-
+    
     Kida-native filter for readable pipeline operations.
-
+    
     Example:
         {{ items |> skip(5) }}
         {{ posts |> skip(10) |> take(10) }}  # pagination
-
+    
     Args:
         value: Sequence to skip from
         count: Number of items to skip
-
+    
     Returns:
         List of remaining items after skipping N
+        
     """
     if value is None:
         return []
@@ -500,33 +510,34 @@ def _filter_skip(value: Any, count: int) -> list[Any]:
 
 def _filter_compact(value: Any, *, truthy: bool = True) -> list[Any]:
     """Remove None values (and optionally all falsy values) from a sequence.
-
+    
     Enables declarative list building with conditional items, replacing
     imperative {% do %} patterns.
-
+    
     Example:
         {# Declarative conditional list building #}
         {% let badges = [
-            'async' if member.is_async,
-            'deprecated' if member.is_deprecated,
-            'abstract' if member.is_abstract,
+                'async' if member.is_async,
+                'deprecated' if member.is_deprecated,
+                'abstract' if member.is_abstract,
         ] | compact %}
-
+    
         {# Remove only None (keep empty strings, 0, False) #}
         {{ [0, None, '', False, 'value'] | compact(truthy=false) }}
         → [0, '', False, 'value']
-
+    
         {# Remove all falsy values (default) #}
         {{ [0, None, '', False, 'value'] | compact }}
         → ['value']
-
+    
     Args:
         value: Sequence to compact
         truthy: If True (default), remove all falsy values.
                 If False, remove only None values.
-
+    
     Returns:
         List with None/falsy values removed.
+        
     """
     if value is None:
         return []
@@ -612,9 +623,10 @@ def _filter_reject(value: Any, test_name: str | None = None, *args: Any) -> list
 
 def _filter_groupby(value: Any, attribute: str) -> list[Any]:
     """Group items by attribute with None-safe sorting.
-
+    
     Items with None/empty values for the attribute are grouped together
     and sorted last.
+        
     """
 
     def get_key(item: Any) -> Any:
@@ -671,8 +683,9 @@ def _filter_pprint(value: Any) -> str:
 
 def _filter_xmlattr(value: dict[str, Any]) -> Markup:
     """Convert dict to XML attributes.
-
+    
     Returns Markup to prevent double-escaping when autoescape is enabled.
+        
     """
     return xmlattr(value)
 
@@ -716,8 +729,9 @@ def _filter_sum(value: Any, attribute: str | None = None, start: int = 0) -> Any
 
 def _filter_attr(value: Any, name: str) -> Any:
     """Get attribute from object or dictionary key.
-
+    
     Returns "" for None/missing values (None-resilient, like Hugo).
+        
     """
     if value is None:
         return ""
@@ -735,28 +749,29 @@ def _filter_attr(value: Any, name: str) -> Any:
 
 def _filter_get(value: Any, key: str, default: Any = None) -> Any:
     """Safe dictionary/object access that avoids Python method name conflicts.
-
+    
     When accessing dict keys like 'items', 'keys', 'values', or 'get', using
     dotted access (e.g., ``schema.items``) returns the method, not the key value.
     This filter provides clean syntax for safe key access.
-
+    
     Examples:
         {{ user | get('name') }}              # Get 'name' key
         {{ config | get('timeout', 30) }}     # With default value
         {{ schema | get('items') }}           # Safe access to 'items' key
         {{ data | get('keys') }}              # Safe access to 'keys' key
-
+    
     Args:
         value: Dict, object, or None to access
         key: Key or attribute name to access
         default: Value to return if key doesn't exist (default: None)
-
+    
     Returns:
         value[key] if exists, else default
-
+    
     Note:
         This avoids conflicts with Python's built-in dict method names
         (items, keys, values, get) that would otherwise shadow key access.
+        
     """
     if value is None:
         return default
@@ -795,10 +810,11 @@ def _filter_round(value: Any, precision: int = 0, method: str = "common") -> flo
 
 def _filter_format_number(value: Any, decimal_places: int = 0) -> str:
     """Format a number with thousands separators.
-
+    
     Example:
         {{ 1234567 | format_number }} → "1,234,567"
         {{ 1234.567 | format_number(2) }} → "1,234.57"
+        
     """
     try:
         num = float(value)
@@ -812,11 +828,12 @@ def _filter_format_number(value: Any, decimal_places: int = 0) -> str:
 
 def _filter_commas(value: Any) -> str:
     """Format a number with commas as thousands separators.
-
+    
     Alias for format_number without decimal places.
-
+    
     Example:
         {{ 1234567 | commas }} → "1,234,567"
+        
     """
     return _filter_format_number(value, 0)
 
@@ -854,26 +871,27 @@ def _filter_wordcount(value: str) -> int:
 
 def _filter_float(value: Any, default: float = 0.0, strict: bool = False) -> float:
     """Convert value to float.
-
+    
     Args:
         value: Value to convert to float.
         default: Default value to return if conversion fails (default: 0.0).
         strict: If True, raise TemplateRuntimeError on conversion failure
             instead of returning default (default: False).
-
+    
     Returns:
         Float value, or default if conversion fails and strict=False.
-
+    
     Raises:
         TemplateRuntimeError: If strict=True and conversion fails.
-
+    
     Examples:
-        >>> _filter_float("3.14")
+            >>> _filter_float("3.14")
         3.14
-        >>> _filter_float("not a number")
+            >>> _filter_float("not a number")
         0.0
-        >>> _filter_float("not a number", strict=True)
+            >>> _filter_float("not a number", strict=True)
         TemplateRuntimeError: Cannot convert str to float: 'not a number'
+        
     """
     try:
         return float(value)
@@ -910,21 +928,22 @@ def _filter_filesizeformat(value: int | float, binary: bool = False) -> str:
 
 def _filter_require(value: Any, message: str | None = None, field_name: str | None = None) -> Any:
     """Require a value to be non-None, raising a clear error if it is.
-
+    
     Usage:
         {{ user.name | require('User name is required') }}
         {{ config.api_key | require(field_name='api_key') }}
-
+    
     Args:
         value: The value to check
         message: Custom error message if value is None
         field_name: Field name for the default error message
-
+    
     Returns:
         The value if not None
-
+    
     Raises:
         RequiredValueError: If value is None
+        
     """
     from kida.environment.exceptions import RequiredValueError
 
@@ -938,14 +957,15 @@ def _filter_require(value: Any, message: str | None = None, field_name: str | No
 
 def _filter_random(value: Any) -> Any:
     """Return a random item from the sequence.
-
+    
     Warning: This filter is impure (non-deterministic).
-
+    
     Args:
         value: A sequence to pick from.
-
+    
     Returns:
         A random element from the sequence.
+        
     """
     seq = list(value)
     if not seq:
@@ -955,14 +975,15 @@ def _filter_random(value: Any) -> Any:
 
 def _filter_shuffle(value: Any) -> list[Any]:
     """Return a shuffled copy of the sequence.
-
+    
     Warning: This filter is impure (non-deterministic).
-
+    
     Args:
         value: A sequence to shuffle.
-
+    
     Returns:
         A new list with elements in random order.
+        
     """
     result = list(value)
     random_module.shuffle(result)
@@ -971,25 +992,26 @@ def _filter_shuffle(value: Any) -> list[Any]:
 
 def _filter_debug(value: Any, label: str | None = None, max_items: int = 5) -> Any:
     """Debug filter that prints variable info to stderr and returns the value unchanged.
-
+    
     Usage:
         {{ posts | debug }}                    -> Shows type and length
         {{ posts | debug('my posts') }}        -> Shows with custom label
         {{ posts | debug(max_items=10) }}      -> Show more items
-
+    
     Args:
         value: The value to inspect
         label: Optional label for the output
         max_items: Maximum number of items to show for sequences
-
+    
     Returns:
         The value unchanged (for use in filter chains)
-
+    
     Output example:
         DEBUG [my posts]: <list[5]>
           [0] Page(title='Getting Started', weight=10)
           [1] Page(title='Installation', weight=None)  <-- None!
-          ...
+              ...
+        
     """
     import sys
 

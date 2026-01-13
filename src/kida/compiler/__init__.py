@@ -5,14 +5,14 @@ Python `ast.Module` containing a `render(ctx, _blocks=None)` function.
 This is then compiled to a code object via `compile()`.
 
 Architecture:
-    Kida AST → Python AST → Code Object
+Kida AST → Python AST → Code Object
 
-    Unlike Jinja2 which generates Python source strings, Kida generates
-    `ast.Module` objects directly. This enables:
-    - Structured manipulation (no regex, no string parsing)
-    - Compile-time optimizations (constant folding, dead code elimination)
-    - Precise source mapping for error messages
-    - No eval() security concerns
+Unlike Jinja2 which generates Python source strings, Kida generates
+`ast.Module` objects directly. This enables:
+- Structured manipulation (no regex, no string parsing)
+- Compile-time optimizations (constant folding, dead code elimination)
+- Precise source mapping for error messages
+- No eval() security concerns
 
 Generated Code Pattern:
     ```python
@@ -31,16 +31,17 @@ Generated Code Pattern:
     ```
 
 Mixin Architecture:
-    - `OperatorUtilsMixin`: Binary/unary operator AST generation
-    - `ExpressionCompilationMixin`: Expressions, filters, tests, function calls
-    - `StatementCompilationMixin`: Control flow, blocks, macros, includes
+- `OperatorUtilsMixin`: Binary/unary operator AST generation
+- `ExpressionCompilationMixin`: Expressions, filters, tests, function calls
+- `StatementCompilationMixin`: Control flow, blocks, macros, includes
 
 Thread-Safety:
-    Compiler instances are single-use and not thread-safe. Create one per
-    compilation. The resulting code object is immutable and thread-safe.
+Compiler instances are single-use and not thread-safe. Create one per
+compilation. The resulting code object is immutable and thread-safe.
 
 Public API:
-    Compiler: Main compiler class combining all compilation mixins
+Compiler: Main compiler class combining all compilation mixins
+
 """
 
 from __future__ import annotations

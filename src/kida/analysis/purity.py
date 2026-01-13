@@ -167,24 +167,25 @@ _KNOWN_PURE_FUNCTIONS = frozenset(
 
 class PurityAnalyzer:
     """Determine if an expression or block is pure (deterministic).
-
+    
     Pure expressions produce the same output for the same inputs.
     This is used to determine cache safety.
-
+    
     Conservative: defaults to "unknown" when uncertain.
-
+    
     Example:
-        >>> analyzer = PurityAnalyzer()
-        >>> purity = analyzer.analyze(block_node)
-        >>> print(purity)
-        'pure'
-
+            >>> analyzer = PurityAnalyzer()
+            >>> purity = analyzer.analyze(block_node)
+            >>> print(purity)
+            'pure'
+    
     Purity Rules:
         - Constants, variables, attribute access: pure
         - Binary/unary operations, comparisons: pure
         - Known pure filters (upper, lower, sort, etc.): pure
         - Known impure filters (random, shuffle): impure
         - Unknown filters/functions: unknown
+        
     """
 
     def __init__(

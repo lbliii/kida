@@ -4,21 +4,21 @@ The Compiler transforms Kida AST into Python AST, then compiles to
 executable code objects. Uses a mixin-based design for maintainability.
 
 Design Principles:
-    1. **AST-to-AST**: Generate `ast.Module`, not source strings
-    2. **StringBuilder**: Output via `buf.append()`, join at end
-    3. **Local caching**: Cache `_escape`, `_str`, `buf.append` as locals
-    4. **O(1) dispatch**: Dict-based node type → handler lookup
+1. **AST-to-AST**: Generate `ast.Module`, not source strings
+2. **StringBuilder**: Output via `buf.append()`, join at end
+3. **Local caching**: Cache `_escape`, `_str`, `buf.append` as locals
+4. **O(1) dispatch**: Dict-based node type → handler lookup
 
 Performance Optimizations:
-    - `LOAD_FAST` for cached functions (vs `LOAD_GLOBAL` + hash)
-    - Method lookup cached once: `_append = buf.append`
-    - Single `''.join(buf)` at return (vs repeated concatenation)
-    - Line markers only for error-prone nodes (Output, For, If, etc.)
+- `LOAD_FAST` for cached functions (vs `LOAD_GLOBAL` + hash)
+- Method lookup cached once: `_append = buf.append`
+- Single `''.join(buf)` at return (vs repeated concatenation)
+- Line markers only for error-prone nodes (Output, For, If, etc.)
 
 Block Inheritance:
-    Templates with `{% extends %}` generate:
-    1. Block functions: `_block_header(ctx, _blocks)`
-    2. Render function: Registers blocks, delegates to parent
+Templates with `{% extends %}` generate:
+1. Block functions: `_block_header(ctx, _blocks)`
+2. Render function: Registers blocks, delegates to parent
 
     ```python
     def _block_header(ctx, _blocks):
@@ -31,6 +31,7 @@ Block Inheritance:
         _blocks.setdefault('header', _block_header)
         return _extends('base.html', ctx, _blocks)
     ```
+
 """
 
 from __future__ import annotations
@@ -57,11 +58,11 @@ class Compiler(
     FStringCoalescingMixin,
 ):
     """Compile Kida AST to Python code objects.
-
+    
     The Compiler transforms a Kida Template AST into an `ast.Module`, then
     compiles it to a code object ready for `exec()`. The generated code
     defines a `render(ctx, _blocks=None)` function.
-
+    
     Attributes:
         _env: Parent Environment (for filter/test access)
         _name: Template name for error messages
@@ -69,41 +70,42 @@ class Compiler(
         _locals: Set of local variable names (loop vars, macro args)
         _blocks: Dict of block_name → Block node (for inheritance)
         _block_counter: Counter for unique variable names
-
+    
     Node Dispatch:
         Uses O(1) dict lookup for node type → handler:
-        ```python
-        dispatch = {
-            "Data": self._compile_data,
-            "Output": self._compile_output,
-            "If": self._compile_if,
-            ...
-        }
-        handler = dispatch[type(node).__name__]
-        ```
-
+            ```python
+            dispatch = {
+                "Data": self._compile_data,
+                "Output": self._compile_output,
+                "If": self._compile_if,
+                ...
+            }
+            handler = dispatch[type(node).__name__]
+            ```
+    
     Line Tracking:
         For nodes that can cause runtime errors (Output, For, If, etc.),
         injects `ctx['_line'] = N` before the node's code. This enables
         rich error messages with source line numbers.
-
+    
     Example:
-        >>> from kida import Environment
-        >>> from kida.compiler import Compiler
-        >>> from kida.parser import Parser
-        >>> from kida.lexer import tokenize
-        >>>
-        >>> env = Environment()
-        >>> tokens = tokenize("Hello, {{ name }}!")
-        >>> parser = Parser(tokens)
-        >>> ast = parser.parse()
-        >>> compiler = Compiler(env)
-        >>> code = compiler.compile(ast, name="greeting.html")
-        >>>
-        >>> namespace = {"_escape": str, "_str": str, ...}
-        >>> exec(code, namespace)
-        >>> namespace["render"]({"name": "World"})
-        'Hello, World!'
+            >>> from kida import Environment
+            >>> from kida.compiler import Compiler
+            >>> from kida.parser import Parser
+            >>> from kida.lexer import tokenize
+            >>>
+            >>> env = Environment()
+            >>> tokens = tokenize("Hello, {{ name }}!")
+            >>> parser = Parser(tokens)
+            >>> ast = parser.parse()
+            >>> compiler = Compiler(env)
+            >>> code = compiler.compile(ast, name="greeting.html")
+            >>>
+            >>> namespace = {"_escape": str, "_str": str, ...}
+            >>> exec(code, namespace)
+            >>> namespace["render"]({"name": "World"})
+            'Hello, World!'
+        
     """
 
     __slots__ = (

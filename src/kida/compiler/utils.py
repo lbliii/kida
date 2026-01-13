@@ -13,9 +13,10 @@ import ast
 
 class OperatorUtilsMixin:
     """Mixin providing operator mapping utilities.
-
+    
     Maps Kida operator strings to Python AST operator nodes.
     No external dependencies - self-contained utility mixin.
+        
     """
 
     def _get_binop(self, op: str) -> ast.operator:

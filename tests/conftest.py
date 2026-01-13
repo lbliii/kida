@@ -47,10 +47,11 @@ def env_with_loader():
 
 def assert_template_equal(template_result: str, expected: str) -> None:
     """Assert template result equals expected, normalizing whitespace.
-
+    
     Args:
         template_result: The actual template rendering result.
         expected: The expected output.
+        
     """
     # Normalize whitespace for comparison
     actual_normalized = " ".join(template_result.split())
@@ -64,10 +65,11 @@ def assert_template_equal(template_result: str, expected: str) -> None:
 
 def assert_contains(template_result: str, *expected_parts: str) -> None:
     """Assert template result contains all expected parts.
-
+    
     Args:
         template_result: The actual template rendering result.
         expected_parts: Strings that should all be present in the result.
+        
     """
     for part in expected_parts:
         assert part in template_result, (

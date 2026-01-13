@@ -89,9 +89,10 @@ _VALID_KEYWORDS: frozenset[str] = frozenset(_BLOCK_PARSERS.keys())
 
 class StatementParsingMixin:
     """Mixin for parsing template statements.
-
+    
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
+        
     """
 
     # ─────────────────────────────────────────────────────────────────────────
