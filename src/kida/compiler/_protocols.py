@@ -17,15 +17,15 @@ if TYPE_CHECKING:
 
 class CompilerCoreProtocol(Protocol):
     """Minimal contract for cross-mixin dependencies in compiler.
-    
+
     Contains ONLY:
     1. Host class attributes (defined in Compiler.__init__)
     2. Core compilation methods (used by all compilation mixins)
     3. Operator utilities (used by expression compilation)
-    
+
     Individual mixin methods are NOT included—mixins declare
     their own methods via inline TYPE_CHECKING declarations.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────

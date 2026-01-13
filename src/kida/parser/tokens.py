@@ -19,9 +19,9 @@ if TYPE_CHECKING:
 
 class TokenNavigationMixin:
     """Mixin providing token stream navigation methods.
-    
+
     Host attributes accessed via inline TYPE_CHECKING declarations.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

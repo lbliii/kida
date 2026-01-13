@@ -14,15 +14,15 @@ if TYPE_CHECKING:
 
 class FilterRegistry:
     """Dict-like interface for filters/tests that matches Jinja2's API.
-    
+
     Supports:
         - env.filters['name'] = func
         - env.filters.update({'name': func})
         - func = env.filters['name']
         - 'name' in env.filters
-    
+
     All mutations use copy-on-write for thread-safety.
-        
+
     """
 
     __slots__ = ("_env", "_attr")

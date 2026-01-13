@@ -40,10 +40,10 @@ if TYPE_CHECKING:
 
 class WorkloadType(Enum):
     """Workload characteristics for auto-tuning.
-    
+
     On free-threaded Python, CPU-bound work can now parallelize effectively.
     This changes optimal worker counts compared to GIL-enabled Python.
-    
+
     Attributes:
         RENDER: Template rendering (CPU-bound, string operations).
             Primary workload for Kida. Benefits significantly from free-threading.
@@ -51,7 +51,7 @@ class WorkloadType(Enum):
             Moderate parallelism benefit due to shared cache access.
         IO_BOUND: File loading, network operations.
             Can use more workers as threads wait on I/O.
-        
+
     """
 
     RENDER = "render"
@@ -61,9 +61,9 @@ class WorkloadType(Enum):
 
 class Environment(Enum):
     """Execution environment for tuning profiles.
-    
+
     Different environments have different resource constraints:
-    
+
     Attributes:
         CI: Constrained CI runner (typically 2-4 vCPU).
             Use minimal workers to avoid resource contention.
@@ -71,7 +71,7 @@ class Environment(Enum):
             Use moderate workers for good performance.
         PRODUCTION: Server deployment (16+ cores).
             Can use more workers for high throughput.
-        
+
     """
 
     CI = "ci"
@@ -82,7 +82,7 @@ class Environment(Enum):
 @dataclass(frozen=True)
 class WorkloadProfile:
     """Tuning profile for a workload type.
-    
+
     Attributes:
         parallel_threshold: Minimum tasks before parallelizing.
             Below this, thread overhead exceeds benefit.
@@ -90,7 +90,7 @@ class WorkloadProfile:
         max_workers: Ceiling for worker count.
         cpu_fraction: Fraction of cores to use (0.0-1.0).
         free_threading_multiplier: Extra scaling when GIL is disabled.
-        
+
     """
 
     parallel_threshold: int
@@ -177,14 +177,14 @@ _PROFILES: dict[tuple[WorkloadType, Environment], WorkloadProfile] = {
 @lru_cache(maxsize=1)
 def is_free_threading_enabled() -> bool:
     """Check if Python is running with the GIL disabled.
-    
+
     Returns:
         True if running on free-threaded Python with GIL disabled.
-    
+
     Example:
             >>> is_free_threading_enabled()
         True  # On Python 3.14t with PYTHON_GIL=0
-        
+
     """
     # sys._is_gil_enabled() returns False when GIL is disabled
     return hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled()
@@ -193,25 +193,25 @@ def is_free_threading_enabled() -> bool:
 def detect_environment() -> Environment:
     """
     Auto-detect execution environment for tuning.
-    
+
     Detection order:
         1. Explicit KIDA_ENV environment variable
         2. CI environment variables (GitHub Actions, GitLab CI, etc.)
         3. Default to LOCAL
-    
+
     Returns:
         Detected Environment enum value
-    
+
     Examples:
             >>> import os
             >>> os.environ["CI"] = "true"
             >>> detect_environment()
         <Environment.CI: 'ci'>
-    
+
             >>> os.environ["KIDA_ENV"] = "production"
             >>> detect_environment()
         <Environment.PRODUCTION: 'production'>
-        
+
     """
     # Explicit override takes highest priority
     env_value = os.environ.get("KIDA_ENV", "").lower()
@@ -252,7 +252,7 @@ def get_optimal_workers(
 ) -> int:
     """
     Calculate optimal worker count based on workload characteristics.
-    
+
     Auto-scales based on:
         - Workload type (render vs compile vs I/O)
         - Environment (CI vs local vs production)
@@ -260,32 +260,32 @@ def get_optimal_workers(
         - Available CPU cores (fraction based on workload)
         - Task count (no point having more workers than tasks)
         - Optional task weight for heavy/light work estimation
-    
+
     Args:
         task_count: Number of tasks to process (e.g., contexts to render)
         workload_type: Type of work (RENDER, COMPILE, IO_BOUND)
         environment: Execution environment (auto-detected if None)
         config_override: User-configured value (bypasses auto-tune if > 0)
         task_weight: Multiplier for task count (>1 for heavy templates)
-    
+
     Returns:
         Optimal number of worker threads (always >= 1)
-    
+
     Examples:
             >>> get_optimal_workers(100, workload_type=WorkloadType.RENDER)
         4  # Local environment with free-threading
-    
+
             >>> get_optimal_workers(100, workload_type=WorkloadType.COMPILE)
         2  # Compilation is less parallelizable
-    
+
             >>> get_optimal_workers(5, config_override=16)
         16  # User override respected
-    
+
             >>> import os
             >>> os.environ["CI"] = "true"
             >>> get_optimal_workers(100)
         2  # CI mode caps workers
-        
+
     """
     # User override takes precedence
     if config_override is not None and config_override > 0:
@@ -324,29 +324,29 @@ def should_parallelize(
 ) -> bool:
     """
     Determine if parallelization is worthwhile for this workload.
-    
+
     Thread pool overhead (~1-2ms per task) only pays off above threshold.
     This function helps avoid the overhead for small workloads.
-    
+
     Args:
         task_count: Number of tasks to process
         workload_type: Type of work
         environment: Execution environment (auto-detected if None)
         total_work_estimate: Optional size estimate (bytes of template output)
-    
+
     Returns:
         True if parallelization is recommended
-    
+
     Examples:
             >>> should_parallelize(5)
         False  # Below threshold
-    
+
             >>> should_parallelize(100)
         True  # Above threshold
-    
+
             >>> should_parallelize(100, total_work_estimate=500)
         False  # Work estimate too small (< 5KB)
-        
+
     """
     if environment is None:
         environment = detect_environment()
@@ -365,30 +365,30 @@ def should_parallelize(
 def estimate_template_weight(template: Template) -> float:
     """
     Estimate relative complexity of a template for worker scheduling.
-    
+
     Heavy templates (many blocks, macros, filters) get higher weights,
     causing them to be scheduled earlier to avoid straggler effect.
-    
+
     Weight factors:
         - Source size: +0.5 per 5KB above 5KB threshold
         - Block count: +0.1 per block above 3
         - Macro count: +0.2 per macro
         - Inheritance: +0.5 if extends another template
-    
+
     Args:
         template: Template instance to estimate
-    
+
     Returns:
         Weight multiplier (1.0 = average, >1 = heavy, <1 = light).
         Capped at 5.0 to avoid outlier distortion.
-    
+
     Examples:
             >>> estimate_template_weight(simple_template)
         1.0
-    
+
             >>> estimate_template_weight(complex_template)
         2.5  # Many blocks + inheritance
-        
+
     """
     weight = 1.0
 
@@ -426,24 +426,24 @@ def order_by_complexity(
 ) -> list[Template]:
     """
     Order templates by estimated complexity for optimal worker utilization.
-    
+
     Scheduling heavy templates first reduces the "straggler effect" where
     one slow render delays overall completion.
-    
+
     Args:
         templates: List of templates to order
         descending: If True, heaviest first (default for parallel execution)
-    
+
     Returns:
         Sorted list of templates (new list, does not mutate input)
-    
+
     Examples:
             >>> ordered = order_by_complexity(templates)
             >>> # Heavy templates with inheritance now at front
-    
+
             >>> ordered = order_by_complexity(templates, descending=False)
             >>> # Light templates first (for testing/debugging)
-        
+
     """
     return sorted(
         templates,
@@ -458,21 +458,21 @@ def get_profile(
 ) -> WorkloadProfile:
     """
     Get the workload profile for inspection or testing.
-    
+
     Args:
         workload_type: Type of work
         environment: Execution environment (auto-detected if None)
-    
+
     Returns:
         WorkloadProfile with threshold and worker settings
-    
+
     Examples:
             >>> profile = get_profile(WorkloadType.RENDER)
             >>> profile.parallel_threshold
         10
             >>> profile.max_workers
         4
-        
+
     """
     if environment is None:
         environment = detect_environment()

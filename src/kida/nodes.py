@@ -65,10 +65,10 @@ from typing import Literal
 @dataclass(frozen=True, slots=True)
 class Node:
     """Base class for all AST nodes.
-    
+
     All nodes track their source location for error reporting.
     Nodes are immutable for thread-safety.
-        
+
     """
 
     lineno: int
@@ -83,12 +83,12 @@ class Node:
 @dataclass(frozen=True, slots=True)
 class Template(Node):
     """Root node representing a complete template.
-    
+
     Attributes:
         body: Sequence of top-level nodes
         extends: Optional parent template path
         context_type: Optional type declaration from {% template %}
-        
+
     """
 
     body: Sequence[Node]
@@ -99,9 +99,9 @@ class Template(Node):
 @dataclass(frozen=True, slots=True)
 class TemplateContext(Node):
     """Type declaration: {% template page: Page, site: Site %}
-    
+
     Kida-native feature for type-aware validation.
-        
+
     """
 
     declarations: Sequence[tuple[str, str]]  # (name, type_name)
@@ -117,15 +117,15 @@ class Extends(Node):
 @dataclass(frozen=True, slots=True)
 class Block(Node):
     """Named block for inheritance: {% block name %}...{% end %}
-    
+
     Kida uses unified {% end %} for all block closings.
-    
+
     Attributes:
         name: Block identifier
         body: Block content
         scoped: If True, block has its own variable scope
         required: If True, child templates must override this block
-        
+
     """
 
     name: str
@@ -137,12 +137,12 @@ class Block(Node):
 @dataclass(frozen=True, slots=True)
 class Include(Node):
     """Include another template: {% include "partial.html" %}
-    
+
     Attributes:
         template: Template path expression
         with_context: If True, pass current context to included template
         ignore_missing: If True, silently skip if template doesn't exist
-        
+
     """
 
     template: Expr
@@ -176,11 +176,11 @@ class FromImport(Node):
 @dataclass(frozen=True, slots=True)
 class Output(Node):
     """Output expression: {{ expr }}
-    
+
     Attributes:
         expr: Expression to output
         escape: If True, HTML-escape the result
-        
+
     """
 
     expr: Expr
@@ -197,15 +197,15 @@ class Data(Node):
 @dataclass(frozen=True, slots=True)
 class If(Node):
     """Conditional: {% if cond %}...{% elif cond %}...{% else %}...{% end %}
-    
+
     Kida uses unified {% end %} instead of {% endif %}.
-    
+
     Attributes:
         test: Condition expression
         body: Nodes to render if condition is true
         elif_: Sequence of (condition, body) pairs
         else_: Nodes to render if all conditions are false
-        
+
     """
 
     test: Expr
@@ -217,9 +217,9 @@ class If(Node):
 @dataclass(frozen=True, slots=True)
 class For(Node):
     """For loop: {% for x in items %}...{% empty %}...{% end %}
-    
+
     Kida uses {% empty %} (not {% else %}) and {% end %} (not {% endfor %}).
-    
+
     Attributes:
         target: Loop variable(s) - can be tuple for unpacking
         iter: Iterable expression
@@ -227,7 +227,7 @@ class For(Node):
         empty: Rendered if iterable is empty (Kida uses 'empty' not 'else')
         recursive: Enable recursive loop calls
         test: Optional filter condition (like Python's if in comprehensions)
-        
+
     """
 
     target: Expr
@@ -241,9 +241,9 @@ class For(Node):
 @dataclass(frozen=True, slots=True)
 class AsyncFor(Node):
     """Async for loop: {% async for x in async_items %}...{% end %}
-    
+
     Native async iteration without wrapper adapters.
-        
+
     """
 
     target: Expr
@@ -255,9 +255,9 @@ class AsyncFor(Node):
 @dataclass(frozen=True, slots=True)
 class While(Node):
     """While loop: {% while cond %}...{% end %}
-    
+
     Kida-native feature.
-        
+
     """
 
     test: Expr
@@ -267,24 +267,24 @@ class While(Node):
 @dataclass(frozen=True, slots=True)
 class Match(Node):
     """Pattern matching: {% match expr %}{% case pattern [if guard] %}...{% end %}
-    
+
     Kida-native feature for cleaner branching than if/elif chains.
     Supports optional guard clauses for conditional matching.
-    
+
     Example:
         {% match page.type %}
             {% case "post" %}<i class="icon-pen"></i>
             {% case "gallery" %}<i class="icon-image"></i>
             {% case _ %}<i class="icon-file"></i>
         {% end %}
-    
+
     With guards:
         {% match api_type %}
             {% case _ if 'python' in api_type %}Python API
             {% case _ if 'rest' in api_type %}REST API
             {% case _ %}Other
         {% end %}
-        
+
     """
 
     subject: Expr
@@ -299,13 +299,13 @@ class Match(Node):
 @dataclass(frozen=True, slots=True)
 class Let(Node):
     """Template-scoped variable: {% let x = expr %} or {% let a, b = 1, 2 %}
-    
+
     Variables declared with 'let' persist across the template
     and can be modified within inner scopes.
     Supports tuple unpacking on the left-hand side.
-    
+
     Kida-native replacement for Jinja's confusing namespace() workaround.
-        
+
     """
 
     name: Expr  # Name or Tuple for unpacking
@@ -315,14 +315,14 @@ class Let(Node):
 @dataclass(frozen=True, slots=True)
 class Set(Node):
     """Block-scoped variable: {% set x = expr %} or {% set a, b = 1, 2 %}
-    
+
     Variable is scoped to current block. Use 'let' for template-wide scope.
     Supports tuple unpacking on the left-hand side.
-    
+
     Attributes:
         target: Assignment target - can be a Name or Tuple of Names
         value: Value expression to assign
-        
+
     """
 
     target: Expr  # Name or Tuple for unpacking
@@ -332,17 +332,17 @@ class Set(Node):
 @dataclass(frozen=True, slots=True)
 class Export(Node):
     """Export variable from inner scope: {% export x = expr %} or {% export a, b = 1, 2 %}
-    
+
     Explicitly exports a variable from an inner scope (like a for loop)
     to the enclosing scope. Makes scope behavior explicit and predictable.
     Supports tuple unpacking on the left-hand side.
-    
+
     Example:
         {% for item in items %}
             {% export last = item %}
         {% end %}
         {{ last }}
-        
+
     """
 
     name: Expr  # Name or Tuple for unpacking
@@ -352,9 +352,9 @@ class Export(Node):
 @dataclass(frozen=True, slots=True)
 class Capture(Node):
     """Capture block content: {% capture x %}...{% end %}
-    
+
     Kida-native name (clearer than Jinja's {% set x %}...{% endset %}).
-        
+
     """
 
     name: str
@@ -370,24 +370,24 @@ class Capture(Node):
 @dataclass(frozen=True, slots=True)
 class Def(Node):
     """Function definition: {% def name(args) %}...{% end %}
-    
+
     Kida uses functions with true lexical scoping instead of macros.
     Functions can access variables from their enclosing scope.
-    
+
     Example:
         {% def card(item) %}
             <div>{{ item.title }}</div>
             <span>From: {{ site.title }}</span>  {# Can access outer scope #}
         {% end %}
-    
+
         {{ card(page) }}
-    
+
     Attributes:
         name: Function name
         args: Argument names
         body: Function body
         defaults: Default argument values
-        
+
     """
 
     name: str
@@ -399,9 +399,9 @@ class Def(Node):
 @dataclass(frozen=True, slots=True)
 class Slot(Node):
     """Slot for component content: {% slot %}
-    
+
     Used inside {% def %} to mark where caller content goes.
-    
+
     Example:
         {% def card(title) %}
             <div class="card">
@@ -409,11 +409,11 @@ class Slot(Node):
                 <div class="body">{% slot %}</div>
             </div>
         {% end %}
-    
+
         {% call card("My Title") %}
             <p>This goes in the slot!</p>
         {% end %}
-        
+
     """
 
     name: str = "default"
@@ -422,9 +422,9 @@ class Slot(Node):
 @dataclass(frozen=True, slots=True)
 class CallBlock(Node):
     """Call function with body content: {% call name(args) %}body{% end %}
-    
+
     The body content fills the {% slot %} in the function.
-        
+
     """
 
     call: Expr
@@ -440,24 +440,24 @@ class CallBlock(Node):
 @dataclass(frozen=True, slots=True)
 class Cache(Node):
     """Fragment caching: {% cache key %}...{% end %}
-    
+
     Kida-native built-in caching. No external dependencies required.
-    
+
     Example:
         {% cache "sidebar-" + site.nav_version %}
             {{ build_nav_tree(site.pages) }}
         {% end %}
-    
+
         {% cache "weather", ttl="5m" %}
             {{ fetch_weather() }}
         {% end %}
-    
+
     Attributes:
         key: Cache key expression
         body: Content to cache
         ttl: Optional time-to-live expression
         depends: Optional dependency expressions for invalidation
-        
+
     """
 
     key: Expr
@@ -474,9 +474,9 @@ class Cache(Node):
 @dataclass(frozen=True, slots=True)
 class With(Node):
     """Jinja2-style context manager: {% with x = expr %}...{% end %}
-    
+
     Always renders body with variable bindings.
-        
+
     """
 
     targets: Sequence[tuple[str, Expr]]
@@ -486,36 +486,36 @@ class With(Node):
 @dataclass(frozen=True, slots=True)
 class WithConditional(Node):
     """Conditional with block: {% with expr as name %}...{% end %}
-    
+
     Renders body only if expr is truthy. Binds the evaluated expression
     to the specified variable name(s).
-    
+
     This provides nil-resilience: the block is silently skipped when the
     expression evaluates to None, empty collections, or other falsy values.
-    
+
     Syntax:
         {% with page.author as author %}
             <span>{{ author.name }}</span>
         {% end %}
-    
+
         {% with page.author %}
             <span>{{ it.name }}</span>
         {% end %}
-    
+
         {% with a, b as x, y %}
             {{ x }}, {{ y }}
         {% end %}
-    
+
     Behavior:
         - Evaluates expr once
         - If truthy: binds result to target, renders body
         - If falsy: renders empty block (if provided), or skips entirely
         - Restores previous variable binding after block
-    
+
     Contrast with standard With node:
         - With: Always renders body with variable bindings
         - WithConditional: Only renders if expression is truthy
-        
+
     """
 
     expr: Expr
@@ -550,10 +550,10 @@ class Raw(Node):
 @dataclass(frozen=True, slots=True)
 class Trim(Node):
     """Whitespace control block: {% trim %}...{% end %}
-    
+
     Kida-native replacement for Jinja's {%- -%} modifiers.
     Content inside is trimmed of leading/trailing whitespace.
-        
+
     """
 
     body: Sequence[Node]
@@ -567,10 +567,10 @@ class Trim(Node):
 @dataclass(frozen=True, slots=True)
 class Break(Node):
     """Break out of loop: {% break %}
-    
+
     Exits the innermost for/while loop.
     Part of RFC: kida-modern-syntax-features.
-        
+
     """
 
     pass
@@ -579,10 +579,10 @@ class Break(Node):
 @dataclass(frozen=True, slots=True)
 class Continue(Node):
     """Skip to next iteration: {% continue %}
-    
+
     Skips to the next iteration of the innermost for/while loop.
     Part of RFC: kida-modern-syntax-features.
-        
+
     """
 
     pass
@@ -591,10 +591,10 @@ class Continue(Node):
 @dataclass(frozen=True, slots=True)
 class Spaceless(Node):
     """Remove whitespace between HTML tags: {% spaceless %}...{% end %}
-    
+
     Removes whitespace between > and <, preserving content whitespace.
     Part of RFC: kida-modern-syntax-features.
-        
+
     """
 
     body: Sequence[Node]
@@ -603,15 +603,15 @@ class Spaceless(Node):
 @dataclass(frozen=True, slots=True)
 class Embed(Node):
     """Embed template with block overrides: {% embed 'card.html' %}...{% end %}
-    
+
     Like include, but allows overriding blocks in the embedded template.
     Part of RFC: kida-modern-syntax-features.
-    
+
     Attributes:
         template: Template path expression
         blocks: Block overrides defined in embed body
         with_context: Pass current context to embedded template
-        
+
     """
 
     template: Expr
@@ -680,10 +680,10 @@ class Getattr(Expr):
 @dataclass(frozen=True, slots=True)
 class OptionalGetattr(Expr):
     """Optional attribute access: obj?.attr
-    
+
     Returns None if obj is None/undefined, otherwise obj.attr.
     Part of RFC: kida-modern-syntax-features.
-        
+
     """
 
     obj: Expr
@@ -701,10 +701,10 @@ class Getitem(Expr):
 @dataclass(frozen=True, slots=True)
 class OptionalGetitem(Expr):
     """Optional subscript access: obj?[key]
-    
+
     Returns None if obj is None/undefined, otherwise obj[key].
     Part of RFC: kida-modern-syntax-features.
-        
+
     """
 
     obj: Expr
@@ -744,16 +744,16 @@ class Filter(Expr):
 @dataclass(frozen=True, slots=True)
 class Pipeline(Expr):
     """Pipeline operator: expr |> filter1 |> filter2
-    
+
     Kida-native syntax for readable filter chains.
     More readable than deeply nested Jinja filters.
-    
+
     Example:
         {{ items |> where(published=true) |> sort_by("date") |> take(5) }}
-    
+
     vs Jinja:
         {{ items | selectattr("published") | sort(attribute="date") | first }}
-        
+
     """
 
     value: Expr
@@ -796,9 +796,9 @@ class UnaryOp(Expr):
 @dataclass(frozen=True, slots=True)
 class Compare(Expr):
     """Comparison: left op1 right1 op2 right2 ...
-    
+
     Supports chained comparisons like: 1 < x < 10
-        
+
     """
 
     left: Expr
@@ -826,11 +826,11 @@ class CondExpr(Expr):
 @dataclass(frozen=True, slots=True)
 class NullCoalesce(Expr):
     """Null coalescing: a ?? b
-    
+
     Returns b if a is None/undefined, otherwise a.
     Unlike 'or', doesn't treat falsy values (0, '', False, []) as missing.
     Part of RFC: kida-modern-syntax-features.
-        
+
     """
 
     left: Expr
@@ -840,15 +840,15 @@ class NullCoalesce(Expr):
 @dataclass(frozen=True, slots=True)
 class Range(Expr):
     """Range literal: start..end or start...end
-    
+
     Part of RFC: kida-modern-syntax-features.
-    
+
     Attributes:
         start: Start value (inclusive)
         end: End value (inclusive if inclusive=True)
         inclusive: True for .., False for ...
         step: Optional step value (from 'by' keyword)
-        
+
     """
 
     start: Expr
@@ -865,9 +865,9 @@ class Range(Expr):
 @dataclass(frozen=True, slots=True)
 class Await(Expr):
     """Await expression: await expr
-    
+
     Native async support without auto_await() wrappers.
-        
+
     """
 
     value: Expr
@@ -881,10 +881,10 @@ class Await(Expr):
 @dataclass(frozen=True, slots=True)
 class Concat(Expr):
     """String concatenation: a ~ b ~ c
-    
+
     Multiple ~ operators are collapsed into a single Concat node
     for efficient string building.
-        
+
     """
 
     nodes: Sequence[Expr]
@@ -900,9 +900,9 @@ class MarkSafe(Expr):
 @dataclass(frozen=True, slots=True)
 class LoopVar(Expr):
     """Loop variable access: {{ loop.index }}
-    
+
     Provides access to loop iteration state.
-        
+
     """
 
     attr: str  # 'index', 'index0', 'first', 'last', 'length', etc.
@@ -911,14 +911,14 @@ class LoopVar(Expr):
 @dataclass(frozen=True, slots=True)
 class InlinedFilter(Expr):
     """Inlined filter as direct method call (optimization).
-    
+
     Generated by FilterInliner for common pure filters like upper, lower, strip.
     The compiler generates `str(value).method()` instead of filter dispatch.
-    
+
     Example:
         `{{ name | upper }}` compiles to `str(ctx["name"]).upper()`
         instead of `_filters['upper'](ctx["name"])`
-        
+
     """
 
     value: Expr  # The expression being filtered

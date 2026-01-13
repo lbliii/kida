@@ -23,10 +23,10 @@ from kida.parser.blocks.core import BlockStackMixin
 
 class FunctionBlockParsingMixin(BlockStackMixin):
     """Mixin for parsing function blocks.
-    
+
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks. Inherits block stack management from BlockStackMixin.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

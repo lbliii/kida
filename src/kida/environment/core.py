@@ -46,14 +46,14 @@ DEFAULT_FRAGMENT_TTL = 300.0  # Fragment TTL in seconds (5 minutes)
 @dataclass
 class Environment:
     """Central configuration and template management hub.
-    
+
     The Environment holds all template engine settings and provides the primary
     API for loading and rendering templates. It manages three key concerns:
-    
+
     1. **Template Loading**: Via configurable loaders (filesystem, dict, etc.)
     2. **Compilation Settings**: Autoescape, strict undefined handling
     3. **Runtime Context**: Filters, tests, and global variables
-    
+
     Attributes:
         loader: Template source provider (FileSystemLoader, DictLoader, etc.)
         autoescape: HTML auto-escaping. True, False, or callable(name) → bool
@@ -67,25 +67,25 @@ class Environment:
             - False: Explicitly disabled
             - BytecodeCache instance: Custom cache directory
         globals: Variables available in all templates (includes Python builtins)
-    
+
     Thread-Safety:
         All operations are safe for concurrent use:
         - Configuration is immutable after `__post_init__`
         - `add_filter()`, `add_test()`, `add_global()` use copy-on-write
         - `get_template()` uses lock-free LRU cache with atomic operations
         - `render()` uses only local state (StringBuilder pattern)
-    
+
     Strict Mode:
         Undefined variables raise `UndefinedError` instead of returning empty
         string. Catches typos and missing context variables at render time.
-    
+
             >>> env = Environment()
             >>> env.from_string("{{ typo_var }}").render()
         UndefinedError: Undefined variable 'typo_var' in <template>:1
-    
+
             >>> env.from_string("{{ optional | default('N/A') }}").render()
             'N/A'
-    
+
     Caching:
         Three cache layers for optimal performance:
         - **Bytecode cache** (disk): Persistent compiled bytecode via marshal.
@@ -96,12 +96,12 @@ class Environment:
           improvements.
         - **Template cache** (memory): Compiled Template objects (keyed by name)
         - **Fragment cache** (memory): `{% cache key %}` block outputs
-    
+
             >>> env.cache_info()
         {'template': {'size': 5, 'max_size': 400, 'hits': 100, 'misses': 5},
              'fragment': {'size': 12, 'max_size': 1000, 'hits': 50, 'misses': 12},
              'bytecode': {'file_count': 10, 'total_bytes': 45000}}
-    
+
     Example:
             >>> from kida import Environment, FileSystemLoader
             >>> env = Environment(
@@ -111,7 +111,7 @@ class Environment:
             ... )
             >>> env.add_filter("money", lambda x: f"${x:,.2f}")
             >>> env.get_template("invoice.html").render(total=1234.56)
-        
+
     """
 
     # Configuration

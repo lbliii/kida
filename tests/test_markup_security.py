@@ -44,12 +44,12 @@ from kida.utils.html import (
 
 class TestHtmlProtocolInterop:
     """Test interoperability with objects implementing __html__ protocol.
-    
+
     The __html__ protocol is the standard way to mark content as safe.
     Libraries like MarkupSafe, Jinja2, and others use this pattern.
     Kida must recognize any object with __html__() as safe to avoid
     double-escaping content from other libraries.
-        
+
     """
 
     def test_markupsafe_markup_not_escaped(self) -> None:
@@ -517,11 +517,11 @@ class TestXmlattr:
 
 class TestStriptags:
     """striptags method tests.
-    
+
     Note: striptags is for DISPLAY ONLY, not security. It removes visible
     tags from content for rendering purposes. For security, always escape
     user input with html_escape() or use Markup properly.
-        
+
     """
 
     def test_basic_strip(self) -> None:

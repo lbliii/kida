@@ -59,27 +59,27 @@ _BUILTIN_NAMES = frozenset(
 
 class DependencyWalker:
     """Extract context variable dependencies from AST expressions.
-    
+
     Walks the AST and collects all context paths (e.g., "page.title",
     "site.pages") that an expression or block may access.
-    
+
     Produces a conservative superset: may include paths not actually
     used at runtime, but never excludes paths that are used.
-    
+
     Thread-safe: Creates new state for each analyze() call.
-    
+
     Example:
             >>> walker = DependencyWalker()
             >>> deps = walker.analyze(block_node)
             >>> print(deps)
         frozenset({'site.pages', 'site.title'})
-    
+
     Scope Handling:
         - Loop variables ({% for x in items %}) are excluded
         - With bindings ({% with expr as x %}) are excluded
         - Function arguments ({% def fn(x) %}) are excluded
         - Set/let assignments create local scope
-        
+
     """
 
     def __init__(self) -> None:

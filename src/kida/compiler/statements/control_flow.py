@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 
 class ControlFlowMixin:
     """Mixin for compiling control flow statements.
-    
+
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

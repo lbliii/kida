@@ -58,11 +58,11 @@ class Compiler(
     FStringCoalescingMixin,
 ):
     """Compile Kida AST to Python code objects.
-    
+
     The Compiler transforms a Kida Template AST into an `ast.Module`, then
     compiles it to a code object ready for `exec()`. The generated code
     defines a `render(ctx, _blocks=None)` function.
-    
+
     Attributes:
         _env: Parent Environment (for filter/test access)
         _name: Template name for error messages
@@ -70,7 +70,7 @@ class Compiler(
         _locals: Set of local variable names (loop vars, macro args)
         _blocks: Dict of block_name → Block node (for inheritance)
         _block_counter: Counter for unique variable names
-    
+
     Node Dispatch:
         Uses O(1) dict lookup for node type → handler:
             ```python
@@ -82,12 +82,12 @@ class Compiler(
             }
             handler = dispatch[type(node).__name__]
             ```
-    
+
     Line Tracking:
         For nodes that can cause runtime errors (Output, For, If, etc.),
         injects `ctx['_line'] = N` before the node's code. This enables
         rich error messages with source line numbers.
-    
+
     Example:
             >>> from kida import Environment
             >>> from kida.compiler import Compiler
@@ -105,7 +105,7 @@ class Compiler(
             >>> exec(code, namespace)
             >>> namespace["render"]({"name": "World"})
             'Hello, World!'
-        
+
     """
 
     __slots__ = (

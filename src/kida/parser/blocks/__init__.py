@@ -24,9 +24,9 @@ class BlockParsingMixin(
     SpecialBlockParsingMixin,
 ):
     """Mixin for parsing block statements.
-    
+
     Combines all block parsing mixins into a single class.
-    
+
     Required Host Attributes:
         - All from BlockStackMixin
         - All from TokenNavigationMixin
@@ -40,7 +40,7 @@ class BlockParsingMixin(
         - _skip_comment: method
         - _get_eof_error_suggestion: method
         - _parse_block_content: method
-        
+
     """
 
     pass

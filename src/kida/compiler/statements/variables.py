@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 
 class VariableAssignmentMixin:
     """Mixin for compiling variable assignment statements.
-    
+
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

@@ -31,21 +31,21 @@ _TAG_RE = re.compile(r"<\s*(\w+)", re.IGNORECASE)
 
 class LandmarkDetector:
     """Detect HTML5 landmark elements in template output.
-    
+
     Analyzes Data nodes to find landmark elements like <nav>, <main>, etc.
     Used for structural classification and role inference.
-    
+
     Example:
             >>> detector = LandmarkDetector()
             >>> landmarks = detector.detect(block_node)
             >>> print(landmarks)
         frozenset({'nav', 'main'})
-    
+
     Limitations:
         - Only detects landmarks in static HTML (Data nodes)
         - Cannot detect dynamically generated tags
         - May miss landmarks inside included templates
-        
+
     """
 
     def detect(self, node: Node) -> frozenset[str]:

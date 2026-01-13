@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 
 class SpecialBlockMixin:
     """Mixin for compiling special block statements.
-    
+
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

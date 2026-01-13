@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 
 class TemplateStructureMixin:
     """Mixin for compiling template structure statements.
-    
+
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

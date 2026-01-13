@@ -211,12 +211,12 @@ def _test_upper(value: str) -> bool:
 
 def _test_match(value: Any, pattern: str) -> bool:
     """Test if string matches regex pattern.
-    
+
     Used by rejectattr/selectattr for filtering by regex pattern.
-    
+
     Example:
         {% for page in pages | rejectattr('path', 'match', '.*_index.*') %}
-        
+
     """
     import re
 

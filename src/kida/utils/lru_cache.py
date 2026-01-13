@@ -32,28 +32,28 @@ from typing import Any, cast, overload
 
 class LRUCache[K, V]:
     """Thread-safe LRU cache with optional TTL support.
-    
+
     Uses OrderedDict + RLock for O(1) operations with thread safety.
-    
+
     Eviction Strategy:
         True LRU - move_to_end() on every access, popitem(last=False) for eviction.
         This provides better hit rates than FIFO for workloads with temporal locality.
-    
+
     Args:
         maxsize: Maximum number of entries (0 = unlimited)
         ttl: Time-to-live in seconds (None = no expiry)
         name: Optional name for debugging/logging
-    
+
     Thread-Safety:
         All operations are protected by an RLock (reentrant).
         Safe for concurrent access from multiple threads.
-    
+
     Complexity:
         - get: O(1) average
         - set: O(1) average
         - get_or_set: O(1) + factory cost on miss
         - clear: O(n)
-        
+
     """
 
     __slots__ = (

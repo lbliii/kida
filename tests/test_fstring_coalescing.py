@@ -11,14 +11,24 @@ Tests verify:
 import pytest
 
 from kida import Environment
+from kida.compiler import Compiler
 from kida.compiler.coalescing import (
-    COALESCE_MIN_NODES,
     _BUILTIN_PURE_FILTERS,
-    FStringCoalescingMixin,
+    COALESCE_MIN_NODES,
 )
 from kida.nodes import (
-    Const, Data, Filter, FuncCall, Getattr, Getitem, Name, Output, Pipeline,
-    InlinedFilter, CondExpr, BinOp,
+    BinOp,
+    CondExpr,
+    Const,
+    Data,
+    Filter,
+    FuncCall,
+    Getattr,
+    Getitem,
+    InlinedFilter,
+    Name,
+    Output,
+    Pipeline,
 )
 
 
@@ -244,8 +254,7 @@ class TestBackslashDetection:
     """Test backslash detection in expressions."""
 
     @pytest.fixture
-    def compiler(self) -> "Compiler":
-        from kida.compiler import Compiler
+    def compiler(self) -> Compiler:
         return Compiler(Environment())
 
     def test_backslash_in_const_detected(self, compiler):

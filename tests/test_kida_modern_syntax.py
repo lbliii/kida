@@ -26,13 +26,13 @@ def env():
 
 class TestOptionalChaining:
     """Test ?. and ?[ optional chaining operators.
-    
+
     Note: Optional chaining returns None when the chain short-circuits.
     Use ?? '' to get empty string output, or the None value propagates
     to str() which outputs "None".
-    
+
     Recommended pattern: {{ user?.name ?? '' }} for empty string fallback.
-        
+
     """
 
     def test_simple_optional_dot(self, env):

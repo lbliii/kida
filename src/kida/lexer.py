@@ -69,10 +69,10 @@ class LexerMode(Enum):
 @dataclass(frozen=True, slots=True)
 class LexerConfig:
     """Lexer configuration for delimiter customization and whitespace control.
-    
+
     Allows customizing template delimiters and enabling automatic whitespace
     trimming. Frozen for thread-safety (immutable after creation).
-    
+
     Attributes:
         block_start: Block tag opening delimiter (default: '{%')
         block_end: Block tag closing delimiter (default: '%}')
@@ -84,7 +84,7 @@ class LexerConfig:
         line_comment_prefix: Line comment prefix, e.g., '##' (default: None)
         trim_blocks: Remove first newline after block tags (default: False)
         lstrip_blocks: Strip leading whitespace before block tags (default: False)
-    
+
     Example:
         # Use Ruby-style ERB delimiters:
             >>> config = LexerConfig(
@@ -93,10 +93,10 @@ class LexerConfig:
             ...     block_start='<%',
             ...     block_end='%>',
             ... )
-    
+
         # Enable automatic whitespace control:
             >>> config = LexerConfig(trim_blocks=True, lstrip_blocks=True)
-        
+
     """
 
     block_start: str = "{%"
@@ -158,27 +158,27 @@ Lexer Error: {self.message}
 
 class Lexer:
     """Template lexer that transforms source into a token stream.
-    
+
     The Lexer is the first stage of template compilation. It scans source text
     and yields Token objects representing literals, operators, identifiers,
     and template delimiters.
-    
+
     Thread-Safety:
         Instance state is mutable during tokenization (position tracking).
         Create one Lexer per source string; do not reuse across threads.
-    
+
     Operator Lookup:
         Uses O(1) dict lookup instead of O(k) list iteration:
             ```python
             _OPERATORS_2CHAR = {"**": TokenType.POW, "//": TokenType.FLOORDIV, ...}
             _OPERATORS_1CHAR = {"+": TokenType.ADD, "-": TokenType.SUB, ...}
             ```
-    
+
     Whitespace Control:
         Handles `{{-`, `-}}`, `{%-`, `-%}` modifiers:
         - Left modifier (`{{-`, `{%-`): Strips trailing whitespace from preceding DATA
         - Right modifier (`-}}`, `-%}`): Strips leading whitespace from following DATA
-    
+
     Error Handling:
         `LexerError` includes source snippet with caret and suggestions:
             ```
@@ -189,7 +189,7 @@ class Lexer:
                |               ^
             Suggestion: Add closing " to end the string
             ```
-    
+
     Example:
             >>> lexer = Lexer("{% if x %}{{ x }}{% end %}")
             >>> for token in lexer.tokenize():
@@ -205,7 +205,7 @@ class Lexer:
         NAME            'end'
         BLOCK_END       '%}'
         EOF             ''
-        
+
     """
 
     # Compiled patterns (class-level, immutable)
@@ -742,19 +742,19 @@ class Lexer:
 
 def tokenize(source: str, config: LexerConfig | None = None) -> list[Token]:
     """Convenience function to tokenize source into a list.
-    
+
     Args:
         source: Template source code
         config: Optional lexer configuration
-    
+
     Returns:
         List of tokens
-    
+
     Example:
             >>> tokens = tokenize("{{ name }}")
             >>> [t.type for t in tokens]
         [<TokenType.VARIABLE_BEGIN>, <TokenType.NAME>, <TokenType.VARIABLE_END>, <TokenType.EOF>]
-        
+
     """
     lexer = Lexer(source, config)
     return list(lexer.tokenize())

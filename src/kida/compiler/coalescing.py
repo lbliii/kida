@@ -67,10 +67,10 @@ _BUILTIN_PURE_FILTERS: frozenset[str] = frozenset({
 
 class FStringCoalescingMixin:
     """Mixin for f-string coalescing optimization.
-    
+
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -138,8 +138,15 @@ class FStringCoalescingMixin:
             - Expressions containing backslashes
         """
         from kida.nodes import (
-            Const, Name, Getattr, Getitem, OptionalGetattr, OptionalGetitem,
-            Filter, Pipeline, InlinedFilter,
+            Const,
+            Filter,
+            Getattr,
+            Getitem,
+            InlinedFilter,
+            Name,
+            OptionalGetattr,
+            OptionalGetitem,
+            Pipeline,
         )
 
         # Check for backslashes in string constants
@@ -186,9 +193,7 @@ class FStringCoalescingMixin:
             if not all(self._is_simple_expr(arg) for arg in expr.args):
                 return False
             # Check all keyword args are simple
-            if not all(self._is_simple_expr(v) for v in expr.kwargs.values()):
-                return False
-            return True
+            return all(self._is_simple_expr(v) for v in expr.kwargs.values())
 
         # Pipeline: check all steps are pure with simple args
         if isinstance(expr, Pipeline):
@@ -216,14 +221,19 @@ class FStringCoalescingMixin:
         This is a Python syntax limitation.
         """
         from kida.nodes import (
-            Const, Name, Getattr, Getitem, OptionalGetattr, OptionalGetitem,
-            Filter, Pipeline, InlinedFilter,
+            Const,
+            Filter,
+            Getattr,
+            Getitem,
+            InlinedFilter,
+            Name,
+            OptionalGetattr,
+            OptionalGetitem,
+            Pipeline,
         )
 
         if isinstance(expr, Const):
-            if isinstance(expr.value, str) and "\\" in expr.value:
-                return True
-            return False
+            return bool(isinstance(expr.value, str) and "\\" in expr.value)
 
         if isinstance(expr, Name):
             return False
@@ -247,9 +257,7 @@ class FStringCoalescingMixin:
                 return True
             if any(self._expr_contains_backslash(arg) for arg in expr.args):
                 return True
-            if any(self._expr_contains_backslash(v) for v in expr.kwargs.values()):
-                return True
-            return False
+            return bool(any(self._expr_contains_backslash(v) for v in expr.kwargs.values()))
 
         if isinstance(expr, Pipeline):
             if self._expr_contains_backslash(expr.value):

@@ -19,29 +19,29 @@ def infer_cache_scope(
     config: AnalysisConfig | None = None,
 ) -> CacheScope:
     """Infer recommended cache scope for a block.
-    
+
     Args:
         depends_on: Context paths the block depends on.
         is_pure: Block purity level.
         config: Analysis configuration (for naming conventions).
-    
+
     Returns:
         Recommended cache scope:
         - "site": Can cache once per site build (no page-specific deps)
         - "page": Must re-render per page, but cacheable
         - "none": Cannot be cached (impure)
         - "unknown": Cannot determine
-    
+
     Example:
             >>> infer_cache_scope(frozenset({"site.pages"}), "pure")
             'site'
-    
+
             >>> infer_cache_scope(frozenset({"page.title"}), "pure")
             'page'
-    
+
             >>> infer_cache_scope(frozenset({"items"}), "impure")
             'none'
-        
+
     """
     # Use default config if not provided
     if config is None:
@@ -75,9 +75,9 @@ def infer_cache_scope(
 
 def _has_prefix_match(paths: frozenset[str], prefixes: frozenset[str]) -> bool:
     """Check if any path starts with any prefix.
-    
+
     Handles both "page." (prefix) and "page" (exact match) patterns.
-        
+
     """
     for path in paths:
         for prefix in prefixes:

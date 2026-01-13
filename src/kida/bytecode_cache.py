@@ -45,17 +45,17 @@ _PY_VERSION_TAG = f"py{sys.version_info.major}{sys.version_info.minor}"
 
 class BytecodeCache:
     """Persist compiled template bytecode to disk.
-    
+
     Uses marshal for code object serialization (Python stdlib).
-    
+
     Thread-Safety:
         File writes use atomic rename pattern to prevent corruption.
         Multiple processes can safely share the cache directory.
-    
+
     Cache Invalidation:
         Uses source hash in filename. When source changes, hash changes,
         and old cache entry becomes orphan (cleaned up lazily).
-    
+
     Example:
             >>> cache = BytecodeCache(Path(".kida-cache"))
             >>>
@@ -67,7 +67,7 @@ class BytecodeCache:
             >>>
             >>> # Hit: instant load
             >>> code = cache.get("base.html", source_hash)
-        
+
     """
 
     def __init__(

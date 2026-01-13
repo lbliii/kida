@@ -16,31 +16,31 @@ def classify_role(
     landmarks: frozenset[str],
 ) -> RoleType:
     """Classify block role based on name and emitted landmarks.
-    
+
     This is a heuristic, not semantic truth. Returns "unknown" when
     classification is ambiguous.
-    
+
     Priority:
         1. Landmarks (most reliable signal)
         2. Block name patterns (fallback)
-    
+
     Args:
         block_name: Block identifier (e.g., "nav", "content", "sidebar")
         landmarks: HTML5 landmarks emitted by this block
-    
+
     Returns:
         Inferred role or "unknown"
-    
+
     Example:
             >>> classify_role("sidebar", frozenset({"nav"}))
             'navigation'  # Landmark takes precedence
-    
+
             >>> classify_role("navigation", frozenset())
             'navigation'  # Name-based fallback
-    
+
             >>> classify_role("custom_block", frozenset())
             'unknown'  # Cannot classify
-        
+
     """
     # Landmark-based classification (strongest signal)
     if "nav" in landmarks and len(landmarks) == 1:

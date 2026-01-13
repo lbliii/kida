@@ -25,9 +25,9 @@ from kida.environment.exceptions import (
 @pytest.fixture
 def env() -> Environment:
     """Create a fresh Kida environment for each test.
-    
+
     Tests lenient None handling behavior.
-        
+
     """
     return Environment()
 

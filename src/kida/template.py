@@ -79,10 +79,10 @@ _STATIC_NAMESPACE: dict[str, Any] = {
 
 class LoopContext:
     """Loop iteration metadata accessible as `loop` inside `{% for %}` blocks.
-    
+
     Provides index tracking, boundary detection, and utility methods for
     common iteration patterns. All properties are computed on-access.
-    
+
     Properties:
         index: 1-based iteration count (1, 2, 3, ...)
         index0: 0-based iteration count (0, 1, 2, ...)
@@ -93,10 +93,10 @@ class LoopContext:
         revindex0: Reverse 0-based index (counts down to 0)
         previtem: Previous item in sequence (None on first)
         nextitem: Next item in sequence (None on last)
-    
+
     Methods:
         cycle(*values): Return values[index % len(values)]
-    
+
     Example:
             ```jinja
             <ul>
@@ -109,7 +109,7 @@ class LoopContext:
             {% end %}
             </ul>
             ```
-    
+
     Output:
             ```html
             <ul>
@@ -118,7 +118,7 @@ class LoopContext:
                 <li class="odd">3/3: Cherry ← Last</li>
             </ul>
             ```
-        
+
     """
 
     __slots__ = ("_items", "_index", "_length")
@@ -199,13 +199,13 @@ class LoopContext:
 
 class CachedBlocksDict:
     """Dict wrapper that returns cached HTML for site-scoped blocks.
-    
+
     Used by Kida's block cache optimization to intercept .get() calls
     from templates and return pre-rendered HTML for site-wide blocks
     (nav, footer, etc.).
-    
+
     Complexity: O(1) for lookups.
-        
+
     """
 
     __slots__ = ("_original", "_cached", "_cached_names", "_stats")
@@ -319,27 +319,27 @@ class CachedBlocksDict:
 
 class Template:
     """Compiled template ready for rendering.
-    
+
     Wraps a compiled code object containing a `render(ctx, _blocks)` function.
     Templates are immutable and thread-safe for concurrent `render()` calls.
-    
+
     Thread-Safety:
         - Template object is immutable after construction
         - Each `render()` call creates local state only (buf list)
         - Multiple threads can render the same template simultaneously
-    
+
     Memory Safety:
         Uses `weakref.ref(env)` to prevent circular reference leaks:
         `Template → (weak) → Environment → _cache → Template`
-    
+
     Attributes:
         name: Template identifier (for error messages)
         filename: Source file path (for error messages)
-    
+
     Methods:
         render(**context): Render template with given variables
         render_async(**context): Async render for templates with await
-    
+
     Error Enhancement:
         Runtime errors are caught and enhanced with template context:
             ```
@@ -350,17 +350,17 @@ class Template:
                 post = None (NoneType)
               Suggestion: Check if 'post' is defined before accessing .title
             ```
-    
+
     Example:
             >>> from kida import Environment
             >>> env = Environment()
             >>> t = env.from_string("Hello, {{ name | upper }}!")
             >>> t.render(name="World")
             'Hello, WORLD!'
-    
+
             >>> t.render({"name": "World"})  # Dict context also works
             'Hello, WORLD!'
-        
+
     """
 
     __slots__ = (
@@ -1193,10 +1193,10 @@ class Template:
 
 class RenderedTemplate:
     """Lazy rendered template (for streaming).
-    
+
     Allows iteration over rendered chunks for streaming output.
     Not implemented in initial version.
-        
+
     """
 
     __slots__ = ("_template", "_context")

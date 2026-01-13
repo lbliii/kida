@@ -26,10 +26,10 @@ _POTENTIALLY_STRING_NODES = frozenset({"FuncCall", "Filter"})
 
 class ExpressionCompilationMixin:
     """Mixin for compiling expressions.
-    
+
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

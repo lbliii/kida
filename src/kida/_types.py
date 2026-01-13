@@ -38,7 +38,7 @@ from enum import Enum
 
 class TokenType(Enum):
     """Classification of lexer tokens.
-    
+
     Categories:
         - Delimiters: Block, variable, comment markers
         - Literals: Strings, numbers, booleans
@@ -46,7 +46,7 @@ class TokenType(Enum):
         - Operators: Arithmetic, comparison, logical
         - Punctuation: Parentheses, brackets, dots
         - Special: EOF, whitespace, data (raw text)
-        
+
     """
 
     # Delimiters
@@ -129,22 +129,22 @@ class TokenType(Enum):
 @dataclass(frozen=True, slots=True)
 class Token:
     """A single token from the lexer.
-    
+
     Attributes:
         type: Classification of this token
         value: The actual text/value of the token
         lineno: 1-based line number in source
         col_offset: 0-based column offset in source
-    
+
     Immutable by design for thread-safety.
-    
+
     Example:
             >>> token = Token(TokenType.NAME, "user", 1, 5)
             >>> token.type
         <TokenType.NAME: 'name'>
             >>> token.value
             'user'
-        
+
     """
 
     type: TokenType

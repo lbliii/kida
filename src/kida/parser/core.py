@@ -42,15 +42,15 @@ class Parser(
     ExpressionParsingMixin,
 ):
     """Recursive descent parser transforming tokens into Kida AST.
-    
+
     The Parser consumes a token stream and produces an immutable Template node
     representing the complete AST. All parsing state is instance-local, so
     parsers are single-use (create one per template).
-    
+
     Block Stack Architecture:
         Uses a stack to track open blocks, enabling Kida's unified `{% end %}`
         syntax. When `{% end %}` is encountered, it closes the innermost block:
-    
+
             ```jinja
             {% if condition %}
                 {% for item in items %}
@@ -58,9 +58,9 @@ class Parser(
                 {% end %}  {# closes for #}
             {% end %}  {# closes if #}
             ```
-    
+
         The stack stores `(block_type, lineno, col)` tuples for error reporting.
-    
+
     Attributes:
         _tokens: Sequence of Token objects from lexer
         _pos: Current position in token stream
@@ -69,11 +69,11 @@ class Parser(
         _source: Original source text for error context
         _autoescape: Whether to auto-escape output expressions
         _block_stack: Stack of open blocks for `{% end %}` matching
-    
+
     Error Handling:
         Parse errors include source snippets with caret pointing to the error,
         plus contextual suggestions for common mistakes:
-    
+
             ```
             ParseError: Unclosed 'for' block - missing closing tag
               --> template.html:3:0
@@ -82,7 +82,7 @@ class Parser(
                | ^
             Suggestion: Add '{% end %}' or '{% endfor %}' to close the block
             ```
-    
+
     Example:
             >>> from kida.lexer import tokenize
             >>> tokens = tokenize("{% if x %}{{ x }}{% end %}")
@@ -90,7 +90,7 @@ class Parser(
             >>> ast = parser.parse()
             >>> ast.body[0]  # If node
         If(lineno=1, col_offset=0, test=Name(...), body=(...))
-        
+
     """
 
     __slots__ = ("_tokens", "_pos", "_name", "_filename", "_source", "_autoescape", "_block_stack")

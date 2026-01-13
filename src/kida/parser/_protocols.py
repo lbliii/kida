@@ -26,17 +26,17 @@ if TYPE_CHECKING:
 
 class ParserCoreProtocol(Protocol):
     """Minimal contract for cross-mixin dependencies.
-    
+
     Contains ONLY:
     1. Host class attributes (defined in Parser.__init__)
     2. Token navigation methods (used by all parsing mixins)
     3. Error handling (used everywhere)
-    
+
     Individual mixin methods are NOT included—mixins declare
     their own cross-mixin dependencies via inline TYPE_CHECKING declarations.
-    
+
     This protocol is satisfied by the Parser class through structural typing.
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

@@ -34,13 +34,13 @@ class StatementCompilationMixin(
     SpecialBlockMixin,
 ):
     """Combined mixin for compiling all statement types.
-    
+
     This class combines all statement compilation mixins into a single
     interface that can be inherited by the Compiler class.
-    
+
     Host attributes and cross-mixin dependencies are declared via inline
     TYPE_CHECKING blocks in each individual mixin.
-        
+
     """
 
     pass

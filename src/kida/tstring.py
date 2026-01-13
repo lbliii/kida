@@ -67,14 +67,14 @@ _REDOS_PATTERNS = [
 
 def _validate_redos_safety(pattern: str) -> None:
     """Validate pattern doesn't contain known ReDoS vulnerabilities.
-    
+
     Raises:
         PatternError: If pattern contains known dangerous constructs.
-    
+
     Note:
         This is a simplified check that catches common ReDoS patterns.
         It's not exhaustive but catches the most dangerous cases.
-        
+
     """
     for redos_re in _REDOS_PATTERNS:
         if redos_re.search(pattern):
@@ -88,22 +88,22 @@ def _validate_redos_safety(pattern: str) -> None:
 
 class ComposablePattern:
     """A composable regex pattern with safety validation.
-    
+
     ComposablePattern wraps a regex pattern string and provides:
     - Lazy compilation (pattern is compiled on first use)
     - ReDoS validation at creation time
     - Safe composition via the | operator
-    
+
     Example:
             >>> NAME = ComposablePattern(r"[a-zA-Z_][a-zA-Z0-9_]*")
             >>> INTEGER = ComposablePattern(r"\\d+")
             >>> combined = NAME | INTEGER
             >>> combined.compile().match("hello")
         <re.Match object; span=(0, 5), match='hello'>
-    
+
     Attributes:
         pattern: The raw regex pattern string
-        
+
     """
 
     __slots__ = ("_pattern", "_compiled")
@@ -179,28 +179,28 @@ class ComposablePattern:
 
 def r(template: TemplateProtocol) -> ComposablePattern:
     """The `r` tag for composable regex patterns.
-    
+
     Composes regex patterns safely by wrapping interpolated values in
     non-capturing groups. This prevents group index collision and
     quantifier interference.
-    
+
     Example:
             >>> NAME = r"[a-zA-Z_][a-zA-Z0-9_]*"
             >>> STRING = r"'[^']*'"
             >>> pattern = r(t"{NAME}|{STRING}")
             >>> pattern.pattern
         "(?:[a-zA-Z_][a-zA-Z0-9_]*)|(?:'[^']*')"
-    
+
     Args:
         template: A t-string template with pattern interpolations
-    
+
     Returns:
         ComposablePattern that can be compiled or further composed
-    
+
     Raises:
         TypeError: If template is not a valid t-string
         PatternError: If resulting pattern is invalid or ReDoS-vulnerable
-        
+
     """
     if not isinstance(template, TemplateProtocol):
         raise TypeError("r() expects a t-string template")
@@ -240,26 +240,26 @@ def r(template: TemplateProtocol) -> ComposablePattern:
 
 def k(template: TemplateProtocol) -> str:
     """The `k` tag for Kida template strings.
-    
+
     Processes a PEP 750 t-string with automatic HTML escaping.
     Values are escaped unless they implement `__html__()` (Markup).
-    
+
     Example:
             >>> name = "World"
             >>> k(t"Hello {name}!")
             'Hello World!'
-    
+
             >>> k(t"<p>{user_input}</p>")  # Auto-escapes user_input
             '<p>&lt;script&gt;...&lt;/script&gt;</p>'
-    
+
     Note: Currently supports simple interpolation. Future versions will
     integrate with the Kida compiler for filter support.
-    
+
     Type Safety:
         The TemplateProtocol type hint ensures static type checkers (mypy,
         pyright) catch misuse like `k("string")`. Runtime isinstance() check
         is omitted for performance (~35% faster). Duck typing allows test mocks.
-        
+
     """
     # Direct attribute access - duck typing allows t-strings, Template objects,
     # and test mocks (SimpleNamespace). Type checker enforces TemplateProtocol.

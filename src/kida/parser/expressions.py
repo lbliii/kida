@@ -50,10 +50,10 @@ BOOL_KEYWORDS = BOOL_TRUE | BOOL_FALSE | BOOL_NONE
 
 class ExpressionParsingMixin:
     """Mixin for parsing expressions.
-    
+
     Host attributes accessed via inline TYPE_CHECKING declarations.
     See: plan/rfc-mixin-protocol-typing.md
-        
+
     """
 
     # ─────────────────────────────────────────────────────────────────────────

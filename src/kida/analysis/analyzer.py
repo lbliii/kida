@@ -23,18 +23,18 @@ logger = logging.getLogger(__name__)
 
 class BlockAnalyzer:
     """Analyze template blocks and extract metadata.
-    
+
     Combines dependency analysis, purity checking, landmark detection,
     and role classification into a unified analysis pass.
-    
+
     Thread-safe: Stateless analyzers, creates new result objects.
-    
+
     Example:
             >>> analyzer = BlockAnalyzer()
             >>> meta = analyzer.analyze(template_ast)
             >>> print(meta.blocks["nav"].cache_scope)
             'site'
-    
+
     Configuration:
             >>> from kida.analysis import AnalysisConfig
             >>> config = AnalysisConfig(
@@ -42,7 +42,7 @@ class BlockAnalyzer:
             ...     site_prefixes=frozenset({"global.", "settings."}),
             ... )
             >>> analyzer = BlockAnalyzer(config=config)
-        
+
     """
 
     def __init__(
