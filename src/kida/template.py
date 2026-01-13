@@ -412,6 +412,7 @@ class Template:
             *,  # Force remaining args to be keyword-only
             blocks: dict[str, Any] | None = None,  # RFC: kida-modern-syntax-features (embed)
         ) -> str:
+            from kida.render_accumulator import get_accumulator
             from kida.render_context import (
                 get_render_context_required,
                 reset_render_context,
@@ -422,6 +423,11 @@ class Template:
 
             # Check include depth (DoS protection)
             render_ctx.check_include_depth(template_name)
+
+            # Record include for profiling (RFC: kida-contextvar-patterns)
+            acc = get_accumulator()
+            if acc is not None:
+                acc.record_include(template_name)
 
             _env = env_ref()
             if _env is None:
@@ -824,14 +830,14 @@ class Template:
         ctx.update(kwargs)
 
         # Extract internal state from kwargs (backward compat for Bengal)
-        # These are removed from user ctx and moved to RenderContext
+        # Only these two keys are used for block caching; they're removed
+        # from user ctx and moved to RenderContext
         cached_blocks = ctx.pop("_cached_blocks", {})
         cache_stats = ctx.pop("_cached_stats", None)
 
-        # Also remove legacy internal keys if passed (backward compat)
-        ctx.pop("_template", None)
-        ctx.pop("_line", None)
-        ctx.pop("_include_depth", None)
+        # NOTE: We no longer remove _template, _line, _include_depth from ctx.
+        # These are now managed via RenderContext, but users should be able
+        # to use these variable names freely in their templates.
 
         render_func = self._render_func
 
