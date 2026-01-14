@@ -158,15 +158,9 @@ class RenderAccumulator:
                     reverse=True,
                 )
             },
-            "macros": dict(
-                sorted(self.macro_calls.items(), key=lambda x: x[1], reverse=True)
-            ),
-            "includes": dict(
-                sorted(self.include_counts.items(), key=lambda x: x[1], reverse=True)
-            ),
-            "filters": dict(
-                sorted(self.filter_calls.items(), key=lambda x: x[1], reverse=True)
-            ),
+            "macros": dict(sorted(self.macro_calls.items(), key=lambda x: x[1], reverse=True)),
+            "includes": dict(sorted(self.include_counts.items(), key=lambda x: x[1], reverse=True)),
+            "filters": dict(sorted(self.filter_calls.items(), key=lambda x: x[1], reverse=True)),
         }
 
 

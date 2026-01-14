@@ -44,6 +44,7 @@ class TestCoalesceableDetection:
     def compiler(self, env: Environment):
         """Create compiler instance for testing."""
         from kida.compiler import Compiler
+
         return Compiler(env)
 
     def test_data_node_coalesceable(self, compiler):
@@ -72,7 +73,8 @@ class TestCoalesceableDetection:
         """Attribute access is coalesceable."""
         # user.name
         expr = Getattr(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             obj=Name(lineno=1, col_offset=0, name="user"),
             attr="name",
         )
@@ -83,7 +85,8 @@ class TestCoalesceableDetection:
         """Nested attribute access is coalesceable."""
         # user.profile.name
         inner = Getattr(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             obj=Name(lineno=1, col_offset=0, name="user"),
             attr="profile",
         )
@@ -95,7 +98,8 @@ class TestCoalesceableDetection:
         """Item access is coalesceable."""
         # items[0]
         expr = Getitem(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             obj=Name(lineno=1, col_offset=0, name="items"),
             key=Const(lineno=1, col_offset=0, value=0),
         )
@@ -106,7 +110,8 @@ class TestCoalesceableDetection:
         """Item access with string key is coalesceable."""
         # data["key"]
         expr = Getitem(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             obj=Name(lineno=1, col_offset=0, name="data"),
             key=Const(lineno=1, col_offset=0, value="key"),
         )
@@ -117,7 +122,8 @@ class TestCoalesceableDetection:
         """Output with pure filter is coalesceable."""
         # name | upper
         expr = Filter(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="name"),
             name="upper",
         )
@@ -128,7 +134,8 @@ class TestCoalesceableDetection:
         """Pure filter with simple arguments is coalesceable."""
         # name | default("N/A")
         expr = Filter(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="name"),
             name="default",
             args=(Const(lineno=1, col_offset=0, value="N/A"),),
@@ -140,7 +147,8 @@ class TestCoalesceableDetection:
         """Pure filter with keyword arguments is coalesceable."""
         # name | truncate(length=10)
         expr = Filter(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="name"),
             name="truncate",
             kwargs={"length": Const(lineno=1, col_offset=0, value=10)},
@@ -152,7 +160,8 @@ class TestCoalesceableDetection:
         """Output with impure/unknown filter is not coalesceable."""
         # name | custom_filter
         expr = Filter(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="name"),
             name="custom_filter",
         )
@@ -163,7 +172,8 @@ class TestCoalesceableDetection:
         """Pipeline with all pure steps is coalesceable."""
         # name |> upper |> trim
         expr = Pipeline(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="name"),
             steps=(
                 ("upper", (), {}),
@@ -177,7 +187,8 @@ class TestCoalesceableDetection:
         """Pipeline with impure step is not coalesceable."""
         # name |> upper |> custom
         expr = Pipeline(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="name"),
             steps=(
                 ("upper", (), {}),
@@ -191,7 +202,8 @@ class TestCoalesceableDetection:
         """Function calls are not coalesceable."""
         # myfunc(x)
         expr = FuncCall(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             func=Name(lineno=1, col_offset=0, name="myfunc"),
             args=(Name(lineno=1, col_offset=0, name="x"),),
         )
@@ -202,7 +214,8 @@ class TestCoalesceableDetection:
         """Conditional expressions are not coalesceable."""
         # a if cond else b
         expr = CondExpr(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             test=Name(lineno=1, col_offset=0, name="cond"),
             if_true=Name(lineno=1, col_offset=0, name="a"),
             if_false=Name(lineno=1, col_offset=0, name="b"),
@@ -214,7 +227,8 @@ class TestCoalesceableDetection:
         """Binary operations are not coalesceable."""
         # a + b
         expr = BinOp(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             op="+",
             left=Name(lineno=1, col_offset=0, name="a"),
             right=Name(lineno=1, col_offset=0, name="b"),
@@ -228,10 +242,12 @@ class TestCoalesceableDetection:
         env.pure_filters.add("my_pure")
 
         from kida.compiler import Compiler
+
         compiler = Compiler(env)
 
         expr = Filter(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="x"),
             name="my_pure",
         )
@@ -242,7 +258,8 @@ class TestCoalesceableDetection:
         """InlinedFilter expressions are coalesceable."""
         # name.upper() equivalent
         expr = InlinedFilter(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="name"),
             method="upper",
         )
@@ -272,7 +289,8 @@ class TestBackslashDetection:
     def test_backslash_in_filter_arg_detected(self, compiler):
         """Backslash in filter argument is detected."""
         expr = Filter(
-            lineno=1, col_offset=0,
+            lineno=1,
+            col_offset=0,
             value=Name(lineno=1, col_offset=0, name="x"),
             name="default",
             args=(Const(lineno=1, col_offset=0, value="C:\\path"),),
@@ -315,6 +333,7 @@ class TestFStringGeneration:
     def test_safe_output_uses_str(self, env):
         """Non-escaped outputs use _s() function."""
         from kida.utils.html import Markup
+
         template = env.from_string("{{ html | safe }}")
         result = template.render(html=Markup("<b>bold</b>"))
         assert result == "<b>bold</b>"
@@ -349,7 +368,7 @@ class TestBraceHandling:
 
     def test_mixed_braces_and_variables(self, env):
         """Braces in literal text with variables work correctly."""
-        template = env.from_string('<style>.{{ cls }} { color: {{ color }} }</style>')
+        template = env.from_string("<style>.{{ cls }} { color: {{ color }} }</style>")
         result = template.render(cls="box", color="red")
         assert result == "<style>.box { color: red }</style>"
 
@@ -438,21 +457,27 @@ class TestIntegration:
 
     def test_control_flow_breaks_coalescing(self, env_coalesced):
         """Control flow creates separate coalescing groups."""
-        source = '<span>{{ a }}</span>{% if show %}<span>{{ b }}</span>{% end %}<span>{{ c }}</span>'
+        source = (
+            "<span>{{ a }}</span>{% if show %}<span>{{ b }}</span>{% end %}<span>{{ c }}</span>"
+        )
         ctx = {"a": "1", "b": "2", "c": "3", "show": True}
         result = env_coalesced.from_string(source).render(**ctx)
         assert result == "<span>1</span><span>2</span><span>3</span>"
 
     def test_control_flow_breaks_coalescing_false(self, env_coalesced):
         """Control flow with false condition."""
-        source = '<span>{{ a }}</span>{% if show %}<span>{{ b }}</span>{% end %}<span>{{ c }}</span>'
+        source = (
+            "<span>{{ a }}</span>{% if show %}<span>{{ b }}</span>{% end %}<span>{{ c }}</span>"
+        )
         ctx = {"a": "1", "b": "2", "c": "3", "show": False}
         result = env_coalesced.from_string(source).render(**ctx)
         assert result == "<span>1</span><span>3</span>"
 
     def test_nested_loops(self, env_coalesced):
         """Nested loops with outputs work correctly."""
-        source = """{% for row in rows %}{% for col in cols %}[{{ row }},{{ col }}]{% end %}{% end %}"""
+        source = (
+            """{% for row in rows %}{% for col in cols %}[{{ row }},{{ col }}]{% end %}{% end %}"""
+        )
         ctx = {"rows": [1, 2], "cols": ["a", "b"]}
         result = env_coalesced.from_string(source).render(**ctx)
         assert result == "[1,a][1,b][2,a][2,b]"
@@ -463,10 +488,12 @@ class TestIntegration:
 
         env = Environment(
             fstring_coalescing=True,
-            loader=DictLoader({
-                "base.html": "<html>{% block content %}{% end %}</html>",
-                "child.html": '{% extends "base.html" %}{% block content %}<div>{{ title }}</div>{% end %}',
-            })
+            loader=DictLoader(
+                {
+                    "base.html": "<html>{% block content %}{% end %}</html>",
+                    "child.html": '{% extends "base.html" %}{% block content %}<div>{{ title }}</div>{% end %}',
+                }
+            ),
         )
 
         result = env.get_template("child.html").render(title="Hello")
@@ -482,7 +509,7 @@ class TestIntegration:
 
     def test_complex_template(self, env_coalesced, env_non_coalesced):
         """Complex template with mixed content produces identical output."""
-        source = '''
+        source = """
 <div class="card">
     <h1>{{ title | upper }}</h1>
     {% for item in items %}
@@ -494,13 +521,13 @@ class TestIntegration:
     </div>
     {% end %}
 </div>
-'''
+"""
         ctx = {
             "title": "Products",
             "items": [
                 {"id": 1, "name": "Widget", "active": True},
                 {"id": 2, "name": "Gadget", "active": False},
-            ]
+            ],
         }
 
         result_coalesced = env_coalesced.from_string(source).render(**ctx)
@@ -515,9 +542,19 @@ class TestBuiltinPureFilters:
     def test_pure_filters_exist(self):
         """Verify _BUILTIN_PURE_FILTERS contains expected filters."""
         expected = {
-            "upper", "lower", "title", "capitalize",
-            "trim", "strip", "escape", "e",
-            "default", "d", "length", "first", "last",
+            "upper",
+            "lower",
+            "title",
+            "capitalize",
+            "trim",
+            "strip",
+            "escape",
+            "e",
+            "default",
+            "d",
+            "length",
+            "first",
+            "last",
         }
         for f in expected:
             assert f in _BUILTIN_PURE_FILTERS, f"{f} should be in pure filters"

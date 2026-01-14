@@ -150,8 +150,7 @@ class TestRenderContextThreadSafety:
                 }
 
         threads = [
-            threading.Thread(target=render_worker, args=(i, f"template_{i}.html"))
-            for i in range(4)
+            threading.Thread(target=render_worker, args=(i, f"template_{i}.html")) for i in range(4)
         ]
         for t in threads:
             t.start()

@@ -981,7 +981,9 @@ class Template:
         ]
 
     def _enhance_error(
-        self, error: Exception, render_ctx: Any  # RenderContext, but avoid import
+        self,
+        error: Exception,
+        render_ctx: Any,  # RenderContext, but avoid import
     ) -> Exception:
         """Enhance a generic exception with template context from RenderContext.
 

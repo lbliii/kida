@@ -460,9 +460,9 @@ def render_mixed_template_non_coalesced() -> str:
             append('<span class="odd">')
         # More non-coalesced appends
         append(str(item["name"]).translate(_ESCAPE_TABLE))
-        append(' - ')
+        append(" - ")
         append(str(item["data"]["x"]).translate(_ESCAPE_TABLE))
-        append('</span></div>\n')
+        append("</span></div>\n")
     return "".join(buf)
 
 
@@ -479,7 +479,9 @@ def render_mixed_template_coalesced() -> str:
         else:
             append('<span class="odd">')
         # Coalesced block 2
-        append(f'{str(item["name"]).translate(_ESCAPE_TABLE)} - {str(item["data"]["x"]).translate(_ESCAPE_TABLE)}</span></div>\n')
+        append(
+            f"{str(item['name']).translate(_ESCAPE_TABLE)} - {str(item['data']['x']).translate(_ESCAPE_TABLE)}</span></div>\n"
+        )
     return "".join(buf)
 
 
@@ -494,7 +496,7 @@ def render_simple_template_non_coalesced() -> str:
         append(str(item["name"]).translate(_ESCAPE_TABLE))
         append('">')
         append(str(item["name"]).translate(_ESCAPE_TABLE))
-        append('</div>\n')
+        append("</div>\n")
     return "".join(buf)
 
 
@@ -505,7 +507,9 @@ def render_simple_template_coalesced() -> str:
     e = _ESCAPE_TABLE
     for item in ITEMS:
         # Single f-string for entire output
-        append(f'<div id="{str(item["id"]).translate(e)}" class="{str(item["name"]).translate(e)}">{str(item["name"]).translate(e)}</div>\n')
+        append(
+            f'<div id="{str(item["id"]).translate(e)}" class="{str(item["name"]).translate(e)}">{str(item["name"]).translate(e)}</div>\n'
+        )
     return "".join(buf)
 
 

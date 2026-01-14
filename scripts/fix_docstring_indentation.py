@@ -43,7 +43,11 @@ def fix_docstring_content(docstring: str) -> str:
 
             # Check if it's text content that should not be indented
             # Pattern: starts with capital letter, dash, or asterisk after 4 spaces
-            if re.match(r"^[A-Z]", stripped) or re.match(r"^-", stripped) or re.match(r"^\*", stripped):
+            if (
+                re.match(r"^[A-Z]", stripped)
+                or re.match(r"^-", stripped)
+                or re.match(r"^\*", stripped)
+            ):
                 fixed_lines.append(stripped)
                 continue
 
@@ -54,7 +58,9 @@ def fix_docstring_content(docstring: str) -> str:
 
             # For continuation lines in indented paragraphs, remove indentation
             # But preserve if it looks like code
-            if re.match(r"^[a-z_][a-z0-9_()]*\s*[:=]", stripped) or stripped.strip().startswith("'"):
+            if re.match(r"^[a-z_][a-z0-9_()]*\s*[:=]", stripped) or stripped.strip().startswith(
+                "'"
+            ):
                 # Looks like code, preserve indentation
                 fixed_lines.append(line)
             else:
@@ -70,7 +76,11 @@ def get_docstring_range(source_lines: list[str], node) -> tuple[int, int] | None
     """Get the line range for a docstring node."""
     # Find the docstring node (first Expr with Constant string)
     if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
-        if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant):
+        if (
+            node.body
+            and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+        ):
             doc_node = node.body[0]
             start_line = doc_node.lineno - 1  # 0-indexed
         else:
@@ -134,13 +144,10 @@ def fix_file(file_path: Path) -> tuple[int, list[str]]:
                         if line.startswith("    ") and line.strip():
                             stripped = line[4:]
                             stripped_stripped = stripped.strip()
-                            if (
-                                not stripped_stripped.startswith((">>>", "..."))
-                                and (
-                                    re.match(r"^[A-Z]", stripped)
-                                    or re.match(r"^-", stripped)
-                                    or re.match(r"^\*", stripped)
-                                )
+                            if not stripped_stripped.startswith((">>>", "...")) and (
+                                re.match(r"^[A-Z]", stripped)
+                                or re.match(r"^-", stripped)
+                                or re.match(r"^\*", stripped)
                             ):
                                 needs_fixing = True
                                 break
@@ -160,7 +167,7 @@ def fix_file(file_path: Path) -> tuple[int, list[str]]:
 
             if fixed_content != original_docstring:
                 # Extract the actual docstring from source lines
-                doc_lines = source_lines[start_line:end_line + 1]
+                doc_lines = source_lines[start_line : end_line + 1]
                 "\n".join(doc_lines)
 
                 # Determine quote type and indentation
@@ -182,7 +189,7 @@ def fix_file(file_path: Path) -> tuple[int, list[str]]:
                     # Find content between first and last quote
                     quote_pos = full_line.find(quote)
                     if quote_pos != -1:
-                        after_first_quote = full_line[quote_pos + 3:]
+                        after_first_quote = full_line[quote_pos + 3 :]
                         last_quote_pos = after_first_quote.rfind(quote)
                         if last_quote_pos != -1:
                             after_first_quote[:last_quote_pos]
@@ -202,7 +209,7 @@ def fix_file(file_path: Path) -> tuple[int, list[str]]:
                     new_lines.append(f"{indent}{quote}")
 
                     # Replace the range
-                    source_lines[start_line:end_line + 1] = new_lines
+                    source_lines[start_line : end_line + 1] = new_lines
                     docstrings_fixed += 1
                     changes_made.append(f"Fixed docstring at line {start_line + 1}")
 

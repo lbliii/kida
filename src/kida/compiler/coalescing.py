@@ -41,28 +41,51 @@ COALESCE_MIN_NODES = 2
 
 # Built-in filters known to be pure (no side effects, deterministic)
 # These filters can be safely coalesced into f-strings
-_BUILTIN_PURE_FILTERS: frozenset[str] = frozenset({
-    # String case transformations
-    "upper", "lower", "title", "capitalize", "swapcase",
-    # Whitespace handling
-    "trim", "strip", "lstrip", "rstrip",
-    # HTML escaping
-    "escape", "e", "forceescape",
-    # Default values
-    "default", "d",
-    # Type conversion
-    "int", "float", "string", "str", "bool",
-    # Collection info
-    "length", "count",
-    # Collection access
-    "first", "last",
-    # String operations
-    "join", "center", "ljust", "rjust",
-    # Formatting
-    "truncate", "wordwrap", "indent",
-    # URL encoding
-    "urlencode",
-})
+_BUILTIN_PURE_FILTERS: frozenset[str] = frozenset(
+    {
+        # String case transformations
+        "upper",
+        "lower",
+        "title",
+        "capitalize",
+        "swapcase",
+        # Whitespace handling
+        "trim",
+        "strip",
+        "lstrip",
+        "rstrip",
+        # HTML escaping
+        "escape",
+        "e",
+        "forceescape",
+        # Default values
+        "default",
+        "d",
+        # Type conversion
+        "int",
+        "float",
+        "string",
+        "str",
+        "bool",
+        # Collection info
+        "length",
+        "count",
+        # Collection access
+        "first",
+        "last",
+        # String operations
+        "join",
+        "center",
+        "ljust",
+        "rjust",
+        # Formatting
+        "truncate",
+        "wordwrap",
+        "indent",
+        # URL encoding
+        "urlencode",
+    }
+)
 
 
 class FStringCoalescingMixin:
@@ -169,10 +192,7 @@ class FStringCoalescingMixin:
         if isinstance(expr, (Getitem, OptionalGetitem)):
             obj = expr.obj
             key = expr.key
-            return (
-                self._is_simple_expr(obj) and
-                self._is_simple_expr(key)
-            )
+            return self._is_simple_expr(obj) and self._is_simple_expr(key)
 
         # InlinedFilter: method calls like .upper() are simple if value is simple
         if isinstance(expr, InlinedFilter):
@@ -242,9 +262,8 @@ class FStringCoalescingMixin:
             return self._expr_contains_backslash(expr.obj)
 
         if isinstance(expr, (Getitem, OptionalGetitem)):
-            return (
-                self._expr_contains_backslash(expr.obj) or
-                self._expr_contains_backslash(expr.key)
+            return self._expr_contains_backslash(expr.obj) or self._expr_contains_backslash(
+                expr.key
             )
 
         if isinstance(expr, InlinedFilter):
@@ -315,11 +334,13 @@ class FStringCoalescingMixin:
                         keywords=[],
                     )
 
-                parts.append(ast.FormattedValue(
-                    value=expr,
-                    conversion=-1,  # No conversion (!s, !r, !a)
-                    format_spec=None,
-                ))
+                parts.append(
+                    ast.FormattedValue(
+                        value=expr,
+                        conversion=-1,  # No conversion (!s, !r, !a)
+                        format_spec=None,
+                    )
+                )
 
         # Create JoinedStr (f-string AST node)
         fstring = ast.JoinedStr(values=parts)
