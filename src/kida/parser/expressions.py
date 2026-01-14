@@ -808,7 +808,5 @@ class ExpressionParsingMixin:
         }
         op = mapping.get(token_type)
         if op is None:
-            from kida.parser.errors import ParseError
-
-            raise ParseError(f"Unmapped token type for binary operator: {token_type!r}")
+            raise ValueError(f"Unmapped token type for binary operator: {token_type!r}")
         return op

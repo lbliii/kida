@@ -403,17 +403,17 @@ class Markup(str):
     def expandtabs(self, tabsize: SupportsIndex = 8) -> Self:
         return self.__class__(super().expandtabs(tabsize))
 
-    def split(  # type: ignore[override]
+    def split(
         self, sep: str | None = None, maxsplit: SupportsIndex = -1
     ) -> list[Self]:
         return [self.__class__(s) for s in super().split(sep, maxsplit)]
 
-    def rsplit(  # type: ignore[override]
+    def rsplit(
         self, sep: str | None = None, maxsplit: SupportsIndex = -1
     ) -> list[Self]:
         return [self.__class__(s) for s in super().rsplit(sep, maxsplit)]
 
-    def splitlines(self, keepends: bool = False) -> list[Self]:  # type: ignore[override]
+    def splitlines(self, keepends: bool = False) -> list[Self]:
         return [self.__class__(s) for s in super().splitlines(keepends)]
 
     def partition(self, sep: str) -> tuple[Self, Self, Self]:

@@ -159,7 +159,7 @@ class ControlFlowMixin:
             else_stmts = self._wrap_with_scope(else_stmts) if else_stmts else [ast.Pass()]
             if orelse:
                 # Attach to innermost elif's orelse
-                innermost: ast.If = orelse[0]  # type: ignore[assignment]
+                innermost: ast.If = orelse[0]
                 while innermost.orelse and isinstance(innermost.orelse[0], ast.If):
                     innermost = innermost.orelse[0]
                 innermost.orelse = else_stmts

@@ -85,6 +85,19 @@ disable_error_code = [
 # See: plan/rfc-type-suppression-reduction.md
 # =============================================================================
 
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+exclude = ["dist/", "build/"]
+
+# Markup class intentionally returns Self instead of str (like MarkupSafe)
+# This technically violates LSP but is the correct pattern for HTML-safe strings
+[[tool.ty.overrides]]
+include = ["src/kida/utils/html.py"]
+[tool.ty.overrides.rules]
+invalid-method-override = "ignore"
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"
@@ -116,11 +129,12 @@ dev = [
     "pytest-cov>=4.0",
     "pytest-benchmark>=4.0.0",
     "pytest-xdist>=3.3.0",
-    "pytest-timeout>=2.3.0", # Prevent hung tests
-    "hypothesis>=6.100.0",   # Property-based testing
+    "pytest-timeout>=2.3.0",   # Prevent hung tests
+    "hypothesis>=6.100.0",     # Property-based testing
     "jinja2>=3.1.6,<3.2",
     # Linting & Type Checking
     "mypy>=1.10",
+    "ty>=0.0.11",   # Astral type checker (Rust-based, 10-100x faster than mypy)
     "ruff>=0.14.0",
     # Pre-commit (optional, for local dev)
     "pre-commit>=4.0.0",

@@ -573,7 +573,7 @@ class Environment:
         """
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            filter_name = name if name is not None else func.__name__
+            filter_name = name if name is not None else getattr(func, "__name__", "<anonymous>")
             self.add_filter(filter_name, func)
             return func
 
@@ -595,7 +595,7 @@ class Environment:
         """
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            test_name = name if name is not None else func.__name__
+            test_name = name if name is not None else getattr(func, "__name__", "<anonymous>")
             self.add_test(test_name, func)
             return func
 

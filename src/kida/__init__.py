@@ -108,14 +108,11 @@ from kida.utils.workers import (
 
 # Python 3.14+ t-string support (PEP 750)
 # Only import if string.templatelib is available
-# Type declaration before conditional import for mypy
-k: Callable[..., str] | None
-
 try:
     from kida.tstring import k
 except ImportError:
     # Pre-3.14 Python - t-strings not available
-    k = None
+    k = None  # type: ignore[assignment]
 
 __version__ = "0.1.2"
 

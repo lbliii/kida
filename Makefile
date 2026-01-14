@@ -4,7 +4,7 @@
 PYTHON_VERSION ?= 3.14t
 VENV_DIR ?= .venv
 
-.PHONY: all help setup install test test-cov test-thread test-async lint lint-fix format typecheck clean shell docs docs-serve build publish release
+.PHONY: all help setup install test test-cov test-thread test-async lint lint-fix format ty typecheck clean shell docs docs-serve build publish release
 
 all: help
 
@@ -23,7 +23,8 @@ help:
 	@echo "  make lint       - Run ruff linter"
 	@echo "  make lint-fix   - Run ruff linter with auto-fix"
 	@echo "  make format     - Run ruff formatter"
-	@echo "  make typecheck  - Run pyright type checking"
+	@echo "  make ty         - Run ty type checker (fast, Rust-based)"
+	@echo "  make typecheck  - Run mypy type checking (legacy)"
 	@echo "  make docs       - Build documentation site (requires bengal)"
 	@echo "  make docs-serve - Start dev server for docs (requires bengal)"
 	@echo "  make build      - Build distribution packages"
@@ -70,9 +71,13 @@ format:
 	@echo "Running ruff formatter..."
 	uv run ruff format src/ tests/
 
+ty:
+	@echo "Running ty type checker (Astral, Rust-based)..."
+	uv run ty check src/kida/
+
 typecheck:
-	@echo "Running pyright type checking..."
-	uv run pyright src/kida
+	@echo "Running mypy type checking (legacy)..."
+	uv run mypy src/kida/
 
 docs:
 	@echo "Building documentation site..."
@@ -119,6 +124,7 @@ clean:
 	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".ty_cache" -exec rm -rf {} + 2>/dev/null || true
 
 shell:
 	@echo "Activating environment with GIL disabled..."

@@ -709,14 +709,14 @@ def _filter_unique(
 def _filter_min(value: Any, attribute: str | None = None) -> Any:
     """Return minimum value."""
     if attribute:
-        return min(value, key=lambda x: getattr(x, attribute, None) or 0)  # type: ignore[arg-type]
+        return min(value, key=lambda x: getattr(x, attribute, None) or 0)
     return min(value)
 
 
 def _filter_max(value: Any, attribute: str | None = None) -> Any:
     """Return maximum value."""
     if attribute:
-        return max(value, key=lambda x: getattr(x, attribute, None) or 0)  # type: ignore[arg-type]
+        return max(value, key=lambda x: getattr(x, attribute, None) or 0)
     return max(value)
 
 

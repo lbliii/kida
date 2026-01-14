@@ -300,7 +300,7 @@ class Compiler(
         self._collect_blocks(node.body)
         for child in node.body:
             if type(child).__name__ == "Extends":
-                extends_node = child
+                extends_node = child  # type: ignore[assignment]
                 break
 
         body: list[ast.stmt] = []
