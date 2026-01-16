@@ -466,6 +466,10 @@ class Compiler(
             "CallBlock",  # Function calls
             "Do",  # Side-effect expressions
             "WithConditional",  # Conditional with block (expression evaluation)
+            "Include",  # Template inclusion (errors in included templates)
+            "FromImport",  # Template import (macro/function access)
+            "Import",  # Template import
+            "Embed",  # Template embedding
         }
     )
 

@@ -275,6 +275,21 @@ PYTHON_GIL=0 uv run --python 3.14t pytest
 
 ---
 
+## The Bengal Cat Family
+
+The Bengal Cat Family's core components are written in pure Python:
+
+| | | |
+|--:|---|---|
+| **ᓚᘏᗢ** | [Bengal](https://github.com/lbliii/bengal) | Static site generator |
+| **)彡** | **Kida** | Template engine ← You are here |
+| **⌾⌾⌾** | [Rosettes](https://github.com/lbliii/rosettes) | Syntax highlighter |
+| **ฅᨐฅ** | [Patitas](https://github.com/lbliii/patitas) | Markdown parser |
+
+Python-native. Free-threading ready. No npm required.
+
+---
+
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.

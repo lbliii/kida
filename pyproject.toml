@@ -41,50 +41,6 @@ asyncio_default_fixture_loop_scope = "function"
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 
-[tool.mypy]
-python_version = "3.14"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-strict_optional = true
-disallow_any_generics = true
-disallow_incomplete_defs = true
-
-# =============================================================================
-# Mypy per-module overrides for gradual type adoption
-# =============================================================================
-# These modules use mixin patterns and complex AST types that require
-# gradual type annotation improvements. Errors are suppressed per-module
-# to allow CI to pass while maintaining type checking for other modules.
-#
-# TODO: Incrementally fix these issues and remove overrides
-# See: TYPE_CHECKING_GUIDE.md for strategies
-# =============================================================================
-
-# Parser & Compiler: mixin patterns access attrs from host classes
-# NOTE: attr-defined errors eliminated via RFC rfc-mixin-protocol-typing.md
-[[tool.mypy.overrides]]
-module = ["kida.parser.*", "kida.compiler.*"]
-disable_error_code = [
-    # attr-defined: RESOLVED via hybrid protocol + inline declarations
-    "no-any-return",      # Dynamic dispatch returns Any
-    "arg-type",           # AST node type variance (list[Assign] vs list[stmt])
-    "return-value",       # List invariance issues
-    "assignment",         # AST node reassignment
-    "operator",           # List concatenation type issues
-    "no-untyped-def",     # Gradual typing
-    "no-redef",           # Overloaded method patterns
-    "call-arg",           # Constructor signature changes
-    "func-returns-value", # Optional return handling
-    "override",           # Property vs attribute in mixins
-    "type-arg",           # Callable generic params
-]
-
-# =============================================================================
-# Phase 1 & 2 complete: Only parser/compiler overrides remain (mixin patterns)
-# See: plan/rfc-type-suppression-reduction.md
-# =============================================================================
-
 [tool.ty.environment]
 python-version = "3.14"
 
@@ -133,7 +89,6 @@ dev = [
     "hypothesis>=6.100.0",     # Property-based testing
     "jinja2>=3.1.6,<3.2",
     # Linting & Type Checking
-    "mypy>=1.10",
     "ty>=0.0.11",   # Astral type checker (Rust-based, 10-100x faster than mypy)
     "ruff>=0.14.0",
     # Pre-commit (optional, for local dev)

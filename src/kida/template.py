@@ -1005,7 +1005,20 @@ class Template:
         # Read from RenderContext instead of ctx dict
         template_name = render_ctx.template_name
         lineno = render_ctx.line
-        error_str = str(error)
+        error_str = str(error).strip()
+
+        # Handle empty error messages (e.g., StopIteration, bare exceptions)
+        if not error_str:
+            error_type = type(error).__name__
+            # Check for common exception attributes
+            if hasattr(error, "args") and error.args:
+                non_empty = [str(a) for a in error.args if str(a).strip()]
+                if non_empty:
+                    error_str = f"{error_type}: {', '.join(non_empty)}"
+                else:
+                    error_str = f"{error_type} (no details available)"
+            else:
+                error_str = f"{error_type} (no details available)"
 
         # Handle None comparison errors specially
         if isinstance(error, TypeError) and "NoneType" in error_str:
