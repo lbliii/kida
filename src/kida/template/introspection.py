@@ -112,6 +112,51 @@ class TemplateIntrospectionMixin:
         result: frozenset[str] = meta.all_dependencies()
         return result
 
+    def required_context(self) -> frozenset[str]:
+        """Get the set of context variable names this template requires.
+
+        Returns top-level variable names (without dotted paths) that the
+        template depends on. This is useful for checking whether a context
+        dictionary provides all required variables before rendering.
+
+        Returns empty frozenset if AST was not preserved.
+
+        Example:
+            >>> template.required_context()
+            frozenset({'page', 'site', 'config'})
+        """
+        paths = self.depends_on()
+        return frozenset(path.split(".")[0] for path in paths)
+
+    def is_cacheable(self, block_name: str | None = None) -> bool:
+        """Check if a block (or the whole template) can be safely cached.
+
+        Args:
+            block_name: Specific block to check. If None, returns True only
+                if *all* blocks are cacheable.
+
+        Returns:
+            True if the target is pure and has a cacheable scope.
+
+        Example:
+            >>> template.is_cacheable("nav")
+            True
+            >>> template.is_cacheable()  # all blocks
+            False
+        """
+        meta = self.template_metadata()
+        if meta is None:
+            return False
+
+        if block_name is not None:
+            block = meta.get_block(block_name)
+            return block.is_cacheable() if block else False
+
+        # All blocks must be cacheable
+        if not meta.blocks:
+            return False
+        return all(block.is_cacheable() for block in meta.blocks.values())
+
     def _analyze(self) -> None:
         """Perform static analysis and cache results."""
         # Avoid circular import at module level

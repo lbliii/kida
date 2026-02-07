@@ -71,6 +71,7 @@ empty string. Use `| default(fallback)` for optional variables:
 from collections.abc import Callable
 
 from kida._types import Token, TokenType
+from kida.analysis import AnalysisConfig, BlockMetadata, TemplateMetadata
 from kida.environment import (
     DictLoader,
     Environment,
@@ -117,6 +118,8 @@ except ImportError:
 __version__ = "0.1.2"
 
 __all__ = [
+    "AnalysisConfig",
+    "BlockMetadata",
     "DictLoader",
     "Environment",
     "FileSystemLoader",
@@ -126,6 +129,7 @@ __all__ = [
     "RenderContext",
     "Template",
     "TemplateError",
+    "TemplateMetadata",
     "TemplateNotFoundError",
     "TemplateSyntaxError",
     "Token",
