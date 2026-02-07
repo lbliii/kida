@@ -41,6 +41,21 @@ asyncio_default_fixture_loop_scope = "function"
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 
+[tool.coverage.run]
+source = ["kida"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 1
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]
+
 [tool.ty.environment]
 python-version = "3.14"
 
