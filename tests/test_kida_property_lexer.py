@@ -15,7 +15,7 @@ from hypothesis import given, settings
 
 from kida._types import TokenType
 from kida.environment.exceptions import TemplateSyntaxError
-from kida.lexer import Lexer, LexerError, tokenize
+from kida.lexer import LexerError, tokenize
 
 from .strategies import (
     arbitrary_template_source,

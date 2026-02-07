@@ -6,9 +6,7 @@ Targets uncovered code paths to improve coverage from 46%/51% toward 85%+.
 from __future__ import annotations
 
 from kida import Environment
-from kida.analysis import BlockAnalyzer, DependencyWalker, PurityAnalyzer
 from kida.environment.loaders import DictLoader
-
 
 # ---------------------------------------------------------------------------
 # DependencyWalker — target uncovered handlers

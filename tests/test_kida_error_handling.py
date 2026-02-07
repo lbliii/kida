@@ -613,7 +613,6 @@ class TestErrorMessageQuality:
 
     def test_not_compiled_error_includes_template_name(self) -> None:
         """'not properly compiled' RuntimeError includes the template name."""
-        from kida.template.core import Template
 
         env = Environment()
         tmpl = env.from_string("{{ x }}", name="broken.html")
