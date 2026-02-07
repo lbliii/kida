@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Streaming rendering** — `template.render_stream(**ctx)` yields template output as string chunks via Python generators. The compiler generates both StringBuilder (`render()`) and generator (`render_stream()`) functions from each template in a single compilation pass. Supports full template inheritance (`{% extends %}`, `{% block %}`), includes, and all control flow. Buffering blocks (`{% capture %}`, `{% spaceless %}`, `{% cache %}`, `{% filter %}`) buffer internally and yield the processed result. No performance impact on `render()` — the existing StringBuilder path is unchanged.
+
+- **`RenderedTemplate`** — Lazy iterable wrapper around `render_stream()`. Construct with a template and context dict, iterate to get chunks on demand.
+
+  ```python
+  from kida import RenderedTemplate
+
+  rendered = RenderedTemplate(template, {"items": data})
+  for chunk in rendered:
+      send_to_client(chunk)
+  ```
+
+- **Streaming runtime helpers** — `_include_stream()` and `_extends_stream()` enable `yield from` chaining across template inheritance and includes in streaming mode.
+
 ## [0.1.2] - 2026-01-13
 
 ### Added

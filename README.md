@@ -45,7 +45,9 @@ Requires Python 3.14+
 | `Environment()` | Create a template environment |
 | `env.from_string(src)` | Compile template from string |
 | `env.get_template(name)` | Load template from filesystem |
-| `template.render(**ctx)` | Render with context variables |
+| `template.render(**ctx)` | Render to string (StringBuilder, fastest) |
+| `template.render_stream(**ctx)` | Render as generator (yields chunks) |
+| `RenderedTemplate(template, ctx)` | Lazy iterable wrapper for streaming |
 
 ---
 
@@ -56,6 +58,7 @@ Requires Python 3.14+
 | **Template Syntax** | Variables, filters, control flow, pattern matching | [Syntax →](https://lbliii.github.io/kida/docs/syntax/) |
 | **Inheritance** | Template extends, blocks, includes | [Inheritance →](https://lbliii.github.io/kida/docs/syntax/inheritance/) |
 | **Filters & Tests** | 40+ built-in filters, custom filter registration | [Filters →](https://lbliii.github.io/kida/docs/reference/filters/) |
+| **Streaming** | Statement-level generator rendering via `render_stream()` | [Streaming →](https://lbliii.github.io/kida/docs/usage/streaming/) |
 | **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
 | **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
 | **Extensibility** | Custom filters, tests, globals, loaders | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
@@ -144,6 +147,36 @@ print(template.render(title="Hello", content="World"))
 </details>
 
 <details>
+<summary><strong>Streaming Rendering</strong> — Yield chunks as they're ready</summary>
+
+```python
+from kida import Environment
+
+env = Environment()
+template = env.from_string("""
+<ul>
+{% for item in items %}
+    <li>{{ item }}</li>
+{% end %}
+</ul>
+""")
+
+# Generator: yields each statement as a string chunk
+for chunk in template.render_stream(items=["a", "b", "c"]):
+    print(chunk, end="")
+
+# RenderedTemplate: lazy iterable wrapper
+from kida import RenderedTemplate
+rendered = RenderedTemplate(template, {"items": ["a", "b", "c"]})
+for chunk in rendered:
+    send_to_client(chunk)
+```
+
+Works with inheritance (`{% extends %}`), includes, and all control flow. Blocks like `{% capture %}` and `{% spaceless %}` buffer internally and yield the processed result.
+
+</details>
+
+<details>
 <summary><strong>Async Templates</strong> — Await in templates</summary>
 
 ```python
@@ -176,7 +209,7 @@ print(template.render(title="Hello", content="World"))
 | Feature | Kida | Jinja2 |
 |---------|------|--------|
 | **Compilation** | AST → AST | String generation |
-| **Rendering** | StringBuilder | Generator yields |
+| **Rendering** | StringBuilder + streaming generator | Generator yields only |
 | **Block endings** | Unified `{% end %}` | `{% endif %}`, `{% endfor %}` |
 | **Scoping** | Explicit `let`/`set`/`export` | Implicit |
 | **Async** | Native `async for`, `await` | `auto_await()` wrapper |
@@ -207,18 +240,18 @@ Unlike Jinja2 which generates Python source strings, Kida generates `ast.Module`
 </details>
 
 <details>
-<summary><strong>StringBuilder Rendering</strong> — O(n) output</summary>
+<summary><strong>Dual-Mode Rendering</strong> — StringBuilder + streaming generator</summary>
 
 ```python
-# Kida's approach (O(n))
+# render() — StringBuilder (fastest, default)
 _out.append(...)
 return "".join(_out)
 
-# vs Jinja2's approach (higher overhead)
+# render_stream() — Generator (streaming, chunked HTTP)
 yield ...
 ```
 
-25-40% faster than Jinja2's generator yield pattern for typical templates.
+The compiler generates both modes from a single template. `render()` uses StringBuilder for maximum throughput (25-40% faster than Jinja2). `render_stream()` uses Python generators for statement-level streaming -- ideal for chunked HTTP responses and Server-Sent Events.
 
 </details>
 
