@@ -417,6 +417,11 @@ class Template:
             *,  # Force remaining args to be keyword-only
             blocks: dict[str, Any] | None = None,  # RFC: kida-modern-syntax-features (embed)
         ) -> str:
+            from kida.environment.exceptions import (
+                TemplateNotFoundError,
+                TemplateRuntimeError,
+                TemplateSyntaxError,
+            )
             from kida.render_accumulator import get_accumulator
             from kida.render_context import (
                 get_render_context_required,
@@ -458,7 +463,7 @@ class Template:
                     return str(included.render(**context))
                 finally:
                     reset_render_context(token)
-            except Exception:
+            except (TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError):
                 if ignore_missing:
                     return ""
                 raise
@@ -1235,6 +1240,11 @@ class Template:
         # Create template resolver for included template analysis
         def resolve_template(name: str) -> Template | None:
             """Resolve and analyze included templates."""
+            from kida.environment.exceptions import (
+                TemplateNotFoundError,
+                TemplateSyntaxError,
+            )
+
             if env_for_cache is None:
                 return None
             try:
@@ -1247,7 +1257,7 @@ class Template:
                 ):
                     included._analyze()
                 return included
-            except Exception:
+            except (TemplateNotFoundError, TemplateSyntaxError):
                 return None
 
         analyzer = BlockAnalyzer(template_resolver=resolve_template)

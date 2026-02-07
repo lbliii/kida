@@ -25,6 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from kida.environment.exceptions import TemplateNotFoundError
 from kida.environment.filters import DEFAULT_FILTERS
 from kida.environment.protocols import Loader
 from kida.environment.registry import FilterRegistry
@@ -486,8 +487,8 @@ class Environment:
 
             # Stale if hashes differ
             return current_hash != cached_hash
-        except Exception:
-            # If we can't load source (file deleted, etc.), treat as stale
+        except (TemplateNotFoundError, OSError, UnicodeDecodeError):
+            # File deleted, permission error, encoding issue, etc. → treat as stale
             return True
 
     def clear_template_cache(self, names: list[str] | None = None) -> None:
