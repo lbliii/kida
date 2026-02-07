@@ -149,7 +149,18 @@ class DictLoader:
 
     def get_source(self, name: str) -> tuple[str, None]:
         if name not in self._mapping:
-            raise TemplateNotFoundError(f"Template '{name}' not found")
+            from difflib import get_close_matches
+
+            available = sorted(self._mapping.keys())
+            msg = f"Template '{name}' not found"
+            matches = get_close_matches(name, available, n=1, cutoff=0.6)
+            if matches:
+                msg += f". Did you mean '{matches[0]}'?"
+            elif available:
+                msg += f". Available: {', '.join(available[:10])}"
+                if len(available) > 10:
+                    msg += f" ... ({len(available)} total)"
+            raise TemplateNotFoundError(msg)
         return self._mapping[name], None
 
     def list_templates(self) -> list[str]:
