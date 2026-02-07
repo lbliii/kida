@@ -280,14 +280,14 @@ class Lexer:
         )
 
     __slots__ = (
-        "_source",
-        "_config",
-        "_pos",
-        "_lineno",
         "_col_offset",
-        "_mode",
-        "_trim_next_data",  # Strip leading whitespace from next DATA token
+        "_config",
         "_last_block_end",  # Position after last block end (for trim_blocks)
+        "_lineno",
+        "_mode",
+        "_pos",
+        "_source",
+        "_trim_next_data",  # Strip leading whitespace from next DATA token
     )
 
     def __init__(

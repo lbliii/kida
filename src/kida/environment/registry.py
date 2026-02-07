@@ -25,7 +25,7 @@ class FilterRegistry:
 
     """
 
-    __slots__ = ("_env", "_attr")
+    __slots__ = ("_attr", "_env")
 
     def __init__(self, env: Environment, attr: str) -> None:
         self._env = env

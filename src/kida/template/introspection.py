@@ -115,9 +115,8 @@ class TemplateIntrospectionMixin:
     def _analyze(self) -> None:
         """Perform static analysis and cache results."""
         # Avoid circular import at module level
-        from kida.template.core import Template
-
         from kida.analysis import BlockAnalyzer, TemplateMetadata
+        from kida.template.core import Template
 
         # Check environment's shared analysis cache first (for included templates)
         env_for_cache = self._env_ref()

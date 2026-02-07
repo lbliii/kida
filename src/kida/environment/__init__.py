@@ -51,15 +51,15 @@ from kida.environment.protocols import Filter, Loader, Test
 from kida.environment.registry import FilterRegistry
 
 __all__ = [
+    "DictLoader",
     "Environment",
     "FileSystemLoader",
-    "DictLoader",
+    "Filter",
     "FilterRegistry",
     "Loader",
-    "Filter",
-    "Test",
     "TemplateError",
     "TemplateNotFoundError",
     "TemplateSyntaxError",
+    "Test",
     "UndefinedError",
 ]

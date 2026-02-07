@@ -58,14 +58,14 @@ class LRUCache[K, V]:
 
     __slots__ = (
         "_cache",
-        "_maxsize",
-        "_ttl",
-        "_lock",
-        "_timestamps",
-        "_hits",
-        "_misses",
         "_enabled",
+        "_hits",
+        "_lock",
+        "_maxsize",
+        "_misses",
         "_name",
+        "_timestamps",
+        "_ttl",
     )
 
     def __init__(

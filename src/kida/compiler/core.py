@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
@@ -113,13 +113,13 @@ class Compiler(
     """
 
     __slots__ = (
-        "_env",
-        "_name",
-        "_filename",
-        "_node_dispatch",
-        "_locals",
-        "_blocks",
         "_block_counter",
+        "_blocks",
+        "_env",
+        "_filename",
+        "_locals",
+        "_name",
+        "_node_dispatch",
     )
 
     def __init__(self, env: Environment):

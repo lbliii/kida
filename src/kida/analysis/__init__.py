@@ -45,10 +45,10 @@ from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
 
 __all__ = [
+    "DEFAULT_CONFIG",
     "AnalysisConfig",
     "BlockAnalyzer",
     "BlockMetadata",
-    "DEFAULT_CONFIG",
     "DependencyWalker",
     "LandmarkDetector",
     "PurityAnalyzer",

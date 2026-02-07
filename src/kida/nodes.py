@@ -573,7 +573,6 @@ class Break(Node):
 
     """
 
-    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -585,7 +584,6 @@ class Continue(Node):
 
     """
 
-    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -628,7 +626,6 @@ class Embed(Node):
 class Expr(Node):
     """Base class for expressions."""
 
-    pass
 
 
 @dataclass(frozen=True, slots=True)

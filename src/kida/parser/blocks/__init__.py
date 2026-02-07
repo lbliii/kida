@@ -43,7 +43,6 @@ class BlockParsingMixin(
 
     """
 
-    pass
 
 
 __all__ = ["BlockParsingMixin", "BlockStackMixin"]

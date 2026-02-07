@@ -957,7 +957,7 @@ class SoftStr:
 
     """
 
-    __slots__ = ("_func", "_value", "_resolved")
+    __slots__ = ("_func", "_resolved", "_value")
 
     def __init__(self, func: Callable[[], str]) -> None:
         self._func = func

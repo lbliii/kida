@@ -54,7 +54,6 @@ templatelib: TemplateLibProtocol | None = cast(TemplateLibProtocol | None, templ
 class PatternError(Exception):
     """Error raised when a regex pattern is invalid or unsafe."""
 
-    pass
 
 
 # Known ReDoS-vulnerable patterns (simplified detection)
@@ -106,7 +105,7 @@ class ComposablePattern:
 
     """
 
-    __slots__ = ("_pattern", "_compiled")
+    __slots__ = ("_compiled", "_pattern")
 
     def __init__(self, pattern: str, *, validate: bool = True) -> None:
         """Create a composable pattern.
@@ -286,10 +285,10 @@ def k(template: TemplateProtocol) -> str:
 # =============================================================================
 
 __all__ = [
-    "k",
-    "r",
     "ComposablePattern",
     "PatternError",
     "TemplateProtocol",
+    "k",
+    "r",
     "templatelib",
 ]

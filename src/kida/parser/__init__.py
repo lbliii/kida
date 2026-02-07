@@ -47,6 +47,6 @@ from kida.parser.core import Parser
 from kida.parser.errors import ParseError
 
 __all__ = [
-    "Parser",
     "ParseError",
+    "Parser",
 ]

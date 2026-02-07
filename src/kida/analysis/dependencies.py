@@ -657,27 +657,21 @@ class DependencyWalker:
     # Leaf nodes that don't need children visited
     def _visit_const(self, node: Any) -> None:
         """Constants have no dependencies."""
-        pass
 
     def _visit_data(self, node: Any) -> None:
         """Static data has no dependencies."""
-        pass
 
     def _visit_raw(self, node: Any) -> None:
         """Raw blocks have no dependencies."""
-        pass
 
     def _visit_slot(self, node: Any) -> None:
         """Slots have no dependencies."""
-        pass
 
     def _visit_break(self, node: Any) -> None:
         """Break has no dependencies."""
-        pass
 
     def _visit_continue(self, node: Any) -> None:
         """Continue has no dependencies."""
-        pass
 
     def _visit_do(self, node: Any) -> None:
         """Handle do statement."""
@@ -685,7 +679,6 @@ class DependencyWalker:
 
     def _visit_loopvar(self, node: Any) -> None:
         """Loop variable access (loop.index, etc.) - no context deps."""
-        pass
 
     def _build_path(self, node: Any) -> str | None:
         """Build dotted path from chained attribute/item access.

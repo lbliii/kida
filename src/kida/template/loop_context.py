@@ -49,7 +49,7 @@ class LoopContext:
 
     """
 
-    __slots__ = ("_items", "_index", "_length")
+    __slots__ = ("_index", "_items", "_length")
 
     def __init__(self, items: list[Any]) -> None:
         self._items = items

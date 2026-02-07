@@ -52,4 +52,3 @@ class StatementCompilationMixin(
 
     """
 
-    pass

@@ -42,7 +42,6 @@ class TemplateError(Exception):
 
     """
 
-    pass
 
 
 class TemplateNotFoundError(TemplateError):
@@ -57,7 +56,6 @@ class TemplateNotFoundError(TemplateError):
 
     """
 
-    pass
 
 
 class TemplateSyntaxError(TemplateError):

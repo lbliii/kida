@@ -58,7 +58,7 @@ from kida.template.helpers import (
 )
 from kida.template.introspection import TemplateIntrospectionMixin
 from kida.template.loop_context import LoopContext
-from kida.utils.html import Markup, html_escape
+from kida.utils.html import html_escape
 
 if TYPE_CHECKING:
     import ast
@@ -116,15 +116,15 @@ class Template(TemplateIntrospectionMixin):
     """
 
     __slots__ = (
-        "_env_ref",
         "_code",
-        "_name",
+        "_env_ref",
         "_filename",
-        "_render_func",
-        "_render_async_func",
-        "_optimized_ast",  # Preserved AST for introspection (or None)
         "_metadata_cache",  # Cached analysis results
+        "_name",
         "_namespace",  # Compiled namespace with block functions
+        "_optimized_ast",  # Preserved AST for introspection (or None)
+        "_render_async_func",
+        "_render_func",
     )
 
     def __init__(
@@ -634,7 +634,7 @@ class RenderedTemplate:
 
     """
 
-    __slots__ = ("_template", "_context")
+    __slots__ = ("_context", "_template")
 
     def __init__(self, template: Template, context: dict[str, Any]):
         self._template = template

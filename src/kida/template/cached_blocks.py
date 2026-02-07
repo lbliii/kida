@@ -16,7 +16,7 @@ class CachedBlocksDict:
 
     """
 
-    __slots__ = ("_original", "_cached", "_cached_names", "_stats")
+    __slots__ = ("_cached", "_cached_names", "_original", "_stats")
 
     def __init__(
         self,

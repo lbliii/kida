@@ -93,7 +93,7 @@ class Parser(
 
     """
 
-    __slots__ = ("_tokens", "_pos", "_name", "_filename", "_source", "_autoescape", "_block_stack")
+    __slots__ = ("_autoescape", "_block_stack", "_filename", "_name", "_pos", "_source", "_tokens")
 
     def __init__(
         self,

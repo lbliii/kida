@@ -71,7 +71,7 @@ class FileSystemLoader:
 
     """
 
-    __slots__ = ("_paths", "_encoding")
+    __slots__ = ("_encoding", "_paths")
 
     def __init__(
         self,

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from kida.utils.html import Markup, _SPACELESS_RE
+from kida.utils.html import _SPACELESS_RE, Markup
 
 # =============================================================================
 # Shared Base Namespace (Performance Optimization)
