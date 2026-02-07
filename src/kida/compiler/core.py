@@ -120,6 +120,7 @@ class Compiler(
         "_locals",
         "_name",
         "_node_dispatch",
+        "_streaming",
     )
 
     def __init__(self, env: Environment):
@@ -132,6 +133,8 @@ class Compiler(
         self._blocks: dict[str, Block] = {}
         # Counter for unique variable names in nested structures
         self._block_counter: int = 0
+        # When True, output statements generate yield instead of _append
+        self._streaming: bool = False
 
     def _collect_blocks(self, nodes: Sequence[Node]) -> None:
         """Recursively collect all Block nodes from the AST.
@@ -192,20 +195,46 @@ class Compiler(
             "exec",
         )
 
+    def _emit_output(self, value_expr: ast.expr) -> ast.stmt:
+        """Generate output statement: yield (streaming) or _append (StringBuilder).
+
+        All output generation in compiled templates flows through this method,
+        allowing the compiler to switch between StringBuilder and generator modes.
+        """
+        if self._streaming:
+            return ast.Expr(value=ast.Yield(value=value_expr))
+        return ast.Expr(
+            value=ast.Call(
+                func=ast.Name(id="_append", ctx=ast.Load()),
+                args=[value_expr],
+                keywords=[],
+            ),
+        )
+
     def _compile_template(self, node: TemplateNode) -> ast.Module:
-        """Generate Python module from template."""
-        # Generate render function (also populates self._blocks)
+        """Generate Python module from template.
+
+        Produces both StringBuilder functions (render, _block_*) and
+        generator functions (render_stream, _block_*_stream) in a single
+        module. The StringBuilder path is used by Template.render() and
+        the generator path by Template.render_stream().
+        """
+        # Generate render + _block_* (StringBuilder mode, _streaming=False)
         render_func = self._make_render_function(node)
+        saved_blocks = dict(self._blocks)
 
         module_body: list[ast.stmt] = []
 
-        # Generate block functions
-        for block_name, block_node in self._blocks.items():
-            block_func = self._make_block_function(block_name, block_node)
-            module_body.append(block_func)
-
-        # Add render function
+        for block_name, block_node in saved_blocks.items():
+            module_body.append(self._make_block_function(block_name, block_node))
         module_body.append(render_func)
+
+        # Generate render_stream + _block_*_stream (generator mode)
+        self._streaming = True
+        for block_name, block_node in saved_blocks.items():
+            module_body.append(self._make_block_function_stream(block_name, block_node))
+        module_body.append(self._make_render_function_stream(node, saved_blocks))
+        self._streaming = False
 
         return ast.Module(
             body=module_body,
@@ -450,6 +479,185 @@ class Compiler(
                 kw_defaults=[],
                 kwarg=None,
                 defaults=[ast.Constant(value=None)],  # _blocks=None
+            ),
+            body=body,
+            decorator_list=[],
+            returns=None,
+        )
+
+    def _make_block_function_stream(self, name: str, block_node: Block) -> ast.FunctionDef:
+        """Generate a streaming block: _block_name_stream(ctx, _blocks) -> Generator[str]."""
+        body: list[ast.stmt] = [
+            # _e = _escape
+            ast.Assign(
+                targets=[ast.Name(id="_e", ctx=ast.Store())],
+                value=ast.Name(id="_escape", ctx=ast.Load()),
+            ),
+            # _s = _str
+            ast.Assign(
+                targets=[ast.Name(id="_s", ctx=ast.Store())],
+                value=ast.Name(id="_str", ctx=ast.Load()),
+            ),
+            # _scope_stack = []
+            ast.Assign(
+                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            ),
+        ]
+
+        # Compile block body with streaming yields
+        body.extend(self._compile_body_with_coalescing(list(block_node.body)))
+
+        # Ensure generator semantics: unreachable yield after return
+        # guarantees Python treats this as a generator even for empty blocks.
+        body.append(ast.Return(value=None))
+        body.append(ast.Expr(value=ast.Yield(value=None)))
+
+        return ast.FunctionDef(
+            name=f"_block_{name}_stream",
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[],
+            ),
+            body=body,
+            decorator_list=[],
+            returns=None,
+        )
+
+    def _make_render_function_stream(
+        self, node: TemplateNode, blocks: dict[str, Block]
+    ) -> ast.FunctionDef:
+        """Generate render_stream(ctx, _blocks=None) generator function.
+
+        For templates with extends:
+            yield from _extends_stream('parent.html', ctx, _blocks)
+
+        For templates without extends:
+            yield chunks directly
+        """
+        # Find extends node
+        extends_node: Extends | None = None
+        for child in node.body:
+            if type(child).__name__ == "Extends":
+                extends_node = child  # type: ignore[assignment]
+                break
+
+        body: list[ast.stmt] = []
+
+        # if _blocks is None: _blocks = {}
+        body.append(
+            ast.If(
+                test=ast.Compare(
+                    left=ast.Name(id="_blocks", ctx=ast.Load()),
+                    ops=[ast.Is()],
+                    comparators=[ast.Constant(value=None)],
+                ),
+                body=[
+                    ast.Assign(
+                        targets=[ast.Name(id="_blocks", ctx=ast.Store())],
+                        value=ast.Dict(keys=[], values=[]),
+                    )
+                ],
+                orelse=[],
+            )
+        )
+
+        # _scope_stack = []
+        body.append(
+            ast.Assign(
+                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            )
+        )
+
+        if extends_node:
+            # Execute top-level statements (imports, sets, etc.)
+            for child in node.body:
+                child_type = type(child).__name__
+                if child_type in (
+                    "FromImport",
+                    "Import",
+                    "Set",
+                    "Let",
+                    "Export",
+                    "Def",
+                    "Do",
+                ):
+                    body.extend(self._compile_node(child))
+
+            # Register streaming block functions
+            for block_name in blocks:
+                body.append(
+                    ast.Expr(
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Name(id="_blocks", ctx=ast.Load()),
+                                attr="setdefault",
+                                ctx=ast.Load(),
+                            ),
+                            args=[
+                                ast.Constant(value=block_name),
+                                ast.Name(
+                                    id=f"_block_{block_name}_stream", ctx=ast.Load()
+                                ),
+                            ],
+                            keywords=[],
+                        ),
+                    )
+                )
+
+            # yield from _extends_stream('parent.html', ctx, _blocks)
+            body.append(
+                ast.Expr(
+                    value=ast.YieldFrom(
+                        value=ast.Call(
+                            func=ast.Name(id="_extends_stream", ctx=ast.Load()),
+                            args=[
+                                self._compile_expr(extends_node.template),
+                                ast.Name(id="ctx", ctx=ast.Load()),
+                                ast.Name(id="_blocks", ctx=ast.Load()),
+                            ],
+                            keywords=[],
+                        ),
+                    ),
+                )
+            )
+        else:
+            # No inheritance - render directly with streaming
+            body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_e", ctx=ast.Store())],
+                    value=ast.Name(id="_escape", ctx=ast.Load()),
+                )
+            )
+            body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_s", ctx=ast.Store())],
+                    value=ast.Name(id="_str", ctx=ast.Load()),
+                )
+            )
+
+            body.extend(self._compile_body_with_coalescing(list(node.body)))
+
+        # Ensure generator semantics
+        body.append(ast.Return(value=None))
+        body.append(ast.Expr(value=ast.Yield(value=None)))
+
+        return ast.FunctionDef(
+            name="render_stream",
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[ast.Constant(value=None)],
             ),
             body=body,
             decorator_list=[],

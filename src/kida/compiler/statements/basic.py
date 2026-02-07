@@ -27,32 +27,30 @@ class BasicStatementMixin:
     # Cross-mixin dependencies (type-check only)
     # ─────────────────────────────────────────────────────────────────────────
     if TYPE_CHECKING:
+        _streaming: bool
+
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
 
+        # From Compiler core
+        def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
+
     def _compile_data(self, node: Any) -> list[ast.stmt]:
-        """Compile raw text data."""
+        """Compile raw text data.
+
+        StringBuilder mode: _append("literal text")
+        Streaming mode: yield "literal text"
+        """
         if not node.value:
             return []
 
-        # _append("literal text") - uses cached method
-        return [
-            ast.Expr(
-                value=ast.Call(
-                    func=ast.Name(id="_append", ctx=ast.Load()),
-                    args=[ast.Constant(value=node.value)],
-                    keywords=[],
-                ),
-            )
-        ]
+        return [self._emit_output(ast.Constant(value=node.value))]
 
     def _compile_output(self, node: Any) -> list[ast.stmt]:
         """Compile {{ expression }} output.
 
-        Uses cached local functions for hot path:
-        _e = _escape, _s = _str, _append = buf.append
-
-        Note: _escape handles str conversion internally to preserve Markup type
+        StringBuilder mode: _append(_e(expr)) or _append(_s(expr))
+        Streaming mode: yield _e(expr) or yield _s(expr)
         """
         expr = self._compile_expr(node.expr)
 
@@ -60,24 +58,15 @@ class BasicStatementMixin:
         # to properly detect Markup objects before converting to str
         if node.escape:
             expr = ast.Call(
-                func=ast.Name(id="_e", ctx=ast.Load()),  # cached _escape
-                args=[expr],  # Pass raw value, _e handles str conversion
+                func=ast.Name(id="_e", ctx=ast.Load()),
+                args=[expr],
                 keywords=[],
             )
         else:
             expr = ast.Call(
-                func=ast.Name(id="_s", ctx=ast.Load()),  # cached _str
+                func=ast.Name(id="_s", ctx=ast.Load()),
                 args=[expr],
                 keywords=[],
             )
 
-        # _append(escaped_value) - uses cached method
-        return [
-            ast.Expr(
-                value=ast.Call(
-                    func=ast.Name(id="_append", ctx=ast.Load()),
-                    args=[expr],
-                    keywords=[],
-                ),
-            )
-        ]
+        return [self._emit_output(expr)]

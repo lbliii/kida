@@ -125,6 +125,7 @@ class Template(TemplateIntrospectionMixin):
         "_optimized_ast",  # Preserved AST for introspection (or None)
         "_render_async_func",
         "_render_func",
+        "_render_stream_func",
     )
 
     def __init__(
@@ -254,6 +255,95 @@ class Template(TemplateIntrospectionMixin):
             result: str = parent._render_func(context, blocks_to_use)
             return result
 
+        # Streaming include helper - yields chunks from included template
+        def _include_stream(
+            template_name: str,
+            context: dict[str, Any],
+            ignore_missing: bool = False,
+            *,
+            blocks: dict[str, Any] | None = None,
+        ):  # -> Iterator[str]
+            from kida.environment.exceptions import (
+                TemplateNotFoundError,
+                TemplateRuntimeError,
+                TemplateSyntaxError,
+            )
+            from kida.render_accumulator import get_accumulator
+            from kida.render_context import (
+                get_render_context_required,
+                reset_render_context,
+                set_render_context,
+            )
+
+            render_ctx = get_render_context_required()
+            render_ctx.check_include_depth(template_name)
+
+            acc = get_accumulator()
+            if acc is not None:
+                acc.record_include(template_name)
+
+            _env = env_ref()
+            if _env is None:
+                raise RuntimeError(
+                    f"Environment has been garbage collected while including '{template_name}'"
+                )
+            try:
+                included = _env.get_template(template_name)
+                child_ctx = render_ctx.child_context(template_name)
+                token = set_render_context(child_ctx)
+                try:
+                    stream_func = included._namespace.get("render_stream")
+                    if stream_func is not None:
+                        if blocks is not None:
+                            yield from stream_func(context, blocks)
+                        else:
+                            yield from stream_func(context, None)
+                    else:
+                        # Fallback: render full string and yield it
+                        yield included.render(**context)
+                finally:
+                    reset_render_context(token)
+            except (TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError):
+                if ignore_missing:
+                    return
+                raise
+
+        # Streaming extends helper - yields chunks from parent template
+        def _extends_stream(
+            template_name: str, context: dict[str, Any], blocks: dict[str, Any]
+        ):  # -> Iterator[str]
+            from kida.render_context import get_render_context_required
+
+            render_ctx = get_render_context_required()
+
+            _env = env_ref()
+            if _env is None:
+                raise RuntimeError(
+                    f"Environment has been garbage collected while extending '{template_name}'"
+                )
+            parent = _env.get_template(template_name)
+            stream_func = parent._namespace.get("render_stream")
+            if stream_func is None:
+                raise RuntimeError(
+                    f"Template '{template_name}' not properly compiled: "
+                    f"render_stream is None."
+                )
+            # Apply cached blocks wrapper from RenderContext
+            blocks_to_use: dict[str, Any] | CachedBlocksDict = blocks
+            if (
+                render_ctx.cached_blocks
+                and not isinstance(blocks, CachedBlocksDict)
+                and render_ctx.cached_block_names
+            ):
+                blocks_to_use = CachedBlocksDict(
+                    blocks,
+                    render_ctx.cached_blocks,
+                    render_ctx.cached_block_names,
+                    stats=render_ctx.cache_stats,
+                )
+
+            yield from stream_func(context, blocks_to_use)
+
         # Import macros from another template
         def _import_macros(
             template_name: str, with_context: bool, context: dict[str, Any]
@@ -316,6 +406,8 @@ class Template(TemplateIntrospectionMixin):
                 "_str_safe": str_safe,
                 "_include": _include,
                 "_extends": _extends,
+                "_include_stream": _include_stream,
+                "_extends_stream": _extends_stream,
                 "_import_macros": _import_macros,
                 "_cache_get": _cache_get,
                 "_cache_set": _cache_set,
@@ -327,6 +419,7 @@ class Template(TemplateIntrospectionMixin):
         exec(code, namespace)
         self._render_func = namespace.get("render")
         self._render_async_func = namespace.get("render_async")
+        self._render_stream_func = namespace.get("render_stream")
         self._namespace = namespace  # Keep for render_block()
 
     @property
@@ -500,6 +593,71 @@ class Template(TemplateIntrospectionMixin):
                     raise
                 raise self._enhance_error(e, render_ctx) from e
 
+    def render_stream(self, *args: Any, **kwargs: Any):  # noqa: ANN201
+        """Render template as a generator of HTML chunks.
+
+        Yields chunks at every statement boundary, enabling progressive
+        delivery via chunked transfer encoding.
+
+        Args:
+            *args: Single dict of context variables
+            **kwargs: Context variables as keyword arguments
+
+        Yields:
+            str: HTML chunks as they are produced
+
+        Example:
+            >>> for chunk in t.render_stream(name="World"):
+            ...     send(chunk)
+        """
+        from collections.abc import Iterator
+
+        from kida.render_context import render_context
+
+        ctx: dict[str, Any] = {}
+        ctx.update(self._env.globals)
+
+        if args:
+            if len(args) == 1 and isinstance(args[0], dict):
+                ctx.update(args[0])
+            else:
+                raise TypeError(
+                    f"render_stream() takes at most 1 positional argument (a dict), "
+                    f"got {len(args)}"
+                )
+        ctx.update(kwargs)
+
+        cached_blocks = ctx.pop("_cached_blocks", {})
+        cache_stats = ctx.pop("_cached_stats", None)
+
+        stream_func = self._render_stream_func
+        if stream_func is None:
+            raise RuntimeError(
+                f"Template '{self._name or '(inline)'}' has no render_stream function"
+            )
+
+        with render_context(
+            template_name=self._name,
+            filename=self._filename,
+            cached_blocks=cached_blocks,
+            cache_stats=cache_stats,
+        ) as render_ctx:
+            blocks_arg = None
+            if render_ctx.cached_blocks:
+                cached_block_names = render_ctx.cached_block_names
+                if cached_block_names:
+                    blocks_arg = CachedBlocksDict(
+                        None,
+                        render_ctx.cached_blocks,
+                        cached_block_names,
+                        stats=render_ctx.cache_stats,
+                    )
+
+            # Yield non-None chunks from the generator
+            for chunk in stream_func(ctx, blocks_arg):
+                if chunk is not None:
+                    yield chunk
+
     def list_blocks(self) -> list[str]:
         """List all blocks defined in this template.
 
@@ -627,11 +785,17 @@ class Template(TemplateIntrospectionMixin):
 
 
 class RenderedTemplate:
-    """Lazy rendered template (for streaming).
+    """Lazy rendered template with streaming support.
 
-    Allows iteration over rendered chunks for streaming output.
-    Not implemented in initial version.
+    Wraps a Template + context pair. Supports both full rendering
+    via ``str()`` and chunk-by-chunk iteration via ``for chunk in rt``.
 
+    Example:
+        >>> rt = RenderedTemplate(template, {"name": "World"})
+        >>> print(str(rt))          # Full render
+        'Hello, World!'
+        >>> for chunk in rt:        # Streaming render
+        ...     send(chunk)
     """
 
     __slots__ = ("_context", "_template")
@@ -644,6 +808,6 @@ class RenderedTemplate:
         """Render and return full string."""
         return self._template.render(self._context)
 
-    def __iter__(self) -> Any:
-        """Iterate over rendered chunks."""
-        yield str(self)
+    def __iter__(self):  # noqa: ANN204
+        """Iterate over rendered HTML chunks via render_stream()."""
+        yield from self._template.render_stream(self._context)

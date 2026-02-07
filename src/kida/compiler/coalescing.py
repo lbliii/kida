@@ -101,12 +101,16 @@ class FStringCoalescingMixin:
     # ─────────────────────────────────────────────────────────────────────────
     if TYPE_CHECKING:
         _env: Environment
+        _streaming: bool
 
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
 
         # From Compiler (for _compile_node)
         def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+
+        # From Compiler core
+        def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
     def _get_pure_filters(self) -> frozenset[str]:
         """Get combined set of built-in and user-defined pure filters."""
@@ -344,14 +348,8 @@ class FStringCoalescingMixin:
         # Create JoinedStr (f-string AST node)
         fstring = ast.JoinedStr(values=parts)
 
-        # _append(f"...")
-        return ast.Expr(
-            value=ast.Call(
-                func=ast.Name(id="_append", ctx=ast.Load()),
-                args=[fstring],
-                keywords=[],
-            )
-        )
+        # _append(f"...") or yield f"..."
+        return self._emit_output(fstring)
 
     def _compile_body_with_coalescing(self, nodes: list[Any]) -> list[ast.stmt]:
         """Compile template body with f-string output coalescing.

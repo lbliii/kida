@@ -95,7 +95,7 @@ from kida.render_context import (
     get_render_context_required,
     render_context,
 )
-from kida.template import LoopContext, Markup, Template
+from kida.template import LoopContext, Markup, RenderedTemplate, Template
 from kida.utils.html import html_escape
 from kida.utils.workers import (
     Environment as WorkerEnvironment,
@@ -130,6 +130,7 @@ __all__ = [
     "Markup",
     "PrefixLoader",
     "RenderAccumulator",
+    "RenderedTemplate",
     "RenderContext",
     "Template",
     "TemplateError",

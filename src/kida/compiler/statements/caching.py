@@ -30,33 +30,20 @@ class CachingMixin:
     if TYPE_CHECKING:
         # Host attributes (from Compiler.__init__)
         _block_counter: int
+        _streaming: bool
 
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
 
         # From Compiler core
         def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+        def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
     def _compile_cache(self, node: Any) -> list[ast.stmt]:
         """Compile {% cache key %}...{% endcache %.
 
-        Fragment caching for expensive template sections.
-
-        Generates:
-            _cache_key = str(key)
-            _cached = _cache_get(_cache_key)
-            if _cached is not None:
-                _append(_cached)
-            else:
-                _cache_buf = []
-                _cache_append = _cache_buf.append
-                _save_append = _append
-                _append = _cache_append
-                ... body ...
-                _append = _save_append
-                _cached = ''.join(_cache_buf)
-                _cache_set(_cache_key, _cached, ttl)
-                _append(_cached)
+        Fragment caching. In streaming mode: collect into buffer, cache,
+        then yield. Body always uses StringBuilder mode for caching.
         """
         stmts: list[ast.stmt] = []
 
@@ -86,12 +73,10 @@ class CachingMixin:
 
         # Build the else block (cache miss)
         else_body: list[ast.stmt] = [
-            # _cache_buf = []
             ast.Assign(
                 targets=[ast.Name(id="_cache_buf", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
             ),
-            # _cache_append = _cache_buf.append
             ast.Assign(
                 targets=[ast.Name(id="_cache_append", ctx=ast.Store())],
                 value=ast.Attribute(
@@ -100,29 +85,41 @@ class CachingMixin:
                     ctx=ast.Load(),
                 ),
             ),
-            # _save_append = _append
-            ast.Assign(
-                targets=[ast.Name(id="_save_append", ctx=ast.Store())],
-                value=ast.Name(id="_append", ctx=ast.Load()),
-            ),
-            # _append = _cache_append
-            ast.Assign(
-                targets=[ast.Name(id="_append", ctx=ast.Store())],
-                value=ast.Name(id="_cache_append", ctx=ast.Load()),
-            ),
         ]
 
-        # Compile body
-        for child in node.body:
-            else_body.extend(self._compile_node(child))
-
-        # _append = _save_append
-        else_body.append(
-            ast.Assign(
-                targets=[ast.Name(id="_append", ctx=ast.Store())],
-                value=ast.Name(id="_save_append", ctx=ast.Load()),
+        if self._streaming:
+            # In streaming mode: define _append locally, no save/restore
+            else_body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id="_cache_append", ctx=ast.Load()),
+                )
             )
-        )
+            self._streaming = False
+            for child in node.body:
+                else_body.extend(self._compile_node(child))
+            self._streaming = True
+        else:
+            else_body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_save_append", ctx=ast.Store())],
+                    value=ast.Name(id="_append", ctx=ast.Load()),
+                )
+            )
+            else_body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id="_cache_append", ctx=ast.Load()),
+                )
+            )
+            for child in node.body:
+                else_body.extend(self._compile_node(child))
+            else_body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id="_save_append", ctx=ast.Load()),
+                )
+            )
 
         # _cached = ''.join(_cache_buf)
         else_body.append(
@@ -141,7 +138,7 @@ class CachingMixin:
         )
 
         # _cache_set(_cache_key, _cached, ttl)
-        cache_set_args = [
+        cache_set_args: list[ast.expr] = [
             ast.Name(id="_cache_key", ctx=ast.Load()),
             ast.Name(id="_cached", ctx=ast.Load()),
         ]
@@ -161,18 +158,10 @@ class CachingMixin:
             )
         )
 
-        # _append(_cached)
-        else_body.append(
-            ast.Expr(
-                value=ast.Call(
-                    func=ast.Name(id="_append", ctx=ast.Load()),
-                    args=[ast.Name(id="_cached", ctx=ast.Load())],
-                    keywords=[],
-                ),
-            )
-        )
+        # Emit cached result: _append(_cached) or yield _cached
+        else_body.append(self._emit_output(ast.Name(id="_cached", ctx=ast.Load())))
 
-        # if _cached is not None: _append(_cached) else: ...
+        # if _cached is not None: emit(_cached) else: ...
         stmts.append(
             ast.If(
                 test=ast.Compare(
@@ -180,15 +169,7 @@ class CachingMixin:
                     ops=[ast.IsNot()],
                     comparators=[ast.Constant(value=None)],
                 ),
-                body=[
-                    ast.Expr(
-                        value=ast.Call(
-                            func=ast.Name(id="_append", ctx=ast.Load()),
-                            args=[ast.Name(id="_cached", ctx=ast.Load())],
-                            keywords=[],
-                        ),
-                    )
-                ],
+                body=[self._emit_output(ast.Name(id="_cached", ctx=ast.Load()))],
                 orelse=else_body,
             )
         )
@@ -199,32 +180,18 @@ class CachingMixin:
         """Compile {% filter name %}...{% endfilter %.
 
         Apply a filter to an entire block of content.
-
-        Uses unique variable names to support nesting.
-
-        Generates:
-            _filter_buf_N = []
-            _filter_append_N = _filter_buf_N.append
-            _save_append_N = _append
-            _append = _filter_append_N
-            ... body ...
-            _append = _save_append_N
-            _append(_filters['name'](''.join(_filter_buf_N), *args, **kwargs))
+        In streaming mode: collect into buffer, apply filter, yield result.
         """
-        # Get unique suffix for this filter block
         self._block_counter += 1
         suffix = str(self._block_counter)
         buf_name = f"_filter_buf_{suffix}"
         append_name = f"_filter_append_{suffix}"
-        save_name = f"_save_append_{suffix}"
 
         stmts: list[ast.stmt] = [
-            # _filter_buf_N = []
             ast.Assign(
                 targets=[ast.Name(id=buf_name, ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
             ),
-            # _filter_append_N = _filter_buf_N.append
             ast.Assign(
                 targets=[ast.Name(id=append_name, ctx=ast.Store())],
                 value=ast.Attribute(
@@ -233,31 +200,43 @@ class CachingMixin:
                     ctx=ast.Load(),
                 ),
             ),
-            # _save_append_N = _append
-            ast.Assign(
-                targets=[ast.Name(id=save_name, ctx=ast.Store())],
-                value=ast.Name(id="_append", ctx=ast.Load()),
-            ),
-            # _append = _filter_append_N
-            ast.Assign(
-                targets=[ast.Name(id="_append", ctx=ast.Store())],
-                value=ast.Name(id=append_name, ctx=ast.Load()),
-            ),
         ]
 
-        # Compile body
-        for child in node.body:
-            stmts.extend(self._compile_node(child))
-
-        # _append = _save_append_N
-        stmts.append(
-            ast.Assign(
-                targets=[ast.Name(id="_append", ctx=ast.Store())],
-                value=ast.Name(id=save_name, ctx=ast.Load()),
+        if self._streaming:
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id=append_name, ctx=ast.Load()),
+                )
             )
-        )
+            self._streaming = False
+            for child in node.body:
+                stmts.extend(self._compile_node(child))
+            self._streaming = True
+        else:
+            save_name = f"_save_append_{suffix}"
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id=save_name, ctx=ast.Store())],
+                    value=ast.Name(id="_append", ctx=ast.Load()),
+                )
+            )
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id=append_name, ctx=ast.Load()),
+                )
+            )
+            for child in node.body:
+                stmts.extend(self._compile_node(child))
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id=save_name, ctx=ast.Load()),
+                )
+            )
 
-        # Build filter call: _filters['name'](''.join(_filter_buf_N), *args, **kwargs)
+        # Build filter call: _filters['name'](''.join(buf), *args, **kwargs)
         filter_args: list[ast.expr] = [
             ast.Call(
                 func=ast.Attribute(
@@ -270,32 +249,24 @@ class CachingMixin:
             )
         ]
 
-        # Add filter arguments from the Filter node
         filter_node = node.filter
         filter_args.extend([self._compile_expr(a) for a in filter_node.args])
         filter_kwargs = [
-            ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in filter_node.kwargs.items()
+            ast.keyword(arg=k, value=self._compile_expr(v))
+            for k, v in filter_node.kwargs.items()
         ]
 
-        # _append(_filters['name'](content, *args, **kwargs))
-        stmts.append(
-            ast.Expr(
-                value=ast.Call(
-                    func=ast.Name(id="_append", ctx=ast.Load()),
-                    args=[
-                        ast.Call(
-                            func=ast.Subscript(
-                                value=ast.Name(id="_filters", ctx=ast.Load()),
-                                slice=ast.Constant(value=filter_node.name),
-                                ctx=ast.Load(),
-                            ),
-                            args=filter_args,
-                            keywords=filter_kwargs,
-                        ),
-                    ],
-                    keywords=[],
-                ),
-            )
+        result_expr = ast.Call(
+            func=ast.Subscript(
+                value=ast.Name(id="_filters", ctx=ast.Load()),
+                slice=ast.Constant(value=filter_node.name),
+                ctx=ast.Load(),
+            ),
+            args=filter_args,
+            keywords=filter_kwargs,
         )
+
+        # _append(result) or yield result
+        stmts.append(self._emit_output(result_expr))
 
         return stmts
