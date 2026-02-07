@@ -509,3 +509,115 @@ class TestComplexErrorScenarios:
         except Exception:
             # Error should be raised
             pass
+
+
+class TestErrorMessageQuality:
+    """Test enriched error messages from the error-consistency epic.
+
+    Validates that errors carry actionable context: "did you mean?"
+    suggestions, source snippets with carets, template name hints, etc.
+    """
+
+    # -- UndefinedError suggestions ------------------------------------------
+
+    def test_undefined_error_suggests_close_match(self) -> None:
+        """Typo in variable name produces 'Did you mean?' suggestion."""
+        env = Environment()
+        with pytest.raises(UndefinedError, match="Did you mean 'title'") as exc_info:
+            env.from_string("{{ titl }}").render(title="Hello")
+        assert exc_info.value.name == "titl"
+
+    def test_undefined_error_no_suggestion_for_distant_name(self) -> None:
+        """No suggestion when no close match exists."""
+        env = Environment()
+        with pytest.raises(UndefinedError) as exc_info:
+            env.from_string("{{ zzzzz }}").render(title="Hello")
+        assert "Did you mean" not in str(exc_info.value)
+
+    def test_undefined_error_includes_default_hint(self) -> None:
+        """UndefinedError always includes the default() filter hint."""
+        env = Environment()
+        with pytest.raises(UndefinedError, match=r"default\(''\)") as exc_info:
+            env.from_string("{{ missing }}").render()
+        assert "Hint:" in str(exc_info.value)
+
+    def test_undefined_error_suggestion_from_context_keys(self) -> None:
+        """Suggestion draws from all context keys including builtins."""
+        env = Environment()
+        # 'items' is in ctx; 'itms' is a typo that is close to 'items'
+        tmpl = env.from_string("{{ itms }}")
+        with pytest.raises(UndefinedError, match="Did you mean 'items'"):
+            tmpl.render(items=[1, 2, 3])
+
+    # -- TemplateSyntaxError source snippets ---------------------------------
+
+    def test_syntax_error_with_source_shows_snippet(self) -> None:
+        """TemplateSyntaxError with source/lineno renders the offending line."""
+        err = TemplateSyntaxError(
+            "Unexpected token",
+            lineno=2,
+            filename="test.html",
+            source="line one\nbad {{ here\nline three",
+        )
+        msg = str(err)
+        assert "bad {{ here" in msg
+        assert "  2 |" in msg or "2 |" in msg
+
+    def test_syntax_error_with_col_offset_shows_caret(self) -> None:
+        """Column offset renders a caret pointer under the offending column."""
+        err = TemplateSyntaxError(
+            "Unexpected token",
+            lineno=1,
+            filename="test.html",
+            source="ok {{ bad_token }}",
+            col_offset=5,
+        )
+        msg = str(err)
+        assert "^" in msg
+        # Caret should be indented
+        assert "     ^" in msg
+
+    def test_syntax_error_without_source_is_compact(self) -> None:
+        """Without source, the error is a compact one-liner."""
+        err = TemplateSyntaxError(
+            "Unexpected token",
+            lineno=3,
+            filename="test.html",
+        )
+        msg = str(err)
+        assert "test.html:3" in msg
+        assert "|" not in msg  # No snippet
+
+    # -- DictLoader template name suggestions --------------------------------
+
+    def test_dictloader_suggests_close_template_name(self) -> None:
+        """Typo in template name produces 'Did you mean?' suggestion."""
+        loader = DictLoader({"base.html": "hi", "page.html": "there"})
+        with pytest.raises(TemplateNotFoundError, match="Did you mean 'base.html'"):
+            loader.get_source("base.htm")
+
+    def test_dictloader_lists_available_when_no_close_match(self) -> None:
+        """When no close match, available template names are listed."""
+        loader = DictLoader({"alpha.html": "a", "beta.html": "b"})
+        with pytest.raises(TemplateNotFoundError, match="Available:"):
+            loader.get_source("zzz.html")
+
+    def test_dictloader_empty_mapping_no_available(self) -> None:
+        """Empty loader produces bare 'not found' without Available."""
+        loader = DictLoader({})
+        with pytest.raises(TemplateNotFoundError) as exc_info:
+            loader.get_source("any.html")
+        assert "Available:" not in str(exc_info.value)
+
+    # -- RuntimeError template context ---------------------------------------
+
+    def test_not_compiled_error_includes_template_name(self) -> None:
+        """'not properly compiled' RuntimeError includes the template name."""
+        from kida.template.core import Template
+
+        env = Environment()
+        tmpl = env.from_string("{{ x }}", name="broken.html")
+        # Forcibly clear the render func to trigger the guard
+        tmpl._render_func = None
+        with pytest.raises(RuntimeError, match="broken.html"):
+            tmpl.render(x=1)
