@@ -157,6 +157,46 @@ class TemplateIntrospectionMixin:
             return False
         return all(block.is_cacheable() for block in meta.blocks.values())
 
+    def validate_context(self, context: dict[str, Any]) -> list[str]:
+        """Check a context dict for missing variables the template requires.
+
+        Compares provided context keys against the template's dependency
+        analysis to identify variables that the template references but
+        are not present in the context. This catches missing variables
+        *before* rendering, avoiding runtime UndefinedError.
+
+        Note: This checks top-level variable names only. A template
+        that accesses ``page.title`` requires ``page`` to be in context,
+        but does not verify that ``page`` has a ``title`` attribute.
+
+        Args:
+            context: The context dictionary that would be passed to render().
+
+        Returns:
+            List of missing top-level variable names, sorted alphabetically.
+            Empty list if all required variables are present or if AST
+            was not preserved (no analysis available).
+
+        Example:
+            >>> tmpl = env.from_string("{{ title }} by {{ author.name }}")
+            >>> tmpl.validate_context({"title": "Hello"})
+            ['author']
+            >>> tmpl.validate_context({"title": "Hello", "author": obj})
+            []
+        """
+        required = self.required_context()
+        if not required:
+            return []
+
+        # Merge with environment globals (they're always available)
+        available = set(context.keys())
+        env = self._env_ref()
+        if env is not None:
+            available |= env.globals.keys()
+
+        missing = required - available
+        return sorted(missing)
+
     def _analyze(self) -> None:
         """Perform static analysis and cache results."""
         # Avoid circular import at module level
