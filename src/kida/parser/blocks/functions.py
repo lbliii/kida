@@ -83,18 +83,48 @@ class FunctionBlockParsingMixin(BlockStackMixin):
             )
         name = self._advance().value
 
-        # Parse arguments
+        # Parse arguments (supports *args and **kwargs)
         args: list[str] = []
         defaults: list[Expr] = []
+        vararg: str | None = None
+        kwarg: str | None = None
+        has_args = False  # track if we've seen any args for comma handling
 
         self._expect(TokenType.LPAREN)
         while not self._match(TokenType.RPAREN):
-            if args:
+            if has_args:
                 self._expect(TokenType.COMMA)
+
+            # Check for **kwargs
+            if self._match(TokenType.POW):
+                self._advance()  # consume **
+                if self._current.type != TokenType.NAME:
+                    raise self._error("Expected argument name after **")
+                kwarg = self._advance().value
+                has_args = True
+                # **kwargs must be last
+                if not self._match(TokenType.RPAREN):
+                    raise self._error(
+                        "**kwargs must be the last parameter",
+                        suggestion="Move **kwargs to the end of the parameter list",
+                    )
+                break
+
+            # Check for *args
+            if self._match(TokenType.MUL):
+                self._advance()  # consume *
+                if self._current.type != TokenType.NAME:
+                    raise self._error("Expected argument name after *")
+                vararg = self._advance().value
+                has_args = True
+                continue
+
+            # Regular argument
             if self._current.type != TokenType.NAME:
                 raise self._error("Expected argument name")
             arg_name = self._advance().value
             args.append(arg_name)
+            has_args = True
 
             # Check for default value
             if self._match(TokenType.ASSIGN):
@@ -117,6 +147,8 @@ class FunctionBlockParsingMixin(BlockStackMixin):
             args=tuple(args),
             body=tuple(body),
             defaults=tuple(defaults),
+            vararg=vararg,
+            kwarg=kwarg,
         )
 
     def _parse_call(self) -> CallBlock:

@@ -218,29 +218,51 @@ class TestFunctionCompilation:
         assert "Hello User" in result
 
     def test_function_varargs(self, env: Environment) -> None:
-        """Function with varargs (if supported)."""
-        try:
-            tmpl = env.from_string("""
-{% def join_all(*args) %}{{ args|join(',') }}{% end %}
-{{ join_all('a', 'b', 'c') }}
-""")
-            result = tmpl.render()
-            assert "a,b,c" in result
-        except Exception:
-            pytest.skip("Varargs not supported")
+        """Function with *args collects extra positional arguments."""
+        tmpl = env.from_string(
+            "{% def join_all(*args) %}{{ args|join(',') }}{% end %}"
+            "{{ join_all('a', 'b', 'c') }}"
+        )
+        result = tmpl.render()
+        assert "a,b,c" in result
 
     def test_function_kwargs(self, env: Environment) -> None:
-        """Function with kwargs (if supported)."""
-        try:
-            tmpl = env.from_string("""
-{% def show(**kwargs) %}{% for k, v in kwargs.items() %}{{ k }}={{ v }};{% endfor %}{% end %}
-{{ show(a=1, b=2) }}
-""")
-            result = tmpl.render()
-            assert "a=1" in result
-            assert "b=2" in result
-        except Exception:
-            pytest.skip("Kwargs not supported")
+        """Function with **kwargs collects extra keyword arguments."""
+        tmpl = env.from_string(
+            "{% def show(**kwargs) %}"
+            "{% for k, v in kwargs.items() %}{{ k }}={{ v }};{% end %}"
+            "{% end %}"
+            "{{ show(a=1, b=2) }}"
+        )
+        result = tmpl.render()
+        assert "a=1" in result
+        assert "b=2" in result
+
+    def test_function_varargs_with_regular_args(self, env: Environment) -> None:
+        """Function with regular args and *args."""
+        tmpl = env.from_string(
+            "{% def tag(name, *classes) %}"
+            "<{{ name }} class=\"{{ classes|join(' ') }}\">"
+            "{% end %}"
+            "{{ tag('div', 'card', 'primary') }}"
+        )
+        result = tmpl.render()
+        assert '<div class="card primary">' in result
+
+    def test_function_kwargs_with_regular_args(self, env: Environment) -> None:
+        """Function with regular args and **kwargs."""
+        tmpl = env.from_string(
+            "{% def tag(element, **attrs) %}"
+            "<{{ element }}"
+            "{% for k, v in attrs.items() %} {{ k }}=\"{{ v }}\"{% end %}"
+            ">"
+            "{% end %}"
+            '{{ tag("input", type="text", name="q") }}'
+        )
+        result = tmpl.render()
+        assert "<input" in result
+        assert 'type="text"' in result
+        assert 'name="q"' in result
 
 
 class TestInheritanceCompilation:

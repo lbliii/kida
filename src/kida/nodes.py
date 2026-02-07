@@ -380,13 +380,19 @@ class Def(Node):
             <span>From: {{ site.title }}</span>  {# Can access outer scope #}
         {% end %}
 
-        {{ card(page) }}
+        {% def join_all(*args) %}{{ args | join(', ') }}{% end %}
+
+        {% def tag(name, **attrs) %}
+            <{{ name }}{% for k, v in attrs.items() %} {{ k }}="{{ v }}"{% end %}>
+        {% end %}
 
     Attributes:
         name: Function name
-        args: Argument names
+        args: Positional argument names
         body: Function body
         defaults: Default argument values
+        vararg: Name for *args parameter (e.g., "args" from *args), or None
+        kwarg: Name for **kwargs parameter (e.g., "kwargs" from **kwargs), or None
 
     """
 
@@ -394,6 +400,8 @@ class Def(Node):
     args: Sequence[str]
     body: Sequence[Node]
     defaults: Sequence[Expr] = ()
+    vararg: str | None = None
+    kwarg: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

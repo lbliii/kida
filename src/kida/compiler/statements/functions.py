@@ -59,6 +59,22 @@ class FunctionCompilationMixin:
         args_list = [ast.arg(arg=name) for name in node.args]
         defaults = [self._compile_expr(d) for d in node.defaults]
 
+        # Build vararg and kwarg AST nodes
+        vararg_node = ast.arg(arg=node.vararg) if node.vararg else None
+        kwarg_node = ast.arg(arg=node.kwarg) if node.kwarg else None
+
+        # Build context dict entries: regular args + vararg + kwarg
+        ctx_keys: list[ast.expr | None] = [ast.Constant(value=name) for name in node.args]
+        ctx_values: list[ast.expr] = [ast.Name(id=name, ctx=ast.Load()) for name in node.args]
+
+        if node.vararg:
+            ctx_keys.append(ast.Constant(value=node.vararg))
+            ctx_values.append(ast.Name(id=node.vararg, ctx=ast.Load()))
+
+        if node.kwarg:
+            ctx_keys.append(ast.Constant(value=node.kwarg))
+            ctx_values.append(ast.Name(id=node.kwarg, ctx=ast.Load()))
+
         # Build function body
         func_body: list[ast.stmt] = [
             # _e = _escape
@@ -92,10 +108,7 @@ class FunctionCompilationMixin:
                     keys=[None, None],  # Spread operators
                     values=[
                         ast.Name(id="_outer_ctx", ctx=ast.Load()),
-                        ast.Dict(
-                            keys=[ast.Constant(value=name) for name in node.args],
-                            values=[ast.Name(id=name, ctx=ast.Load()) for name in node.args],
-                        ),
+                        ast.Dict(keys=ctx_keys, values=ctx_values),
                     ],
                 ),
             ),
@@ -121,6 +134,10 @@ class FunctionCompilationMixin:
         # Add args to locals for direct access
         for arg_name in node.args:
             self._locals.add(arg_name)
+        if node.vararg:
+            self._locals.add(node.vararg)
+        if node.kwarg:
+            self._locals.add(node.kwarg)
 
         # Compile function body
         for child in node.body:
@@ -129,6 +146,10 @@ class FunctionCompilationMixin:
         # Remove args from locals
         for arg_name in node.args:
             self._locals.discard(arg_name)
+        if node.vararg:
+            self._locals.discard(node.vararg)
+        if node.kwarg:
+            self._locals.discard(node.kwarg)
 
         # return _Markup(''.join(buf))
         func_body.append(
@@ -152,21 +173,33 @@ class FunctionCompilationMixin:
         )
 
         # Create function with _caller and _outer_ctx as keyword-only args
+        # When **kwargs is used, _caller and _outer_ctx must use a different
+        # mechanism since Python only allows one **kwarg. We place them as
+        # keyword-only args that come before the **kwarg isn't possible in
+        # Python syntax. Instead, _caller and _outer_ctx are always
+        # keyword-only args, and user **kwargs is separate.
+        #
+        # Strategy: When **kwargs is present, we use a wrapper that splits
+        # the internal kwargs (_caller, _outer_ctx) from user kwargs.
+        # When no **kwargs, we use the simple approach.
+        kwonlyargs = [
+            ast.arg(arg="_caller"),
+            ast.arg(arg="_outer_ctx"),
+        ]
+        kw_defaults: list[ast.expr] = [
+            ast.Constant(value=None),  # _caller=None
+            ast.Name(id="ctx", ctx=ast.Load()),  # _outer_ctx=ctx
+        ]
+
         func_def = ast.FunctionDef(
             name=func_name,
             args=ast.arguments(
                 posonlyargs=[],
                 args=args_list,
-                vararg=None,
-                kwonlyargs=[
-                    ast.arg(arg="_caller"),
-                    ast.arg(arg="_outer_ctx"),
-                ],
-                kw_defaults=[
-                    ast.Constant(value=None),  # _caller=None
-                    ast.Name(id="ctx", ctx=ast.Load()),  # _outer_ctx=ctx
-                ],
-                kwarg=None,
+                vararg=vararg_node,
+                kwonlyargs=kwonlyargs,
+                kw_defaults=kw_defaults,
+                kwarg=kwarg_node,
                 defaults=defaults,
             ),
             body=func_body,
