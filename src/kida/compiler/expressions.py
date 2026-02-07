@@ -64,6 +64,26 @@ class ExpressionCompilationMixin:
         matches = get_close_matches(name, self._env._tests.keys(), n=1, cutoff=0.6)
         return matches[0] if matches else None
 
+    def _make_deferred_lambda(self, expr: ast.expr) -> ast.Lambda:
+        """Wrap an expression in a zero-arg lambda for deferred evaluation.
+
+        Used by ``_is_defined``, ``_default_safe``, and ``_null_coalesce``
+        to catch ``UndefinedError`` at runtime without evaluating the
+        expression eagerly.
+        """
+        return ast.Lambda(
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[],
+            ),
+            body=expr,
+        )
+
     def _is_potentially_string(self, node: Any) -> bool:
         """Check if node could produce a string value (macro call, filter chain).
 
@@ -199,18 +219,7 @@ class ExpressionCompilationMixin:
             # These need to work even when the value is undefined
             if node.name in ("defined", "undefined"):
                 # Generate: _is_defined(lambda: <value>) or not _is_defined(lambda: <value>)
-                value_lambda = ast.Lambda(
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=[],
-                        vararg=None,
-                        kwonlyargs=[],
-                        kw_defaults=[],
-                        kwarg=None,
-                        defaults=[],
-                    ),
-                    body=self._compile_expr(node.value),
-                )
+                value_lambda = self._make_deferred_lambda(self._compile_expr(node.value))
                 test_call = ast.Call(
                     func=ast.Name(id="_is_defined", ctx=ast.Load()),
                     args=[value_lambda],
@@ -274,18 +283,7 @@ class ExpressionCompilationMixin:
             if node.name in ("default", "d"):
                 # Generate: _default_safe(lambda: <value>, <default>, <boolean>)
                 # This catches UndefinedError and returns the default value
-                value_lambda = ast.Lambda(
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=[],
-                        vararg=None,
-                        kwonlyargs=[],
-                        kw_defaults=[],
-                        kwarg=None,
-                        defaults=[],
-                    ),
-                    body=self._compile_expr(node.value),
-                )
+                value_lambda = self._make_deferred_lambda(self._compile_expr(node.value))
                 # Build args: default_value and boolean flag
                 filter_args = [self._compile_expr(a) for a in node.args]
                 filter_kwargs = {k: self._compile_expr(v) for k, v in node.kwargs.items()}
@@ -420,32 +418,8 @@ class ExpressionCompilationMixin:
         return ast.Call(
             func=ast.Name(id="_null_coalesce", ctx=ast.Load()),
             args=[
-                # lambda: left
-                ast.Lambda(
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=[],
-                        vararg=None,
-                        kwonlyargs=[],
-                        kw_defaults=[],
-                        kwarg=None,
-                        defaults=[],
-                    ),
-                    body=left,
-                ),
-                # lambda: right
-                ast.Lambda(
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=[],
-                        vararg=None,
-                        kwonlyargs=[],
-                        kw_defaults=[],
-                        kwarg=None,
-                        defaults=[],
-                    ),
-                    body=right,
-                ),
+                self._make_deferred_lambda(left),
+                self._make_deferred_lambda(right),
             ],
             keywords=[],
         )
