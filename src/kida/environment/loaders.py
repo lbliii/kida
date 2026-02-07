@@ -6,6 +6,8 @@ Loaders provide template source to the Environment. They implement
 Built-in Loaders:
 - `FileSystemLoader`: Load from filesystem directories
 - `DictLoader`: Load from in-memory dictionary (testing/embedded)
+- `ChoiceLoader`: Try multiple loaders in order (theme fallback)
+- `PrefixLoader`: Namespace templates by prefix (plugin architectures)
 
 Custom Loaders:
 Implement the Loader protocol:
@@ -23,8 +25,9 @@ Implement the Loader protocol:
 
 Thread-Safety:
 Loaders should be thread-safe for concurrent `get_source()` calls.
-Both built-in loaders are safe (FileSystemLoader reads files atomically,
-DictLoader uses immutable dict lookup).
+All built-in loaders are safe (FileSystemLoader reads files atomically,
+DictLoader uses immutable dict lookup, ChoiceLoader and PrefixLoader
+delegate to their child loaders).
 
 """
 
@@ -165,3 +168,128 @@ class DictLoader:
 
     def list_templates(self) -> list[str]:
         return sorted(self._mapping.keys())
+
+
+class ChoiceLoader:
+    """Try multiple loaders in order, returning the first match.
+
+    Useful for theme fallback patterns where a custom theme overrides
+    a subset of templates and the default theme provides the rest.
+
+    Search Order:
+        Loaders are tried in order. First successful ``get_source()`` wins:
+            ```python
+            loader = ChoiceLoader([
+                FileSystemLoader("themes/custom/"),
+                FileSystemLoader("themes/default/"),
+            ])
+            # Looks in custom/ first, then default/
+            ```
+
+    Example:
+            >>> custom = DictLoader({"nav.html": "<nav>Custom</nav>"})
+            >>> default = DictLoader({
+            ...     "nav.html": "<nav>Default</nav>",
+            ...     "footer.html": "<footer>Default</footer>",
+            ... })
+            >>> loader = ChoiceLoader([custom, default])
+            >>> env = Environment(loader=loader)
+            >>> env.get_template("nav.html").render()     # from custom
+            '<nav>Custom</nav>'
+            >>> env.get_template("footer.html").render()  # from default
+            '<footer>Default</footer>'
+
+    Raises:
+        TemplateNotFoundError: If no loader can find the template
+
+    Thread-Safety:
+        Safe if all child loaders are thread-safe.
+    """
+
+    __slots__ = ("_loaders",)
+
+    def __init__(self, loaders: list[FileSystemLoader | DictLoader | ChoiceLoader | PrefixLoader]):
+        self._loaders = loaders
+
+    def get_source(self, name: str) -> tuple[str, str | None]:
+        """Try each loader in order, return first match."""
+        for loader in self._loaders:
+            try:
+                return loader.get_source(name)
+            except TemplateNotFoundError:
+                continue
+        raise TemplateNotFoundError(
+            f"Template '{name}' not found in any of {len(self._loaders)} loaders"
+        )
+
+    def list_templates(self) -> list[str]:
+        """Merge template lists from all loaders (deduplicated, sorted)."""
+        templates: set[str] = set()
+        for loader in self._loaders:
+            if hasattr(loader, "list_templates"):
+                templates.update(loader.list_templates())
+        return sorted(templates)
+
+
+class PrefixLoader:
+    """Namespace templates by prefix, delegating to per-prefix loaders.
+
+    Template names are split on a delimiter (default ``/``) and the first
+    segment is used to select the appropriate loader. This enables plugin
+    and theme architectures where different template sources are isolated
+    by namespace.
+
+    Example:
+            >>> loader = PrefixLoader({
+            ...     "app": FileSystemLoader("templates/app/"),
+            ...     "admin": FileSystemLoader("templates/admin/"),
+            ...     "shared": DictLoader({"header.html": "<header>Shared</header>"}),
+            ... })
+            >>> env = Environment(loader=loader)
+            >>> env.get_template("app/index.html")     # FileSystemLoader("templates/app/")
+            >>> env.get_template("shared/header.html") # DictLoader
+            >>> env.get_template("admin/users.html")   # FileSystemLoader("templates/admin/")
+
+    Raises:
+        TemplateNotFoundError: If prefix not found or template not in loader
+
+    Thread-Safety:
+        Safe if all child loaders are thread-safe.
+    """
+
+    __slots__ = ("_delimiter", "_mapping")
+
+    def __init__(
+        self,
+        mapping: dict[str, FileSystemLoader | DictLoader | ChoiceLoader | PrefixLoader],
+        delimiter: str = "/",
+    ):
+        self._mapping = mapping
+        self._delimiter = delimiter
+
+    def get_source(self, name: str) -> tuple[str, str | None]:
+        """Split name on delimiter, look up prefix, delegate to loader."""
+        if self._delimiter in name:
+            prefix, rest = name.split(self._delimiter, 1)
+        else:
+            prefix = name
+            rest = ""
+
+        loader = self._mapping.get(prefix)
+        if loader is None:
+            available_prefixes = sorted(self._mapping.keys())
+            raise TemplateNotFoundError(
+                f"Template '{name}': no loader for prefix '{prefix}'. "
+                f"Available prefixes: {', '.join(available_prefixes)}"
+            )
+        return loader.get_source(rest)
+
+    def list_templates(self) -> list[str]:
+        """List all templates across all prefixes, with prefix prepended."""
+        templates: list[str] = []
+        for prefix, loader in sorted(self._mapping.items()):
+            if hasattr(loader, "list_templates"):
+                templates.extend(
+                    f"{prefix}{self._delimiter}{name}" for name in loader.list_templates()
+                )
+        return sorted(templates)

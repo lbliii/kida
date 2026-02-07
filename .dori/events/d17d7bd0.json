@@ -1,0 +1,15 @@
+{
+  "id": "d17d7bd0",
+  "type": "docs_staged",
+  "timestamp": "2026-02-07T05:00:47.878559Z",
+  "message": "2 doc(s) staged for commit",
+  "suggested_action": "::a",
+  "acknowledged": false,
+  "metadata": {
+    "file_count": 2
+  },
+  "files": [
+    "site/content/docs/advanced/_index.md",
+    "site/content/docs/advanced/analysis.md"
+  ]
+}

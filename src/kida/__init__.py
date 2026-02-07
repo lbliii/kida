@@ -73,9 +73,11 @@ from collections.abc import Callable
 from kida._types import Token, TokenType
 from kida.analysis import AnalysisConfig, BlockMetadata, TemplateMetadata
 from kida.environment import (
+    ChoiceLoader,
     DictLoader,
     Environment,
     FileSystemLoader,
+    PrefixLoader,
     TemplateError,
     TemplateNotFoundError,
     TemplateSyntaxError,
@@ -120,11 +122,13 @@ __version__ = "0.1.2"
 __all__ = [
     "AnalysisConfig",
     "BlockMetadata",
+    "ChoiceLoader",
     "DictLoader",
     "Environment",
     "FileSystemLoader",
     "LoopContext",
     "Markup",
+    "PrefixLoader",
     "RenderAccumulator",
     "RenderContext",
     "Template",
