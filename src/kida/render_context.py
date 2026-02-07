@@ -60,7 +60,9 @@ class RenderContext:
     # Current source position (updated during render by generated code)
     line: int = 0
 
-    # Include/embed tracking (DoS protection)
+    # Include/embed tracking (DoS protection).
+    # 50 is deep enough for any real template hierarchy while catching
+    # infinite recursion from circular includes early.
     include_depth: int = 0
     max_include_depth: int = 50
 

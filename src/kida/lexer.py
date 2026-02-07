@@ -114,10 +114,13 @@ class LexerConfig:
 # Default configuration (immutable singleton)
 DEFAULT_CONFIG = LexerConfig()
 
-# Maximum number of tokens allowed (DoS protection)
-# Typical template: 100-1000 tokens
-# Large template: 5k-10k tokens
-# 100k tokens = ~100x normal size (reasonable upper bound)
+# Maximum number of tokens allowed (DoS protection).
+#
+# Rationale:
+#   Typical template: 100-1000 tokens.  Large template: 5k-10k tokens.
+#   100k is ~100x a normal template — generous enough for any real
+#   template while preventing runaway tokenisation from malformed input.
+#   Override by subclassing Lexer or adding a max_tokens param to LexerConfig.
 MAX_TOKENS = 100_000
 
 
@@ -260,7 +263,7 @@ class Lexer:
     }
 
     @staticmethod
-    @lru_cache(maxsize=16)
+    @lru_cache(maxsize=16)  # 16 covers the default config + a few custom delimiter sets
     def _get_delimiter_pattern(config: LexerConfig) -> re.Pattern[str]:
         """Get compiled delimiter pattern for config (cached).
 

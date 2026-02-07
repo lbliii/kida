@@ -39,9 +39,17 @@ if TYPE_CHECKING:
 
 
 # Default cache limits
-DEFAULT_TEMPLATE_CACHE_SIZE = 400  # Max compiled templates to keep
-DEFAULT_FRAGMENT_CACHE_SIZE = 1000  # Max fragment cache entries
-DEFAULT_FRAGMENT_TTL = 300.0  # Fragment TTL in seconds (5 minutes)
+#
+# Rationale:
+#   - TEMPLATE_CACHE: A typical site has 50-200 templates (pages, partials,
+#     includes).  400 gives ~2x headroom for sites with many partials.
+#   - FRAGMENT_CACHE: Fragments are smaller and more numerous (per-page
+#     cached blocks).  1000 covers aggressive block-level caching.
+#   - FRAGMENT_TTL: 5 minutes balances freshness against cache hit rate for
+#     development hot-reload; production sites can raise this.
+DEFAULT_TEMPLATE_CACHE_SIZE = 400
+DEFAULT_FRAGMENT_CACHE_SIZE = 1000
+DEFAULT_FRAGMENT_TTL = 300.0  # seconds
 
 
 @dataclass
