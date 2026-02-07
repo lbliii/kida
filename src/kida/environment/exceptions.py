@@ -65,6 +65,10 @@ class TemplateSyntaxError(TemplateError):
 
     Raised by the Parser when template syntax is invalid. Includes source
     location for error reporting.
+
+    When ``source`` and ``lineno`` are provided, the error message includes
+    a source snippet with the offending line.  If ``col_offset`` is also
+    given, a caret (``^``) points at the exact column.
     """
 
     def __init__(
@@ -73,20 +77,37 @@ class TemplateSyntaxError(TemplateError):
         lineno: int | None = None,
         name: str | None = None,
         filename: str | None = None,
+        source: str | None = None,
+        col_offset: int | None = None,
     ):
         self.message = message
         self.lineno = lineno
         self.name = name
         self.filename = filename
+        self.source = source
+        self.col_offset = col_offset
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
-        location = ""
-        if self.filename:
-            location = f" in {self.filename}"
+        location = self.filename or self.name or "<template>"
         if self.lineno:
-            location += f" at line {self.lineno}"
-        return f"{self.message}{location}"
+            location += f":{self.lineno}"
+            if self.col_offset is not None:
+                location += f":{self.col_offset}"
+
+        header = f"Syntax Error: {self.message}\n  --> {location}"
+
+        # Show source snippet when available
+        if self.source and self.lineno:
+            lines = self.source.splitlines()
+            if 0 < self.lineno <= len(lines):
+                error_line = lines[self.lineno - 1]
+                snippet = f"\n   |\n{self.lineno:>3} | {error_line}"
+                if self.col_offset is not None:
+                    snippet += f"\n   | {' ' * self.col_offset}^"
+                return header + snippet
+
+        return header
 
 
 class TemplateRuntimeError(TemplateError):
