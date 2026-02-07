@@ -117,46 +117,36 @@ except ImportError:
 __version__ = "0.1.2"
 
 __all__ = [
-    # Version
-    "__version__",
-    # Core
-    "Environment",
-    "Template",
-    # Template Strings (3.14+)
-    "k",
-    # Loaders
     "DictLoader",
+    "Environment",
     "FileSystemLoader",
-    # Exceptions
+    "LoopContext",
+    "Markup",
+    "RenderAccumulator",
+    "RenderContext",
+    "Template",
     "TemplateError",
     "TemplateNotFoundError",
     "TemplateSyntaxError",
-    "UndefinedError",
-    # Utilities
-    "Markup",
-    "html_escape",
-    "LoopContext",
-    # RenderContext (RFC: contextvar-patterns)
-    "RenderContext",
-    "render_context",
-    "get_render_context",
-    "get_render_context_required",
-    # RenderAccumulator (profiling)
-    "RenderAccumulator",
-    "profiled_render",
-    "get_accumulator",
-    "timed_block",
-    # Types
     "Token",
     "TokenType",
-    # Worker auto-tuning
+    "UndefinedError",
     "WorkerEnvironment",
     "WorkloadProfile",
     "WorkloadType",
+    "__version__",
+    "get_accumulator",
     "get_optimal_workers",
     "get_profile",
+    "get_render_context",
+    "get_render_context_required",
+    "html_escape",
     "is_free_threading_enabled",
+    "k",
+    "profiled_render",
+    "render_context",
     "should_parallelize",
+    "timed_block",
 ]
 
 

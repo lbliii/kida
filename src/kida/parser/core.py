@@ -118,7 +118,7 @@ class Parser(
         # Verify all blocks were closed
         if self._block_stack:
             # Report the first unclosed block
-            block_type, lineno, col = self._block_stack[0]
+            block_type, lineno, _col = self._block_stack[0]
             raise self._error(
                 f"Unclosed '{block_type}' block - missing closing tag",
                 suggestion=f"Add '{{% end %}}' or '{{% end{block_type} %}}' to close the block opened at line {lineno}",

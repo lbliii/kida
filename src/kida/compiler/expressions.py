@@ -290,7 +290,7 @@ class ExpressionCompilationMixin:
 
                 return ast.Call(
                     func=ast.Name(id="_default_safe", ctx=ast.Load()),
-                    args=[value_lambda] + filter_args,
+                    args=[value_lambda, *filter_args],
                     keywords=[ast.keyword(arg=k, value=v) for k, v in filter_kwargs.items()],
                 )
 
@@ -592,7 +592,7 @@ class ExpressionCompilationMixin:
                     slice=ast.Constant(value=filter_name),
                     ctx=ast.Load(),
                 ),
-                args=[result] + compiled_args,
+                args=[result, *compiled_args],
                 keywords=compiled_kwargs,
             )
 

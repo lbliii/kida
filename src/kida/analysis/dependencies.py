@@ -214,7 +214,7 @@ class DependencyWalker:
             if targets and isinstance(targets, (list, tuple)):
                 for target in targets:
                     if isinstance(target, tuple) and len(target) == 2:
-                        name, value = target
+                        _name, value = target
                         self._visit(value)
 
         # Handle blocks in Embed

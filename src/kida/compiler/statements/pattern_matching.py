@@ -116,7 +116,7 @@ class PatternMatchingMixin:
                     else:
                         test = ast.BoolOp(op=ast.And(), values=walrus_exprs)
                 else:
-                    test = ast.BoolOp(op=ast.And(), values=[test] + walrus_exprs)
+                    test = ast.BoolOp(op=ast.And(), values=[test, *walrus_exprs])
 
             if guard_expr:
                 # Guard can now safely refer to bound names

@@ -120,7 +120,7 @@ class BlockStackMixin:
             )
 
         popped: tuple[str, int, int] = self._block_stack.pop()
-        block_type, lineno, col = popped
+        block_type, lineno, _col = popped
 
         # If a specific block type is expected, validate it
         if expected and block_type != expected:

@@ -53,6 +53,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import lru_cache
+from typing import ClassVar
 
 from kida._types import Token, TokenType
 
@@ -223,10 +224,10 @@ class Lexer:
 
     # O(1) operator lookup tables (optimized from O(k) list iteration)
     # Three-char operators checked first, then two-char, then single-char
-    _OPERATORS_3CHAR: dict[str, TokenType] = {
+    _OPERATORS_3CHAR: ClassVar[dict[str, TokenType]] = {
         "...": TokenType.RANGE_EXCLUSIVE,  # Range exclusive: 1...11
     }
-    _OPERATORS_2CHAR: dict[str, TokenType] = {
+    _OPERATORS_2CHAR: ClassVar[dict[str, TokenType]] = {
         "**": TokenType.POW,
         "//": TokenType.FLOORDIV,
         "==": TokenType.EQ,
@@ -240,7 +241,7 @@ class Lexer:
         "??": TokenType.NULLISH_COALESCE,  # Null coalescing: a ?? b
         "..": TokenType.RANGE_INCLUSIVE,  # Range inclusive: 1..10
     }
-    _OPERATORS_1CHAR: dict[str, TokenType] = {
+    _OPERATORS_1CHAR: ClassVar[dict[str, TokenType]] = {
         "<": TokenType.LT,
         ">": TokenType.GT,
         "+": TokenType.ADD,

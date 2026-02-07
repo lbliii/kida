@@ -185,8 +185,7 @@ class FStringCoalescingMixin:
 
         # Attribute access: check base is simple
         if isinstance(expr, (Getattr, OptionalGetattr)):
-            obj = expr.obj if isinstance(expr, Getattr) else expr.obj
-            return self._is_simple_expr(obj)
+            return self._is_simple_expr(expr.obj)
 
         # Item access: check both base and key are simple
         if isinstance(expr, (Getitem, OptionalGetitem)):

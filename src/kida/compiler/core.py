@@ -354,23 +354,23 @@ class Compiler(
 
             # For each block: _blocks.setdefault('name', block_func)
             # Block functions are added to module namespace during compilation
-            for block_name in self._blocks:
-                body.append(
-                    ast.Expr(
-                        value=ast.Call(
-                            func=ast.Attribute(
-                                value=ast.Name(id="_blocks", ctx=ast.Load()),
-                                attr="setdefault",
-                                ctx=ast.Load(),
-                            ),
-                            args=[
-                                ast.Constant(value=block_name),
-                                ast.Name(id=f"_block_{block_name}", ctx=ast.Load()),
-                            ],
-                            keywords=[],
+            body.extend(
+                ast.Expr(
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id="_blocks", ctx=ast.Load()),
+                            attr="setdefault",
+                            ctx=ast.Load(),
                         ),
-                    )
+                        args=[
+                            ast.Constant(value=block_name),
+                            ast.Name(id=f"_block_{block_name}", ctx=ast.Load()),
+                        ],
+                        keywords=[],
+                    ),
                 )
+                for block_name in self._blocks
+            )
 
             # return _extends('parent.html', ctx, _blocks)
             body.append(

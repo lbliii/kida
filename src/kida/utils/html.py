@@ -481,7 +481,7 @@ def _escape_str(s: str) -> str:
     Uses O(n) single-pass str.translate() for all strings.
 
     Rationale: benchmarks on 2026-01-11 (Python 3.14) showed the previous
-    frozenset intersection "fast path" was slower for 64–8192 byte inputs
+    frozenset intersection "fast path" was slower for 64-8192 byte inputs
     with no escapable characters (154ns → 5.9µs for translate-only vs
     569ns → 50µs with intersection). We now always translate; CPython
     returns the original string when no substitutions are needed.
@@ -1000,21 +1000,17 @@ class SoftStr:
 # =============================================================================
 
 __all__ = [
-    # Core
+    "JSString",
     "Markup",
+    "SoftStr",
+    "css_escape",
+    "format_html",
     "html_escape",
     "html_escape_filter",
-    # Utilities
-    "strip_tags",
-    "spaceless",
-    "xmlattr",
-    "format_html",
-    # Context-specific escaping
     "js_escape",
-    "JSString",
-    "css_escape",
-    "url_is_safe",
     "safe_url",
-    # Lazy evaluation
-    "SoftStr",
+    "spaceless",
+    "strip_tags",
+    "url_is_safe",
+    "xmlattr",
 ]
