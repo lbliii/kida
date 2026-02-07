@@ -188,7 +188,9 @@ class Template(TemplateIntrospectionMixin):
 
             _env = env_ref()
             if _env is None:
-                raise RuntimeError("Environment has been garbage collected")
+                raise RuntimeError(
+                    f"Environment has been garbage collected while including '{template_name}'"
+                )
             try:
                 included = _env.get_template(template_name)
 
@@ -225,7 +227,9 @@ class Template(TemplateIntrospectionMixin):
 
             _env = env_ref()
             if _env is None:
-                raise RuntimeError("Environment has been garbage collected")
+                raise RuntimeError(
+                    f"Environment has been garbage collected while extending '{template_name}'"
+                )
             parent = _env.get_template(template_name)
             # Guard against templates that failed to compile properly
             if parent._render_func is None:
@@ -256,7 +260,9 @@ class Template(TemplateIntrospectionMixin):
         ) -> dict[str, Any]:
             _env = env_ref()
             if _env is None:
-                raise RuntimeError("Environment has been garbage collected")
+                raise RuntimeError(
+                    f"Environment has been garbage collected while importing '{template_name}'"
+                )
             imported = _env.get_template(template_name)
             if imported._render_func is None:
                 raise RuntimeError(
@@ -328,7 +334,10 @@ class Template(TemplateIntrospectionMixin):
         """Get the Environment (dereferences weak reference)."""
         env = self._env_ref()
         if env is None:
-            raise RuntimeError("Environment has been garbage collected")
+            raise RuntimeError(
+                f"Environment has been garbage collected"
+                f" (template: {self._name or 'unknown'})"
+            )
         return env
 
     @property
@@ -389,7 +398,9 @@ class Template(TemplateIntrospectionMixin):
         render_func = self._render_func
 
         if render_func is None:
-            raise RuntimeError("Template not properly compiled")
+            raise RuntimeError(
+                f"Template '{self._name or '(inline)'}' not properly compiled"
+            )
 
         with render_context(
             template_name=self._name,
