@@ -43,6 +43,12 @@ class ParseError(TemplateSyntaxError):
         """Column offset where the error occurred (0-based)."""
         return self._col_offset
 
+    @col_offset.setter
+    def col_offset(self, value: int | None) -> None:
+        """Allow parent __init__ to set col_offset without clobbering token value."""
+        if value is not None:
+            self._col_offset = value
+
     def _format(self) -> str:
         """Format error with source context like Rust/modern compilers."""
         # Header with location

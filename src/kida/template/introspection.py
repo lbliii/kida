@@ -151,7 +151,7 @@ class TemplateIntrospectionMixin:
                 ):
                     included._analyze()
                 return included
-            except (TemplateNotFoundError, TemplateSyntaxError):
+            except (TemplateNotFoundError, TemplateSyntaxError, RuntimeError):
                 return None
 
         analyzer = BlockAnalyzer(template_resolver=resolve_template)
