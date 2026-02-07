@@ -224,7 +224,7 @@ class TestUnicodeEdgeCases:
     def test_fullwidth_brackets_passthrough(self) -> None:
         """Fullwidth brackets pass through (different codepoints).
 
-        U+FF1C (＜) and U+FF1E (＞) are NOT HTML angle brackets.
+        U+FF1C (<) and U+FF1E (>) are NOT HTML angle brackets.
         They are CJK fullwidth forms and should pass through unchanged.
 
         Note: Some browsers may still render these as angle-like characters,

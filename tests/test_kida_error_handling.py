@@ -593,7 +593,7 @@ class TestErrorMessageQuality:
     def test_dictloader_suggests_close_template_name(self) -> None:
         """Typo in template name produces 'Did you mean?' suggestion."""
         loader = DictLoader({"base.html": "hi", "page.html": "there"})
-        with pytest.raises(TemplateNotFoundError, match="Did you mean 'base.html'"):
+        with pytest.raises(TemplateNotFoundError, match=r"Did you mean 'base\.html'"):
             loader.get_source("base.htm")
 
     def test_dictloader_lists_available_when_no_close_match(self) -> None:
@@ -618,5 +618,5 @@ class TestErrorMessageQuality:
         tmpl = env.from_string("{{ x }}", name="broken.html")
         # Forcibly clear the render func to trigger the guard
         tmpl._render_func = None
-        with pytest.raises(RuntimeError, match="broken.html"):
+        with pytest.raises(RuntimeError, match=r"broken\.html"):
             tmpl.render(x=1)

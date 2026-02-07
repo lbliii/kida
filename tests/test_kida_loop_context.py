@@ -24,33 +24,25 @@ class TestLoopContextDirect:
     def test_index(self) -> None:
         """index is 1-based."""
         loop = LoopContext(["a", "b", "c"])
-        indices = []
-        for _ in loop:
-            indices.append(loop.index)
+        indices = [loop.index for _ in loop]
         assert indices == [1, 2, 3]
 
     def test_index0(self) -> None:
         """index0 is 0-based."""
         loop = LoopContext(["a", "b", "c"])
-        indices = []
-        for _ in loop:
-            indices.append(loop.index0)
+        indices = [loop.index0 for _ in loop]
         assert indices == [0, 1, 2]
 
     def test_first(self) -> None:
         """first is True only on first iteration."""
         loop = LoopContext(["a", "b", "c"])
-        firsts = []
-        for _ in loop:
-            firsts.append(loop.first)
+        firsts = [loop.first for _ in loop]
         assert firsts == [True, False, False]
 
     def test_last(self) -> None:
         """last is True only on last iteration."""
         loop = LoopContext(["a", "b", "c"])
-        lasts = []
-        for _ in loop:
-            lasts.append(loop.last)
+        lasts = [loop.last for _ in loop]
         assert lasts == [False, False, True]
 
     def test_length(self) -> None:
@@ -64,41 +56,31 @@ class TestLoopContextDirect:
     def test_revindex(self) -> None:
         """revindex counts down from length to 1."""
         loop = LoopContext(["a", "b", "c"])
-        revidx = []
-        for _ in loop:
-            revidx.append(loop.revindex)
+        revidx = [loop.revindex for _ in loop]
         assert revidx == [3, 2, 1]
 
     def test_revindex0(self) -> None:
         """revindex0 counts down from length-1 to 0."""
         loop = LoopContext(["a", "b", "c"])
-        revidx = []
-        for _ in loop:
-            revidx.append(loop.revindex0)
+        revidx = [loop.revindex0 for _ in loop]
         assert revidx == [2, 1, 0]
 
     def test_previtem(self) -> None:
         """previtem returns previous item or None."""
         loop = LoopContext(["a", "b", "c"])
-        prevs = []
-        for _ in loop:
-            prevs.append(loop.previtem)
+        prevs = [loop.previtem for _ in loop]
         assert prevs == [None, "a", "b"]
 
     def test_nextitem(self) -> None:
         """nextitem returns next item or None."""
         loop = LoopContext(["a", "b", "c"])
-        nexts = []
-        for _ in loop:
-            nexts.append(loop.nextitem)
+        nexts = [loop.nextitem for _ in loop]
         assert nexts == ["b", "c", None]
 
     def test_cycle(self) -> None:
         """cycle returns values in rotation."""
         loop = LoopContext([1, 2, 3, 4, 5])
-        cycles = []
-        for _ in loop:
-            cycles.append(loop.cycle("odd", "even"))
+        cycles = [loop.cycle("odd", "even") for _ in loop]
         assert cycles == ["odd", "even", "odd", "even", "odd"]
 
     def test_cycle_empty(self) -> None:

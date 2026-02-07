@@ -11,6 +11,8 @@ Uses hypothesis to verify structural invariants that must hold for
 
 from __future__ import annotations
 
+import contextlib
+
 from hypothesis import given, settings
 
 from kida._types import TokenType
@@ -62,10 +64,8 @@ class TestLexerProperties:
         It may raise TemplateSyntaxError or LexerError for invalid input,
         but must not raise TypeError, ValueError, IndexError, etc.
         """
-        try:
+        with contextlib.suppress(TemplateSyntaxError, LexerError):
             tokenize(source)
-        except (TemplateSyntaxError, LexerError):
-            pass  # Expected for malformed input
 
     @given(source=template_fragment)
     @settings(max_examples=200)
