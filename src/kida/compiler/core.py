@@ -37,7 +37,7 @@ Templates with `{% extends %}` generate:
 from __future__ import annotations
 
 import ast
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from kida.compiler.coalescing import FStringCoalescingMixin
@@ -46,8 +46,10 @@ from kida.compiler.statements import StatementCompilationMixin
 from kida.compiler.utils import OperatorUtilsMixin
 
 if TYPE_CHECKING:
+    import types
+
     from kida.environment import Environment
-    from kida.nodes import Extends
+    from kida.nodes import Block, Extends, Node
     from kida.nodes import Template as TemplateNode
 
 
@@ -127,11 +129,11 @@ class Compiler(
         # Track local variables (loop variables, etc.) for O(1) direct access
         self._locals: set[str] = set()
         # Track blocks for inheritance
-        self._blocks: dict[str, Any] = {}
+        self._blocks: dict[str, Block] = {}
         # Counter for unique variable names in nested structures
         self._block_counter: int = 0
 
-    def _collect_blocks(self, nodes: Any) -> None:
+    def _collect_blocks(self, nodes: Sequence[Node]) -> None:
         """Recursively collect all Block nodes from the AST.
 
         This ensures nested blocks (blocks inside blocks, blocks inside
@@ -161,7 +163,7 @@ class Compiler(
         node: TemplateNode,
         name: str | None = None,
         filename: str | None = None,
-    ) -> Any:
+    ) -> types.CodeType:
         """Compile template AST to code object.
 
         Args:
@@ -210,7 +212,7 @@ class Compiler(
             type_ignores=[],
         )
 
-    def _make_block_function(self, name: str, block_node: Any) -> ast.FunctionDef:
+    def _make_block_function(self, name: str, block_node: Block) -> ast.FunctionDef:
         """Generate a block function: _block_name(ctx, _blocks) -> str."""
         body: list[ast.stmt] = [
             # _e = _escape
@@ -498,7 +500,7 @@ class Compiler(
             value=ast.Constant(value=lineno),
         )
 
-    def _compile_node(self, node: Any) -> list[ast.stmt]:
+    def _compile_node(self, node: Node) -> list[ast.stmt]:
         """Compile a single AST node to Python statements.
 
         Complexity: O(1) type dispatch using class name lookup.

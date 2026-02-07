@@ -47,7 +47,12 @@ from typing import TYPE_CHECKING, Any
 from kida.utils.html import _SPACELESS_RE, Markup, html_escape
 
 if TYPE_CHECKING:
+    import ast
+    import types
+
+    from kida.analysis import TemplateMetadata
     from kida.environment import Environment
+    from kida.render_context import RenderContext
 
 
 # =============================================================================
@@ -378,10 +383,10 @@ class Template:
     def __init__(
         self,
         env: Environment,
-        code: Any,  # Compiled code object
+        code: types.CodeType,
         name: str | None,
         filename: str | None,
-        optimized_ast: Any = None,  # Preserved AST for introspection
+        optimized_ast: ast.Module | None = None,
     ):
         """Initialize template with compiled code.
 
@@ -399,7 +404,7 @@ class Template:
         self._name = name
         self._filename = filename
         self._optimized_ast = optimized_ast
-        self._metadata_cache: Any = None  # Lazy-initialized TemplateMetadata
+        self._metadata_cache: TemplateMetadata | None = None
 
         # Capture env reference for closures (will be dereferenced at call time)
         env_ref = self._env_ref
@@ -983,7 +988,7 @@ class Template:
     def _enhance_error(
         self,
         error: Exception,
-        render_ctx: Any,  # RenderContext, but avoid import
+        render_ctx: RenderContext,
     ) -> Exception:
         """Enhance a generic exception with template context from RenderContext.
 
@@ -1166,7 +1171,7 @@ class Template:
 
         return self._metadata_cache.blocks if self._metadata_cache else {}
 
-    def template_metadata(self) -> Any:
+    def template_metadata(self) -> TemplateMetadata | None:
         """Get full template metadata including inheritance info.
 
         Returns TemplateMetadata with:
@@ -1228,7 +1233,7 @@ class Template:
                 return
 
         # Create template resolver for included template analysis
-        def resolve_template(name: str) -> Any:
+        def resolve_template(name: str) -> Template | None:
             """Resolve and analyze included templates."""
             if env_for_cache is None:
                 return None
