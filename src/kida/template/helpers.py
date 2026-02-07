@@ -63,7 +63,12 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
         render_ctx = get_render_context()
         template_name = render_ctx.template_name if render_ctx else None
         lineno = render_ctx.line if render_ctx else None
-        raise UndefinedError(var_name, template_name, lineno) from None
+        raise UndefinedError(
+            var_name,
+            template_name,
+            lineno,
+            available_names=frozenset(ctx.keys()),
+        ) from None
 
 
 def lookup_scope(
@@ -83,14 +88,24 @@ def lookup_scope(
     if var_name in ctx:
         return ctx[var_name]
 
-    # Not found - raise UndefinedError
+    # Not found - raise UndefinedError with available names for suggestions
     from kida.environment.exceptions import UndefinedError
     from kida.render_context import get_render_context
 
     render_ctx = get_render_context()
     template_name = render_ctx.template_name if render_ctx else None
     lineno = render_ctx.line if render_ctx else None
-    raise UndefinedError(var_name, template_name, lineno) from None
+
+    all_names: set[str] = set(ctx.keys())
+    for scope in scope_stack:
+        all_names.update(scope.keys())
+
+    raise UndefinedError(
+        var_name,
+        template_name,
+        lineno,
+        available_names=frozenset(all_names),
+    ) from None
 
 
 def default_safe(

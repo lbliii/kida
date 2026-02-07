@@ -257,6 +257,9 @@ class UndefinedError(TemplateError):
     a variable that doesn't exist in the context, this error is raised
     instead of silently returning None.
 
+    If ``available_names`` is provided, a "Did you mean?" suggestion is
+    included when a close match is found (using ``difflib.get_close_matches``).
+
     Example:
             >>> env = Environment()
             >>> env.from_string("{{ undefined_var }}").render()
@@ -273,14 +276,29 @@ class UndefinedError(TemplateError):
         name: str,
         template: str | None = None,
         lineno: int | None = None,
+        available_names: frozenset[str] | None = None,
     ):
         self.name = name
         self.template = template or "<template>"
         self.lineno = lineno
+        self._available_names = available_names
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
         location = self.template
         if self.lineno:
             location += f":{self.lineno}"
-        return f"Undefined variable '{self.name}' in {location}"
+        msg = f"Undefined variable '{self.name}' in {location}"
+
+        # "Did you mean?" suggestion via fuzzy matching
+        if self._available_names:
+            from difflib import get_close_matches
+
+            matches = get_close_matches(
+                self.name, self._available_names, n=1, cutoff=0.6
+            )
+            if matches:
+                msg += f". Did you mean '{matches[0]}'?"
+
+        msg += f"\n  Hint: Use {{{{ {self.name} | default('') }}}} for optional variables"
+        return msg
