@@ -1,7 +1,9 @@
 """Test template inheritance in Kida template engine.
 
-Based on Jinja2's test_inheritance.py.
-Tests extends, block, super(), and multi-level inheritance.
+Tests extends, block, multi-level inheritance, and the extension blocks
+pattern. Kida uses flat block replacement by design -- child blocks fully
+replace parent content. The recommended "add-to" pattern is explicit
+extension blocks (e.g. {% block extra_head %}{% end %}).
 """
 
 import pytest
@@ -27,9 +29,6 @@ def env():
             ),
             "grandchild.html": (
                 '{% extends "child.html" %}{% block title %}Grandchild Title{% endblock %}'
-            ),
-            "super_test.html": (
-                '{% extends "base.html" %}{% block body %}{{ super() }} + Extended{% endblock %}'
             ),
             "multi_block.html": (
                 '{% extends "base.html" %}'
@@ -71,15 +70,42 @@ class TestBasicInheritance:
 
 
 class TestBlockBehavior:
-    """Block behavior and features."""
+    """Block behavior and features.
 
-    @pytest.mark.xfail(reason="super() is not implemented - blocks fully replace parent content")
-    def test_super(self, env):
-        """super() includes parent block content (not supported)."""
-        tmpl = env.get_template("super_test.html")
+    Kida blocks use flat replacement: child blocks fully replace parent
+    content. There is no super() -- use explicit extension blocks instead.
+    """
+
+    def test_child_block_fully_replaces_parent(self, env):
+        """Child block content replaces parent entirely (no super())."""
+        tmpl = env.get_template("child.html")
         result = tmpl.render()
-        assert "Base body" in result
-        assert "+ Extended" in result
+        assert "Child body" in result
+        assert "Base body" not in result
+
+    def test_extension_block_pattern(self):
+        """Extension blocks let children add content without replacing parent."""
+        loader = DictLoader(
+            {
+                "base.html": (
+                    "<head>"
+                    '<link rel="stylesheet" href="/base.css">'
+                    "{% block extra_head %}{% endblock %}"
+                    "</head>"
+                ),
+                "child.html": (
+                    '{% extends "base.html" %}'
+                    "{% block extra_head %}"
+                    '<link rel="stylesheet" href="/child.css">'
+                    "{% endblock %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("child.html").render()
+        # Parent content preserved, child content added via extension block
+        assert "/base.css" in result
+        assert "/child.css" in result
 
     def test_block_from_string(self):
         """Block in from_string template."""

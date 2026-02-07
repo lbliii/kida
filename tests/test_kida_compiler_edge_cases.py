@@ -247,22 +247,20 @@ class TestInheritanceCompilation:
     """Test template inheritance compilation."""
 
     def test_multi_level_inheritance(self) -> None:
-        """Multi-level inheritance compiles correctly."""
+        """Multi-level inheritance: deepest child block wins via flat replacement."""
         loader = DictLoader(
             {
                 "base.html": "{% block content %}base{% endblock %}",
-                "middle.html": "{% extends 'base.html' %}{% block content %}middle:{{ super() }}{% endblock %}",
-                "child.html": "{% extends 'middle.html' %}{% block content %}child:{{ super() }}{% endblock %}",
+                "middle.html": "{% extends 'base.html' %}{% block content %}middle{% endblock %}",
+                "child.html": "{% extends 'middle.html' %}{% block content %}child{% endblock %}",
             }
         )
         env = Environment(loader=loader)
-        try:
-            tmpl = env.get_template("child.html")
-            result = tmpl.render()
-            # Should show inheritance chain
-            assert "child" in result
-        except Exception:
-            pytest.skip("Multi-level super() not fully supported")
+        tmpl = env.get_template("child.html")
+        result = tmpl.render()
+        assert result == "child"
+        assert "base" not in result
+        assert "middle" not in result
 
     def test_block_override_in_child(self) -> None:
         """Block override compiles correctly."""
