@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
@@ -162,14 +162,15 @@ class Compiler(
             elif hasattr(node, "body"):
                 # Node has a body (If, For, With, Def, etc.)
                 body = node.body
-                self._collect_blocks(body)
+                if isinstance(body, Sequence):
+                    self._collect_blocks(cast("Sequence[Node]", body))
                 # Check for else/elif bodies
                 else_ = getattr(node, "else_", None)
-                if else_:
-                    self._collect_blocks(else_)
+                if isinstance(else_, Sequence):
+                    self._collect_blocks(cast("Sequence[Node]", else_))
                 empty = getattr(node, "empty", None)
-                if empty:
-                    self._collect_blocks(empty)
+                if isinstance(empty, Sequence):
+                    self._collect_blocks(cast("Sequence[Node]", empty))
                 elif_ = getattr(node, "elif_", None)
                 if elif_:
                     for _, elif_body in elif_:

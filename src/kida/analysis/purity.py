@@ -10,6 +10,8 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from kida.environment.exceptions import TemplateNotFoundError, TemplateSyntaxError
+from kida.nodes import Const as _Const
+from kida.nodes import Name as _Name
 
 if TYPE_CHECKING:
     from kida.nodes import (
@@ -42,6 +44,7 @@ if TYPE_CHECKING:
         LoopVar,
         MarkSafe,
         Match,
+        Name,
         Node,
         NullCoalesce,
         OptionalGetattr,
@@ -487,7 +490,7 @@ class PurityAnalyzer:
     def _visit_funccall(self, node: FuncCall) -> PurityLevel:
         """Function call purity depends on the function."""
         # Check if it's a known pure builtin
-        if type(node.func).__name__ == "Name":
+        if isinstance(node.func, _Name):
             func_name = node.func.name
             if func_name in self._pure_functions:
                 # Pure function - check arguments
@@ -616,7 +619,7 @@ class PurityAnalyzer:
 
         # Extract template name - only handle constant strings
         template_expr = node.template
-        if type(template_expr).__name__ != "Const":
+        if not isinstance(template_expr, _Const):
             # Dynamic template name - can't analyze statically
             return "unknown"
 

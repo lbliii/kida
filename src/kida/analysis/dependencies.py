@@ -7,7 +7,7 @@ excludes paths that are actually used.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from kida.nodes import (
     Const,
@@ -435,7 +435,7 @@ class DependencyWalker:
 
     def _visit_macro(self, node: Node) -> None:
         """Handle macro definition (same as def)."""
-        self._visit_def(node)
+        self._visit_def(cast("Def", node))
 
     def _visit_set(self, node: Set) -> None:
         """Handle set statement."""
@@ -741,7 +741,9 @@ class DependencyWalker:
 
     def _visit_do(self, node: Node) -> None:
         """Handle do statement."""
-        self._visit(node.expr)
+        expr = getattr(node, "expr", None)
+        if expr is not None:
+            self._visit(expr)
 
     def _visit_loopvar(self, node: LoopVar) -> None:
         """Loop variable access (loop.index, etc.) - no context deps."""

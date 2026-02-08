@@ -16,7 +16,15 @@ from kida.environment.exceptions import TemplateSyntaxError
 
 if TYPE_CHECKING:
     from kida.environment import Environment
-    from kida.nodes import Node
+    from kida.nodes import (
+        InlinedFilter,
+        Node,
+        NullCoalesce,
+        OptionalGetattr,
+        OptionalGetitem,
+        Pipeline,
+        Range,
+    )
 
 # Arithmetic operators that require numeric operands
 _ARITHMETIC_OPS = frozenset({"*", "/", "-", "+", "**", "//", "%"})
@@ -95,33 +103,33 @@ class ExpressionCompilationMixin:
         This handles cases like (a | length) + (b | length) where the left/right
         operands are Filter nodes that need numeric coercion.
         """
-        node_type = type(node).__name__
+        from kida.nodes import BinOp, CondExpr, Filter, FuncCall, Pipeline, UnaryOp
 
         # Direct match: Filter or FuncCall nodes
-        if node_type in _POTENTIALLY_STRING_NODES:
+        if isinstance(node, (FuncCall, Filter)):
             return True
 
         # Pipeline nodes contain filters, need coercion
-        if node_type == "Pipeline":
+        if isinstance(node, Pipeline):
             return True
 
         # Recursive check for nested expressions that might contain filters
         # This handles cases like (a | length) + (b | length) where
         # the left/right operands are Filter nodes
-        if node_type == "BinOp":
+        if isinstance(node, BinOp):
             # Check both operands recursively
             return self._is_potentially_string(node.left) or self._is_potentially_string(node.right)
 
-        if node_type == "UnaryOp":
+        if isinstance(node, UnaryOp):
             # Check the operand recursively
             return self._is_potentially_string(node.operand)
 
         # For CondExpr (ternary), check all branches
-        if node_type == "CondExpr":
+        if isinstance(node, CondExpr):
             return (
                 self._is_potentially_string(node.test)
-                or self._is_potentially_string(node.body)
-                or self._is_potentially_string(node.orelse)
+                or self._is_potentially_string(node.if_true)
+                or self._is_potentially_string(node.if_false)
             )
 
         return False
@@ -143,13 +151,37 @@ class ExpressionCompilationMixin:
 
         Complexity: O(1) dispatch + O(d) for recursive expressions.
         """
-        node_type = type(node).__name__
+        from kida.nodes import (
+            Await,
+            BinOp,
+            BoolOp,
+            Compare,
+            CondExpr,
+            Const,
+            Filter,
+            FuncCall,
+            Getattr,
+            Getitem,
+            InlinedFilter,
+            Name,
+            NullCoalesce,
+            OptionalGetattr,
+            OptionalGetitem,
+            Pipeline,
+            Range,
+            Slice,
+            Test,
+            UnaryOp,
+        )
+        from kida.nodes import Dict as KidaDict
+        from kida.nodes import List as KidaList
+        from kida.nodes import Tuple as KidaTuple
 
         # Fast path for common types
-        if node_type == "Const":
+        if isinstance(node, Const):
             return ast.Constant(value=node.value)
 
-        if node_type == "Name":
+        if isinstance(node, Name):
             ctx = ast.Store() if store else ast.Load()
             if store:
                 return ast.Name(id=node.name, ctx=ctx)
@@ -170,26 +202,26 @@ class ExpressionCompilationMixin:
                 keywords=[],
             )
 
-        if node_type == "Tuple":
+        if isinstance(node, KidaTuple):
             ctx = ast.Store() if store else ast.Load()
             return ast.Tuple(
                 elts=[self._compile_expr(e, store) for e in node.items],
                 ctx=ctx,
             )
 
-        if node_type == "List":
+        if isinstance(node, KidaList):
             return ast.List(
                 elts=[self._compile_expr(e) for e in node.items],
                 ctx=ast.Load(),
             )
 
-        if node_type == "Dict":
+        if isinstance(node, KidaDict):
             return ast.Dict(
                 keys=[self._compile_expr(k) for k in node.keys],
                 values=[self._compile_expr(v) for v in node.values],
             )
 
-        if node_type == "Getattr":
+        if isinstance(node, Getattr):
             # Use _getattr helper that falls back to __getitem__ for dicts
             # This handles both obj.attr and dict['key'] patterns
             return ast.Call(
@@ -201,14 +233,14 @@ class ExpressionCompilationMixin:
                 keywords=[],
             )
 
-        if node_type == "Getitem":
+        if isinstance(node, Getitem):
             return ast.Subscript(
                 value=self._compile_expr(node.obj),
                 slice=self._compile_expr(node.key),
                 ctx=ast.Load(),
             )
 
-        if node_type == "Slice":
+        if isinstance(node, Slice):
             # Compile slice to Python slice object
             return ast.Slice(
                 lower=self._compile_expr(node.start) if node.start else None,
@@ -216,7 +248,7 @@ class ExpressionCompilationMixin:
                 step=self._compile_expr(node.step) if node.step else None,
             )
 
-        if node_type == "Test":
+        if isinstance(node, Test):
             # Special handling for 'defined' and 'undefined' tests
             # These need to work even when the value is undefined
             if node.name in ("defined", "undefined"):
@@ -261,7 +293,7 @@ class ExpressionCompilationMixin:
                 return ast.UnaryOp(op=ast.Not(), operand=test_call)
             return test_call
 
-        if node_type == "FuncCall":
+        if isinstance(node, FuncCall):
             call_node = ast.Call(
                 func=self._compile_expr(node.func),
                 args=[self._compile_expr(a) for a in node.args],
@@ -285,7 +317,7 @@ class ExpressionCompilationMixin:
                 )
             return call_node
 
-        if node_type == "Filter":
+        if isinstance(node, Filter):
             # Validate filter exists at compile time
             # Special case: 'default' and 'd' are handled specially below but still valid
             if node.name not in self._env._filters:
@@ -347,7 +379,7 @@ class ExpressionCompilationMixin:
                 keywords=[],
             )
 
-        if node_type == "BinOp":
+        if isinstance(node, BinOp):
             # Special handling for ~ (string concatenation)
             if node.op == "~":
                 # str(left) + str(right)
@@ -389,52 +421,52 @@ class ExpressionCompilationMixin:
                 right=self._compile_expr(node.right),
             )
 
-        if node_type == "UnaryOp":
+        if isinstance(node, UnaryOp):
             return ast.UnaryOp(
                 op=self._get_unaryop(node.op),
                 operand=self._compile_expr(node.operand),
             )
 
-        if node_type == "Compare":
+        if isinstance(node, Compare):
             return ast.Compare(
                 left=self._compile_expr(node.left),
                 ops=[self._get_cmpop(op) for op in node.ops],
                 comparators=[self._compile_expr(c) for c in node.comparators],
             )
 
-        if node_type == "BoolOp":
+        if isinstance(node, BoolOp):
             op = ast.And() if node.op == "and" else ast.Or()
             return ast.BoolOp(
                 op=op,
                 values=[self._compile_expr(v) for v in node.values],
             )
 
-        if node_type == "CondExpr":
+        if isinstance(node, CondExpr):
             return ast.IfExp(
                 test=self._compile_expr(node.test),
                 body=self._compile_expr(node.if_true),
                 orelse=self._compile_expr(node.if_false),
             )
 
-        if node_type == "Pipeline":
+        if isinstance(node, Pipeline):
             return self._compile_pipeline(node)
 
-        if node_type == "InlinedFilter":
+        if isinstance(node, InlinedFilter):
             return self._compile_inlined_filter(node)
 
-        if node_type == "NullCoalesce":
+        if isinstance(node, NullCoalesce):
             return self._compile_null_coalesce(node)
 
-        if node_type == "OptionalGetattr":
+        if isinstance(node, OptionalGetattr):
             return self._compile_optional_getattr(node)
 
-        if node_type == "OptionalGetitem":
+        if isinstance(node, OptionalGetitem):
             return self._compile_optional_getitem(node)
 
-        if node_type == "Range":
+        if isinstance(node, Range):
             return self._compile_range(node)
 
-        if node_type == "Await":
+        if isinstance(node, Await):
             # Compile {{ await expr }} to ast.Await(value=compiled_expr)
             # Part of RFC: rfc-async-rendering
             self._has_async = True
@@ -447,7 +479,7 @@ class ExpressionCompilationMixin:
         # Fallback
         return ast.Constant(value=None)
 
-    def _compile_null_coalesce(self, node: Node) -> ast.expr:
+    def _compile_null_coalesce(self, node: NullCoalesce) -> ast.expr:
         """Compile a ?? b to handle both None and undefined variables.
 
         Uses _null_coalesce helper to catch UndefinedError for undefined variables.
@@ -474,7 +506,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_optional_getattr(self, node: Node) -> ast.expr:
+    def _compile_optional_getattr(self, node: OptionalGetattr) -> ast.expr:
         """Compile obj?.attr using walrus operator to avoid double evaluation.
 
         obj?.attr compiles to:
@@ -521,7 +553,7 @@ class ExpressionCompilationMixin:
             ),
         )
 
-    def _compile_optional_getitem(self, node: Node) -> ast.expr:
+    def _compile_optional_getitem(self, node: OptionalGetitem) -> ast.expr:
         """Compile obj?[key] using walrus operator to avoid double evaluation.
 
         obj?[key] compiles to:
@@ -553,7 +585,7 @@ class ExpressionCompilationMixin:
             ),
         )
 
-    def _compile_range(self, node: Node) -> ast.expr:
+    def _compile_range(self, node: Range) -> ast.expr:
         """Compile range literal to range() call.
 
         1..10    → range(1, 11)      # inclusive
@@ -579,7 +611,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_inlined_filter(self, node: Node) -> ast.Call:
+    def _compile_inlined_filter(self, node: InlinedFilter) -> ast.Call:
         """Compile inlined filter to direct method call.
 
         Generates: _str(value).method(*args)
@@ -608,7 +640,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_pipeline(self, node: Node) -> ast.expr:
+    def _compile_pipeline(self, node: Pipeline) -> ast.expr:
         """Compile pipeline: expr |> filter1 |> filter2.
 
         Pipelines compile to nested filter calls using the _filters dict,

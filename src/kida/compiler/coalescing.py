@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from kida.environment import Environment
-    from kida.nodes import Node
+    from kida.nodes import Node, Output
 
 # Coalescing threshold - minimum nodes to trigger f-string generation
 COALESCE_MIN_NODES = 2
@@ -143,7 +143,7 @@ class FStringCoalescingMixin:
 
         return False
 
-    def _is_simple_output(self, node: Node) -> bool:
+    def _is_simple_output(self, node: Output) -> bool:
         """Check if Output node is simple enough for f-string."""
         return self._is_simple_expr(node.expr)
 
