@@ -1030,9 +1030,11 @@ class Template(TemplateIntrospectionMixin):
     def _safe_getattr(obj: Any, name: str) -> Any:
         """Get attribute with dict fallback and None-safe handling.
 
-        Handles both:
-        - obj.attr for objects with attributes
-        - dict['key'] for dict-like objects
+        Resolution order:
+        - Dicts: subscript first (user data), getattr fallback (methods).
+          This prevents dict method names like ``items``, ``keys``,
+          ``values``, ``get`` from shadowing user data keys.
+        - Objects: getattr first, subscript fallback.
 
         None Handling (like Hugo/Go templates):
         - If obj is None, returns "" (prevents crashes)
@@ -1042,6 +1044,19 @@ class Template(TemplateIntrospectionMixin):
         """
         if obj is None:
             return ""
+        # Dicts: subscript first so keys like "items" resolve to user data,
+        # not the dict.items method
+        if isinstance(obj, dict):
+            try:
+                val = obj[name]
+                return "" if val is None else val
+            except KeyError:
+                try:
+                    val = getattr(obj, name)
+                    return "" if val is None else val
+                except AttributeError:
+                    return ""
+        # Objects: getattr first, subscript fallback
         try:
             val = getattr(obj, name)
             return "" if val is None else val
@@ -1060,8 +1075,18 @@ class Template(TemplateIntrospectionMixin):
         to empty string. Used for optional chaining (?.) so that null
         coalescing (??) can work correctly.
 
+        Resolution order matches _safe_getattr: dicts try subscript first.
+
         Complexity: O(1)
         """
+        if isinstance(obj, dict):
+            try:
+                return obj[name]
+            except KeyError:
+                try:
+                    return getattr(obj, name)
+                except AttributeError:
+                    return None
         try:
             return getattr(obj, name)
         except AttributeError:

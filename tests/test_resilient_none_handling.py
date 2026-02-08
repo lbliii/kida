@@ -283,6 +283,85 @@ class TestMigrationPatterns:
         assert result == "fallback"
 
 
+class TestDictSafeAttributeResolution:
+    """Test that dict keys take precedence over dict methods.
+
+    When a template accesses {{ section.items }}, it should resolve to
+    section["items"] (user data), not dict.items (the method). This
+    prevents common footguns with dict method names as keys.
+    """
+
+    def test_dict_items_key_over_method(self, env: Environment) -> None:
+        """{{ d.items }} resolves to d["items"], not dict.items method."""
+        tmpl = env.from_string("{% for x in d.items %}{{ x }} {% end %}")
+        result = tmpl.render(d={"items": ["a", "b", "c"]})
+        assert "a" in result
+        assert "b" in result
+        assert "c" in result
+
+    def test_dict_keys_key_over_method(self, env: Environment) -> None:
+        """{{ d.keys }} resolves to d["keys"], not dict.keys method."""
+        tmpl = env.from_string("{{ d.keys }}")
+        result = tmpl.render(d={"keys": "my-keys-value"})
+        assert result == "my-keys-value"
+
+    def test_dict_values_key_over_method(self, env: Environment) -> None:
+        """{{ d.values }} resolves to d["values"], not dict.values method."""
+        tmpl = env.from_string("{{ d.values }}")
+        result = tmpl.render(d={"values": "my-values"})
+        assert result == "my-values"
+
+    def test_dict_get_key_over_method(self, env: Environment) -> None:
+        """{{ d.get }} resolves to d["get"], not dict.get method."""
+        tmpl = env.from_string("{{ d.get }}")
+        result = tmpl.render(d={"get": "gotten"})
+        assert result == "gotten"
+
+    def test_dict_update_key_over_method(self, env: Environment) -> None:
+        """{{ d.update }} resolves to d["update"], not dict.update method."""
+        tmpl = env.from_string("{{ d.update }}")
+        result = tmpl.render(d={"update": "updated"})
+        assert result == "updated"
+
+    def test_dict_normal_key_still_works(self, env: Environment) -> None:
+        """Regular dict keys still resolve correctly."""
+        tmpl = env.from_string("{{ d.name }}: {{ d.value }}")
+        result = tmpl.render(d={"name": "Alice", "value": 42})
+        assert result == "Alice: 42"
+
+    def test_dict_missing_key_falls_back_to_getattr(self, env: Environment) -> None:
+        """Missing dict key falls back to getattr (e.g. dict methods)."""
+        from kida.template import Template
+
+        # Calling dict.items() explicitly should still work
+        result = Template._safe_getattr({"a": 1}, "items")
+        # items is not a key, so falls back to getattr → dict.items method
+        assert callable(result)
+
+    def test_object_attr_resolution_unchanged(self, env: Environment) -> None:
+        """Non-dict objects still use getattr-first resolution."""
+        from kida.template import Template
+
+        class Obj:
+            name = "Alice"
+
+        result = Template._safe_getattr(Obj(), "name")
+        assert result == "Alice"
+
+    def test_optional_chaining_dict_safe(self, env: Environment) -> None:
+        """Optional chaining (?.) also uses dict-safe resolution."""
+        from kida.template import Template
+
+        result = Template._getattr_preserve_none({"items": [1, 2]}, "items")
+        assert result == [1, 2]
+
+    def test_dict_nested_access(self, env: Environment) -> None:
+        """Nested dict access works with dict-safe resolution."""
+        tmpl = env.from_string("{{ d.section.items }}")
+        result = tmpl.render(d={"section": {"items": "nested-value"}})
+        assert result == "nested-value"
+
+
 class TestPerformanceCharacteristics:
     """Test that performance characteristics are maintained."""
 
