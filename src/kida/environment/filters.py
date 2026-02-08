@@ -222,7 +222,7 @@ def _filter_replace(value: str, old: str, new: str, count: int = -1) -> str:
     return str(value).replace(old, new, count if count > 0 else -1)
 
 
-def _filter_reverse(value: Any) -> Any:
+def _filter_reverse(value: Any) -> list[Any] | str:
     """Reverse sequence."""
     try:
         return list(reversed(value))
@@ -230,7 +230,7 @@ def _filter_reverse(value: Any) -> Any:
         return str(value)[::-1]
 
 
-def _filter_safe(value: Any, reason: str | None = None) -> Any:
+def _filter_safe(value: Any, reason: str | None = None) -> Markup:
     """Mark value as safe (no HTML escaping).
 
     Args:
@@ -269,7 +269,7 @@ def _filter_sort(
     # Handle multi-attribute sorting (e.g., "weight,title")
     attributes = attribute.split(",") if attribute else []
 
-    def key_func(item: Any) -> Any:
+    def key_func(item: Any) -> tuple[Any, ...]:
         """Generate sort key with None-safe handling.
 
         Strategy: Use (is_none, sort_value) tuples where:
@@ -428,12 +428,12 @@ def _filter_upper(value: str) -> str:
     return str(value).upper()
 
 
-def _filter_tojson(value: Any, indent: int | None = None) -> Any:
+def _filter_tojson(value: Any, indent: int | None = None) -> Markup:
     """Convert value to JSON string (marked safe to prevent escaping)."""
     return Markup(json.dumps(value, indent=indent, default=str))
 
 
-def _filter_batch(value: Any, linecount: int, fill_with: Any = None) -> list[Any]:
+def _filter_batch(value: Any, linecount: int, fill_with: Any = None) -> list[list[Any]]:
     """Batch items into groups of linecount."""
     result: list[list[Any]] = []
     batch: list[Any] = []
@@ -450,7 +450,7 @@ def _filter_batch(value: Any, linecount: int, fill_with: Any = None) -> list[Any
     return result
 
 
-def _filter_slice(value: Any, slices: int, fill_with: Any = None) -> list[Any]:
+def _filter_slice(value: Any, slices: int, fill_with: Any = None) -> list[list[Any]]:
     """Slice items into number of groups."""
     result: list[list[Any]] = [[] for _ in range(slices)]
     for idx, item in enumerate(value):
@@ -621,7 +621,7 @@ def _filter_reject(value: Any, test_name: str | None = None, *args: Any) -> list
     return [item for item in value if not _apply_test(item, test_name, *args)]
 
 
-def _filter_groupby(value: Any, attribute: str) -> list[Any]:
+def _filter_groupby(value: Any, attribute: str) -> list[dict[str, Any]]:
     """Group items by attribute with None-safe sorting.
 
     Items with None/empty values for the attribute are grouped together

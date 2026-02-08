@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 
@@ -111,7 +112,9 @@ class CachedBlocksDict:
             cached_html = self._cached[name]
 
             # Create wrapper with proper closure capture
-            def make_wrapper(html: str, stats: dict[str, int] | None) -> Any:
+            def make_wrapper(
+                html: str, stats: dict[str, int] | None
+            ) -> Callable[[dict[str, Any], dict[str, Any]], str]:
                 def wrapper(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
                     if stats is not None:
                         stats["hits"] = stats.get("hits", 0) + 1

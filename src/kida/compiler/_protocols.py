@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from kida.environment import Environment
+    from kida.nodes import Node
 
 
 class CompilerCoreProtocol(Protocol):
@@ -41,11 +42,11 @@ class CompilerCoreProtocol(Protocol):
     # ─────────────────────────────────────────────────────────────
     # Core Compilation Methods
     # ─────────────────────────────────────────────────────────────
-    def _compile_expr(self, node: Any, store: bool = False) -> ast.expr:
+    def _compile_expr(self, node: Node, store: bool = False) -> ast.expr:
         """Compile expression node to Python AST expression."""
         ...
 
-    def _compile_node(self, node: Any) -> list[ast.stmt]:
+    def _compile_node(self, node: Node) -> list[ast.stmt]:
         """Compile a single AST node to Python statements."""
         ...
 

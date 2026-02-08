@@ -9,10 +9,10 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from kida.nodes import Node
 
 
 class VariableAssignmentMixin:
@@ -31,9 +31,9 @@ class VariableAssignmentMixin:
         _block_counter: int
 
         # From ExpressionCompilationMixin
-        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+        def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
-    def _compile_set(self, node: Any) -> list[ast.stmt]:
+    def _compile_set(self, node: Node) -> list[ast.stmt]:
         """Compile {% set %} - block-scoped variable assignment.
 
         Variables assigned with {% set %} are scoped to the current block
@@ -46,7 +46,7 @@ class VariableAssignmentMixin:
         """
         return self._compile_block_scoped_assignment(node.target, node.value)
 
-    def _compile_let(self, node: Any) -> list[ast.stmt]:
+    def _compile_let(self, node: Node) -> list[ast.stmt]:
         """Compile {% let %} - template-scoped variable assignment.
 
         Variables assigned with {% let %} are available throughout the template.
@@ -54,7 +54,7 @@ class VariableAssignmentMixin:
         """
         return self._compile_assignment(node.name, node.value)
 
-    def _compile_export(self, node: Any) -> list[ast.stmt]:
+    def _compile_export(self, node: Node) -> list[ast.stmt]:
         """Compile {% export %} - export variable to outer scope.
 
         Variables assigned with {% export %} are promoted from inner scope
@@ -64,7 +64,7 @@ class VariableAssignmentMixin:
         """
         return self._compile_export_assignment(node.name, node.value)
 
-    def _compile_block_scoped_assignment(self, target: Any, value: Any) -> list[ast.stmt]:
+    def _compile_block_scoped_assignment(self, target: Node, value: Node) -> list[ast.stmt]:
         """Compile block-scoped assignment ({% set %}).
 
         Assigns to current scope: _scope_stack[-1][name] = value
@@ -137,7 +137,7 @@ class VariableAssignmentMixin:
             ]
 
             def _gen_unpack(
-                current_target: Any, current_val_ast: ast.expr, is_block_scoped: bool = True
+                current_target: Node, current_val_ast: ast.expr, is_block_scoped: bool = True
             ) -> list[ast.stmt]:
                 inner_stmts = []
                 if isinstance(current_target, KidaName):
@@ -232,7 +232,7 @@ class VariableAssignmentMixin:
                 )
             ]
 
-    def _compile_export_assignment(self, target: Any, value: Any) -> list[ast.stmt]:
+    def _compile_export_assignment(self, target: Node, value: Node) -> list[ast.stmt]:
         """Compile export assignment ({% export %}).
 
         Export always assigns to ctx (template scope) to ensure the variable
@@ -270,7 +270,7 @@ class VariableAssignmentMixin:
                 )
             ]
 
-            def _gen_unpack(current_target: Any, current_val_ast: ast.expr) -> list[ast.stmt]:
+            def _gen_unpack(current_target: Node, current_val_ast: ast.expr) -> list[ast.stmt]:
                 inner_stmts = []
                 if isinstance(current_target, KidaName):
                     # Export unpacking - always assign to ctx (template scope)
@@ -313,7 +313,7 @@ class VariableAssignmentMixin:
                 )
             ]
 
-    def _compile_assignment(self, target: Any, value: Any) -> list[ast.stmt]:
+    def _compile_assignment(self, target: Node, value: Node) -> list[ast.stmt]:
         """Common logic for template-scoped assignments ({% let %}).
 
         Handles recursive structural unpacking using ctx dict for all variables.
@@ -351,7 +351,7 @@ class VariableAssignmentMixin:
                 )
             ]
 
-            def _gen_unpack(current_target: Any, current_val_ast: ast.expr) -> list[ast.stmt]:
+            def _gen_unpack(current_target: Node, current_val_ast: ast.expr) -> list[ast.stmt]:
                 inner_stmts = []
                 if isinstance(current_target, KidaName):
                     inner_stmts.append(

@@ -35,6 +35,7 @@ from kida.template import Template
 from kida.utils.lru_cache import LRUCache
 
 if TYPE_CHECKING:
+    from kida.analysis.metadata import TemplateMetadata
     from kida.bytecode_cache import BytecodeCache
 
 
@@ -195,7 +196,7 @@ class Environment:
 
     # Filters and tests (copy-on-write)
     _filters: dict[str, Callable[..., Any]] = field(default_factory=lambda: DEFAULT_FILTERS.copy())
-    _tests: dict[str, Callable[..., Any]] = field(default_factory=lambda: DEFAULT_TESTS.copy())
+    _tests: dict[str, Callable[..., bool]] = field(default_factory=lambda: DEFAULT_TESTS.copy())
 
     # Template cache (LRU with size limit)
     _cache: LRUCache[str, Template] = field(init=False)
@@ -204,7 +205,7 @@ class Environment:
     _template_hashes: dict[str, str] = field(init=False, default_factory=dict)
     # Shared analysis cache (template_name -> TemplateMetadata)
     # Prevents redundant analysis when multiple templates include the same partial
-    _analysis_cache: dict[str, Any] = field(init=False, default_factory=dict)
+    _analysis_cache: dict[str, TemplateMetadata] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         """Initialize derived configuration."""

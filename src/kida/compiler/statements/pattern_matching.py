@@ -10,10 +10,10 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from kida.nodes import Node
 
 
 class PatternMatchingMixin:
@@ -32,15 +32,15 @@ class PatternMatchingMixin:
         _block_counter: int
 
         # From ExpressionCompilationMixin
-        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+        def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
         # From Compiler core
-        def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+        def _compile_node(self, node: Node) -> list[ast.stmt]: ...
 
         # From ControlFlowMixin
-        def _extract_names(self, node: Any) -> list[str]: ...
+        def _extract_names(self, node: Node) -> list[str]: ...
 
-    def _compile_match(self, node: Any) -> list[ast.stmt]:
+    def _compile_match(self, node: Node) -> list[ast.stmt]:
         """Compile {% match expr %}{% case pattern [if guard] %}...{% end %}.
 
         Generates chained if/elif comparisons with structural pattern matching
@@ -170,7 +170,7 @@ class PatternMatchingMixin:
         return stmts
 
     def _make_pattern_match(
-        self, pattern: Any, subject_ast: ast.expr
+        self, pattern: Node, subject_ast: ast.expr
     ) -> tuple[ast.expr, list[tuple[str, ast.expr]]]:
         """Generate match test and bindings for a pattern.
 

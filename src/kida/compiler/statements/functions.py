@@ -9,10 +9,10 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from kida.nodes import Node
 
 
 class FunctionCompilationMixin:
@@ -29,14 +29,15 @@ class FunctionCompilationMixin:
     if TYPE_CHECKING:
         # Host attributes (from Compiler.__init__)
         _locals: set[str]
+        _def_names: set[str]
 
         # From ExpressionCompilationMixin
-        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+        def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
         # From Compiler core
-        def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+        def _compile_node(self, node: Node) -> list[ast.stmt]: ...
 
-    def _compile_def(self, node: Any) -> list[ast.stmt]:
+    def _compile_def(self, node: Node) -> list[ast.stmt]:
         """Compile {% def name(args) %}...{% enddef %.
 
         Kida functions have true lexical scoping - they can access variables
@@ -54,6 +55,8 @@ class FunctionCompilationMixin:
         """
         def_name = node.name
         func_name = f"_def_{def_name}"
+        # Track for profiling: FuncCall to this name will be instrumented
+        self._def_names.add(def_name)
 
         # Build function arguments
         args_list = [ast.arg(arg=name) for name in node.args]
@@ -99,6 +102,15 @@ class FunctionCompilationMixin:
                     value=ast.Name(id="buf", ctx=ast.Load()),
                     attr="append",
                     ctx=ast.Load(),
+                ),
+            ),
+            # Profiling: _acc = _get_accumulator()
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
                 ),
             ),
             # Create local context: ctx = {**_outer_ctx, 'arg1': arg1, ...}
@@ -228,7 +240,7 @@ class FunctionCompilationMixin:
 
         return [func_def, assign]
 
-    def _compile_call_block(self, node: Any) -> list[ast.stmt]:
+    def _compile_call_block(self, node: Node) -> list[ast.stmt]:
         """Compile {% call func(args) %}body{% endcall %.
 
         Calls a function with the body content as the caller.
@@ -266,6 +278,15 @@ class FunctionCompilationMixin:
                     value=ast.Name(id="buf", ctx=ast.Load()),
                     attr="append",
                     ctx=ast.Load(),
+                ),
+            ),
+            # Profiling: _acc = _get_accumulator()
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
                 ),
             ),
         ]
@@ -319,7 +340,11 @@ class FunctionCompilationMixin:
         stmts.append(caller_func)
 
         # Compile the call expression and add _caller keyword argument
+        # Suppress macro instrumentation so we get a raw ast.Call back
+        saved_skip = getattr(self, "_skip_macro_instrumentation", False)
+        self._skip_macro_instrumentation = True
         call_expr = self._compile_expr(node.call)
+        self._skip_macro_instrumentation = saved_skip
 
         # If it's a function call, add _caller keyword
         if isinstance(call_expr, ast.Call):
@@ -347,7 +372,7 @@ class FunctionCompilationMixin:
 
         return stmts
 
-    def _compile_slot(self, node: Any) -> list[ast.stmt]:
+    def _compile_slot(self, node: Node) -> list[ast.stmt]:
         """Compile {% slot %.
 
         Renders the caller content inside a {% def %}.

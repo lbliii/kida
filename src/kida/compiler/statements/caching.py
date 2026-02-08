@@ -11,10 +11,10 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from kida.nodes import Node
 
 
 class CachingMixin:
@@ -33,13 +33,13 @@ class CachingMixin:
         _streaming: bool
 
         # From ExpressionCompilationMixin
-        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+        def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
         # From Compiler core
-        def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+        def _compile_node(self, node: Node) -> list[ast.stmt]: ...
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
-    def _compile_cache(self, node: Any) -> list[ast.stmt]:
+    def _compile_cache(self, node: Node) -> list[ast.stmt]:
         """Compile {% cache key %}...{% endcache %.
 
         Fragment caching. In streaming mode: collect into buffer, cache,
@@ -176,7 +176,7 @@ class CachingMixin:
 
         return stmts
 
-    def _compile_filter_block(self, node: Any) -> list[ast.stmt]:
+    def _compile_filter_block(self, node: Node) -> list[ast.stmt]:
         """Compile {% filter name %}...{% endfilter %.
 
         Apply a filter to an entire block of content.

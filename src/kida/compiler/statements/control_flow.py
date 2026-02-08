@@ -9,10 +9,11 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from kida.nodes import Node
 
 
 class ControlFlowMixin:
@@ -32,10 +33,10 @@ class ControlFlowMixin:
         _block_counter: int
 
         # From ExpressionCompilationMixin
-        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+        def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
         # From Compiler core
-        def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+        def _compile_node(self, node: Node) -> list[ast.stmt]: ...
 
     def _wrap_with_scope(self, body_stmts: list[ast.stmt]) -> list[ast.stmt]:
         """Wrap statements with scope push/pop for block-scoped variables.
@@ -76,21 +77,21 @@ class ControlFlowMixin:
             ),
         ]
 
-    def _compile_break(self, node: Any) -> list[ast.stmt]:
+    def _compile_break(self, node: Node) -> list[ast.stmt]:
         """Compile {% break %} loop control.
 
         Part of RFC: kida-modern-syntax-features.
         """
         return [ast.Break()]
 
-    def _compile_continue(self, node: Any) -> list[ast.stmt]:
+    def _compile_continue(self, node: Node) -> list[ast.stmt]:
         """Compile {% continue %} loop control.
 
         Part of RFC: kida-modern-syntax-features.
         """
         return [ast.Continue()]
 
-    def _compile_while(self, node: Any) -> list[ast.stmt]:
+    def _compile_while(self, node: Node) -> list[ast.stmt]:
         """Compile {% while cond %}...{% end %} loop.
 
         Generates:
@@ -122,7 +123,7 @@ class ControlFlowMixin:
             )
         ]
 
-    def _compile_if(self, node: Any) -> list[ast.stmt]:
+    def _compile_if(self, node: Node) -> list[ast.stmt]:
         """Compile {% if %} conditional."""
         test = self._compile_expr(node.test)
         body = []
@@ -174,7 +175,7 @@ class ControlFlowMixin:
             )
         ]
 
-    def _uses_loop_variable(self, nodes: Any) -> bool:
+    def _uses_loop_variable(self, nodes: Sequence[Node]) -> bool:
         """Check if any node in the tree references the 'loop' variable.
 
         This enables lazy LoopContext optimization: when loop.index, loop.first,
@@ -217,7 +218,7 @@ class ControlFlowMixin:
 
         return False
 
-    def _compile_for(self, node: Any) -> list[ast.stmt]:
+    def _compile_for(self, node: Node) -> list[ast.stmt]:
         """Compile {% for %} loop with optional LoopContext.
 
         Generates one of two forms based on whether loop.* is used:
@@ -375,7 +376,7 @@ class ControlFlowMixin:
 
         return stmts
 
-    def _compile_async_for(self, node: Any) -> list[ast.stmt]:
+    def _compile_async_for(self, node: Node) -> list[ast.stmt]:
         """Compile {% async for %} loop with AsyncLoopContext.
 
         Unlike sync _compile_for(), this does NOT call list() on the iterable.
@@ -530,7 +531,7 @@ class ControlFlowMixin:
 
         return stmts
 
-    def _extract_names(self, node: Any) -> list[str]:
+    def _extract_names(self, node: Node) -> list[str]:
         """Extract variable names from a target expression."""
         from kida.nodes import Name as KidaName
         from kida.nodes import Tuple as KidaTuple

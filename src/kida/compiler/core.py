@@ -141,6 +141,8 @@ class Compiler(
         self._has_async: bool = False
         # When True, generating async function bodies (enables ast.AsyncFor/ast.Await)
         self._async_mode: bool = False
+        # Track {% def %} names for profiling instrumentation
+        self._def_names: set[str] = set()
 
     def _collect_blocks(self, nodes: Sequence[Node]) -> None:
         """Recursively collect all Block nodes from the AST.
@@ -315,6 +317,15 @@ class Compiler(
                 targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
             ),
+            # Profiling: _acc = _get_accumulator()
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                ),
+            ),
         ]
 
         # Compile block body with f-string coalescing
@@ -401,6 +412,18 @@ class Compiler(
             ast.Assign(
                 targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
+            )
+        )
+
+        # Profiling: _acc = _get_accumulator() — cached once per render call
+        body.append(
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                ),
             )
         )
 
@@ -545,6 +568,15 @@ class Compiler(
                 targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
             ),
+            # Profiling: _acc = _get_accumulator()
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                ),
+            ),
         ]
 
         # Compile block body with streaming yields
@@ -614,6 +646,18 @@ class Compiler(
             ast.Assign(
                 targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
+            )
+        )
+
+        # Profiling: _acc = _get_accumulator()
+        body.append(
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                ),
             )
         )
 
@@ -730,6 +774,15 @@ class Compiler(
                 targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
             ),
+            # Profiling: _acc = _get_accumulator()
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                ),
+            ),
         ]
 
         body.extend(self._compile_body_with_coalescing(list(block_node.body)))
@@ -802,6 +855,18 @@ class Compiler(
             ast.Assign(
                 targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
+            )
+        )
+
+        # Profiling: _acc = _get_accumulator()
+        body.append(
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                ),
             )
         )
 

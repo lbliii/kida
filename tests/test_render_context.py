@@ -386,3 +386,108 @@ class TestRenderAccumulator:
         assert html == "PARTIALPARTIAL"
         # Two includes of partial.html
         assert metrics.include_counts.get("partial.html") == 2
+
+
+class TestCompilerEmittedProfiling:
+    """Test that the compiler emits profiling instrumentation for blocks, filters, macros."""
+
+    def test_block_profiling_auto_instrumented(self):
+        """Block calls are automatically recorded with timing."""
+        from kida.render_accumulator import profiled_render
+
+        env = Environment()
+        tmpl = env.from_string(
+            "{% block header %}H{% end %}{% block body %}B{% end %}"
+        )
+        with profiled_render() as acc:
+            result = tmpl.render()
+            summary = acc.summary()
+
+        assert result == "HB"
+        assert "header" in summary["blocks"]
+        assert "body" in summary["blocks"]
+        assert summary["blocks"]["header"]["calls"] == 1
+        assert summary["blocks"]["body"]["calls"] == 1
+        assert summary["blocks"]["header"]["ms"] >= 0
+
+    def test_filter_profiling_auto_instrumented(self):
+        """Filter calls are automatically recorded."""
+        from kida.render_accumulator import profiled_render
+
+        env = Environment()
+        tmpl = env.from_string("{{ name | upper | trim }}")
+        with profiled_render() as acc:
+            result = tmpl.render(name="  alice  ")
+            summary = acc.summary()
+
+        assert result == "ALICE"
+        assert summary["filters"]["upper"] == 1
+        assert summary["filters"]["trim"] == 1
+
+    def test_macro_profiling_auto_instrumented(self):
+        """Macro ({% def %}) calls are automatically recorded."""
+        from kida.render_accumulator import profiled_render
+
+        env = Environment()
+        tmpl = env.from_string(
+            "{% def greet(name) %}Hi {{ name }}{% end %}"
+            "{{ greet('A') }}{{ greet('B') }}"
+        )
+        with profiled_render() as acc:
+            result = tmpl.render()
+            summary = acc.summary()
+
+        assert "Hi A" in result
+        assert "Hi B" in result
+        assert summary["macros"]["greet"] == 2
+
+    def test_profiling_zero_cost_when_disabled(self):
+        """When profiling is disabled, templates render normally."""
+        env = Environment()
+        tmpl = env.from_string(
+            "{% block title %}Title{% end %}"
+            "{{ name | upper }}"
+            "{% def f(x) %}{{ x }}{% end %}{{ f('ok') }}"
+        )
+        result = tmpl.render(name="test")
+        assert "Title" in result
+        assert "TEST" in result
+        assert "ok" in result
+
+    def test_profiling_with_inheritance(self):
+        """Profiling works with template inheritance."""
+        from kida.environment.loaders import DictLoader
+        from kida.render_accumulator import profiled_render
+
+        loader = DictLoader(
+            {
+                "base.html": "{% block content %}BASE{% end %}",
+                "child.html": (
+                    "{% extends 'base.html' %}"
+                    "{% block content %}CHILD{% end %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        tmpl = env.get_template("child.html")
+
+        with profiled_render() as acc:
+            result = tmpl.render()
+            summary = acc.summary()
+
+        assert result == "CHILD"
+        assert "content" in summary["blocks"]
+
+    def test_pipeline_filter_profiling(self):
+        """Pipeline operator filters are also recorded."""
+        from kida.render_accumulator import profiled_render
+
+        env = Environment()
+        tmpl = env.from_string("{{ name |> upper |> trim }}")
+        with profiled_render() as acc:
+            result = tmpl.render(name="  bob  ")
+            summary = acc.summary()
+
+        assert result == "BOB"
+        assert summary["filters"]["upper"] == 1
+        assert summary["filters"]["trim"] == 1

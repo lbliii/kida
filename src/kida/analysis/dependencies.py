@@ -7,7 +7,7 @@ excludes paths that are actually used.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kida.nodes import Node
@@ -102,7 +102,7 @@ class DependencyWalker:
         self._visit(node)
         return frozenset(self._dependencies)
 
-    def _visit(self, node: Any) -> None:
+    def _visit(self, node: Node | None) -> None:
         """Visit a node and its children."""
         if node is None:
             return
@@ -116,7 +116,7 @@ class DependencyWalker:
         else:
             self._visit_children(node)
 
-    def _visit_children(self, node: Any) -> None:
+    def _visit_children(self, node: Node) -> None:
         """Visit all child nodes (generic handler)."""
         # Handle common container attributes
         for attr in ("body", "else_", "empty", "elif_"):
@@ -186,8 +186,9 @@ class DependencyWalker:
                             self._visit(child)
 
         # Handle steps in Pipeline
-        if hasattr(node, "steps"):
-            for step in node.steps:
+        steps = getattr(node, "steps", None)
+        if steps:
+            for step in steps:
                 if isinstance(step, tuple) and len(step) == 3:
                     _name, args, kwargs = step
                     for arg in args:
@@ -198,34 +199,31 @@ class DependencyWalker:
                             self._visit(val)
 
         # Handle cases in Match
-        if hasattr(node, "cases"):
-            cases = node.cases
-            if cases:
-                for pattern, guard, body in cases:
-                    self._visit(pattern)
-                    if guard:
-                        self._visit(guard)
-                    for child in body:
-                        self._visit(child)
+        cases = getattr(node, "cases", None)
+        if cases:
+            for pattern, guard, body in cases:
+                self._visit(pattern)
+                if guard:
+                    self._visit(guard)
+                for child in body:
+                    self._visit(child)
 
         # Handle targets in With
-        if hasattr(node, "targets"):
-            targets = node.targets
-            if targets and isinstance(targets, (list, tuple)):
-                for target in targets:
-                    if isinstance(target, tuple) and len(target) == 2:
-                        _name, value = target
-                        self._visit(value)
+        targets = getattr(node, "targets", None)
+        if targets and isinstance(targets, (list, tuple)):
+            for target in targets:
+                if isinstance(target, tuple) and len(target) == 2:
+                    _name, value = target
+                    self._visit(value)
 
         # Handle blocks in Embed
-        if hasattr(node, "blocks"):
-            blocks = node.blocks
-            if isinstance(blocks, dict):
-                for block in blocks.values():
-                    if hasattr(block, "lineno"):
-                        self._visit(block)
+        blocks = getattr(node, "blocks", None)
+        if isinstance(blocks, dict):
+            for block in blocks.values():
+                if hasattr(block, "lineno"):
+                    self._visit(block)
 
-    def _visit_name(self, node: Any) -> None:
+    def _visit_name(self, node: Node) -> None:
         """Handle variable reference."""
         name = node.name
 
@@ -240,7 +238,7 @@ class DependencyWalker:
         # It's a context variable
         self._dependencies.add(name)
 
-    def _visit_getattr(self, node: Any) -> None:
+    def _visit_getattr(self, node: Node) -> None:
         """Handle attribute access: obj.attr"""
         path = self._build_path(node)
         if path:
@@ -249,7 +247,7 @@ class DependencyWalker:
             # Couldn't build full path, visit children
             self._visit(node.obj)
 
-    def _visit_optionalgetattr(self, node: Any) -> None:
+    def _visit_optionalgetattr(self, node: Node) -> None:
         """Handle optional attribute access: obj?.attr"""
         # Same logic as regular getattr
         path = self._build_path(node)
@@ -258,7 +256,7 @@ class DependencyWalker:
         else:
             self._visit(node.obj)
 
-    def _visit_getitem(self, node: Any) -> None:
+    def _visit_getitem(self, node: Node) -> None:
         """Handle subscript access: obj[key]"""
         # We can only track static string keys
         if type(node.key).__name__ == "Const" and isinstance(node.key.value, str):
@@ -271,7 +269,7 @@ class DependencyWalker:
         self._visit(node.obj)
         self._visit(node.key)
 
-    def _visit_optionalgetitem(self, node: Any) -> None:
+    def _visit_optionalgetitem(self, node: Node) -> None:
         """Handle optional subscript access: obj?[key]"""
         # Same logic as regular getitem
         if type(node.key).__name__ == "Const" and isinstance(node.key.value, str):
@@ -283,7 +281,7 @@ class DependencyWalker:
         self._visit(node.obj)
         self._visit(node.key)
 
-    def _visit_for(self, node: Any) -> None:
+    def _visit_for(self, node: Node) -> None:
         """Handle for loop: push loop variable into scope."""
         # Visit the iterable (this IS a dependency)
         self._visit(node.iter)
@@ -292,9 +290,10 @@ class DependencyWalker:
         loop_vars = self._extract_targets(node.target)
 
         # Visit optional filter condition with loop var in scope
-        if hasattr(node, "test") and node.test:
+        test = getattr(node, "test", None)
+        if test:
             self._scope_stack.append(loop_vars | {"loop"})
-            self._visit(node.test)
+            self._visit(test)
             self._scope_stack.pop()
 
         # Push loop variable(s) into scope with implicit 'loop' variable
@@ -305,24 +304,25 @@ class DependencyWalker:
             self._visit(child)
 
         # Visit empty block (if any)
-        if hasattr(node, "empty") and node.empty:
-            for child in node.empty:
+        empty = getattr(node, "empty", None)
+        if empty:
+            for child in empty:
                 self._visit(child)
 
         # Pop scope
         self._scope_stack.pop()
 
-    def _visit_asyncfor(self, node: Any) -> None:
+    def _visit_asyncfor(self, node: Node) -> None:
         """Handle async for loop (same as regular for)."""
         self._visit_for(node)
 
-    def _visit_while(self, node: Any) -> None:
+    def _visit_while(self, node: Node) -> None:
         """Handle while loop."""
         self._visit(node.test)
         for child in node.body:
             self._visit(child)
 
-    def _visit_with(self, node: Any) -> None:
+    def _visit_with(self, node: Node) -> None:
         """Handle with block: {% with x = expr %}...{% end %}"""
         # Collect all bindings
         bindings = set()
@@ -340,7 +340,7 @@ class DependencyWalker:
         # Pop scope
         self._scope_stack.pop()
 
-    def _visit_withconditional(self, node: Any) -> None:
+    def _visit_withconditional(self, node: Node) -> None:
         """Handle conditional with: {% with expr as target %}"""
         # Visit the expression (IS a dependency)
         self._visit(node.expr)
@@ -356,7 +356,7 @@ class DependencyWalker:
         # Pop scope
         self._scope_stack.pop()
 
-    def _visit_def(self, node: Any) -> None:
+    def _visit_def(self, node: Node) -> None:
         """Handle function definition: push args into scope."""
         # Visit defaults (outside function scope)
         for default in node.defaults:
@@ -371,11 +371,11 @@ class DependencyWalker:
 
         self._scope_stack.pop()
 
-    def _visit_macro(self, node: Any) -> None:
+    def _visit_macro(self, node: Node) -> None:
         """Handle macro definition (same as def)."""
         self._visit_def(node)
 
-    def _visit_set(self, node: Any) -> None:
+    def _visit_set(self, node: Node) -> None:
         """Handle set statement."""
         # Visit the value expression
         self._visit(node.value)
@@ -385,7 +385,7 @@ class DependencyWalker:
         if self._scope_stack:
             self._scope_stack[-1] |= targets
 
-    def _visit_let(self, node: Any) -> None:
+    def _visit_let(self, node: Node) -> None:
         """Handle let statement (template-scoped)."""
         # Visit the value expression
         self._visit(node.value)
@@ -394,26 +394,27 @@ class DependencyWalker:
         if self._scope_stack:
             self._scope_stack[0].add(node.name)
 
-    def _visit_export(self, node: Any) -> None:
+    def _visit_export(self, node: Node) -> None:
         """Handle export statement."""
         self._visit(node.value)
         # Export doesn't create a new scope
 
-    def _visit_capture(self, node: Any) -> None:
+    def _visit_capture(self, node: Node) -> None:
         """Handle capture block: {% capture name %}...{% end %}"""
         # Visit body
         for child in node.body:
             self._visit(child)
 
         # Visit filter if present
-        if hasattr(node, "filter") and node.filter:
-            self._visit(node.filter)
+        filter_node = getattr(node, "filter", None)
+        if filter_node:
+            self._visit(filter_node)
 
         # Add captured name to current scope
         if self._scope_stack:
             self._scope_stack[-1].add(node.name)
 
-    def _visit_filter(self, node: Any) -> None:
+    def _visit_filter(self, node: Node) -> None:
         """Handle filter expression."""
         # Visit the value being filtered
         self._visit(node.value)
@@ -425,7 +426,7 @@ class DependencyWalker:
         for value in node.kwargs.values():
             self._visit(value)
 
-    def _visit_pipeline(self, node: Any) -> None:
+    def _visit_pipeline(self, node: Node) -> None:
         """Handle pipeline expression: expr |> filter1 |> filter2"""
         # Visit the initial value
         self._visit(node.value)
@@ -437,7 +438,7 @@ class DependencyWalker:
             for value in kwargs.values():
                 self._visit(value)
 
-    def _visit_funccall(self, node: Any) -> None:
+    def _visit_funccall(self, node: Node) -> None:
         """Handle function call."""
         # Visit the function expression
         self._visit(node.func)
@@ -450,50 +451,52 @@ class DependencyWalker:
             self._visit(value)
 
         # Handle *args and **kwargs
-        if hasattr(node, "dyn_args") and node.dyn_args:
-            self._visit(node.dyn_args)
-        if hasattr(node, "dyn_kwargs") and node.dyn_kwargs:
-            self._visit(node.dyn_kwargs)
+        dyn_args = getattr(node, "dyn_args", None)
+        if dyn_args:
+            self._visit(dyn_args)
+        dyn_kwargs = getattr(node, "dyn_kwargs", None)
+        if dyn_kwargs:
+            self._visit(dyn_kwargs)
 
-    def _visit_nullcoalesce(self, node: Any) -> None:
+    def _visit_nullcoalesce(self, node: Node) -> None:
         """Handle null coalescing: a ?? b"""
         self._visit(node.left)
         self._visit(node.right)
 
-    def _visit_condexpr(self, node: Any) -> None:
+    def _visit_condexpr(self, node: Node) -> None:
         """Handle conditional expression: a if cond else b"""
         self._visit(node.test)
         self._visit(node.if_true)
         self._visit(node.if_false)
 
-    def _visit_boolop(self, node: Any) -> None:
+    def _visit_boolop(self, node: Node) -> None:
         """Handle boolean operations: a and b, a or b"""
         for value in node.values:
             self._visit(value)
 
-    def _visit_binop(self, node: Any) -> None:
+    def _visit_binop(self, node: Node) -> None:
         """Handle binary operations: a + b, a - b, etc."""
         self._visit(node.left)
         self._visit(node.right)
 
-    def _visit_unaryop(self, node: Any) -> None:
+    def _visit_unaryop(self, node: Node) -> None:
         """Handle unary operations: -a, not a"""
         self._visit(node.operand)
 
-    def _visit_compare(self, node: Any) -> None:
+    def _visit_compare(self, node: Node) -> None:
         """Handle comparisons: a < b < c"""
         self._visit(node.left)
         for comp in node.comparators:
             self._visit(comp)
 
-    def _visit_range(self, node: Any) -> None:
+    def _visit_range(self, node: Node) -> None:
         """Handle range literal: start..end or start...end"""
         self._visit(node.start)
         self._visit(node.end)
         if node.step:
             self._visit(node.step)
 
-    def _visit_slice(self, node: Any) -> None:
+    def _visit_slice(self, node: Node) -> None:
         """Handle slice expression: [start:stop:step]"""
         if node.start:
             self._visit(node.start)
@@ -502,29 +505,29 @@ class DependencyWalker:
         if node.step:
             self._visit(node.step)
 
-    def _visit_concat(self, node: Any) -> None:
+    def _visit_concat(self, node: Node) -> None:
         """Handle string concatenation: a ~ b ~ c"""
         for child in node.nodes:
             self._visit(child)
 
-    def _visit_list(self, node: Any) -> None:
+    def _visit_list(self, node: Node) -> None:
         """Handle list literal: [a, b, c]"""
         for item in node.items:
             self._visit(item)
 
-    def _visit_tuple(self, node: Any) -> None:
+    def _visit_tuple(self, node: Node) -> None:
         """Handle tuple literal: (a, b, c)"""
         for item in node.items:
             self._visit(item)
 
-    def _visit_dict(self, node: Any) -> None:
+    def _visit_dict(self, node: Node) -> None:
         """Handle dict literal: {a: b, c: d}"""
         for key in node.keys:
             self._visit(key)
         for value in node.values:
             self._visit(value)
 
-    def _visit_test(self, node: Any) -> None:
+    def _visit_test(self, node: Node) -> None:
         """Handle test expression: x is defined"""
         self._visit(node.value)
         for arg in node.args:
@@ -532,7 +535,7 @@ class DependencyWalker:
         for value in node.kwargs.values():
             self._visit(value)
 
-    def _visit_match(self, node: Any) -> None:
+    def _visit_match(self, node: Node) -> None:
         """Handle match statement."""
         self._visit(node.subject)
         for pattern, guard, body in node.cases:
@@ -542,7 +545,7 @@ class DependencyWalker:
             for child in body:
                 self._visit(child)
 
-    def _visit_cache(self, node: Any) -> None:
+    def _visit_cache(self, node: Node) -> None:
         """Handle cache block: {% cache key %}...{% end %}"""
         self._visit(node.key)
         if node.ttl:
@@ -552,18 +555,18 @@ class DependencyWalker:
         for child in node.body:
             self._visit(child)
 
-    def _visit_include(self, node: Any) -> None:
+    def _visit_include(self, node: Node) -> None:
         """Handle include statement."""
         self._visit(node.template)
 
-    def _visit_import(self, node: Any) -> None:
+    def _visit_import(self, node: Node) -> None:
         """Handle import statement."""
         self._visit(node.template)
         # Add imported name to scope
         if self._scope_stack:
             self._scope_stack[-1].add(node.target)
 
-    def _visit_fromimport(self, node: Any) -> None:
+    def _visit_fromimport(self, node: Node) -> None:
         """Handle from...import statement."""
         self._visit(node.template)
         # Add imported names to scope
@@ -571,7 +574,7 @@ class DependencyWalker:
             for name, alias in node.names:
                 self._scope_stack[-1].add(alias or name)
 
-    def _visit_if(self, node: Any) -> None:
+    def _visit_if(self, node: Node) -> None:
         """Handle if statement."""
         self._visit(node.test)
         for child in node.body:
@@ -579,39 +582,40 @@ class DependencyWalker:
         for child in node.else_:
             self._visit(child)
         # Handle elif
-        if hasattr(node, "elif_") and node.elif_:
-            for test, body in node.elif_:
+        elif_ = getattr(node, "elif_", None)
+        if elif_:
+            for test, body in elif_:
                 self._visit(test)
                 for child in body:
                     self._visit(child)
 
-    def _visit_output(self, node: Any) -> None:
+    def _visit_output(self, node: Node) -> None:
         """Handle output: {{ expr }}"""
         self._visit(node.expr)
 
-    def _visit_block(self, node: Any) -> None:
+    def _visit_block(self, node: Node) -> None:
         """Handle block: {% block name %}...{% end %}"""
         for child in node.body:
             self._visit(child)
 
-    def _visit_extends(self, node: Any) -> None:
+    def _visit_extends(self, node: Node) -> None:
         """Handle extends: {% extends 'base.html' %}"""
         self._visit(node.template)
 
-    def _visit_template(self, node: Any) -> None:
+    def _visit_template(self, node: Node) -> None:
         """Handle template root node."""
         if node.extends:
             self._visit(node.extends)
         for child in node.body:
             self._visit(child)
 
-    def _visit_filterblock(self, node: Any) -> None:
+    def _visit_filterblock(self, node: Node) -> None:
         """Handle filter block: {% filter upper %}...{% end %}"""
         self._visit(node.filter)
         for child in node.body:
             self._visit(child)
 
-    def _visit_callblock(self, node: Any) -> None:
+    def _visit_callblock(self, node: Node) -> None:
         """Handle call block: {% call name(args) %}body{% end %}"""
         self._visit(node.call)
         for arg in node.args:
@@ -619,68 +623,68 @@ class DependencyWalker:
         for child in node.body:
             self._visit(child)
 
-    def _visit_spaceless(self, node: Any) -> None:
+    def _visit_spaceless(self, node: Node) -> None:
         """Handle spaceless block."""
         for child in node.body:
             self._visit(child)
 
-    def _visit_autoescape(self, node: Any) -> None:
+    def _visit_autoescape(self, node: Node) -> None:
         """Handle autoescape block."""
         for child in node.body:
             self._visit(child)
 
-    def _visit_trim(self, node: Any) -> None:
+    def _visit_trim(self, node: Node) -> None:
         """Handle trim block."""
         for child in node.body:
             self._visit(child)
 
-    def _visit_embed(self, node: Any) -> None:
+    def _visit_embed(self, node: Node) -> None:
         """Handle embed: {% embed 'card.html' %}...{% end %}"""
         self._visit(node.template)
         for block in node.blocks.values():
             self._visit(block)
 
-    def _visit_await(self, node: Any) -> None:
+    def _visit_await(self, node: Node) -> None:
         """Handle await expression."""
         self._visit(node.value)
 
-    def _visit_marksafe(self, node: Any) -> None:
+    def _visit_marksafe(self, node: Node) -> None:
         """Handle safe marker."""
         self._visit(node.value)
 
-    def _visit_inlinedfilter(self, node: Any) -> None:
+    def _visit_inlinedfilter(self, node: Node) -> None:
         """Handle inlined filter (optimization)."""
         self._visit(node.value)
         for arg in node.args:
             self._visit(arg)
 
     # Leaf nodes that don't need children visited
-    def _visit_const(self, node: Any) -> None:
+    def _visit_const(self, node: Node) -> None:
         """Constants have no dependencies."""
 
-    def _visit_data(self, node: Any) -> None:
+    def _visit_data(self, node: Node) -> None:
         """Static data has no dependencies."""
 
-    def _visit_raw(self, node: Any) -> None:
+    def _visit_raw(self, node: Node) -> None:
         """Raw blocks have no dependencies."""
 
-    def _visit_slot(self, node: Any) -> None:
+    def _visit_slot(self, node: Node) -> None:
         """Slots have no dependencies."""
 
-    def _visit_break(self, node: Any) -> None:
+    def _visit_break(self, node: Node) -> None:
         """Break has no dependencies."""
 
-    def _visit_continue(self, node: Any) -> None:
+    def _visit_continue(self, node: Node) -> None:
         """Continue has no dependencies."""
 
-    def _visit_do(self, node: Any) -> None:
+    def _visit_do(self, node: Node) -> None:
         """Handle do statement."""
         self._visit(node.expr)
 
-    def _visit_loopvar(self, node: Any) -> None:
+    def _visit_loopvar(self, node: Node) -> None:
         """Loop variable access (loop.index, etc.) - no context deps."""
 
-    def _build_path(self, node: Any) -> str | None:
+    def _build_path(self, node: Node) -> str | None:
         """Build dotted path from chained attribute/item access.
 
         Returns None if the path can't be determined statically
@@ -723,7 +727,7 @@ class DependencyWalker:
         parts.reverse()
         return ".".join(parts)
 
-    def _extract_targets(self, node: Any) -> set[str]:
+    def _extract_targets(self, node: Node) -> set[str]:
         """Extract variable names from assignment target."""
         node_type = type(node).__name__
 

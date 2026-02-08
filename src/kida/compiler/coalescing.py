@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from kida.environment import Environment
+    from kida.nodes import Node
 
 # Coalescing threshold - minimum nodes to trigger f-string generation
 COALESCE_MIN_NODES = 2
@@ -104,10 +105,10 @@ class FStringCoalescingMixin:
         _streaming: bool
 
         # From ExpressionCompilationMixin
-        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+        def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
         # From Compiler (for _compile_node)
-        def _compile_node(self, node: Any) -> list[ast.stmt]: ...
+        def _compile_node(self, node: Node) -> list[ast.stmt]: ...
 
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
@@ -118,7 +119,7 @@ class FStringCoalescingMixin:
             return _BUILTIN_PURE_FILTERS | frozenset(self._env.pure_filters)
         return _BUILTIN_PURE_FILTERS
 
-    def _is_coalesceable(self, node: Any) -> bool:
+    def _is_coalesceable(self, node: Node) -> bool:
         """Check if node can be coalesced into an f-string.
 
         Coalesceable nodes:
@@ -142,11 +143,11 @@ class FStringCoalescingMixin:
 
         return False
 
-    def _is_simple_output(self, node: Any) -> bool:
+    def _is_simple_output(self, node: Node) -> bool:
         """Check if Output node is simple enough for f-string."""
         return self._is_simple_expr(node.expr)
 
-    def _is_simple_expr(self, expr: Any) -> bool:
+    def _is_simple_expr(self, expr: Node) -> bool:
         """Recursively check if expression is simple enough for f-string.
 
         Simple expressions:
@@ -237,7 +238,7 @@ class FStringCoalescingMixin:
         # Binary/unary ops are NOT coalesceable (complex evaluation)
         return False
 
-    def _expr_contains_backslash(self, expr: Any) -> bool:
+    def _expr_contains_backslash(self, expr: Node) -> bool:
         """Check if expression would generate code with backslashes.
 
         F-strings cannot contain backslashes in expression parts.

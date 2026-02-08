@@ -11,8 +11,12 @@ All functions are stateless and safe for concurrent use.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
+from time import perf_counter as _perf_counter
+
+from kida.render_accumulator import get_accumulator as _get_accumulator
 from kida.utils.html import _SPACELESS_RE, Markup
 
 # =============================================================================
@@ -39,7 +43,52 @@ STATIC_NAMESPACE: dict[str, Any] = {
     "_bool": bool,
     "_int": int,
     "_float": float,
+    "_get_accumulator": _get_accumulator,
+    "_perf_counter": _perf_counter,
 }
+
+
+def record_filter_usage(acc: Any, name: str, result: Any) -> Any:
+    """Record filter usage for profiling, returning the result unchanged.
+
+    Called by compiled code for every filter invocation. When profiling
+    is disabled (acc is None), the cost is a single falsy check + return.
+
+    Args:
+        acc: RenderAccumulator instance, or None when profiling is off
+        name: Filter name for recording
+        result: The filter's return value (passed through unchanged)
+
+    Returns:
+        The result argument unchanged.
+    """
+    if acc is not None:
+        acc.record_filter(name)
+    return result
+
+
+def record_macro_usage(acc: Any, name: str, result: Any) -> Any:
+    """Record macro ({% def %}) call for profiling, returning the result unchanged.
+
+    Called by compiled code for every macro invocation. When profiling
+    is disabled (acc is None), the cost is a single falsy check + return.
+
+    Args:
+        acc: RenderAccumulator instance, or None when profiling is off
+        name: Macro/def name for recording
+        result: The macro's return value (passed through unchanged)
+
+    Returns:
+        The result argument unchanged.
+    """
+    if acc is not None:
+        acc.record_macro(name)
+    return result
+
+
+# Add to STATIC_NAMESPACE after functions are defined
+STATIC_NAMESPACE["_record_filter"] = record_filter_usage
+STATIC_NAMESPACE["_record_macro"] = record_macro_usage
 
 
 def lookup(ctx: dict[str, Any], var_name: str) -> Any:
@@ -109,7 +158,7 @@ def lookup_scope(
 
 
 def default_safe(
-    value_fn: Any,
+    value_fn: Callable[[], Any],
     default_value: Any = "",
     boolean: bool = False,
 ) -> Any:
@@ -142,7 +191,7 @@ def default_safe(
         return value if value is not None else default_value
 
 
-def is_defined(value_fn: Any) -> bool:
+def is_defined(value_fn: Callable[[], Any]) -> bool:
     """Check if a value is defined in strict mode.
 
     In strict mode, we need to catch UndefinedError to determine
@@ -164,7 +213,7 @@ def is_defined(value_fn: Any) -> bool:
         return False
 
 
-def null_coalesce(left_fn: Any, right_fn: Any) -> Any:
+def null_coalesce(left_fn: Callable[[], Any], right_fn: Callable[[], Any]) -> Any:
     """Safe null coalescing that handles undefined variables.
 
     In strict mode, the left expression might raise UndefinedError.

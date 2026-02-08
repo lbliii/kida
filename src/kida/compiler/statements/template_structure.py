@@ -9,10 +9,10 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from kida.nodes import Node
 
 
 class TemplateStructureMixin:
@@ -31,7 +31,7 @@ class TemplateStructureMixin:
         _streaming: bool
 
         # From ExpressionCompilationMixin
-        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+        def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
@@ -62,7 +62,7 @@ class TemplateStructureMixin:
             ]
         return [ast.Expr(value=ast.YieldFrom(value=call_expr))]
 
-    def _compile_block(self, node: Any) -> list[ast.stmt]:
+    def _compile_block(self, node: Node) -> list[ast.stmt]:
         """Compile {% block name %} ... {% endblock %.
 
         StringBuilder: _append(_blocks.get('name', _block_name)(ctx, _blocks))
@@ -99,9 +99,17 @@ class TemplateStructureMixin:
             )
             return self._yield_from_or_async_for(block_call)
 
-        # _append(_blocks.get('name', _block_name)(ctx, _blocks))
-        return [
-            ast.Expr(
+        # StringBuilder mode with profiling instrumentation:
+        #   if _acc is not None:
+        #       _t0 = _perf_counter()
+        #       _append(_blocks.get('name', _block_name)(ctx, _blocks))
+        #       _acc.record_block('name', (_perf_counter() - _t0) * 1000)
+        #   else:
+        #       _append(_blocks.get('name', _block_name)(ctx, _blocks))
+
+        def _make_block_append() -> ast.Expr:
+            """Generate _append(_blocks.get('name', _block_name)(ctx, _blocks))."""
+            return ast.Expr(
                 value=ast.Call(
                     func=ast.Name(id="_append", ctx=ast.Load()),
                     args=[
@@ -114,7 +122,9 @@ class TemplateStructureMixin:
                                 ),
                                 args=[
                                     ast.Constant(value=block_name),
-                                    ast.Name(id=f"_block_{block_name}", ctx=ast.Load()),
+                                    ast.Name(
+                                        id=f"_block_{block_name}", ctx=ast.Load()
+                                    ),
                                 ],
                                 keywords=[],
                             ),
@@ -128,9 +138,60 @@ class TemplateStructureMixin:
                     keywords=[],
                 ),
             )
+
+        return [
+            ast.If(
+                test=ast.Compare(
+                    left=ast.Name(id="_acc", ctx=ast.Load()),
+                    ops=[ast.IsNot()],
+                    comparators=[ast.Constant(value=None)],
+                ),
+                body=[
+                    # _t0 = _perf_counter()
+                    ast.Assign(
+                        targets=[ast.Name(id="_t0", ctx=ast.Store())],
+                        value=ast.Call(
+                            func=ast.Name(id="_perf_counter", ctx=ast.Load()),
+                            args=[],
+                            keywords=[],
+                        ),
+                    ),
+                    _make_block_append(),
+                    # _acc.record_block('name', (_perf_counter() - _t0) * 1000)
+                    ast.Expr(
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Name(id="_acc", ctx=ast.Load()),
+                                attr="record_block",
+                                ctx=ast.Load(),
+                            ),
+                            args=[
+                                ast.Constant(value=block_name),
+                                ast.BinOp(
+                                    left=ast.BinOp(
+                                        left=ast.Call(
+                                            func=ast.Name(
+                                                id="_perf_counter", ctx=ast.Load()
+                                            ),
+                                            args=[],
+                                            keywords=[],
+                                        ),
+                                        op=ast.Sub(),
+                                        right=ast.Name(id="_t0", ctx=ast.Load()),
+                                    ),
+                                    op=ast.Mult(),
+                                    right=ast.Constant(value=1000),
+                                ),
+                            ],
+                            keywords=[],
+                        ),
+                    ),
+                ],
+                orelse=[_make_block_append()],
+            )
         ]
 
-    def _compile_include(self, node: Any) -> list[ast.stmt]:
+    def _compile_include(self, node: Node) -> list[ast.stmt]:
         """Compile {% include "template.html" [with context] %.
 
         StringBuilder: _append(_include(template_name, ctx))
@@ -176,7 +237,7 @@ class TemplateStructureMixin:
             )
         ]
 
-    def _compile_from_import(self, node: Any) -> list[ast.stmt]:
+    def _compile_from_import(self, node: Node) -> list[ast.stmt]:
         """Compile {% from "template.html" import name1, name2 as alias %.
 
         Generates:
@@ -226,7 +287,7 @@ class TemplateStructureMixin:
 
         return stmts
 
-    def _compile_import(self, node: Any) -> list[ast.stmt]:
+    def _compile_import(self, node: Node) -> list[ast.stmt]:
         """Compile {% import "template.html" as f %.
 
         Generates: ctx['f'] = _import_macros(template_name, with_context, ctx)

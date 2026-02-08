@@ -9,10 +9,10 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from kida.nodes import Node
 
 
 class BasicStatementMixin:
@@ -30,12 +30,12 @@ class BasicStatementMixin:
         _streaming: bool
 
         # From ExpressionCompilationMixin
-        def _compile_expr(self, node: Any, store: bool = False) -> ast.expr: ...
+        def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
-    def _compile_data(self, node: Any) -> list[ast.stmt]:
+    def _compile_data(self, node: Node) -> list[ast.stmt]:
         """Compile raw text data.
 
         StringBuilder mode: _append("literal text")
@@ -46,7 +46,7 @@ class BasicStatementMixin:
 
         return [self._emit_output(ast.Constant(value=node.value))]
 
-    def _compile_output(self, node: Any) -> list[ast.stmt]:
+    def _compile_output(self, node: Node) -> list[ast.stmt]:
         """Compile {{ expression }} output.
 
         StringBuilder mode: _append(_e(expr)) or _append(_s(expr))

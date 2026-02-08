@@ -72,8 +72,11 @@ invalid-method-override = "ignore"
 # Compiler/parser mixin patterns: mixins access attributes defined in sibling
 # mixins or the host class. ty cannot resolve cross-mixin attribute access.
 # These will be fixed properly via Protocol typing (see plan/rfc-mixin-protocol-typing.md)
+#
+# Analysis visitor pattern: visitor methods dispatch on node type and access
+# subclass-specific attributes via the base Node type.
 [[tool.ty.overrides]]
-include = ["src/kida/compiler/**", "src/kida/parser/**"]
+include = ["src/kida/compiler/**", "src/kida/parser/**", "src/kida/analysis/**"]
 [tool.ty.overrides.rules]
 unresolved-attribute = "warn"
 

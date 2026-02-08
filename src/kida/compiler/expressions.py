@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import ast
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from kida.environment.exceptions import TemplateSyntaxError
 
 if TYPE_CHECKING:
     from kida.environment import Environment
+    from kida.nodes import Node
 
 # Arithmetic operators that require numeric operands
 _ARITHMETIC_OPS = frozenset({"*", "/", "-", "+", "**", "//", "%"})
@@ -40,6 +41,7 @@ class ExpressionCompilationMixin:
         _env: Environment
         _locals: set[str]
         _block_counter: int
+        _def_names: set[str]
 
         # From OperatorUtilsMixin
         def _get_binop(self, op: str) -> ast.operator: ...
@@ -84,7 +86,7 @@ class ExpressionCompilationMixin:
             body=expr,
         )
 
-    def _is_potentially_string(self, node: Any) -> bool:
+    def _is_potentially_string(self, node: Node) -> bool:
         """Check if node could produce a string value (macro call, filter chain).
 
         Used to determine when numeric coercion is needed for arithmetic operations.
@@ -136,7 +138,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_expr(self, node: Any, store: bool = False) -> ast.expr:
+    def _compile_expr(self, node: Node, store: bool = False) -> ast.expr:
         """Compile expression node to Python AST expression.
 
         Complexity: O(1) dispatch + O(d) for recursive expressions.
@@ -260,13 +262,28 @@ class ExpressionCompilationMixin:
             return test_call
 
         if node_type == "FuncCall":
-            return ast.Call(
+            call_node = ast.Call(
                 func=self._compile_expr(node.func),
                 args=[self._compile_expr(a) for a in node.args],
                 keywords=[
                     ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
                 ],
             )
+            # Profiling: record macro call when target is a known {% def %} name
+            # Skip when inside {% call %} block (needs raw ast.Call for _caller kwarg)
+            func_name = getattr(node.func, "name", None)
+            skip = getattr(self, "_skip_macro_instrumentation", False)
+            if func_name and func_name in self._def_names and not skip:
+                return ast.Call(
+                    func=ast.Name(id="_record_macro", ctx=ast.Load()),
+                    args=[
+                        ast.Name(id="_acc", ctx=ast.Load()),
+                        ast.Constant(value=func_name),
+                        call_node,
+                    ],
+                    keywords=[],
+                )
+            return call_node
 
         if node_type == "Filter":
             # Validate filter exists at compile time
@@ -295,7 +312,7 @@ class ExpressionCompilationMixin:
                 )
 
             value = self._compile_expr(node.value)
-            return ast.Call(
+            filter_call = ast.Call(
                 func=ast.Subscript(
                     value=ast.Name(id="_filters", ctx=ast.Load()),
                     slice=ast.Constant(value=node.name),
@@ -303,8 +320,21 @@ class ExpressionCompilationMixin:
                 ),
                 args=[value] + [self._compile_expr(a) for a in node.args],
                 keywords=[
-                    ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
+                    ast.keyword(arg=k, value=self._compile_expr(v))
+                    for k, v in node.kwargs.items()
                 ],
+            )
+            # Profiling: _record_filter(_acc, 'name', filter_result)
+            # Always called, but _record_filter short-circuits when _acc is None
+            # (single falsy check + return). No AST duplication.
+            return ast.Call(
+                func=ast.Name(id="_record_filter", ctx=ast.Load()),
+                args=[
+                    ast.Name(id="_acc", ctx=ast.Load()),
+                    ast.Constant(value=node.name),
+                    filter_call,
+                ],
+                keywords=[],
             )
 
         if node_type == "BinOp":
@@ -407,7 +437,7 @@ class ExpressionCompilationMixin:
         # Fallback
         return ast.Constant(value=None)
 
-    def _compile_null_coalesce(self, node: Any) -> ast.expr:
+    def _compile_null_coalesce(self, node: Node) -> ast.expr:
         """Compile a ?? b to handle both None and undefined variables.
 
         Uses _null_coalesce helper to catch UndefinedError for undefined variables.
@@ -434,7 +464,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_optional_getattr(self, node: Any) -> ast.expr:
+    def _compile_optional_getattr(self, node: Node) -> ast.expr:
         """Compile obj?.attr using walrus operator to avoid double evaluation.
 
         obj?.attr compiles to:
@@ -481,7 +511,7 @@ class ExpressionCompilationMixin:
             ),
         )
 
-    def _compile_optional_getitem(self, node: Any) -> ast.expr:
+    def _compile_optional_getitem(self, node: Node) -> ast.expr:
         """Compile obj?[key] using walrus operator to avoid double evaluation.
 
         obj?[key] compiles to:
@@ -513,7 +543,7 @@ class ExpressionCompilationMixin:
             ),
         )
 
-    def _compile_range(self, node: Any) -> ast.expr:
+    def _compile_range(self, node: Node) -> ast.expr:
         """Compile range literal to range() call.
 
         1..10    → range(1, 11)      # inclusive
@@ -539,7 +569,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_inlined_filter(self, node: Any) -> ast.Call:
+    def _compile_inlined_filter(self, node: Node) -> ast.Call:
         """Compile inlined filter to direct method call.
 
         Generates: _str(value).method(*args)
@@ -568,7 +598,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_pipeline(self, node: Any) -> ast.expr:
+    def _compile_pipeline(self, node: Node) -> ast.expr:
         """Compile pipeline: expr |> filter1 |> filter2.
 
         Pipelines compile to nested filter calls using the _filters dict,
@@ -596,7 +626,7 @@ class ExpressionCompilationMixin:
             ]
 
             # Call: _filters['filter_name'](prev_result, *args, **kwargs)
-            result = ast.Call(
+            filter_call = ast.Call(
                 func=ast.Subscript(
                     value=ast.Name(id="_filters", ctx=ast.Load()),
                     slice=ast.Constant(value=filter_name),
@@ -604,6 +634,17 @@ class ExpressionCompilationMixin:
                 ),
                 args=[result, *compiled_args],
                 keywords=compiled_kwargs,
+            )
+
+            # Profiling: _record_filter(_acc, 'name', filter_result)
+            result = ast.Call(
+                func=ast.Name(id="_record_filter", ctx=ast.Load()),
+                args=[
+                    ast.Name(id="_acc", ctx=ast.Load()),
+                    ast.Constant(value=filter_name),
+                    filter_call,
+                ],
+                keywords=[],
             )
 
         return result

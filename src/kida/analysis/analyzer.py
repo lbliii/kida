@@ -7,6 +7,7 @@ and role classification into a unified analysis pass.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from kida.analysis.cache import infer_cache_scope
@@ -16,7 +17,7 @@ from kida.analysis.landmarks import LandmarkDetector
 from kida.analysis.metadata import BlockMetadata, TemplateMetadata
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
-from kida.nodes import Block, Const, Data, Extends, Output, Template
+from kida.nodes import Block, Const, Data, Extends, Node, Output, Template
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class BlockAnalyzer:
     def __init__(
         self,
         config: AnalysisConfig | None = None,
-        template_resolver: Any | None = None,
+        template_resolver: Callable[[str], Any] | None = None,
     ) -> None:
         """Initialize analyzer with optional configuration.
 
@@ -143,11 +144,13 @@ class BlockAnalyzer:
 
     def _collect_blocks(self, ast: Template) -> list[Block]:
         """Recursively collect all Block nodes from AST."""
-        blocks: list[Any] = []
+        blocks: list[Block] = []
         self._collect_blocks_recursive(ast.body, blocks)
         return blocks
 
-    def _collect_blocks_recursive(self, nodes: Any, blocks: list[Any]) -> None:
+    def _collect_blocks_recursive(
+        self, nodes: Sequence[Node], blocks: list[Block]
+    ) -> None:
         """Recursively find Block nodes."""
         for node in nodes:
             if isinstance(node, Block):
@@ -155,19 +158,20 @@ class BlockAnalyzer:
 
             # Recurse into containers
             for attr in ("body", "else_", "empty"):
-                if hasattr(node, attr):
-                    children = getattr(node, attr)
-                    if children:
-                        self._collect_blocks_recursive(children, blocks)
+                children = getattr(node, attr, None)
+                if children:
+                    self._collect_blocks_recursive(children, blocks)
 
             # Handle elif
-            if hasattr(node, "elif_") and node.elif_:
-                for _test, body in node.elif_:
+            elif_ = getattr(node, "elif_", None)
+            if elif_:
+                for _test, body in elif_:
                     self._collect_blocks_recursive(body, blocks)
 
             # Handle match cases
-            if hasattr(node, "cases") and node.cases:
-                for _pattern, _guard, body in node.cases:
+            cases = getattr(node, "cases", None)
+            if cases:
+                for _pattern, _guard, body in cases:
                     self._collect_blocks_recursive(body, blocks)
 
     def _analyze_top_level(
@@ -199,7 +203,7 @@ class BlockAnalyzer:
 
     def _analyze_top_level_nodes(
         self,
-        nodes: Any,
+        nodes: Sequence[Node],
         block_names: set[str],
         deps: set[str],
     ) -> None:
@@ -254,7 +258,7 @@ class BlockAnalyzer:
                         exc_info=False,  # Don't include full traceback for warnings
                     )
 
-    def _check_emits_html(self, node: Any) -> bool:
+    def _check_emits_html(self, node: Node) -> bool:
         """Check if a node produces any output."""
         if isinstance(node, Data) and node.value.strip():
             return True
@@ -270,8 +274,9 @@ class BlockAnalyzer:
                             return True
 
         # Handle elif
-        if hasattr(node, "elif_") and node.elif_:
-            for _test, body in node.elif_:
+        elif_ = getattr(node, "elif_", None)
+        if elif_:
+            for _test, body in elif_:
                 for child in body:
                     if hasattr(child, "lineno") and self._check_emits_html(child):
                         return True
