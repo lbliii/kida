@@ -7,6 +7,18 @@ This benchmark tells the complete story:
 
 Run with: pytest benchmarks/test_benchmark_full_comparison.py --benchmark-only -v
 
+Templates: Inline definitions (NOT the same as benchmarks/templates/*.html).
+These are compact inline templates with identical logic in Kida and Jinja2 syntax,
+designed for fair cross-engine comparison. For file-based template benchmarks with
+richer contexts, see test_benchmark_render.py.
+
+Template sizes:
+- "minimal": Single variable interpolation
+- "small": Loop over 10 dict items with filter (upper)
+- "medium": Conditional + nested object + loop over 5 posts
+
+Numbers from this file are reported in benchmarks/README.md.
+
 The results show:
 - Single-threaded: Kida is ~6-380% faster depending on template size
 - Concurrent (8 workers): Kida is ~76% faster due to better parallelism

@@ -1,7 +1,20 @@
-"""Template rendering benchmarks: Kida vs Jinja2.
+"""Template rendering benchmarks: Kida vs Jinja2 (file-based templates).
 
-Run with: pytest benchmarks/benchmark_render.py --benchmark-only
-Compare: pytest benchmarks/benchmark_render.py --benchmark-compare
+Templates: File-based from benchmarks/templates/ with rich contexts from
+benchmarks/fixtures/. These are more realistic than the inline templates in
+test_benchmark_full_comparison.py, but use different template sources and contexts.
+
+Template sizes:
+- "minimal": Single variable (templates/minimal.html)
+- "small": 12 context vars, loop over 5 string items (templates/small.html)
+- "medium": ~100 context vars, multiple loops with filters (templates/medium.html)
+- "large": 1000 loop items (templates/large.html)
+- "complex": 3-level template inheritance chain (templates/complex/)
+
+Numbers from this file are reported in site/content/docs/about/performance.md.
+
+Run with: pytest benchmarks/test_benchmark_render.py --benchmark-only
+Compare: pytest benchmarks/test_benchmark_render.py --benchmark-compare
 """
 
 from __future__ import annotations
@@ -105,6 +118,72 @@ def test_render_complex_jinja2(
     benchmark(template.render, **complex_context)
 
 
+# =============================================================================
+# Async Rendering (Kida: render_async via asyncio.to_thread)
+# =============================================================================
+
+
+@pytest.mark.benchmark(group="render-async:medium")
+def test_render_async_medium_kida(
+    benchmark: BenchmarkFixture,
+    kida_env: KidaEnvironment,
+    medium_context: dict[str, object],
+) -> None:
+    """Kida: Async render (asyncio.to_thread) for medium template."""
+    import asyncio
+
+    template = kida_env.get_template("medium.html")
+
+    def run():
+        return asyncio.run(template.render_async(**medium_context))
+
+    benchmark(run)
+
+
+@pytest.mark.benchmark(group="render-async:medium")
+def test_render_sync_medium_kida_baseline(
+    benchmark: BenchmarkFixture,
+    kida_env: KidaEnvironment,
+    medium_context: dict[str, object],
+) -> None:
+    """Kida: Sync render baseline for async comparison."""
+    template = kida_env.get_template("medium.html")
+    benchmark(template.render, **medium_context)
+
+
+@pytest.mark.benchmark(group="render-async:large")
+def test_render_async_large_kida(
+    benchmark: BenchmarkFixture,
+    kida_env: KidaEnvironment,
+    large_context: dict[str, object],
+) -> None:
+    """Kida: Async render (asyncio.to_thread) for large template."""
+    import asyncio
+
+    template = kida_env.get_template("large.html")
+
+    def run():
+        return asyncio.run(template.render_async(**large_context))
+
+    benchmark(run)
+
+
+@pytest.mark.benchmark(group="render-async:large")
+def test_render_sync_large_kida_baseline(
+    benchmark: BenchmarkFixture,
+    kida_env: KidaEnvironment,
+    large_context: dict[str, object],
+) -> None:
+    """Kida: Sync render baseline for async comparison."""
+    template = kida_env.get_template("large.html")
+    benchmark(template.render, **large_context)
+
+
+# =============================================================================
+# Compilation Benchmarks (all template sizes)
+# =============================================================================
+
+
 @pytest.mark.benchmark(group="compile:small")
 def test_compile_small_kida(
     benchmark: BenchmarkFixture, kida_env: KidaEnvironment, template_loader
@@ -120,6 +199,60 @@ def test_compile_small_jinja2(
     template_loader,
 ) -> None:
     source = template_loader("small.html", engine="jinja2")
+    benchmark(jinja2_env.from_string, source)
+
+
+@pytest.mark.benchmark(group="compile:medium")
+def test_compile_medium_kida(
+    benchmark: BenchmarkFixture, kida_env: KidaEnvironment, template_loader
+) -> None:
+    source = template_loader("medium.html", engine="kida")
+    benchmark(kida_env.from_string, source)
+
+
+@pytest.mark.benchmark(group="compile:medium")
+def test_compile_medium_jinja2(
+    benchmark: BenchmarkFixture,
+    jinja2_env: Jinja2Environment,
+    template_loader,
+) -> None:
+    source = template_loader("medium.html", engine="jinja2")
+    benchmark(jinja2_env.from_string, source)
+
+
+@pytest.mark.benchmark(group="compile:large")
+def test_compile_large_kida(
+    benchmark: BenchmarkFixture, kida_env: KidaEnvironment, template_loader
+) -> None:
+    source = template_loader("large.html", engine="kida")
+    benchmark(kida_env.from_string, source)
+
+
+@pytest.mark.benchmark(group="compile:large")
+def test_compile_large_jinja2(
+    benchmark: BenchmarkFixture,
+    jinja2_env: Jinja2Environment,
+    template_loader,
+) -> None:
+    source = template_loader("large.html", engine="jinja2")
+    benchmark(jinja2_env.from_string, source)
+
+
+@pytest.mark.benchmark(group="compile:complex")
+def test_compile_complex_kida(
+    benchmark: BenchmarkFixture, kida_env: KidaEnvironment, template_loader
+) -> None:
+    source = template_loader("complex/page.html", engine="kida")
+    benchmark(kida_env.from_string, source)
+
+
+@pytest.mark.benchmark(group="compile:complex")
+def test_compile_complex_jinja2(
+    benchmark: BenchmarkFixture,
+    jinja2_env: Jinja2Environment,
+    template_loader,
+) -> None:
+    source = template_loader("complex/page.html", engine="jinja2")
     benchmark(jinja2_env.from_string, source)
 
 
