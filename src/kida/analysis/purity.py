@@ -12,7 +12,53 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from kida.environment.exceptions import TemplateNotFoundError, TemplateSyntaxError
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import (
+        Await,
+        BinOp,
+        Block,
+        BoolOp,
+        Break,
+        Cache,
+        Capture,
+        Compare,
+        Concat,
+        CondExpr,
+        Const,
+        Continue,
+        Data,
+        Def,
+        Dict,
+        Extends,
+        Filter,
+        For,
+        FuncCall,
+        Getattr,
+        Getitem,
+        If,
+        Include,
+        InlinedFilter,
+        Let,
+        List,
+        LoopVar,
+        MarkSafe,
+        Match,
+        Node,
+        NullCoalesce,
+        OptionalGetattr,
+        OptionalGetitem,
+        Output,
+        Pipeline,
+        Range,
+        Raw,
+        Set,
+        Slice,
+        Slot,
+        Test,
+        Tuple,
+        UnaryOp,
+        With,
+        WithConditional,
+    )
 
 # Purity lattice: pure < unknown < impure
 # When combining, take the most conservative (worst case)
@@ -273,62 +319,62 @@ class PurityAnalyzer:
 
         return result
 
-    def _visit_const(self, node: Node) -> PurityLevel:
+    def _visit_const(self, node: Const) -> PurityLevel:
         """Constants are pure."""
         return "pure"
 
-    def _visit_name(self, node: Node) -> PurityLevel:
+    def _visit_name(self, node: Name) -> PurityLevel:
         """Variable access is pure (reading doesn't mutate)."""
         return "pure"
 
-    def _visit_getattr(self, node: Node) -> PurityLevel:
+    def _visit_getattr(self, node: Getattr) -> PurityLevel:
         """Attribute access is pure."""
         return self._visit(node.obj)
 
-    def _visit_optionalgetattr(self, node: Node) -> PurityLevel:
+    def _visit_optionalgetattr(self, node: OptionalGetattr) -> PurityLevel:
         """Optional attribute access is pure."""
         return self._visit(node.obj)
 
-    def _visit_getitem(self, node: Node) -> PurityLevel:
+    def _visit_getitem(self, node: Getitem) -> PurityLevel:
         """Subscript access is pure."""
         return _combine_purity(
             self._visit(node.obj),
             self._visit(node.key),
         )
 
-    def _visit_optionalgetitem(self, node: Node) -> PurityLevel:
+    def _visit_optionalgetitem(self, node: OptionalGetitem) -> PurityLevel:
         """Optional subscript access is pure."""
         return _combine_purity(
             self._visit(node.obj),
             self._visit(node.key),
         )
 
-    def _visit_binop(self, node: Node) -> PurityLevel:
+    def _visit_binop(self, node: BinOp) -> PurityLevel:
         """Binary operations are pure."""
         return _combine_purity(
             self._visit(node.left),
             self._visit(node.right),
         )
 
-    def _visit_unaryop(self, node: Node) -> PurityLevel:
+    def _visit_unaryop(self, node: UnaryOp) -> PurityLevel:
         """Unary operations are pure."""
         return self._visit(node.operand)
 
-    def _visit_compare(self, node: Node) -> PurityLevel:
+    def _visit_compare(self, node: Compare) -> PurityLevel:
         """Comparisons are pure."""
         result = self._visit(node.left)
         for comp in node.comparators:
             result = _combine_purity(result, self._visit(comp))
         return result
 
-    def _visit_boolop(self, node: Node) -> PurityLevel:
+    def _visit_boolop(self, node: BoolOp) -> PurityLevel:
         """Boolean operations are pure."""
         result: PurityLevel = "pure"
         for value in node.values:
             result = _combine_purity(result, self._visit(value))
         return result
 
-    def _visit_condexpr(self, node: Node) -> PurityLevel:
+    def _visit_condexpr(self, node: CondExpr) -> PurityLevel:
         """Conditional expressions are pure if all parts are pure."""
         return _combine_purity(
             self._visit(node.test),
@@ -338,21 +384,21 @@ class PurityAnalyzer:
             ),
         )
 
-    def _visit_nullcoalesce(self, node: Node) -> PurityLevel:
+    def _visit_nullcoalesce(self, node: NullCoalesce) -> PurityLevel:
         """Null coalescing is pure."""
         return _combine_purity(
             self._visit(node.left),
             self._visit(node.right),
         )
 
-    def _visit_concat(self, node: Node) -> PurityLevel:
+    def _visit_concat(self, node: Concat) -> PurityLevel:
         """String concatenation is pure."""
         result: PurityLevel = "pure"
         for child in node.nodes:
             result = _combine_purity(result, self._visit(child))
         return result
 
-    def _visit_range(self, node: Node) -> PurityLevel:
+    def _visit_range(self, node: Range) -> PurityLevel:
         """Range literals are pure."""
         result = _combine_purity(
             self._visit(node.start),
@@ -362,7 +408,7 @@ class PurityAnalyzer:
             result = _combine_purity(result, self._visit(node.step))
         return result
 
-    def _visit_slice(self, node: Node) -> PurityLevel:
+    def _visit_slice(self, node: Slice) -> PurityLevel:
         """Slice expressions are pure."""
         result: PurityLevel = "pure"
         if node.start:
@@ -373,21 +419,21 @@ class PurityAnalyzer:
             result = _combine_purity(result, self._visit(node.step))
         return result
 
-    def _visit_list(self, node: Node) -> PurityLevel:
+    def _visit_list(self, node: List) -> PurityLevel:
         """List literals are pure if all items are pure."""
         result: PurityLevel = "pure"
         for item in node.items:
             result = _combine_purity(result, self._visit(item))
         return result
 
-    def _visit_tuple(self, node: Node) -> PurityLevel:
+    def _visit_tuple(self, node: Tuple) -> PurityLevel:
         """Tuple literals are pure if all items are pure."""
         result: PurityLevel = "pure"
         for item in node.items:
             result = _combine_purity(result, self._visit(item))
         return result
 
-    def _visit_dict(self, node: Node) -> PurityLevel:
+    def _visit_dict(self, node: Dict) -> PurityLevel:
         """Dict literals are pure if all keys and values are pure."""
         result: PurityLevel = "pure"
         for key in node.keys:
@@ -396,7 +442,7 @@ class PurityAnalyzer:
             result = _combine_purity(result, self._visit(value))
         return result
 
-    def _visit_filter(self, node: Node) -> PurityLevel:
+    def _visit_filter(self, node: Filter) -> PurityLevel:
         """Filter purity depends on the filter."""
         # Check filter name
         if node.name in _KNOWN_PURE_FILTERS:
@@ -415,7 +461,7 @@ class PurityAnalyzer:
 
         return result
 
-    def _visit_pipeline(self, node: Node) -> PurityLevel:
+    def _visit_pipeline(self, node: Pipeline) -> PurityLevel:
         """Pipeline purity depends on all filters in the chain."""
         result = self._visit(node.value)
 
@@ -438,7 +484,7 @@ class PurityAnalyzer:
 
         return result
 
-    def _visit_funccall(self, node: Node) -> PurityLevel:
+    def _visit_funccall(self, node: FuncCall) -> PurityLevel:
         """Function call purity depends on the function."""
         # Check if it's a known pure builtin
         if type(node.func).__name__ == "Name":
@@ -455,14 +501,14 @@ class PurityAnalyzer:
         # Unknown function - conservative
         return "unknown"
 
-    def _visit_test(self, node: Node) -> PurityLevel:
+    def _visit_test(self, node: Test) -> PurityLevel:
         """Tests are pure (they're just predicates)."""
         result = self._visit(node.value)
         for arg in node.args:
             result = _combine_purity(result, self._visit(arg))
         return result
 
-    def _visit_for(self, node: Node) -> PurityLevel:
+    def _visit_for(self, node: For) -> PurityLevel:
         """For loops are pure if body is pure."""
         result = self._visit(node.iter)
         for child in node.body:
@@ -473,7 +519,7 @@ class PurityAnalyzer:
                 result = _combine_purity(result, self._visit(child))
         return result
 
-    def _visit_if(self, node: Node) -> PurityLevel:
+    def _visit_if(self, node: If) -> PurityLevel:
         """Conditionals are pure if all branches are pure."""
         result = self._visit(node.test)
         for child in node.body:
@@ -489,7 +535,7 @@ class PurityAnalyzer:
                     result = _combine_purity(result, self._visit(child))
         return result
 
-    def _visit_match(self, node: Node) -> PurityLevel:
+    def _visit_match(self, node: Match) -> PurityLevel:
         """Match statements are pure if all branches are pure."""
         result = self._visit(node.subject)
         for pattern, guard, body in node.cases:
@@ -500,15 +546,15 @@ class PurityAnalyzer:
                 result = _combine_purity(result, self._visit(child))
         return result
 
-    def _visit_output(self, node: Node) -> PurityLevel:
+    def _visit_output(self, node: Output) -> PurityLevel:
         """Output is pure if expression is pure."""
         return self._visit(node.expr)
 
-    def _visit_data(self, node: Node) -> PurityLevel:
+    def _visit_data(self, node: Data) -> PurityLevel:
         """Static data is pure."""
         return "pure"
 
-    def _visit_cache(self, node: Node) -> PurityLevel:
+    def _visit_cache(self, node: Cache) -> PurityLevel:
         """Cache blocks: the body is evaluated, but result is cached.
 
         The block itself is pure if the body is pure.
@@ -518,14 +564,14 @@ class PurityAnalyzer:
             result = _combine_purity(result, self._visit(child))
         return result
 
-    def _visit_block(self, node: Node) -> PurityLevel:
+    def _visit_block(self, node: Block) -> PurityLevel:
         """Block is pure if body is pure."""
         result: PurityLevel = "pure"
         for child in node.body:
             result = _combine_purity(result, self._visit(child))
         return result
 
-    def _visit_with(self, node: Node) -> PurityLevel:
+    def _visit_with(self, node: With) -> PurityLevel:
         """With blocks are pure if bindings and body are pure."""
         result: PurityLevel = "pure"
         for _name, value in node.targets:
@@ -534,22 +580,22 @@ class PurityAnalyzer:
             result = _combine_purity(result, self._visit(child))
         return result
 
-    def _visit_withconditional(self, node: Node) -> PurityLevel:
+    def _visit_withconditional(self, node: WithConditional) -> PurityLevel:
         """Conditional with is pure if expr and body are pure."""
         result = self._visit(node.expr)
         for child in node.body:
             result = _combine_purity(result, self._visit(child))
         return result
 
-    def _visit_set(self, node: Node) -> PurityLevel:
+    def _visit_set(self, node: Set) -> PurityLevel:
         """Set is pure if value is pure."""
         return self._visit(node.value)
 
-    def _visit_let(self, node: Node) -> PurityLevel:
+    def _visit_let(self, node: Let) -> PurityLevel:
         """Let is pure if value is pure."""
         return self._visit(node.value)
 
-    def _visit_capture(self, node: Node) -> PurityLevel:
+    def _visit_capture(self, node: Capture) -> PurityLevel:
         """Capture is pure if body is pure."""
         result: PurityLevel = "pure"
         for child in node.body:
@@ -559,7 +605,7 @@ class PurityAnalyzer:
             result = _combine_purity(result, self._visit(filter_node))
         return result
 
-    def _visit_include(self, node: Node) -> PurityLevel:
+    def _visit_include(self, node: Include) -> PurityLevel:
         """Include purity depends on included template.
 
         If template_resolver is provided and template name is a constant,
@@ -612,11 +658,11 @@ class PurityAnalyzer:
             # Template missing or unparseable → conservatively unknown
             return "unknown"
 
-    def _visit_extends(self, node: Node) -> PurityLevel:
+    def _visit_extends(self, node: Extends) -> PurityLevel:
         """Extends is unknown (depends on parent template)."""
         return "unknown"
 
-    def _visit_def(self, node: Node) -> PurityLevel:
+    def _visit_def(self, node: Def) -> PurityLevel:
         """Function definition is pure if body is pure."""
         result: PurityLevel = "pure"
         for child in node.body:
@@ -625,34 +671,34 @@ class PurityAnalyzer:
             result = _combine_purity(result, self._visit(default))
         return result
 
-    def _visit_macro(self, node: Node) -> PurityLevel:
+    def _visit_macro(self, node: Def) -> PurityLevel:
         """Macro definition (same as def)."""
         return self._visit_def(node)
 
-    def _visit_inlinedfilter(self, node: Node) -> PurityLevel:
+    def _visit_inlinedfilter(self, node: InlinedFilter) -> PurityLevel:
         """Inlined filter is pure (only pure filters are inlined)."""
         return self._visit(node.value)
 
-    def _visit_marksafe(self, node: Node) -> PurityLevel:
+    def _visit_marksafe(self, node: MarkSafe) -> PurityLevel:
         """Mark safe is pure."""
         return self._visit(node.value)
 
-    def _visit_await(self, node: Node) -> PurityLevel:
+    def _visit_await(self, node: Await) -> PurityLevel:
         """Await is unknown (async operations may have side effects)."""
         return "unknown"
 
     # Leaf nodes
-    def _visit_slot(self, node: Node) -> PurityLevel:
+    def _visit_slot(self, node: Slot) -> PurityLevel:
         return "pure"
 
-    def _visit_break(self, node: Node) -> PurityLevel:
+    def _visit_break(self, node: Break) -> PurityLevel:
         return "pure"
 
-    def _visit_continue(self, node: Node) -> PurityLevel:
+    def _visit_continue(self, node: Continue) -> PurityLevel:
         return "pure"
 
-    def _visit_raw(self, node: Node) -> PurityLevel:
+    def _visit_raw(self, node: Raw) -> PurityLevel:
         return "pure"
 
-    def _visit_loopvar(self, node: Node) -> PurityLevel:
+    def _visit_loopvar(self, node: LoopVar) -> PurityLevel:
         return "pure"
