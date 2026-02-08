@@ -119,7 +119,7 @@ except ImportError:
     # Pre-3.14 Python - t-strings not available
     k = None  # type: ignore[assignment]
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
 
 __all__ = [
     "AnalysisConfig",

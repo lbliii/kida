@@ -5,25 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-02-08
 
 ### Added
 
 - **Streaming rendering** — `template.render_stream(**ctx)` yields template output as string chunks via Python generators. The compiler generates both StringBuilder (`render()`) and generator (`render_stream()`) functions from each template in a single compilation pass. Supports full template inheritance (`{% extends %}`, `{% block %}`), includes, and all control flow. Buffering blocks (`{% capture %}`, `{% spaceless %}`, `{% cache %}`, `{% filter %}`) buffer internally and yield the processed result. No performance impact on `render()` — the existing StringBuilder path is unchanged.
 
-- **Compiler-emitted profiling instrumentation** — `profiled_render()` now automatically tracks blocks (with timing), filters (call counts), and macros (call counts) without manual instrumentation. The compiler emits `_acc = _get_accumulator()` once per function and gates all recording behind a falsy check, so zero overhead when profiling is disabled.
+- **Native async streaming** — `template.render_stream_async(**ctx)` yields template output as string chunks via async generators. Supports native `{% async for %}` loops over async iterables, `{{ await expr }}` for inline coroutine resolution, and `{% empty %}` fallback clauses. All templates generate async streaming variants, enabling async child templates to extend sync parents seamlessly.
 
-- **Include scope propagation** — Loop variables from `{% for %}` and block-scoped `{% set %}` variables are now visible inside `{% include %}` templates. The compiler merges scope-stack and loop locals into a context copy at include call sites.
+- **`AsyncLoopContext`** — Loop variable (`loop`) for `{% async for %}`. Provides index-forward properties (`index`, `index0`, `first`, `previtem`, `cycle()`). Size-dependent properties (`last`, `length`, `revindex`) raise `TemplateRuntimeError` since async iterables have no known length.
 
-- **Bytecode cache warning** — `from_string()` without `name=` now emits a `UserWarning` when a `bytecode_cache` is configured, explaining how to enable caching.
-
-- **PackageLoader** — Load templates from installed Python packages via `importlib.resources`. Enables pip-installable themes, plugins, and framework default templates without path resolution.
-
-- **FunctionLoader** — Wrap any callable as a template loader. Returns `str`, `(str, filename)`, or `None`. Simplest way to create a custom loading strategy.
-
-### Changed
-
-- **Dict-safe attribute resolution** — `_safe_getattr` now tries subscript before `getattr` for dict objects. `{{ section.items }}` resolves to `section["items"]` (user data), not the `dict.items` method. Non-dict objects retain the previous `getattr`-first behavior. This prevents dict method names (`items`, `keys`, `values`, `get`, `pop`, `update`) from shadowing user data keys.
+- **`render_block_stream_async(block_name, **ctx)`** — Render a single block as an async stream. Falls back to wrapping the sync block stream when no async variant exists.
 
 - **`RenderedTemplate`** — Lazy iterable wrapper around `render_stream()`. Construct with a template and context dict, iterate to get chunks on demand.
 
@@ -35,17 +27,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       send_to_client(chunk)
   ```
 
-- **Streaming runtime helpers** — `_include_stream()` and `_extends_stream()` enable `yield from` chaining across template inheritance and includes in streaming mode.
-
-- **Native async streaming** — `template.render_stream_async(**ctx)` yields template output as string chunks via async generators. Supports native `{% async for %}` loops over async iterables, `{{ await expr }}` for inline coroutine resolution, and `{% empty %}` fallback clauses. All templates generate async streaming variants, enabling async child templates to extend sync parents seamlessly.
-
-- **`render_block_stream_async(block_name, **ctx)`** — Render a single block as an async stream. Falls back to wrapping the sync block stream when no async variant exists.
-
-- **`AsyncLoopContext`** — Loop variable (`loop`) for `{% async for %}`. Provides index-forward properties (`index`, `index0`, `first`, `previtem`, `cycle()`). Size-dependent properties (`last`, `length`, `revindex`) raise `TemplateRuntimeError` since async iterables have no known length.
-
 - **`Template.is_async`** — Boolean property indicating whether a template contains `{% async for %}` or `{{ await }}` constructs. `render()` and `render_stream()` raise `TemplateRuntimeError` when called on async templates.
 
 - **`async_render_context()`** — Async context manager for per-render state isolation, matching the sync `render_context()` API.
+
+- **Compiler-emitted profiling instrumentation** — `profiled_render()` now automatically tracks blocks (with timing), filters (call counts), and macros (call counts) without manual instrumentation. The compiler emits `_acc = _get_accumulator()` once per function and gates all recording behind a falsy check, so zero overhead when profiling is disabled.
+
+- **Include scope propagation** — Loop variables from `{% for %}` and block-scoped `{% set %}` variables are now visible inside `{% include %}` templates. The compiler merges scope-stack and loop locals into a context copy at include call sites.
+
+- **Bytecode cache warning** — `from_string()` without `name=` now emits a `UserWarning` when a `bytecode_cache` is configured, explaining how to enable caching.
+
+- **ChoiceLoader** — Try multiple loaders in order, returning the first match. Enables theme fallback patterns where a custom theme overrides a subset of templates and the default theme provides the rest.
+
+- **PrefixLoader** — Namespace templates by prefix, delegating to per-prefix loaders. Enables plugin architectures where different template sources are isolated by namespace.
+
+- **PackageLoader** — Load templates from installed Python packages via `importlib.resources`. Enables pip-installable themes, plugins, and framework default templates without path resolution.
+
+- **FunctionLoader** — Wrap any callable as a template loader. Returns `str`, `(str, filename)`, or `None`. Simplest way to create a custom loading strategy.
+
+- **Static analysis API** — `validate_context()` for pre-render variable checking, plus `AnalysisConfig`, `BlockMetadata`, and `TemplateMetadata` exposed as lazy-loaded public surface from `kida`.
+
+- **`*args` and `**kwargs` support in `{% def %}`** — Template-defined functions now accept variadic positional and keyword arguments.
+
+- **Better error messages** — `UndefinedError` now suggests similar variable names via fuzzy matching. `TemplateSyntaxError` includes source snippets with line context. `DictLoader` suggests similar template names on miss. Bare `RuntimeError`s include template name and line context.
+
+### Changed
+
+- **Dict-safe attribute resolution** — `_safe_getattr` now tries subscript before `getattr` for dict objects. `{{ section.items }}` resolves to `section["items"]` (user data), not the `dict.items` method. Non-dict objects retain the previous `getattr`-first behavior. This prevents dict method names (`items`, `keys`, `values`, `get`, `pop`, `update`) from shadowing user data keys.
+
+- **Lazy analysis imports** — `AnalysisConfig`, `BlockMetadata`, and `TemplateMetadata` are now lazy-loaded via `__getattr__`, avoiding eager import of `kida.nodes` (974 lines of frozen dataclass AST definitions). Results in **48% faster cold-start** for `from kida import Environment`.
+
+- **Compiler mixin extraction** — `CachingMixin`, `WithBlockMixin`, and `PatternMatchingMixin` extracted from monolithic compiler modules, improving maintainability and readability.
+
+- **`template.py` split into `template/` package** — The 1,277-line `template.py` module has been split into focused submodules: `core.py`, `helpers.py`, `introspection.py`, `loop_context.py`, and `cached_blocks.py`.
+
+- **Narrowed type annotations** — Broad `Node` type annotations replaced with specific subclasses throughout `DependencyWalker` and `PurityAnalyzer` visitor methods. `Any` types tightened in template and compiler modules. Broad exception handlers narrowed.
+
+- **CI: replaced mypy with ty** — All type checking now uses Astral's Rust-based `ty` type checker. Fixed all 41 ruff lint errors across the codebase.
+
+- **Sorted `__all__`** — Public API exports in `kida/__init__.py` are now alphabetically sorted for discoverability.
 
 ## [0.1.2] - 2026-01-13
 
@@ -105,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.0]: https://github.com/lbliii/kida/releases/tag/v0.2.0
 [0.1.2]: https://github.com/lbliii/kida/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lbliii/kida/releases/tag/v0.1.1
 [0.1.0]: https://github.com/lbliii/kida/releases/tag/v0.1.0
