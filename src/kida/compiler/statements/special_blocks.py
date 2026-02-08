@@ -13,7 +13,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import Capture, Embed, Node, Raw, Spaceless
 
 
 class SpecialBlockMixin:
@@ -39,7 +39,7 @@ class SpecialBlockMixin:
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
-    def _compile_raw(self, node: Node) -> list[ast.stmt]:
+    def _compile_raw(self, node: Raw) -> list[ast.stmt]:
         """Compile {% raw %}...{% endraw %.
 
         Raw block content is output as literal text.
@@ -49,7 +49,7 @@ class SpecialBlockMixin:
 
         return [self._emit_output(ast.Constant(value=node.value))]
 
-    def _compile_capture(self, node: Node) -> list[ast.stmt]:
+    def _compile_capture(self, node: Capture) -> list[ast.stmt]:
         """Compile {% capture x %}...{% end %} (Kida) or {% set x %}...{% endset %} (Jinja).
 
         Captures rendered block content into a variable.
@@ -137,7 +137,7 @@ class SpecialBlockMixin:
 
         return stmts
 
-    def _compile_spaceless(self, node: Node) -> list[ast.stmt]:
+    def _compile_spaceless(self, node: Spaceless) -> list[ast.stmt]:
         """Compile {% spaceless %}...{% end %}.
 
         Removes whitespace between HTML tags.
@@ -221,7 +221,7 @@ class SpecialBlockMixin:
 
         return stmts
 
-    def _compile_embed(self, node: Node) -> list[ast.stmt]:
+    def _compile_embed(self, node: Embed) -> list[ast.stmt]:
         """Compile {% embed 'template.html' %}...{% end %}.
 
         Embed is like include but allows block overrides.

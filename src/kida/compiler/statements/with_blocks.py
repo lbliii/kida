@@ -14,7 +14,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import Node, With, WithConditional
 
 
 class WithBlockMixin:
@@ -40,7 +40,7 @@ class WithBlockMixin:
         # From ControlFlowMixin
         def _extract_names(self, node: Node) -> list[str]: ...
 
-    def _compile_with(self, node: Node) -> list[ast.stmt]:
+    def _compile_with(self, node: With) -> list[ast.stmt]:
         """Compile {% with var=value, ... %}...{% endwith %.
 
         Creates temporary variable bindings scoped to the with block.
@@ -127,7 +127,7 @@ class WithBlockMixin:
 
         return stmts
 
-    def _compile_with_conditional(self, node: Node) -> list[ast.stmt]:
+    def _compile_with_conditional(self, node: WithConditional) -> list[ast.stmt]:
         """Compile {% with expr as target %}...{% end %} (conditional form).
 
         Renders body only if expr is truthy. Binds expr result to target.

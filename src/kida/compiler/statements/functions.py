@@ -12,7 +12,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import CallBlock, Def, Node
 
 
 class FunctionCompilationMixin:
@@ -37,7 +37,7 @@ class FunctionCompilationMixin:
         # From Compiler core
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
 
-    def _compile_def(self, node: Node) -> list[ast.stmt]:
+    def _compile_def(self, node: Def) -> list[ast.stmt]:
         """Compile {% def name(args) %}...{% enddef %.
 
         Kida functions have true lexical scoping - they can access variables
@@ -240,7 +240,7 @@ class FunctionCompilationMixin:
 
         return [func_def, assign]
 
-    def _compile_call_block(self, node: Node) -> list[ast.stmt]:
+    def _compile_call_block(self, node: CallBlock) -> list[ast.stmt]:
         """Compile {% call func(args) %}body{% endcall %.
 
         Calls a function with the body content as the caller.

@@ -14,7 +14,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import Cache, FilterBlock, Node
 
 
 class CachingMixin:
@@ -39,7 +39,7 @@ class CachingMixin:
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
-    def _compile_cache(self, node: Node) -> list[ast.stmt]:
+    def _compile_cache(self, node: Cache) -> list[ast.stmt]:
         """Compile {% cache key %}...{% endcache %.
 
         Fragment caching. In streaming mode: collect into buffer, cache,
@@ -176,7 +176,7 @@ class CachingMixin:
 
         return stmts
 
-    def _compile_filter_block(self, node: Node) -> list[ast.stmt]:
+    def _compile_filter_block(self, node: FilterBlock) -> list[ast.stmt]:
         """Compile {% filter name %}...{% endfilter %.
 
         Apply a filter to an entire block of content.

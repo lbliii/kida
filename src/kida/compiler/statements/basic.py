@@ -12,7 +12,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import Data, Node, Output
 
 
 class BasicStatementMixin:
@@ -35,7 +35,7 @@ class BasicStatementMixin:
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
-    def _compile_data(self, node: Node) -> list[ast.stmt]:
+    def _compile_data(self, node: Data) -> list[ast.stmt]:
         """Compile raw text data.
 
         StringBuilder mode: _append("literal text")
@@ -46,7 +46,7 @@ class BasicStatementMixin:
 
         return [self._emit_output(ast.Constant(value=node.value))]
 
-    def _compile_output(self, node: Node) -> list[ast.stmt]:
+    def _compile_output(self, node: Output) -> list[ast.stmt]:
         """Compile {{ expression }} output.
 
         StringBuilder mode: _append(_e(expr)) or _append(_s(expr))

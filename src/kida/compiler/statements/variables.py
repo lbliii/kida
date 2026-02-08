@@ -12,7 +12,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import Export, Let, Node, Set
 
 
 class VariableAssignmentMixin:
@@ -33,7 +33,7 @@ class VariableAssignmentMixin:
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
 
-    def _compile_set(self, node: Node) -> list[ast.stmt]:
+    def _compile_set(self, node: Set) -> list[ast.stmt]:
         """Compile {% set %} - block-scoped variable assignment.
 
         Variables assigned with {% set %} are scoped to the current block
@@ -46,7 +46,7 @@ class VariableAssignmentMixin:
         """
         return self._compile_block_scoped_assignment(node.target, node.value)
 
-    def _compile_let(self, node: Node) -> list[ast.stmt]:
+    def _compile_let(self, node: Let) -> list[ast.stmt]:
         """Compile {% let %} - template-scoped variable assignment.
 
         Variables assigned with {% let %} are available throughout the template.
@@ -54,7 +54,7 @@ class VariableAssignmentMixin:
         """
         return self._compile_assignment(node.name, node.value)
 
-    def _compile_export(self, node: Node) -> list[ast.stmt]:
+    def _compile_export(self, node: Export) -> list[ast.stmt]:
         """Compile {% export %} - export variable to outer scope.
 
         Variables assigned with {% export %} are promoted from inner scope

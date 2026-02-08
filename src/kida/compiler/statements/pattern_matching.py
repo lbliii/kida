@@ -13,7 +13,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import Match, Node
 
 
 class PatternMatchingMixin:
@@ -40,7 +40,7 @@ class PatternMatchingMixin:
         # From ControlFlowMixin
         def _extract_names(self, node: Node) -> list[str]: ...
 
-    def _compile_match(self, node: Node) -> list[ast.stmt]:
+    def _compile_match(self, node: Match) -> list[ast.stmt]:
         """Compile {% match expr %}{% case pattern [if guard] %}...{% end %}.
 
         Generates chained if/elif comparisons with structural pattern matching

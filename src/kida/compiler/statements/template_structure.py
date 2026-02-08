@@ -12,7 +12,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import Block, FromImport, Import, Include, Node
 
 
 class TemplateStructureMixin:
@@ -63,7 +63,7 @@ class TemplateStructureMixin:
             ]
         return [ast.Expr(value=ast.YieldFrom(value=call_expr))]
 
-    def _compile_block(self, node: Node) -> list[ast.stmt]:
+    def _compile_block(self, node: Block) -> list[ast.stmt]:
         """Compile {% block name %} ... {% endblock %.
 
         StringBuilder: _append(_blocks.get('name', _block_name)(ctx, _blocks))
@@ -192,7 +192,7 @@ class TemplateStructureMixin:
             )
         ]
 
-    def _compile_include(self, node: Node) -> list[ast.stmt]:
+    def _compile_include(self, node: Include) -> list[ast.stmt]:
         """Compile {% include "template.html" [with context] %.
 
         StringBuilder: _append(_include(template_name, ctx))
@@ -272,7 +272,7 @@ class TemplateStructureMixin:
             )
         ]
 
-    def _compile_from_import(self, node: Node) -> list[ast.stmt]:
+    def _compile_from_import(self, node: FromImport) -> list[ast.stmt]:
         """Compile {% from "template.html" import name1, name2 as alias %.
 
         Generates:
@@ -322,7 +322,7 @@ class TemplateStructureMixin:
 
         return stmts
 
-    def _compile_import(self, node: Node) -> list[ast.stmt]:
+    def _compile_import(self, node: Import) -> list[ast.stmt]:
         """Compile {% import "template.html" as f %.
 
         Generates: ctx['f'] = _import_macros(template_name, with_context, ctx)

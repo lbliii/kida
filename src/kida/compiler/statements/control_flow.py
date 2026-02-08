@@ -12,7 +12,7 @@ import ast
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from kida.nodes import Node
+    from kida.nodes import AsyncFor, For, If, Node, While
 
 
 class ControlFlowMixin:
@@ -92,7 +92,7 @@ class ControlFlowMixin:
         """
         return [ast.Continue()]
 
-    def _compile_while(self, node: Node) -> list[ast.stmt]:
+    def _compile_while(self, node: While) -> list[ast.stmt]:
         """Compile {% while cond %}...{% end %} loop.
 
         Generates:
@@ -124,7 +124,7 @@ class ControlFlowMixin:
             )
         ]
 
-    def _compile_if(self, node: Node) -> list[ast.stmt]:
+    def _compile_if(self, node: If) -> list[ast.stmt]:
         """Compile {% if %} conditional."""
         test = self._compile_expr(node.test)
         body = []
@@ -219,7 +219,7 @@ class ControlFlowMixin:
 
         return False
 
-    def _compile_for(self, node: Node) -> list[ast.stmt]:
+    def _compile_for(self, node: For) -> list[ast.stmt]:
         """Compile {% for %} loop with optional LoopContext.
 
         Generates one of two forms based on whether loop.* is used:
@@ -381,7 +381,7 @@ class ControlFlowMixin:
 
         return stmts
 
-    def _compile_async_for(self, node: Node) -> list[ast.stmt]:
+    def _compile_async_for(self, node: AsyncFor) -> list[ast.stmt]:
         """Compile {% async for %} loop with AsyncLoopContext.
 
         Unlike sync _compile_for(), this does NOT call list() on the iterable.
