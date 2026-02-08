@@ -1,0 +1,3 @@
+{% def button(variant="primary", size="md", disabled=false) %}
+<button class="btn btn-{{ variant }} btn-{{ size }}"{% if disabled %} disabled{% end %}>{% slot %}</button>
+{% end %}

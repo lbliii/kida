@@ -1,0 +1,37 @@
+<html>
+<head><title>{{ title }}</title></head>
+<body>
+  {% block nav %}
+  <nav>
+    <ul>
+    {% for tab in tabs %}
+      <li{% if tab == active_tab %} class="active"{% end %}>{{ tab }}</li>
+    {% end %}
+    </ul>
+  </nav>
+  {% end %}
+
+  {% block content %}
+  <main>
+    <h1>{{ title }}</h1>
+    <ul>
+    {% for item in items %}
+      <li>{{ item.name }}: {{ item.value }}</li>
+    {% end %}
+    </ul>
+  </main>
+  {% end %}
+
+  {% block sidebar %}
+  <aside>
+    <h2>Stats</h2>
+    <dl>
+    {% for stat in stats %}
+      <dt>{{ stat.label }}</dt>
+      <dd>{{ stat.value }}</dd>
+    {% end %}
+    </dl>
+  </aside>
+  {% end %}
+</body>
+</html>

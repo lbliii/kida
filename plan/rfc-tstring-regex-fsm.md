@@ -1,8 +1,8 @@
 # RFC: Template Regex (r-tag) and Delimiter Detection Optimization
 
-**Status**: Draft (Revised after Phase 0 exploration)  
+**Status**: ✅ Implemented (Phase 1 r-tag + Phase 2 delimiter detection; Phase 3 s-tag descoped)  
 **Created**: 2026-01-11  
-**Updated**: 2026-01-12  
+**Updated**: 2026-02-08  
 **Author**: Kida Contributors  
 **Minimum Python**: 3.14 (t-strings)
 **Related**: `plan/rfc-tstring-dogfooding.md` (t-string adoption strategy)

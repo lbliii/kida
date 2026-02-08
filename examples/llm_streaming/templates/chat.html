@@ -1,0 +1,8 @@
+<div class="chat">
+  <div class="message user">
+    <p>{{ prompt }}</p>
+  </div>
+  <div class="message assistant">
+    <p>{% async for token in stream %}{{ token }}{% end %}</p>
+  </div>
+</div>

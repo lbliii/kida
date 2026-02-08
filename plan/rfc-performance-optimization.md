@@ -1,7 +1,8 @@
 # RFC: Performance Optimization Opportunities
 
-**Status**: Draft  
+**Status**: Closed (superseded by targeted RFCs: large-template-optimization, fstring-code-generation, benchmarking-strategy)  
 **Created**: 2026-01-11  
+**Updated**: 2026-02-08  
 **Based On**: Benchmark analysis from `benchmarks/`  
 **Minimum Python**: 3.14 (enables PEP 690 lazy imports)
 

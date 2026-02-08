@@ -1,0 +1,33 @@
+<html>
+<head><title>{{ title | upper }}</title></head>
+<body>
+  {% block header %}
+  <header>
+    <h1>{{ title }}</h1>
+    <p>{{ subtitle | default("No subtitle") }}</p>
+  </header>
+  {% end %}
+
+  {% block content %}
+  <main>
+    {% for section in sections %}
+    <section>
+      <h2>{{ section.name | title }}</h2>
+      <p>{{ section.description | truncate(100) }}</p>
+      <ul>
+      {% for item in section.items %}
+        <li>{{ item | upper }}: {{ item | length }} chars</li>
+      {% end %}
+      </ul>
+    </section>
+    {% end %}
+  </main>
+  {% end %}
+
+  {% block footer %}
+  <footer>
+    <p>Generated at {{ timestamp }}</p>
+  </footer>
+  {% end %}
+</body>
+</html>

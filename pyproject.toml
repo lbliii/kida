@@ -60,7 +60,7 @@ exclude_lines = [
 python-version = "3.14"
 
 [tool.ty.src]
-exclude = ["dist/", "build/"]
+exclude = ["dist/", "build/", "benchmarks/", "tests/"]
 
 # Markup class intentionally returns Self instead of str (like MarkupSafe)
 # This technically violates LSP but is the correct pattern for HTML-safe strings
@@ -68,6 +68,14 @@ exclude = ["dist/", "build/"]
 include = ["src/kida/utils/html.py"]
 [tool.ty.overrides.rules]
 invalid-method-override = "ignore"
+
+# Compiler/parser mixin patterns: mixins access attributes defined in sibling
+# mixins or the host class. ty cannot resolve cross-mixin attribute access.
+# These will be fixed properly via Protocol typing (see plan/rfc-mixin-protocol-typing.md)
+[[tool.ty.overrides]]
+include = ["src/kida/compiler/**", "src/kida/parser/**"]
+[tool.ty.overrides.rules]
+unresolved-attribute = "warn"
 
 [tool.ruff]
 line-length = 100

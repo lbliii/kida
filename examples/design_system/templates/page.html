@@ -1,0 +1,18 @@
+{% include "components/button.html" %}
+{% include "components/card.html" %}
+{% include "components/alert.html" %}
+
+<h1>{{ title }}</h1>
+
+{% call alert("success") %}Welcome back, {{ user.name }}!{% end %}
+
+{% call card(user.name, footer="Member since 2024") %}
+  <p>Email: {{ user.email }}</p>
+  {% call button(variant="danger", size="sm") %}Delete Account{% end %}
+  {% call button(variant="secondary") %}Edit Profile{% end %}
+{% end %}
+
+{% call card("Actions") %}
+  {% call button() %}Save{% end %}
+  {% call button(variant="secondary", disabled=true) %}Cancel{% end %}
+{% end %}

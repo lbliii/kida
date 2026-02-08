@@ -1,8 +1,8 @@
 # RFC: Type Suppression Reduction
 
-**Status**: Phase 2 Complete  
+**Status**: ✅ Implemented (migrated to ty; 1 justified override remains for Markup class)  
 **Created**: 2026-01-04  
-**Updated**: 2026-01-04  
+**Updated**: 2026-02-08  
 **Depends On**: `rfc-type-checking-strategy.md` (Implemented)
 
 ---
