@@ -61,6 +61,8 @@ Requires Python 3.14+
 | **Streaming** | Statement-level generator rendering via `render_stream()` | [Streaming →](https://lbliii.github.io/kida/docs/usage/streaming/) |
 | **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
 | **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
+| **Partial Evaluation** | Compile-time evaluation of static expressions | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
+| **Block Recompilation** | Recompile only changed blocks in live templates | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
 | **Extensibility** | Custom filters, tests, globals, loaders | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
 
 📚 **Full documentation**: [lbliii.github.io/kida](https://lbliii.github.io/kida/)

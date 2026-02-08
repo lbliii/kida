@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Compile-time partial evaluation** — `PartialEvaluator` transforms template ASTs by
+  evaluating expressions whose values are known at compile time (e.g. `{{ site.title }}`
+  when the Site object is available). Static expressions become `Data` nodes (literal
+  strings in bytecode), enabling more aggressive f-string coalescing and eliminating
+  per-render dictionary lookups for site-wide constants. The evaluator is conservative —
+  any expression it cannot prove static is left unchanged.
+
+- **Block-level recompilation** — `detect_block_changes()` compares two `TemplateNode`
+  ASTs and produces a `BlockDelta` describing which named blocks changed, were added, or
+  were removed. `recompile_blocks()` patches a live `Template` object by recompiling only
+  the affected block functions (standard, streaming, async streaming) without recompiling
+  the entire template. Used by Purr's reactive pipeline for O(changed_blocks) updates.
+
 ## [0.2.0] - 2026-02-08
 
 ### Added
