@@ -256,6 +256,41 @@ strict_none=False
 strict_none=True
 ```
 
+### fstring_coalescing
+
+Enable f-string output coalescing optimization.
+
+| Type | Default | Description |
+|------|---------|-------------|
+| `bool` | `True` | Coalesce consecutive outputs into f-strings |
+
+When enabled, the compiler merges consecutive output nodes (static text and simple expressions) into single f-string appends, reducing function call overhead by ~37% in output-heavy templates.
+
+```python
+# Enabled (default) — recommended for production
+fstring_coalescing=True
+
+# Disable for debugging compiled output
+fstring_coalescing=False
+```
+
+See [[docs/advanced/compiler|Compiler Internals]] for details on how coalescing works.
+
+### pure_filters
+
+Additional filters the compiler can treat as side-effect-free.
+
+| Type | Default | Description |
+|------|---------|-------------|
+| `set[str]` | `set()` | Custom pure filter names |
+
+Filters in this set are assumed to have no side effects and can be coalesced into f-strings alongside built-in pure filters (`escape`, `upper`, `lower`, `trim`, `default`, etc.).
+
+```python
+# Tell the compiler your custom filters are pure
+pure_filters={"markdown", "highlight", "currency"}
+```
+
 ### preserve_ast
 
 Preserve AST for template introspection.

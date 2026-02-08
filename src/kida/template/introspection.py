@@ -11,7 +11,7 @@ import weakref
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from kida.analysis import TemplateMetadata
+    from kida.analysis import BlockMetadata, TemplateMetadata
     from kida.environment import Environment
     from kida.nodes import Template as TemplateNode
 
@@ -33,7 +33,7 @@ class TemplateIntrospectionMixin:
         _name: str | None
         _env_ref: weakref.ref[Environment]
 
-    def block_metadata(self) -> dict[str, Any]:
+    def block_metadata(self) -> dict[str, BlockMetadata]:
         """Get metadata about template blocks.
 
         Returns a mapping of block name -> BlockMetadata with:
