@@ -29,6 +29,7 @@ class TemplateStructureMixin:
     if TYPE_CHECKING:
         _async_mode: bool
         _streaming: bool
+        _loop_vars: set[str]
 
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
@@ -196,6 +197,11 @@ class TemplateStructureMixin:
 
         StringBuilder: _append(_include(template_name, ctx))
         Streaming: yield from _include_stream(template_name, ctx)
+
+        When with_context is true and there are active loop variables or
+        scope-stack variables, generates a merged context dict so that
+        loop variables (Python locals) and {% set %} variables (scope stack)
+        are visible inside the included template.
         """
         template_expr = self._compile_expr(node.template)
 
@@ -203,7 +209,36 @@ class TemplateStructureMixin:
         args: list[ast.expr] = [template_expr]
 
         if node.with_context:
-            args.append(ast.Name(id="ctx", ctx=ast.Load()))
+            # Check if we have loop variables or scope-stack to propagate
+            active_loop_vars = self._loop_vars.copy()
+            if active_loop_vars:
+                # Build merged context: {**ctx, **(_scope_stack[-1] if _scope_stack else {}), var=var, ...}
+                # This makes loop variables and scope-stack vars visible to includes
+                keys: list[ast.expr | None] = [
+                    None,  # **ctx spread
+                    None,  # **scope_stack spread
+                ]
+                values: list[ast.expr] = [
+                    ast.Name(id="ctx", ctx=ast.Load()),
+                    # _scope_stack[-1] if _scope_stack else {}
+                    ast.IfExp(
+                        test=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                        body=ast.Subscript(
+                            value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                            slice=ast.Constant(value=-1),
+                            ctx=ast.Load(),
+                        ),
+                        orelse=ast.Dict(keys=[], values=[]),
+                    ),
+                ]
+                # Add each loop variable: 'var_name': var_name
+                for var_name in sorted(active_loop_vars):
+                    keys.append(ast.Constant(value=var_name))
+                    values.append(ast.Name(id=var_name, ctx=ast.Load()))
+
+                args.append(ast.Dict(keys=keys, values=values))
+            else:
+                args.append(ast.Name(id="ctx", ctx=ast.Load()))
         else:
             args.append(ast.Dict(keys=[], values=[]))
 

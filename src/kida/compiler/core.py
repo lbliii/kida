@@ -143,6 +143,8 @@ class Compiler(
         self._async_mode: bool = False
         # Track {% def %} names for profiling instrumentation
         self._def_names: set[str] = set()
+        # Track loop variables for include scope propagation
+        self._loop_vars: set[str] = set()
 
     def _collect_blocks(self, nodes: Sequence[Node]) -> None:
         """Recursively collect all Block nodes from the AST.

@@ -9,8 +9,7 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from kida.nodes import Node
@@ -31,6 +30,8 @@ class ControlFlowMixin:
         # Host attributes (from Compiler.__init__)
         _locals: set[str]
         _block_counter: int
+        _loop_vars: set[str]
+        _has_async: bool
 
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
@@ -175,7 +176,7 @@ class ControlFlowMixin:
             )
         ]
 
-    def _uses_loop_variable(self, nodes: Sequence[Node]) -> bool:
+    def _uses_loop_variable(self, nodes: Any) -> bool:
         """Check if any node in the tree references the 'loop' variable.
 
         This enables lazy LoopContext optimization: when loop.index, loop.first,
@@ -245,10 +246,11 @@ class ControlFlowMixin:
         Optimization: Loop variables are tracked as locals and accessed
         directly (O(1) LOAD_FAST) instead of through ctx dict lookup.
         """
-        # Get the loop variable name(s) and register as locals
+        # Get the loop variable name(s) and register as locals + loop_vars
         var_names = self._extract_names(node.target)
         for var_name in var_names:
             self._locals.add(var_name)
+            self._loop_vars.add(var_name)
 
         # Check if loop.* properties are used in the body or test
         # This determines whether we need LoopContext or can iterate directly
@@ -257,6 +259,7 @@ class ControlFlowMixin:
         # Only register 'loop' as a local if it's actually used
         if uses_loop:
             self._locals.add("loop")
+            self._loop_vars.add("loop")
 
         target = self._compile_expr(node.target, store=True)
         iter_expr = self._compile_expr(node.iter)
@@ -408,16 +411,18 @@ class ControlFlowMixin:
         # the Template.render() guard prevents this from being reached.
         if not getattr(self, "_async_mode", False):
             return [ast.Pass()]
-        # Get the loop variable name(s) and register as locals
+        # Get the loop variable name(s) and register as locals + loop_vars
         var_names = self._extract_names(node.target)
         for var_name in var_names:
             self._locals.add(var_name)
+            self._loop_vars.add(var_name)
 
         # Check if loop.* properties are used in the body or test
         uses_loop = self._uses_loop_variable(node.body) or self._uses_loop_variable(node.test)
 
         if uses_loop:
             self._locals.add("loop")
+            self._loop_vars.add("loop")
 
         target = self._compile_expr(node.target, store=True)
         iter_expr = self._compile_expr(node.iter)

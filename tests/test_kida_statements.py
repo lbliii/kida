@@ -270,6 +270,101 @@ class TestIncludeIgnoreMissing:
         assert result == "Fallback"
 
 
+class TestIncludeScopePropagation:
+    """Test that loop variables and scope-stack vars are visible inside includes."""
+
+    def test_for_loop_var_visible_in_include(self):
+        """Loop variable from {% for %} is visible inside {% include %}."""
+        loader = DictLoader(
+            {
+                "main.html": "{% for item in items %}{% include 'row.html' %}{% end %}",
+                "row.html": "[{{ item }}]",
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("main.html").render(items=["a", "b", "c"])
+        assert result == "[a][b][c]"
+
+    def test_nested_for_loop_vars_in_include(self):
+        """Both outer and inner loop variables visible in include."""
+        loader = DictLoader(
+            {
+                "main.html": (
+                    "{% for section in sections %}"
+                    "{% for item in section.entries %}"
+                    "{% include 'cell.html' %}"
+                    "{% end %}"
+                    "{% end %}"
+                ),
+                "cell.html": "{{ section.name }}:{{ item }} ",
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("main.html").render(
+            sections=[
+                {"name": "A", "entries": [1, 2]},
+                {"name": "B", "entries": [3]},
+            ]
+        )
+        assert result == "A:1 A:2 B:3 "
+
+    def test_loop_context_visible_in_include(self):
+        """loop.index is visible inside included template when parent uses loop.*."""
+        loader = DictLoader(
+            {
+                # Parent must reference loop.* to trigger LoopContext creation
+                "main.html": (
+                    "{% for x in items %}"
+                    "{% if loop.first %}START {% end %}"
+                    "{% include 'row.html' %}"
+                    "{% end %}"
+                ),
+                "row.html": "{{ loop.index }}:{{ x }} ",
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("main.html").render(items=["a", "b"])
+        assert result == "START 1:a 2:b "
+
+    def test_tuple_unpacking_in_for_visible_in_include(self):
+        """Tuple-unpacked loop vars visible in include."""
+        loader = DictLoader(
+            {
+                "main.html": (
+                    "{% for key, val in items %}"
+                    "{% include 'row.html' %}"
+                    "{% end %}"
+                ),
+                "row.html": "{{ key }}={{ val }} ",
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("main.html").render(
+            items=[("a", 1), ("b", 2)]
+        )
+        assert result == "a=1 b=2 "
+
+    def test_include_without_context_no_propagation(self):
+        """{% include 'x' without context %} doesn't propagate loop vars."""
+        from kida.environment.exceptions import UndefinedError
+
+        loader = DictLoader(
+            {
+                "main.html": (
+                    "{% for item in items %}"
+                    "{% include 'row.html' without context %}"
+                    "{% end %}"
+                ),
+                "row.html": "[{{ item }}]",
+            }
+        )
+        env = Environment(loader=loader)
+        tmpl = env.get_template("main.html")
+        # Without context, item should not be visible → UndefinedError in strict mode
+        with pytest.raises(UndefinedError, match="item"):
+            tmpl.render(items=["a", "b"])
+
+
 class TestComments:
     """Comment syntax."""
 
