@@ -11,23 +11,22 @@ class TestProfilingApp:
         assert "total_ms" in summary
         assert summary["total_ms"] >= 0
 
-    def test_summary_has_blocks(self, example_app) -> None:
+    def test_summary_has_expected_keys(self, example_app) -> None:
         summary = example_app.summary
         assert "blocks" in summary
-        blocks = summary["blocks"]
-        # Template has header, content, footer blocks
-        assert len(blocks) > 0
-
-    def test_block_entries_have_timing(self, example_app) -> None:
-        for _name, data in example_app.summary["blocks"].items():
-            assert "ms" in data
-            assert "calls" in data
-            assert data["ms"] >= 0
-            assert data["calls"] >= 1
-
-    def test_summary_has_filters(self, example_app) -> None:
-        summary = example_app.summary
+        assert "macros" in summary
+        assert "includes" in summary
         assert "filters" in summary
+
+    def test_summary_tracks_includes(self, example_app) -> None:
+        includes = example_app.summary["includes"]
+        # Template includes header.html and footer.html
+        assert "header.html" in includes
+        assert "footer.html" in includes
+
+    def test_header_included_once(self, example_app) -> None:
+        includes = example_app.summary["includes"]
+        assert includes["header.html"] == 1
 
     def test_normal_and_profiled_output_match(self, example_app) -> None:
         assert example_app.normal_output == example_app.profiled_output

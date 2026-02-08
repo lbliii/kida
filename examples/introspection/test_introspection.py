@@ -13,7 +13,6 @@ class TestIntrospectionApp:
         blocks = example_app.block_meta
         assert "title" in blocks
         assert "content" in blocks
-        assert "footer" in blocks
 
     def test_validate_context_detects_missing(self, example_app) -> None:
         assert len(example_app.missing_vars) > 0

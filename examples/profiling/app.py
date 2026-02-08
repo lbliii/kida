@@ -26,12 +26,12 @@ context = {
             "name": "revenue",
             "description": "Overall revenue grew by 15% compared to Q3, "
             "driven primarily by enterprise subscriptions and platform fees.",
-            "items": ["subscriptions", "platform", "services"],
+            "entries": ["subscriptions", "platform", "services"],
         },
         {
             "name": "users",
             "description": "Active users increased to 45,000 with strong retention.",
-            "items": ["signups", "active", "churned"],
+            "entries": ["signups", "active", "churned"],
         },
     ],
 }

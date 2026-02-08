@@ -11,34 +11,33 @@ Run:
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from kida import Environment
+from kida import Environment, FileSystemLoader
 from kida.bytecode_cache import BytecodeCache
 
-TEMPLATE_SOURCE = """\
-<html>
-<head><title>{{ title }}</title></head>
-<body>
-  <h1>{{ title }}</h1>
-  {% for item in items %}
-    <p>{{ item }}</p>
-  {% end %}
-</body>
-</html>"""
+templates_dir = Path(__file__).parent / "templates"
 
 tmpdir = TemporaryDirectory()
 cache_dir = Path(tmpdir.name)
 cache = BytecodeCache(cache_dir)
 
+context = {"title": "Cached Page", "entries": ["alpha", "beta", "gamma"]}
+
 # First load: compile from source + write bytecode to cache (miss)
-env1 = Environment(bytecode_cache=cache)
-t1 = env1.from_string(TEMPLATE_SOURCE)
-output_first = t1.render(title="Cached Page", items=["alpha", "beta", "gamma"])
+env1 = Environment(
+    loader=FileSystemLoader(str(templates_dir)),
+    bytecode_cache=cache,
+)
+t1 = env1.get_template("page.html")
+output_first = t1.render(**context)
 stats_after_first = cache.stats()
 
-# Second environment: same cache, forces load from bytecode (hit)
-env2 = Environment(bytecode_cache=cache)
-t2 = env2.from_string(TEMPLATE_SOURCE)
-output_second = t2.render(title="Cached Page", items=["alpha", "beta", "gamma"])
+# Second environment: same bytecode cache, fresh template cache (hit)
+env2 = Environment(
+    loader=FileSystemLoader(str(templates_dir)),
+    bytecode_cache=cache,
+)
+t2 = env2.get_template("page.html")
+output_second = t2.render(**context)
 stats_after_second = cache.stats()
 
 output = output_first
