@@ -71,7 +71,6 @@ empty string. Use `| default(fallback)` for optional variables:
 from collections.abc import Callable
 
 from kida._types import Token, TokenType
-from kida.analysis import AnalysisConfig, BlockMetadata, TemplateMetadata
 from kida.environment import (
     ChoiceLoader,
     DictLoader,
@@ -166,11 +165,26 @@ __all__ = [
 ]
 
 
-# Free-threading declaration (PEP 703)
+# Lazy-loaded analysis symbols (avoids eagerly importing kida.nodes — 974 lines
+# of frozen dataclass AST definitions — on every `from kida import Environment`).
+_LAZY_ANALYSIS = frozenset({"AnalysisConfig", "BlockMetadata", "TemplateMetadata"})
+
+
+# Free-threading declaration (PEP 703) + lazy analysis imports
 def __getattr__(name: str) -> object:
-    """Module-level getattr for free-threading declaration."""
+    """Module-level getattr for free-threading declaration and lazy imports."""
     if name == "_Py_mod_gil":
         # Signal: this module is safe for free-threading
         # 0 = Py_MOD_GIL_NOT_USED
         return 0
+    if name in _LAZY_ANALYSIS:
+        from kida.analysis import AnalysisConfig, BlockMetadata, TemplateMetadata
+
+        # Populate globals so subsequent access is direct (no __getattr__)
+        globals().update(
+            AnalysisConfig=AnalysisConfig,
+            BlockMetadata=BlockMetadata,
+            TemplateMetadata=TemplateMetadata,
+        )
+        return globals()[name]
     raise AttributeError(f"module 'kida' has no attribute {name!r}")
