@@ -18,15 +18,30 @@ class TestProfilingApp:
         assert "includes" in summary
         assert "filters" in summary
 
-    def test_summary_tracks_includes(self, example_app) -> None:
-        includes = example_app.summary["includes"]
-        # Template includes header.html and footer.html
-        assert "header.html" in includes
-        assert "footer.html" in includes
+    def test_summary_tracks_blocks(self, example_app) -> None:
+        """Blocks are auto-instrumented with timing by the compiler."""
+        blocks = example_app.summary["blocks"]
+        assert "header" in blocks
+        assert "content" in blocks
+        assert "footer" in blocks
+        assert blocks["header"]["calls"] == 1
+        assert blocks["header"]["ms"] >= 0
 
-    def test_header_included_once(self, example_app) -> None:
-        includes = example_app.summary["includes"]
-        assert includes["header.html"] == 1
+    def test_summary_tracks_filters(self, example_app) -> None:
+        """Filter calls are auto-recorded by the compiler."""
+        filters = example_app.summary["filters"]
+        # title | upper used in template
+        assert "upper" in filters
+        assert "title" in filters
+        assert "truncate" in filters
+        assert "length" in filters
+
+    def test_summary_tracks_macros(self, example_app) -> None:
+        """Macro ({% def %}) calls are auto-recorded by the compiler."""
+        macros = example_app.summary["macros"]
+        assert "section_card" in macros
+        # Called once per section (2 sections in context)
+        assert macros["section_card"] == 2
 
     def test_normal_and_profiled_output_match(self, example_app) -> None:
         assert example_app.normal_output == example_app.profiled_output
@@ -37,3 +52,15 @@ class TestProfilingApp:
 
     def test_output_contains_template_content(self, example_app) -> None:
         assert "Quarterly Report" in example_app.output
+
+    def test_dict_items_key_resolved_correctly(self, example_app) -> None:
+        """section.items resolves to the dict key, not dict.items() method.
+
+        This uses the dict-safe attribute resolution (subscript-first for dicts).
+        Previously, 'items' had to be renamed to 'entries' because section.items
+        resolved to dict.items() method instead of section["items"].
+        """
+        # Items are uppercased by the | upper filter in the template
+        assert "SUBSCRIPTIONS" in example_app.output
+        assert "PLATFORM" in example_app.output
+        assert "SERVICES" in example_app.output

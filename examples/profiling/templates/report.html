@@ -1,22 +1,37 @@
 <html>
 <head><title>{{ title | upper }}</title></head>
 <body>
-  {% include "header.html" %}
+  {% block header %}
+  <header>
+    <h1>{{ title }}</h1>
+    <p>{{ subtitle | default("No subtitle") }}</p>
+  </header>
+  {% end %}
 
+  {% def section_card(section) %}
+  <section>
+    <h2>{{ section.name | title }}</h2>
+    <p>{{ section.description | truncate(100) }}</p>
+    <ul>
+    {% for item in section.items %}
+      <li>{{ item | upper }}: {{ item | length }} chars</li>
+    {% end %}
+    </ul>
+  </section>
+  {% end %}
+
+  {% block content %}
   <main>
     {% for section in sections %}
-    <section>
-      <h2>{{ section.name | title }}</h2>
-      <p>{{ section.description | truncate(100) }}</p>
-      <ul>
-      {% for entry in section.entries %}
-        <li>{{ entry | upper }}: {{ entry | length }} chars</li>
-      {% end %}
-      </ul>
-    </section>
+    {{ section_card(section) }}
     {% end %}
   </main>
+  {% end %}
 
-  {% include "footer.html" %}
+  {% block footer %}
+  <footer>
+    <p>Generated at {{ timestamp }}</p>
+  </footer>
+  {% end %}
 </body>
 </html>
