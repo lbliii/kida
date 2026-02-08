@@ -211,6 +211,8 @@ Works with inheritance (`{% extends %}`), includes, and all control flow. Blocks
 | **Compilation** | AST → AST | String generation |
 | **Rendering** | StringBuilder + streaming generator | Generator yields only |
 | **Block endings** | Unified `{% end %}` | `{% endif %}`, `{% endfor %}` |
+| **Dict access** | Subscript-first (`d.items` → key) | getattr-first (`d.items` → method) |
+| **Profiling** | Auto-instrumented blocks/filters/macros | N/A |
 | **Scoping** | Explicit `let`/`set`/`export` | Implicit |
 | **Async** | Native `async for`, `await` | `auto_await()` wrapper |
 | **Pattern matching** | `{% match %}...{% case %}` | N/A |

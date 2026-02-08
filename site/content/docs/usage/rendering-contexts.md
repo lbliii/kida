@@ -119,6 +119,18 @@ template.render(config={"timeout": 30, "retries": 3})
 {{ config["timeout"] }}
 ```
 
+Both syntaxes work. For dicts, Kida resolves dot notation to dictionary keys first, so `{{ config.timeout }}` is equivalent to `config["timeout"]`. This means dict key names like `items`, `keys`, or `values` resolve to your data, not the `dict` methods:
+
+```python
+template.render(section={"items": ["a", "b", "c"], "title": "My Section"})
+```
+
+```kida
+{% for item in section.items %}    {# iterates ["a", "b", "c"], not dict.items() #}
+    {{ item }}
+{% end %}
+```
+
 ## Nested Contexts
 
 Build complex nested data:

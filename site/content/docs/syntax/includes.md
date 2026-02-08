@@ -33,7 +33,7 @@ Include reusable template fragments (partials) in your templates.
 
 ## Context Inheritance
 
-Included templates have access to the current context:
+Included templates have access to the current context, including loop variables and block-scoped `{% set %}` variables:
 
 ```kida
 {# page.html #}
@@ -47,6 +47,33 @@ Included templates have access to the current context:
     <h3>{{ user.name }}</h3>
     <p>{{ user.email }}</p>
 </div>
+```
+
+### Loop Variables in Includes
+
+Loop variables from `{% for %}` are visible inside included templates:
+
+```kida
+{# page.html #}
+{% for item in items %}
+    {% include "partials/item-card.html" %}
+{% end %}
+```
+
+```kida
+{# partials/item-card.html — item and loop are available #}
+<div class="card">
+    <span>{{ loop.index }}.</span>
+    <h3>{{ item.name }}</h3>
+</div>
+```
+
+This works for nested loops and tuple-unpacked variables too:
+
+```kida
+{% for key, value in entries %}
+    {% include "partials/entry.html" %}
+{% end %}
 ```
 
 ## Passing Variables
@@ -129,7 +156,7 @@ templates/
 
 <main>
     {% for item in items %}
-        {% include "components/card.html" with item=item %}
+        {% include "components/card.html" %}
     {% end %}
 </main>
 ```
@@ -150,7 +177,15 @@ templates/
 
 ```kida
 {% for post in posts %}
-    {% include "partials/post-card.html" with post=post %}
+    {% include "partials/post-card.html" %}
+{% end %}
+```
+
+The loop variable `post` and `loop` context are automatically visible in the included template. You can still use `with` to pass additional variables if needed:
+
+```kida
+{% for post in posts %}
+    {% include "partials/post-card.html" with show_date=True %}
 {% end %}
 ```
 

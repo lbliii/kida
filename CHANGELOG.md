@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Streaming rendering** — `template.render_stream(**ctx)` yields template output as string chunks via Python generators. The compiler generates both StringBuilder (`render()`) and generator (`render_stream()`) functions from each template in a single compilation pass. Supports full template inheritance (`{% extends %}`, `{% block %}`), includes, and all control flow. Buffering blocks (`{% capture %}`, `{% spaceless %}`, `{% cache %}`, `{% filter %}`) buffer internally and yield the processed result. No performance impact on `render()` — the existing StringBuilder path is unchanged.
 
+- **Compiler-emitted profiling instrumentation** — `profiled_render()` now automatically tracks blocks (with timing), filters (call counts), and macros (call counts) without manual instrumentation. The compiler emits `_acc = _get_accumulator()` once per function and gates all recording behind a falsy check, so zero overhead when profiling is disabled.
+
+- **Include scope propagation** — Loop variables from `{% for %}` and block-scoped `{% set %}` variables are now visible inside `{% include %}` templates. The compiler merges scope-stack and loop locals into a context copy at include call sites.
+
+- **Bytecode cache warning** — `from_string()` without `name=` now emits a `UserWarning` when a `bytecode_cache` is configured, explaining how to enable caching.
+
+### Changed
+
+- **Dict-safe attribute resolution** — `_safe_getattr` now tries subscript before `getattr` for dict objects. `{{ section.items }}` resolves to `section["items"]` (user data), not the `dict.items` method. Non-dict objects retain the previous `getattr`-first behavior. This prevents dict method names (`items`, `keys`, `values`, `get`, `pop`, `update`) from shadowing user data keys.
+
 - **`RenderedTemplate`** — Lazy iterable wrapper around `render_stream()`. Construct with a template and context dict, iterate to get chunks on demand.
 
   ```python

@@ -44,6 +44,21 @@ For dictionary keys:
 {{ data["key-with-dashes"] }}
 ```
 
+### Dict-Safe Resolution
+
+For **dict** objects, dot notation resolves to dictionary keys first, then falls back to attributes. This means `{{ data.items }}` returns `data["items"]` (your data), not the `dict.items` method:
+
+```kida
+{# data = {"items": ["a", "b"], "keys": ["x", "y"]} #}
+
+{{ data.items }}    {# → ["a", "b"] — the key, not dict.items() #}
+{{ data.keys }}     {# → ["x", "y"] — the key, not dict.keys() #}
+```
+
+For non-dict objects (dataclasses, custom classes), dot notation uses `getattr` first, then falls back to subscript. This is the safe default for objects with `__getitem__`.
+
+> **Jinja2 difference**: Jinja2 always tries `getattr` first regardless of type, so `{{ data.items }}` resolves to the `dict.items` method. Kida handles this correctly for dicts.
+
 ## Index Access
 
 Access sequence items by index:

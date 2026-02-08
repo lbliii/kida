@@ -28,6 +28,8 @@ Comprehensive comparison of Kida and Jinja2.
 | **Free-threading** | Native (PEP 703, Python 3.14t+) | N/A |
 | **Dependencies** | Zero | markupsafe |
 | **Block endings** | Unified `{% end %}` | `{% endif %}`, etc. |
+| **Dict access** | Subscript-first (`d.items` → key) | getattr-first (`d.items` → method) |
+| **Profiling** | Auto-instrumented blocks/filters/macros | N/A |
 | **Pattern matching** | `{% match %}` | N/A |
 | **Pipeline** | `\|>` operator | N/A |
 | **Block caching** | `{% cache %}` | N/A |
@@ -219,6 +221,8 @@ Choose Kida if you:
 - Need built-in caching
 - Want pattern matching in templates
 - Value AST-native compilation
+- Work with dict-heavy contexts (API responses, JSON data)
+- Need built-in render profiling (block timing, filter/macro tracking)
 
 ## When to Keep Jinja2
 

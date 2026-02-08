@@ -56,11 +56,13 @@ template = env.get_template("page.html")
 
 #### from_string(source, name=None)
 
-Compile a template from string (not cached).
+Compile a template from string (not cached in the template cache).
 
 ```python
 template = env.from_string("Hello, {{ name }}!")
 ```
+
+> **Bytecode caching**: If you have a `bytecode_cache` configured, pass `name=` to enable it. Without a name, there's no stable cache key, so the bytecode cache is bypassed. A `UserWarning` is emitted if you call `from_string()` without `name=` when a bytecode cache is active.
 
 #### render(template_name, **context)
 
@@ -411,7 +413,14 @@ from kida.render_context import (
 
 ## RenderAccumulator
 
-Opt-in profiling for template rendering.
+Opt-in profiling for template rendering. When enabled via `profiled_render()`, the compiler-emitted instrumentation automatically tracks:
+
+- **Blocks** — render timing (milliseconds) and call counts
+- **Filters** — call counts per filter name
+- **Macros** — call counts per `{% def %}` name
+- **Includes** — counts per included template
+
+Zero overhead when profiling is disabled — the instrumentation gates on a falsy check.
 
 ```python
 from kida.render_accumulator import (
@@ -428,7 +437,13 @@ with profiled_render() as metrics:
     html = template.render(page=page)
 
 summary = metrics.summary()
-# {"total_ms": 12.5, "blocks": {...}, "includes": {...}}
+# {
+#     "total_ms": 12.5,
+#     "blocks": {"content": {"ms": 8.2, "calls": 1}, "nav": {"ms": 1.1, "calls": 1}},
+#     "filters": {"upper": 3, "truncate": 2},
+#     "macros": {"card": 5},
+#     "includes": {"header.html": 1},
+# }
 ```
 
 ### RenderAccumulator Properties
