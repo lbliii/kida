@@ -131,71 +131,26 @@ class HTTPLoader:
 env = Environment(loader=HTTPLoader("https://templates.example.com"))
 ```
 
-## Chained Loader
+## Combining with Built-in Loaders
 
-Try multiple loaders in order:
+Kida ships with `ChoiceLoader` and `PrefixLoader` that work with any loader (including custom ones):
 
 ```python
-from kida import TemplateNotFoundError
+from kida import ChoiceLoader, PrefixLoader, FileSystemLoader
 
-class ChainLoader:
-    def __init__(self, loaders: list):
-        self.loaders = loaders
-
-    def get_source(self, name: str) -> tuple[str, str | None]:
-        for loader in self.loaders:
-            try:
-                return loader.get_source(name)
-            except TemplateNotFoundError:
-                continue
-
-        raise TemplateNotFoundError(f"Template '{name}' not found in any loader")
-
-    def list_templates(self) -> list[str]:
-        templates = set()
-        for loader in self.loaders:
-            templates.update(loader.list_templates())
-        return sorted(templates)
-
-# Usage: Try database first, then filesystem
+# Try database first, then filesystem
 env = Environment(
-    loader=ChainLoader([
+    loader=ChoiceLoader([
         DatabaseLoader(db),
         FileSystemLoader("templates/"),
     ])
 )
-```
 
-## Prefix Loader
-
-Route templates by prefix:
-
-```python
-class PrefixLoader:
-    def __init__(self, loaders: dict):
-        self.loaders = loaders  # {"prefix/": loader}
-
-    def get_source(self, name: str) -> tuple[str, str | None]:
-        for prefix, loader in self.loaders.items():
-            if name.startswith(prefix):
-                template_name = name[len(prefix):]
-                return loader.get_source(template_name)
-
-        raise TemplateNotFoundError(f"No loader for '{name}'")
-
-    def list_templates(self) -> list[str]:
-        templates = []
-        for prefix, loader in self.loaders.items():
-            templates.extend(
-                prefix + t for t in loader.list_templates()
-            )
-        return sorted(templates)
-
-# Usage
+# Namespace by prefix
 env = Environment(
     loader=PrefixLoader({
-        "db/": DatabaseLoader(db),
-        "files/": FileSystemLoader("templates/"),
+        "db": DatabaseLoader(db),
+        "files": FileSystemLoader("templates/"),
     })
 )
 
@@ -205,6 +160,8 @@ env.get_template("db/page.html")
 # Loads from filesystem
 env.get_template("files/base.html")
 ```
+
+See [[docs/usage/loading-templates|Loading Templates]] for more on `ChoiceLoader` and `PrefixLoader`.
 
 ## Caching Layer
 

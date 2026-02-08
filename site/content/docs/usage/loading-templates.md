@@ -12,6 +12,8 @@ keywords:
 - loaders
 - filesystem
 - dict
+- choice
+- prefix
 - loading
 icon: folder
 ---
@@ -81,6 +83,61 @@ Useful for:
 - Testing
 - Embedded templates
 - Dynamic template generation
+
+## ChoiceLoader
+
+Try multiple loaders in order, returning the first match. Useful for theme fallback patterns:
+
+```python
+from kida import Environment, FileSystemLoader, ChoiceLoader
+
+loader = ChoiceLoader([
+    FileSystemLoader("themes/custom/"),
+    FileSystemLoader("themes/default/"),
+])
+
+env = Environment(loader=loader)
+
+# Looks in custom/ first, then falls back to default/
+template = env.get_template("page.html")
+```
+
+You can mix loader types:
+
+```python
+loader = ChoiceLoader([
+    DictLoader({"override.html": "<p>In-memory override</p>"}),
+    FileSystemLoader("templates/"),
+])
+```
+
+## PrefixLoader
+
+Namespace templates by prefix, delegating to per-prefix loaders. Useful for plugin and multi-app architectures:
+
+```python
+from kida import Environment, FileSystemLoader, PrefixLoader
+
+loader = PrefixLoader({
+    "app": FileSystemLoader("templates/app/"),
+    "admin": FileSystemLoader("templates/admin/"),
+    "shared": DictLoader({"header.html": "<header>Shared</header>"}),
+})
+
+env = Environment(loader=loader)
+
+# Routes by prefix (delimiter is "/")
+env.get_template("app/index.html")      # → templates/app/index.html
+env.get_template("admin/users.html")    # → templates/admin/users.html
+env.get_template("shared/header.html")  # → DictLoader
+```
+
+Custom delimiter:
+
+```python
+loader = PrefixLoader({"app": loader1, "admin": loader2}, delimiter=":")
+env.get_template("app:index.html")
+```
 
 ## from_string()
 

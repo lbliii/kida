@@ -240,6 +240,57 @@ loader = DictLoader({
 })
 ```
 
+### ChoiceLoader
+
+Try multiple loaders in order, returning the first match.
+
+```python
+from kida import ChoiceLoader, FileSystemLoader
+
+loader = ChoiceLoader([
+    FileSystemLoader("themes/custom/"),
+    FileSystemLoader("themes/default/"),
+])
+```
+
+#### Constructor Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `loaders` | `list[Loader]` | Loaders to try in order |
+
+#### Methods
+
+- `get_source(name)` → `tuple[str, str | None]` — Returns first successful match
+- `list_templates()` → `list[str]` — Merged, deduplicated, sorted list from all loaders
+
+### PrefixLoader
+
+Namespace templates by prefix, delegating to per-prefix loaders.
+
+```python
+from kida import PrefixLoader, FileSystemLoader
+
+loader = PrefixLoader({
+    "app": FileSystemLoader("templates/app/"),
+    "admin": FileSystemLoader("templates/admin/"),
+})
+
+# env.get_template("app/index.html") → templates/app/index.html
+```
+
+#### Constructor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mapping` | `dict[str, Loader]` | Required | Prefix → loader mapping |
+| `delimiter` | `str` | `"/"` | Prefix delimiter |
+
+#### Methods
+
+- `get_source(name)` → `tuple[str, str | None]` — Splits on delimiter, delegates to prefix loader
+- `list_templates()` → `list[str]` — All templates with prefix prepended
+
 ---
 
 ## Exceptions
