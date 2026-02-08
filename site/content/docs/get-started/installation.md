@@ -25,13 +25,13 @@ icon: download
 ## Using pip
 
 ```bash
-pip install kida
+pip install kida-templates
 ```
 
 ## Using uv
 
 ```bash
-uv add kida
+uv add kida-templates
 ```
 
 ## From Source
@@ -42,11 +42,19 @@ cd kida
 pip install -e .
 ```
 
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+git clone https://github.com/lbliii/kida.git
+cd kida
+uv sync
+```
+
 ## Verify Installation
 
 ```python
 import kida
-print(kida.__version__)  # 0.1.0
+print(kida.__version__)  # 0.1.2
 ```
 
 Or from the command line:
@@ -59,7 +67,7 @@ python -c "import kida; print(kida.__version__)"
 
 Kida is optimized for Python 3.14t with free-threading enabled (PEP 703). To use free-threading:
 
-1. Build or install Python 3.14 with `--disable-gil`
+1. Install the free-threaded Python 3.14 build (look for `python3.14t` or the "free-threaded" installer option)
 2. Install Kida normally
 3. Render templates concurrently with true parallelism
 

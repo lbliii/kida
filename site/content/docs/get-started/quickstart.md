@@ -22,7 +22,7 @@ Render your first Kida template in 2 minutes.
 ## Prerequisites
 
 - Python 3.14+
-- Kida installed (`pip install kida`)
+- Kida installed (`pip install kida-templates`)
 
 ## Step 1: Create a Template
 
@@ -105,23 +105,35 @@ Output:
 | Control | `{% tag %}` | `{% if %}`, `{% for %}` |
 | Block end | `{% end %}` | Closes any block |
 | Comments | `{# text #}` | `{# ignore me #}` |
+| Filters | `\| filter` | `{{ name \| upper }}` |
+| Pipeline | `\|> filter` | `{{ title \|> escape \|> upper }}` |
+| Pattern match | `{% match %}` | `{% match status %}{% case "ok" %}...{% end %}` |
 
 ## Next Steps
 
 :::{cards}
-:columns: 2
+:columns: 1-2-3
 :gap: medium
+
+:::{card} First Project
+:icon: package
+:link: ./first-project
+:description: Build something real
+Template inheritance, filters, and multi-page rendering.
+:::{/card}
 
 :::{card} Syntax Guide
 :icon: code
 :link: ../syntax/
-Learn variables, control flow, filters, and inheritance.
+:description: Variables, control flow, filters
+Learn the template language from basics to advanced.
 :::{/card}
 
-:::{card} Usage Patterns
-:icon: terminal
-:link: ../usage/
-Loading templates, contexts, escaping, error handling.
+:::{card} Streaming
+:icon: zap
+:link: ../usage/streaming
+:description: Chunked rendering for HTMX and SSE
+Yield HTML chunks as they render for progressive delivery.
 :::{/card}
 
 :::{/cards}

@@ -23,7 +23,7 @@ icon: arrow-clockwise
 ## Install
 
 ```bash
-pip install kida
+pip install kida-templates
 ```
 
 Requires Python 3.14 or later. See [[docs/get-started/installation|installation]] for alternative methods.
@@ -53,6 +53,27 @@ print(template.render(name="World"))
 Build and render your first file-based template.
 :::{/card}
 
+:::{card} First Project
+:icon: package
+:link: ./first-project
+:description: Inheritance, filters, and multi-page rendering
+Build a mini email template system with shared layouts.
+:::{/card}
+
+:::{card} Coming from Jinja2
+:icon: arrow-right
+:link: ./coming-from-jinja2
+:description: Quick syntax cheat sheet
+See what's the same, what's different, and what's new.
+:::{/card}
+
+:::{card} T-String Templates
+:icon: type
+:link: ./tstring-templates
+:description: PEP 750 inline templates
+Use Python 3.14 t-strings for auto-escaped HTML snippets.
+:::{/card}
+
 :::{card} Syntax Guide
 :icon: code
 :link: ../syntax/
@@ -60,11 +81,11 @@ Build and render your first file-based template.
 Learn the template language from basics to advanced.
 :::{/card}
 
-:::{card} Migration
-:icon: arrow-right
-:link: ../tutorials/migrate-from-jinja2
-:description: Coming from Jinja2?
-Step-by-step migration with API mapping.
+:::{card} Streaming
+:icon: zap
+:link: ../usage/streaming
+:description: Chunked rendering for HTMX and SSE
+Yield HTML chunks as they render for progressive delivery.
 :::{/card}
 
 :::{/cards}
@@ -74,3 +95,4 @@ Step-by-step migration with API mapping.
 - [[docs/reference/api|API Reference]] — Environment, Template, Loaders
 - [[docs/syntax/filters|Filters]] — All built-in filters
 - [[docs/about/comparison|vs Jinja2]] — Feature comparison
+- [[docs/tutorials/migrate-from-jinja2|Full Migration Guide]] — Step-by-step with verification
