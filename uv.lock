@@ -110,7 +110,7 @@ wheels = [
 
 [[package]]
 name = "bengal"
-version = "0.1.8"
+version = "0.1.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -118,8 +118,8 @@ dependencies = [
     { name = "jinja2" },
     { name = "jsmin" },
     { name = "kida-templates" },
-    { name = "markupsafe" },
-    { name = "mistune" },
+    { name = "packaging" },
+    { name = "patitas" },
     { name = "pillow" },
     { name = "psutil" },
     { name = "python-frontmatter" },
@@ -131,9 +131,9 @@ dependencies = [
     { name = "uvloop", marker = "sys_platform != 'win32'" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0e/9d/d03ec77b82fa94cc6251a577cd82e3a0ae14d076216a8d4142f152b745a0/bengal-0.1.8.tar.gz", hash = "sha256:15e5b29cfeb3981d49d1231d62690e060a06f0eae3bfbb92505296b76a44d162", size = 2407060, upload-time = "2026-01-12T23:32:20.17Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/1d/2bb66f616caf003dcf6d473312442c27116f8530f9986e051b5558574f5b/bengal-0.1.9.tar.gz", hash = "sha256:c248584eb61de3c6ebc1de38319c34a5afdc7e25120570e1554844cc967bee6c", size = 2381974, upload-time = "2026-02-08T17:16:49.479Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f1/df/160dd9626ea0f5742d943c2e2c3e133a43f78523f89b17751ff05160eb68/bengal-0.1.8-py3-none-any.whl", hash = "sha256:7faab9342f17038e1c0400ef3507c9c36335b23e5ed77617a7d55c9e263de617", size = 3100847, upload-time = "2026-01-12T23:32:17.432Z" },
+    { url = "https://files.pythonhosted.org/packages/90/b7/16044ae2183011c6524981cc0f639e5bccda6f1e28273b3c84f3d4d2d17f/bengal-0.1.9-py3-none-any.whl", hash = "sha256:3cf3371a7fa36216057cd848110ea177642156e595e5a014e74f6231735fac6f", size = 3050163, upload-time = "2026-02-08T17:16:47.734Z" },
 ]
 
 [[package]]
@@ -401,7 +401,7 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "bengal", marker = "extra == 'docs'", specifier = ">=0.1.8" }]
+requires-dist = [{ name = "bengal", marker = "extra == 'docs'", specifier = ">=0.1.9" }]
 provides-extras = ["docs"]
 
 [package.metadata.requires-dev]
@@ -418,7 +418,7 @@ dev = [
     { name = "ruff", specifier = ">=0.14.0" },
     { name = "ty", specifier = ">=0.0.11" },
 ]
-docs = [{ name = "bengal", specifier = ">=0.1.8" }]
+docs = [{ name = "bengal", specifier = ">=0.1.9" }]
 
 [[package]]
 name = "linkify-it-py"
@@ -501,15 +501,6 @@ wheels = [
 ]
 
 [[package]]
-name = "mistune"
-version = "3.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/9d/55/d01f0c4b45ade6536c51170b9043db8b2ec6ddf4a35c7ea3f5f559ac935b/mistune-3.2.0.tar.gz", hash = "sha256:708487c8a8cdd99c9d90eb3ed4c3ed961246ff78ac82f03418f5183ab70e398a", size = 95467, upload-time = "2025-12-23T11:36:34.994Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/f7/4a5e785ec9fbd65146a27b6b70b6cdc161a66f2024e4b04ac06a67f5578b/mistune-3.2.0-py3-none-any.whl", hash = "sha256:febdc629a3c78616b94393c6580551e0e34cc289987ec6c35ed3f4be42d0eee1", size = 53598, upload-time = "2025-12-23T11:36:33.211Z" },
-]
-
-[[package]]
 name = "multidict"
 version = "6.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -570,6 +561,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a1/d4/1fc4078c65507b51b96ca8f8c3ba19e6a61c8253c72794544580a7b6c24d/packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f", size = 165727, upload-time = "2025-04-19T11:48:59.673Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484", size = 66469, upload-time = "2025-04-19T11:48:57.875Z" },
+]
+
+[[package]]
+name = "patitas"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/c5/79b5580e4fee50affdf78a854efb736f4a5de4873563511fd82825d99a4c/patitas-0.1.1.tar.gz", hash = "sha256:32705ecd5ab99e269dcb8c0ae32d09efd68852f5e8ea340c816e1e27e0d30b65", size = 152186, upload-time = "2026-01-13T20:14:53.817Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/93/09/033a643b15c43c873dcfd0f4813937f3c7932dea5db3fa5035992e03c830/patitas-0.1.1-py3-none-any.whl", hash = "sha256:a9f30d6b4dfbff6454ed5dd41da7cf13c87dd1caba7236fbe0c02924cd5c568b", size = 184473, upload-time = "2026-01-13T20:14:51.987Z" },
 ]
 
 [[package]]
