@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NoReturn
 
 
 class LoopContext:
@@ -125,7 +125,7 @@ class LoopContext:
         return f"<LoopContext {self.index}/{self.length}>"
 
 
-def _async_loop_unavailable(name: str) -> Any:
+def _async_loop_unavailable(name: str) -> NoReturn:
     """Raise TemplateRuntimeError for size-dependent loop variables in async for."""
     from kida.environment.exceptions import TemplateRuntimeError
 

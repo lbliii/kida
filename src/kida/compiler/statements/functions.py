@@ -144,11 +144,11 @@ class FunctionCompilationMixin:
         # to prevent async for/await inside the def body.
         saved_async = getattr(self, "_async_mode", False)
         if saved_async:
-            self._async_mode = False  # type: ignore[attr-defined]
+            self._async_mode = False
         for child in node.body:
             func_body.extend(self._compile_node(child))
         if saved_async:
-            self._async_mode = saved_async  # type: ignore[attr-defined]
+            self._async_mode = saved_async
 
         # Remove args from locals
         for arg_name in node.args:
@@ -193,7 +193,7 @@ class FunctionCompilationMixin:
             ast.arg(arg="_caller"),
             ast.arg(arg="_outer_ctx"),
         ]
-        kw_defaults: list[ast.expr] = [
+        kw_defaults: list[ast.expr | None] = [
             ast.Constant(value=None),  # _caller=None
             ast.Name(id="ctx", ctx=ast.Load()),  # _outer_ctx=ctx
         ]
@@ -273,11 +273,11 @@ class FunctionCompilationMixin:
         # Compile body — caller is always a sync function
         saved_async_cb = getattr(self, "_async_mode", False)
         if saved_async_cb:
-            self._async_mode = False  # type: ignore[attr-defined]
+            self._async_mode = False
         for child in node.body:
             caller_body.extend(self._compile_node(child))
         if saved_async_cb:
-            self._async_mode = saved_async_cb  # type: ignore[attr-defined]
+            self._async_mode = saved_async_cb
 
         # return Markup(''.join(buf))
         caller_body.append(

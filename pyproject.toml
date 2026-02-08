@@ -60,7 +60,7 @@ exclude_lines = [
 python-version = "3.14"
 
 [tool.ty.src]
-exclude = ["dist/", "build/", "benchmarks/", "tests/"]
+exclude = ["dist/", "build/", "benchmarks/", "tests/", "examples/"]
 
 # Markup class intentionally returns Self instead of str (like MarkupSafe)
 # This technically violates LSP but is the correct pattern for HTML-safe strings

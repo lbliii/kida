@@ -11,17 +11,16 @@ import weakref
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import ast
-
     from kida.analysis import TemplateMetadata
     from kida.environment import Environment
+    from kida.nodes import Template as TemplateNode
 
 
 class TemplateIntrospectionMixin:
     """Mixin adding static analysis and introspection to Template.
 
     Requires the host class to define the following slots:
-        _optimized_ast: ast.Module | None
+        _optimized_ast: TemplateNode | None
         _metadata_cache: TemplateMetadata | None
         _name: str | None
         _env_ref: weakref.ref[Environment]
@@ -29,7 +28,7 @@ class TemplateIntrospectionMixin:
     """
 
     if TYPE_CHECKING:
-        _optimized_ast: ast.Module | None
+        _optimized_ast: TemplateNode | None
         _metadata_cache: TemplateMetadata | None
         _name: str | None
         _env_ref: weakref.ref[Environment]
@@ -239,6 +238,8 @@ class TemplateIntrospectionMixin:
                 return None
 
         analyzer = BlockAnalyzer(template_resolver=resolve_template)
+        if self._optimized_ast is None:
+            return
         result = analyzer.analyze(self._optimized_ast)
 
         # Set template name from self

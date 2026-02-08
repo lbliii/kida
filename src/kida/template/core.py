@@ -61,11 +61,11 @@ from kida.template.loop_context import AsyncLoopContext, LoopContext
 from kida.utils.html import html_escape
 
 if TYPE_CHECKING:
-    import ast
     import types
 
     from kida.analysis import TemplateMetadata
     from kida.environment import Environment
+    from kida.nodes import Template as TemplateNode
     from kida.render_context import RenderContext
 
 
@@ -135,7 +135,7 @@ class Template(TemplateIntrospectionMixin):
         code: types.CodeType,
         name: str | None,
         filename: str | None,
-        optimized_ast: ast.Module | None = None,
+        optimized_ast: TemplateNode | None = None,
     ):
         """Initialize template with compiled code.
 
@@ -1011,7 +1011,8 @@ class Template(TemplateIntrospectionMixin):
                     if chunk is not None:
                         yield chunk
             else:
-                # Wrap sync block stream
+                # Wrap sync block stream (sync_func guaranteed non-None by check above)
+                assert sync_func is not None
                 for chunk in sync_func(ctx, {}):
                     if chunk is not None:
                         yield chunk

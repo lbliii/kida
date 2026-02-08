@@ -397,7 +397,7 @@ class ExpressionCompilationMixin:
         if node_type == "Await":
             # Compile {{ await expr }} to ast.Await(value=compiled_expr)
             # Part of RFC: rfc-async-rendering
-            self._has_async = True  # type: ignore[attr-defined]
+            self._has_async = True
             if getattr(self, "_async_mode", False):
                 return ast.Await(value=self._compile_expr(node.value))
             # In sync mode, Await can't appear in a regular def.

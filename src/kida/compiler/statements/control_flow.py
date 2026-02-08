@@ -400,7 +400,7 @@ class ControlFlowMixin:
         """
         # Flag template as async (needed even during sync compilation pass
         # so the _is_async flag gets set in the module)
-        self._has_async = True  # type: ignore[attr-defined]
+        self._has_async = True
 
         # During sync compilation passes (render, render_stream), async for
         # cannot appear inside a regular def. Emit a pass placeholder —

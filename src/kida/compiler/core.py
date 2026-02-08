@@ -148,23 +148,27 @@ class Compiler(
         This ensures nested blocks (blocks inside blocks, blocks inside
         conditionals, etc.) are all registered for compilation.
         """
-        for node in nodes:
-            node_type = type(node).__name__
+        from kida.nodes import Block
 
-            if node_type == "Block":
+        for node in nodes:
+            if isinstance(node, Block):
                 self._blocks[node.name] = node
                 # Recurse into block body to find nested blocks
                 self._collect_blocks(node.body)
             elif hasattr(node, "body"):
                 # Node has a body (If, For, With, Def, etc.)
-                self._collect_blocks(node.body)
+                body = getattr(node, "body")
+                self._collect_blocks(body)
                 # Check for else/elif bodies
-                if hasattr(node, "else_") and node.else_:
-                    self._collect_blocks(node.else_)
-                if hasattr(node, "empty") and node.empty:
-                    self._collect_blocks(node.empty)
-                if hasattr(node, "elif_") and node.elif_:
-                    for _, elif_body in node.elif_:
+                else_ = getattr(node, "else_", None)
+                if else_:
+                    self._collect_blocks(else_)
+                empty = getattr(node, "empty", None)
+                if empty:
+                    self._collect_blocks(empty)
+                elif_ = getattr(node, "elif_", None)
+                if elif_:
+                    for _, elif_body in elif_:
                         self._collect_blocks(elif_body)
 
     def compile(
