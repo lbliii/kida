@@ -305,10 +305,20 @@ class ExpressionCompilationMixin:
                 filter_args = [self._compile_expr(a) for a in node.args]
                 filter_kwargs = {k: self._compile_expr(v) for k, v in node.kwargs.items()}
 
-                return ast.Call(
+                default_call = ast.Call(
                     func=ast.Name(id="_default_safe", ctx=ast.Load()),
                     args=[value_lambda, *filter_args],
                     keywords=[ast.keyword(arg=k, value=v) for k, v in filter_kwargs.items()],
+                )
+                # Profiling: record as 'default' (canonical name)
+                return ast.Call(
+                    func=ast.Name(id="_record_filter", ctx=ast.Load()),
+                    args=[
+                        ast.Name(id="_acc", ctx=ast.Load()),
+                        ast.Constant(value="default"),
+                        default_call,
+                    ],
+                    keywords=[],
                 )
 
             value = self._compile_expr(node.value)

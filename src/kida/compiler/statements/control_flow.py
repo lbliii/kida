@@ -371,11 +371,13 @@ class ControlFlowMixin:
                 )
             )
 
-        # Remove loop variables from locals after the loop
+        # Remove loop variables from locals and loop_vars after the loop
         for var_name in var_names:
             self._locals.discard(var_name)
+            self._loop_vars.discard(var_name)
         if uses_loop:
             self._locals.discard("loop")
+            self._loop_vars.discard("loop")
 
         return stmts
 
@@ -528,11 +530,13 @@ class ControlFlowMixin:
                 )
             )
 
-        # Remove loop variables from locals after the loop
+        # Remove loop variables from locals and loop_vars after the loop
         for var_name in var_names:
             self._locals.discard(var_name)
+            self._loop_vars.discard(var_name)
         if uses_loop:
             self._locals.discard("loop")
+            self._loop_vars.discard("loop")
 
         return stmts
 

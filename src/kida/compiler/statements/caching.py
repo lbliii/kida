@@ -256,7 +256,7 @@ class CachingMixin:
             for k, v in filter_node.kwargs.items()
         ]
 
-        result_expr = ast.Call(
+        filter_call = ast.Call(
             func=ast.Subscript(
                 value=ast.Name(id="_filters", ctx=ast.Load()),
                 slice=ast.Constant(value=filter_node.name),
@@ -264,6 +264,17 @@ class CachingMixin:
             ),
             args=filter_args,
             keywords=filter_kwargs,
+        )
+
+        # Profiling: _record_filter(_acc, 'name', filter_result)
+        result_expr = ast.Call(
+            func=ast.Name(id="_record_filter", ctx=ast.Load()),
+            args=[
+                ast.Name(id="_acc", ctx=ast.Load()),
+                ast.Constant(value=filter_node.name),
+                filter_call,
+            ],
+            keywords=[],
         )
 
         # _append(result) or yield result
