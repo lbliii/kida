@@ -392,7 +392,13 @@ class Environment:
 
         return template
 
-    def from_string(self, source: str, name: str | None = None) -> Template:
+    def from_string(
+        self,
+        source: str,
+        name: str | None = None,
+        *,
+        static_context: dict[str, Any] | None = None,
+    ) -> Template:
         """Compile a template from a string.
 
         Args:
@@ -401,6 +407,10 @@ class Environment:
                 When a ``bytecode_cache`` is configured, providing a name
                 enables persistent caching of the compiled template.
                 Without a name, the template is compiled fresh each time.
+            static_context: Values known at compile time.  Expressions
+                that depend only on these values are evaluated during
+                compilation and replaced with constants in the bytecode.
+                This enables near-``str.format()`` speed for static regions.
 
         Returns:
             Compiled Template object
@@ -408,24 +418,40 @@ class Environment:
         Note:
             String templates are NOT cached in the in-memory LRU cache.
             Use ``get_template()`` with a loader for in-memory caching.
+
+        Example:
+            >>> site = {"title": "My Blog", "nav": [...]}
+            >>> tmpl = env.from_string(
+            ...     "<title>{{ site.title }}</title>",
+            ...     static_context={"site": site},
+            ... )
+            >>> tmpl.render()  # site.title is pre-baked as "My Blog"
+            '<title>My Blog</title>'
         """
-        return self._compile(source, name, None)
+        return self._compile(source, name, None, static_context=static_context)
 
     def _compile(
         self,
         source: str,
         name: str | None,
         filename: str | None,
+        *,
+        static_context: dict[str, Any] | None = None,
     ) -> Template:
         """Compile template source to Template object.
 
         Uses bytecode cache when configured for fast cold-start.
         Preserves AST for introspection when self.preserve_ast=True (default).
+
+        When ``static_context`` is provided, runs a partial evaluation pass
+        before compilation to replace static expressions with constants.
         """
         from kida.compiler import Compiler
         from kida.parser import Parser
 
         # Check bytecode cache first (for fast cold-start)
+        # Note: bytecode cache is bypassed when static_context is provided,
+        # because the cache key doesn't include the static context values.
         source_hash = None
         if self._bytecode_cache is not None and name is None:
             import warnings
@@ -435,7 +461,11 @@ class Environment:
                 "Pass name='my_template' to enable caching.",
                 stacklevel=3,
             )
-        if self._bytecode_cache is not None and name is not None:
+        if (
+            self._bytecode_cache is not None
+            and name is not None
+            and static_context is None  # Skip cache when partial-evaluating
+        ):
             from kida.bytecode_cache import hash_source
 
             source_hash = hash_source(source)
@@ -466,6 +496,16 @@ class Environment:
         parser = Parser(tokens, name, filename, source, autoescape=should_escape)
         ast = parser.parse()
 
+        # Partial evaluation: replace static expressions with constants
+        if static_context:
+            from kida.compiler.partial_eval import partial_evaluate
+
+            ast = partial_evaluate(
+                ast,
+                static_context,
+                pure_filters=frozenset(self.pure_filters),
+            )
+
         # Preserve AST for introspection if enabled
         optimized_ast = ast if self.preserve_ast else None
 
@@ -473,8 +513,13 @@ class Environment:
         compiler = Compiler(self)
         code = compiler.compile(ast, name, filename)
 
-        # Cache bytecode for future cold-starts
-        if self._bytecode_cache is not None and name is not None and source_hash is not None:
+        # Cache bytecode for future cold-starts (only without static_context)
+        if (
+            self._bytecode_cache is not None
+            and name is not None
+            and source_hash is not None
+            and static_context is None
+        ):
             self._bytecode_cache.set(name, source_hash, code)
 
         return Template(self, code, name, filename, optimized_ast=optimized_ast)
