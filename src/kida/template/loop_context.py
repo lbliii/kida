@@ -161,7 +161,7 @@ class AsyncLoopContext:
     Part of RFC: rfc-async-rendering.
     """
 
-    __slots__ = ("_index", "_current", "_prev")
+    __slots__ = ("_current", "_index", "_prev")
 
     def __init__(self) -> None:
         self._index = -1  # incremented to 0 on first advance()

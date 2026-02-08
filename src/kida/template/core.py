@@ -728,7 +728,7 @@ class Template(TemplateIntrospectionMixin):
                     raise
                 raise self._enhance_error(e, render_ctx) from e
 
-    def render_stream(self, *args: Any, **kwargs: Any):  # noqa: ANN201
+    def render_stream(self, *args: Any, **kwargs: Any):
         """Render template as a generator of HTML chunks.
 
         Yields chunks at every statement boundary, enabling progressive
@@ -878,7 +878,7 @@ class Template(TemplateIntrospectionMixin):
         """
         return self._namespace.get("_is_async", False)
 
-    async def render_stream_async(self, *args: Any, **kwargs: Any):  # noqa: ANN201
+    async def render_stream_async(self, *args: Any, **kwargs: Any):
         """Render template as an async generator of HTML chunks.
 
         For templates with async constructs ({% async for %}, {{ await }}),
@@ -953,7 +953,7 @@ class Template(TemplateIntrospectionMixin):
 
     async def render_block_stream_async(
         self, block_name: str, *args: Any, **kwargs: Any
-    ):  # noqa: ANN201
+    ):
         """Render a single block as an async stream.
 
         Looks up the async streaming block function first, falls back to
@@ -1005,7 +1005,7 @@ class Template(TemplateIntrospectionMixin):
         async with async_render_context(
             template_name=self._name,
             filename=self._filename,
-        ) as render_ctx:
+        ):
             if async_func is not None:
                 async for chunk in async_func(ctx, {}):
                     if chunk is not None:
@@ -1123,6 +1123,6 @@ class RenderedTemplate:
         """Render and return full string."""
         return self._template.render(self._context)
 
-    def __iter__(self):  # noqa: ANN204
+    def __iter__(self):
         """Iterate over rendered HTML chunks via render_stream()."""
         yield from self._template.render_stream(self._context)

@@ -161,7 +161,7 @@ class Compiler(
                 self._collect_blocks(node.body)
             elif hasattr(node, "body"):
                 # Node has a body (If, For, With, Def, etc.)
-                body = getattr(node, "body")
+                body = node.body
                 self._collect_blocks(body)
                 # Check for else/elif bodies
                 else_ = getattr(node, "else_", None)
@@ -679,25 +679,25 @@ class Compiler(
                     body.extend(self._compile_node(child))
 
             # Register streaming block functions
-            for block_name in blocks:
-                body.append(
-                    ast.Expr(
-                        value=ast.Call(
-                            func=ast.Attribute(
-                                value=ast.Name(id="_blocks", ctx=ast.Load()),
-                                attr="setdefault",
-                                ctx=ast.Load(),
-                            ),
-                            args=[
-                                ast.Constant(value=block_name),
-                                ast.Name(
-                                    id=f"_block_{block_name}_stream", ctx=ast.Load()
-                                ),
-                            ],
-                            keywords=[],
+            body.extend(
+                ast.Expr(
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id="_blocks", ctx=ast.Load()),
+                            attr="setdefault",
+                            ctx=ast.Load(),
                         ),
-                    )
+                        args=[
+                            ast.Constant(value=block_name),
+                            ast.Name(
+                                id=f"_block_{block_name}_stream", ctx=ast.Load()
+                            ),
+                        ],
+                        keywords=[],
+                    ),
                 )
+                for block_name in blocks
+            )
 
             # yield from _extends_stream('parent.html', ctx, _blocks)
             body.append(
@@ -888,26 +888,26 @@ class Compiler(
                     body.extend(self._compile_node(child))
 
             # Register async streaming block functions
-            for block_name in blocks:
-                body.append(
-                    ast.Expr(
-                        value=ast.Call(
-                            func=ast.Attribute(
-                                value=ast.Name(id="_blocks", ctx=ast.Load()),
-                                attr="setdefault",
+            body.extend(
+                ast.Expr(
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id="_blocks", ctx=ast.Load()),
+                            attr="setdefault",
+                            ctx=ast.Load(),
+                        ),
+                        args=[
+                            ast.Constant(value=block_name),
+                            ast.Name(
+                                id=f"_block_{block_name}_stream_async",
                                 ctx=ast.Load(),
                             ),
-                            args=[
-                                ast.Constant(value=block_name),
-                                ast.Name(
-                                    id=f"_block_{block_name}_stream_async",
-                                    ctx=ast.Load(),
-                                ),
-                            ],
-                            keywords=[],
-                        ),
-                    )
+                        ],
+                        keywords=[],
+                    ),
                 )
+                for block_name in blocks
+            )
 
             # async for chunk in _extends_stream_async(parent, ctx, _blocks):
             #     yield chunk

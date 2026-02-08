@@ -17,7 +17,6 @@ from kida import DictLoader, Environment
 from kida.environment.exceptions import TemplateRuntimeError, TemplateSyntaxError
 from kida.template.loop_context import AsyncLoopContext
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers — mock async iterables for testing
 # ─────────────────────────────────────────────────────────────────────────────
@@ -38,7 +37,7 @@ async def async_items(items: list) -> AsyncIterator:
 async def async_empty() -> AsyncIterator:
     """Async generator that yields nothing."""
     return
-    yield  # noqa: RET504 — make it an async generator
+    yield
 
 
 async def async_coroutine_value(value: str) -> str:
@@ -152,31 +151,31 @@ class TestAsyncLoopContext:
     def test_last_raises(self) -> None:
         ctx = AsyncLoopContext()
         ctx.advance("a")
-        with pytest.raises(TemplateRuntimeError, match="loop.last"):
+        with pytest.raises(TemplateRuntimeError, match=r"loop\.last"):
             _ = ctx.last
 
     def test_length_raises(self) -> None:
         ctx = AsyncLoopContext()
         ctx.advance("a")
-        with pytest.raises(TemplateRuntimeError, match="loop.length"):
+        with pytest.raises(TemplateRuntimeError, match=r"loop\.length"):
             _ = ctx.length
 
     def test_revindex_raises(self) -> None:
         ctx = AsyncLoopContext()
         ctx.advance("a")
-        with pytest.raises(TemplateRuntimeError, match="loop.revindex"):
+        with pytest.raises(TemplateRuntimeError, match=r"loop\.revindex"):
             _ = ctx.revindex
 
     def test_revindex0_raises(self) -> None:
         ctx = AsyncLoopContext()
         ctx.advance("a")
-        with pytest.raises(TemplateRuntimeError, match="loop.revindex0"):
+        with pytest.raises(TemplateRuntimeError, match=r"loop\.revindex0"):
             _ = ctx.revindex0
 
     def test_nextitem_raises(self) -> None:
         ctx = AsyncLoopContext()
         ctx.advance("a")
-        with pytest.raises(TemplateRuntimeError, match="loop.nextitem"):
+        with pytest.raises(TemplateRuntimeError, match=r"loop\.nextitem"):
             _ = ctx.nextitem
 
     def test_repr(self) -> None:
@@ -199,9 +198,7 @@ class TestRenderStreamAsync:
         tmpl = env.from_string(
             "{% async for i in items %}{{ i }}{% end %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(items=async_range(3)):
-            chunks.append(chunk)
+        chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_range(3))]
         result = "".join(chunks)
         assert "0" in result
         assert "1" in result
@@ -213,11 +210,12 @@ class TestRenderStreamAsync:
         tmpl = env.from_string(
             "<ul>{% async for x in items %}<li>{{ x }}</li>{% end %}</ul>"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            items=async_items(["a", "b"])
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                items=async_items(["a", "b"])
+            )
+        ]
         result = "".join(chunks)
         assert "<ul>" in result
         assert "<li>a</li>" in result
@@ -230,9 +228,7 @@ class TestRenderStreamAsync:
         tmpl = env.from_string(
             "{% async for x in items %}{{ x }}{% empty %}empty{% end %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(items=async_empty()):
-            chunks.append(chunk)
+        chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_empty())]
         result = "".join(chunks)
         assert result == "empty"
 
@@ -242,11 +238,12 @@ class TestRenderStreamAsync:
         tmpl = env.from_string(
             "{% async for x in items if x %}{{ x }}{% end %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            items=async_items(["a", "", "c"])
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                items=async_items(["a", "", "c"])
+            )
+        ]
         result = "".join(chunks)
         assert "a" in result
         assert "c" in result
@@ -262,11 +259,12 @@ class TestRenderStreamAsync:
             "{% if loop.first %}!{% end %} "
             "{% end %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            items=async_items(["a", "b", "c"])
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                items=async_items(["a", "b", "c"])
+            )
+        ]
         result = "".join(chunks)
         assert "1:a!" in result
         assert "2:b" in result
@@ -276,9 +274,7 @@ class TestRenderStreamAsync:
     async def test_sync_template_via_async_stream(self, env: Environment) -> None:
         """render_stream_async() works on sync templates (wraps sync stream)."""
         tmpl = env.from_string("Hello {{ name }}")
-        chunks = []
-        async for chunk in tmpl.render_stream_async(name="World"):
-            chunks.append(chunk)
+        chunks = [chunk async for chunk in tmpl.render_stream_async(name="World")]
         result = "".join(chunks)
         assert result == "Hello World"
 
@@ -299,11 +295,12 @@ class TestRenderBlockStreamAsync:
             "{% async for x in items %}{{ x }}{% end %}"
             "{% endblock %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_block_stream_async(
-            "content", items=async_items(["a", "b"])
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_block_stream_async(
+                "content", items=async_items(["a", "b"])
+            )
+        ]
         result = "".join(chunks)
         assert "a" in result
         assert "b" in result
@@ -331,11 +328,12 @@ class TestAwaitExpression:
     async def test_await_coroutine(self, env: Environment) -> None:
         """{{ await expr }} resolves a coroutine inline."""
         tmpl = env.from_string("Result: {{ await coro }}")
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            coro=async_coroutine_value("hello")
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                coro=async_coroutine_value("hello")
+            )
+        ]
         result = "".join(chunks)
         assert "Result: hello" in result
 
@@ -368,11 +366,12 @@ class TestAsyncInheritance:
         tmpl = env_with_loader.get_template("async_child.html")
         assert tmpl.is_async is True
 
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            items=async_items(["hello"])
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                items=async_items(["hello"])
+            )
+        ]
         result = "".join(chunks)
         assert "hello" in result
         assert "<html>" in result
@@ -397,11 +396,12 @@ class TestAsyncInclude:
             "{% async for x in items %}{{ x }}{% end %}"
         )
         tmpl = env_with_loader.get_template("async_page.html")
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            items=async_items(["x"])
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                items=async_items(["x"])
+            )
+        ]
         result = "".join(chunks)
         assert "sync partial" in result
         assert "x" in result
@@ -518,9 +518,10 @@ class TestSyncFallbackViaAsyncAPI:
         )
         assert tmpl.is_async is False
 
-        chunks = []
-        async for chunk in tmpl.render_block_stream_async("title", name="World"):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_block_stream_async("title", name="World")
+        ]
         result = "".join(chunks)
         assert "Hello World" in result
 
@@ -541,12 +542,13 @@ class TestNestedAsyncConstructs:
             "[{% async for col in cols %}{{ loop.index }}{% end %}]"
             "{% end %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            rows=async_items(["a", "b"]),
-            cols=async_items(["x", "y", "z"]),
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                rows=async_items(["a", "b"]),
+                cols=async_items(["x", "y", "z"]),
+            )
+        ]
         result = "".join(chunks)
         # Inner loop should reset to 1 each time
         assert "[123]" in result
@@ -560,19 +562,21 @@ class TestNestedAsyncConstructs:
             "{% end %}"
         )
         # Condition true
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            show=True, items=async_items(["a", "b"]),
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                show=True, items=async_items(["a", "b"]),
+            )
+        ]
         assert "a" in "".join(chunks)
 
         # Condition false
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            show=False, items=async_items(["a", "b"]),
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                show=False, items=async_items(["a", "b"]),
+            )
+        ]
         assert "".join(chunks).strip() == ""
 
     @pytest.mark.asyncio
@@ -584,11 +588,12 @@ class TestNestedAsyncConstructs:
         tmpl = env.from_string(
             "{% async for fn in funcs %}{{ await fn }}{% end %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            funcs=async_items([make_coro("a"), make_coro("b")]),
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                funcs=async_items([make_coro("a"), make_coro("b")]),
+            )
+        ]
         result = "".join(chunks)
         assert "A" in result
         assert "B" in result
@@ -608,9 +613,7 @@ class TestAsyncEdgeCases:
         tmpl = env.from_string(
             "before{% async for x in items %}{{ x }}{% end %}after"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(items=async_empty()):
-            chunks.append(chunk)
+        chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_empty())]
         result = "".join(chunks)
         assert result == "beforeafter"
 
@@ -622,11 +625,12 @@ class TestAsyncEdgeCases:
             "{{ k }}={{ v }} "
             "{% end %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            pairs=async_items([("a", "1"), ("b", ""), ("c", "3")]),
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                pairs=async_items([("a", "1"), ("b", ""), ("c", "3")]),
+            )
+        ]
         result = "".join(chunks)
         assert "a=1" in result
         assert "c=3" in result
@@ -643,11 +647,12 @@ class TestAsyncEdgeCases:
             "{% if loop.previtem %}(prev={{ loop.previtem }}){% end %} "
             "{% end %}"
         )
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            items=async_items(["a", "b", "c"]),
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                items=async_items(["a", "b", "c"]),
+            )
+        ]
         result = "".join(chunks)
         assert "odd:a" in result
         assert "even:b" in result
@@ -675,11 +680,12 @@ class TestIncludeInsideAsyncFor:
             "{% end %}"
         )
         tmpl = env_with_loader.get_template("loop_page.html")
-        chunks = []
-        async for chunk in tmpl.render_stream_async(
-            items=async_items(["a", "b"]),
-        ):
-            chunks.append(chunk)
+        chunks = [
+            chunk
+            async for chunk in tmpl.render_stream_async(
+                items=async_items(["a", "b"]),
+            )
+        ]
         result = "".join(chunks)
         # The partial should be included once per iteration
         assert result.count("sync partial") == 2
@@ -733,11 +739,12 @@ class TestConcurrentAsyncRendering:
         )
 
         async def collect(prefix: str, n: int) -> str:
-            chunks: list[str] = []
-            async for chunk in tmpl.render_stream_async(
-                items=slow_items(prefix, n),
-            ):
-                chunks.append(chunk)
+            chunks = [
+                chunk
+                async for chunk in tmpl.render_stream_async(
+                    items=slow_items(prefix, n),
+                )
+            ]
             return "".join(chunks)
 
         result_a, result_b = await asyncio.gather(

@@ -12,9 +12,8 @@ All functions are stateless and safe for concurrent use.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
-
 from time import perf_counter as _perf_counter
+from typing import Any
 
 from kida.render_accumulator import get_accumulator as _get_accumulator
 from kida.utils.html import _SPACELESS_RE, Markup

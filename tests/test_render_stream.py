@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from kida import Environment, FileSystemLoader, RenderedTemplate
-
+from kida.environment.exceptions import UndefinedError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -266,7 +266,7 @@ class TestStreamingErrors:
 
     def test_undefined_variable_raises(self, env: Environment) -> None:
         t = env.from_string("before {{ missing }} after")
-        with pytest.raises(Exception):
+        with pytest.raises(UndefinedError):
             list(t.render_stream())
 
     def test_error_propagates_from_block(
@@ -280,5 +280,5 @@ class TestStreamingErrors:
             "{% block content %}{{ missing }}{% end %}"
         )
         t = fs_env.get_template("bad.html")
-        with pytest.raises(Exception):
+        with pytest.raises(UndefinedError):
             list(t.render_stream())

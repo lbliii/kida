@@ -85,9 +85,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Run mypy
+      - name: Run ty
         run: |
-          uv run mypy src/kida --show-error-codes
+          uv run ty check src/kida
 
   # Linting
   lint:

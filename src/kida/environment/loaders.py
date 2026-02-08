@@ -388,7 +388,7 @@ class PackageLoader:
             raise TemplateNotFoundError(
                 f"Template '{name}' not found in package "
                 f"'{self._package_name}/{self._package_path}'"
-            )
+            ) from None
 
         # Provide a meaningful filename for error messages
         filename = f"{self._package_name}/{self._package_path}/{name}"
