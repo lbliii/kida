@@ -17,8 +17,8 @@ RFC: kida-contextvar-patterns
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -172,6 +172,43 @@ def render_context(
         with render_context(template_name="page.html") as ctx:
             html = template._render_func(user_ctx, blocks)
             # ctx.line updated during render for error tracking
+    """
+    ctx = RenderContext(
+        template_name=template_name,
+        filename=filename,
+        cached_blocks=cached_blocks or {},
+        cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
+        cache_stats=cache_stats,
+    )
+    token: Token[RenderContext | None] = _render_context.set(ctx)
+    try:
+        yield ctx
+    finally:
+        _render_context.reset(token)
+
+
+@asynccontextmanager
+async def async_render_context(
+    template_name: str | None = None,
+    filename: str | None = None,
+    cached_blocks: dict[str, str] | None = None,
+    cache_stats: dict[str, int] | None = None,
+) -> AsyncIterator[RenderContext]:
+    """Async context manager for render-scoped state.
+
+    Identical to render_context() but for use with ``async with``.
+    ContextVar reset is synchronous — the async wrapper is structural only.
+
+    Part of RFC: rfc-async-rendering.
+
+    Args:
+        template_name: Template name for error messages
+        filename: Source file path for error messages
+        cached_blocks: Site-scoped block cache
+        cache_stats: Optional dict for cache hit/miss tracking
+
+    Yields:
+        The new RenderContext
     """
     ctx = RenderContext(
         template_name=template_name,

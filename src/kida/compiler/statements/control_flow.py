@@ -375,6 +375,161 @@ class ControlFlowMixin:
 
         return stmts
 
+    def _compile_async_for(self, node: Any) -> list[ast.stmt]:
+        """Compile {% async for %} loop with AsyncLoopContext.
+
+        Unlike sync _compile_for(), this does NOT call list() on the iterable.
+        Instead it generates ast.AsyncFor for native async iteration and uses
+        a boolean flag for {% empty %} detection.
+
+        When compiling for sync functions (_async_mode=False), emits a pass
+        placeholder. The Template-level guard prevents sync rendering of async
+        templates, so this code path is unreachable at runtime.
+
+        Generates (async mode):
+            _had_items_N = False
+            loop = _AsyncLoopContext()          # if loop.* used
+            async for item in iterable:
+                _had_items_N = True
+                loop.advance(item)              # if loop.* used
+                ... body ...
+            if not _had_items_N:
+                ... empty block ...
+
+        Part of RFC: rfc-async-rendering.
+        """
+        # Flag template as async (needed even during sync compilation pass
+        # so the _is_async flag gets set in the module)
+        self._has_async = True  # type: ignore[attr-defined]
+
+        # During sync compilation passes (render, render_stream), async for
+        # cannot appear inside a regular def. Emit a pass placeholder —
+        # the Template.render() guard prevents this from being reached.
+        if not getattr(self, "_async_mode", False):
+            return [ast.Pass()]
+        # Get the loop variable name(s) and register as locals
+        var_names = self._extract_names(node.target)
+        for var_name in var_names:
+            self._locals.add(var_name)
+
+        # Check if loop.* properties are used in the body or test
+        uses_loop = self._uses_loop_variable(node.body) or self._uses_loop_variable(node.test)
+
+        if uses_loop:
+            self._locals.add("loop")
+
+        target = self._compile_expr(node.target, store=True)
+        iter_expr = self._compile_expr(node.iter)
+
+        stmts: list[ast.stmt] = []
+
+        # Use unique variable names to avoid conflicts with nested loops
+        self._block_counter += 1
+        had_items_var = f"_had_items_{self._block_counter}"
+
+        # _had_items_N = False  (for {% empty %} detection)
+        stmts.append(
+            ast.Assign(
+                targets=[ast.Name(id=had_items_var, ctx=ast.Store())],
+                value=ast.Constant(value=False),
+            )
+        )
+
+        # Build the loop body
+        loop_body: list[ast.stmt] = []
+
+        # _had_items_N = True  (first statement in loop body)
+        loop_body.append(
+            ast.Assign(
+                targets=[ast.Name(id=had_items_var, ctx=ast.Store())],
+                value=ast.Constant(value=True),
+            )
+        )
+
+        if uses_loop:
+            # loop = _AsyncLoopContext()  (before the async for)
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="loop", ctx=ast.Store())],
+                    value=ast.Call(
+                        func=ast.Name(id="_AsyncLoopContext", ctx=ast.Load()),
+                        args=[],
+                        keywords=[],
+                    ),
+                )
+            )
+
+            # loop.advance(item)  (inside the loop body, after _had_items = True)
+            # Use a Load-context name for the function argument
+            advance_arg = ast.Name(id=var_names[0], ctx=ast.Load())
+            loop_body.append(
+                ast.Expr(
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id="loop", ctx=ast.Load()),
+                            attr="advance",
+                            ctx=ast.Load(),
+                        ),
+                        args=[advance_arg],
+                        keywords=[],
+                    )
+                )
+            )
+
+        # Compile the inner body
+        body = []
+        for child in node.body:
+            body.extend(self._compile_node(child))
+        body = self._wrap_with_scope(body) if body else [ast.Pass()]
+
+        # Handle inline test condition: {% async for x in items if x.visible %}
+        if node.test:
+            body = [
+                ast.If(
+                    test=self._compile_expr(node.test),
+                    body=body,
+                    orelse=[],
+                )
+            ]
+
+        loop_body.extend(body)
+
+        # async for item in iterable:
+        stmts.append(
+            ast.AsyncFor(
+                target=target,
+                iter=iter_expr,
+                body=loop_body,
+                orelse=[],
+            )
+        )
+
+        # Compile the empty block (for empty iterable)
+        orelse = []
+        for child in node.empty:
+            orelse.extend(self._compile_node(child))
+
+        # if not _had_items_N: ... empty block ...
+        if orelse:
+            stmts.append(
+                ast.If(
+                    test=ast.UnaryOp(
+                        op=ast.Not(),
+                        operand=ast.Name(id=had_items_var, ctx=ast.Load()),
+                    ),
+                    body=orelse,
+                    orelse=[],
+                )
+            )
+
+        # Remove loop variables from locals after the loop
+        for var_name in var_names:
+            self._locals.discard(var_name)
+        if uses_loop:
+            self._locals.discard("loop")
+
+        return stmts
+
     def _extract_names(self, node: Any) -> list[str]:
         """Extract variable names from a target expression."""
         from kida.nodes import Name as KidaName

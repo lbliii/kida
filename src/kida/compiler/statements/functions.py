@@ -140,8 +140,15 @@ class FunctionCompilationMixin:
             self._locals.add(node.kwarg)
 
         # Compile function body
+        # Macros (def) are always sync functions — disable async mode
+        # to prevent async for/await inside the def body.
+        saved_async = getattr(self, "_async_mode", False)
+        if saved_async:
+            self._async_mode = False  # type: ignore[attr-defined]
         for child in node.body:
             func_body.extend(self._compile_node(child))
+        if saved_async:
+            self._async_mode = saved_async  # type: ignore[attr-defined]
 
         # Remove args from locals
         for arg_name in node.args:
@@ -263,9 +270,14 @@ class FunctionCompilationMixin:
             ),
         ]
 
-        # Compile body
+        # Compile body — caller is always a sync function
+        saved_async_cb = getattr(self, "_async_mode", False)
+        if saved_async_cb:
+            self._async_mode = False  # type: ignore[attr-defined]
         for child in node.body:
             caller_body.extend(self._compile_node(child))
+        if saved_async_cb:
+            self._async_mode = saved_async_cb  # type: ignore[attr-defined]
 
         # return Markup(''.join(buf))
         caller_body.append(

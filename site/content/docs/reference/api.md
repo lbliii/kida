@@ -163,12 +163,37 @@ Render template asynchronously.
 html = await template.render_async(items=async_generator())
 ```
 
+#### render_stream_async(**context)
+
+Render template as an async stream. Supports native `{% async for %}` and `{{ await }}` constructs. Also works on sync templates (wraps the sync stream).
+
+```python
+async for chunk in template.render_stream_async(items=async_iterable):
+    send_to_client(chunk)
+```
+
+**Raises**: `RuntimeError` if no render function is available.
+
+#### render_block_stream_async(block_name, **context)
+
+Render a single block as an async stream. Falls back to wrapping the sync block stream if no async variant exists.
+
+```python
+async for chunk in template.render_block_stream_async("content", items=data):
+    send_to_client(chunk)
+```
+
+**Raises**: `KeyError` if the block does not exist.
+
 ### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `name` | `str \| None` | Template name |
 | `filename` | `str \| None` | Source filename |
+| `is_async` | `bool` | `True` if template uses `{% async for %}` or `{{ await }}` |
+
+> **Note**: Calling `render()` or `render_stream()` on a template where `is_async` is `True` raises `TemplateRuntimeError`. Use `render_stream_async()` instead.
 
 ---
 
@@ -298,7 +323,7 @@ result = Markup("<p>{}</p>").format(user_input)
 
 ## LoopContext
 
-Available as `loop` variable inside for loops.
+Available as `loop` variable inside `{% for %}` loops.
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -313,6 +338,32 @@ Available as `loop` variable inside for loops.
 ```kida
 {% for item in items %}
     {{ loop.index }}/{{ loop.length }}
+{% end %}
+```
+
+---
+
+## AsyncLoopContext
+
+Available as `loop` variable inside `{% async for %}` loops. Provides index-forward properties only — properties that require knowing the total size raise `TemplateRuntimeError` since async iterables have no known length.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `index` | `int` | 1-based index |
+| `index0` | `int` | 0-based index |
+| `first` | `bool` | True on first iteration |
+| `previtem` | `Any \| None` | Previous item (`None` on first) |
+| `cycle(*values)` | method | Cycle through values |
+| `last` | — | Raises `TemplateRuntimeError` |
+| `length` | — | Raises `TemplateRuntimeError` |
+| `revindex` | — | Raises `TemplateRuntimeError` |
+| `revindex0` | — | Raises `TemplateRuntimeError` |
+| `nextitem` | — | Raises `TemplateRuntimeError` |
+
+```kida
+{% async for user in fetch_users() %}
+    {{ loop.index }}: {{ user.name }}
+    {% if loop.first %}(first!){% end %}
 {% end %}
 ```
 

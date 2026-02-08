@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
 from kida.nodes import (
+    Await,
     BinOp,
     BoolOp,
     Compare,
@@ -343,6 +344,8 @@ class ExpressionParsingMixin:
 
         Unary operators bind tighter than filters:
         -42|abs  parses as  (-42)|abs  → 42
+
+        Also handles {{ await expr }} — RFC: rfc-async-rendering.
         """
         if self._match(TokenType.SUB, TokenType.ADD):
             token = self._advance()
@@ -353,6 +356,20 @@ class ExpressionParsingMixin:
                 op="-" if token.type == TokenType.SUB else "+",
                 operand=operand,
             )
+
+        # Handle {{ await expr }} as a unary prefix (RFC: rfc-async-rendering)
+        if (
+            self._current.type == TokenType.NAME
+            and self._current.value == "await"
+        ):
+            token = self._advance()  # consume 'await'
+            value = self._parse_unary()  # parse the awaitable expression
+            return Await(
+                lineno=token.lineno,
+                col_offset=token.col_offset,
+                value=value,
+            )
+
         return self._parse_power()
 
     def _parse_power(self) -> Expr:

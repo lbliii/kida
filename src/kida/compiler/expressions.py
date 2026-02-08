@@ -394,6 +394,16 @@ class ExpressionCompilationMixin:
         if node_type == "Range":
             return self._compile_range(node)
 
+        if node_type == "Await":
+            # Compile {{ await expr }} to ast.Await(value=compiled_expr)
+            # Part of RFC: rfc-async-rendering
+            self._has_async = True  # type: ignore[attr-defined]
+            if getattr(self, "_async_mode", False):
+                return ast.Await(value=self._compile_expr(node.value))
+            # In sync mode, Await can't appear in a regular def.
+            # Return a placeholder — the Template guard prevents this path.
+            return ast.Constant(value="")
+
         # Fallback
         return ast.Constant(value=None)
 

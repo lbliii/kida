@@ -30,7 +30,7 @@ Iterate over async iterables:
 {% end %}
 ```
 
-The template must be rendered with `render_async()`:
+The template must be rendered with an async method — either `render_stream_async()` for streaming or `render_async()` for buffered output:
 
 ```python
 import asyncio
@@ -48,6 +48,11 @@ async def main():
         for i in range(3):
             yield i
 
+    # Streaming (preferred for large output)
+    async for chunk in template.render_stream_async(items=items()):
+        print(chunk, end="")
+
+    # Buffered
     result = await template.render_async(items=items())
     print(result)
 
@@ -62,31 +67,102 @@ Await async functions in expressions:
 {{ await fetch_data(user_id) }}
 ```
 
-## Async Context
+## Async Loop Variables
 
-When using `render_async()`, the template runs in an async context:
+Inside `{% async for %}`, the `loop` variable provides index-forward properties. Properties that require knowing total size are **not available** (async iterables have no known length):
+
+| Property | Available | Description |
+|----------|-----------|-------------|
+| `loop.index` | Yes | 1-based index |
+| `loop.index0` | Yes | 0-based index |
+| `loop.first` | Yes | True on first iteration |
+| `loop.previtem` | Yes | Previous item |
+| `loop.cycle(...)` | Yes | Cycle through values |
+| `loop.last` | No | Raises error |
+| `loop.length` | No | Raises error |
+| `loop.revindex` | No | Raises error |
+
+```kida
+{% async for user in fetch_users() %}
+    {{ loop.index }}: {{ user.name }}
+    <tr class="{{ loop.cycle('odd', 'even') }}">
+{% end %}
+```
+
+## Inline Filtering
+
+Filter items as they arrive with inline `if`:
+
+```kida
+{% async for user in fetch_users() if user.active %}
+    {{ user.name }}
+{% end %}
+```
+
+## Empty Clause
+
+Render fallback content when the async iterable yields nothing:
+
+```kida
+{% async for notification in get_notifications() %}
+    {{ notification.message }}
+{% empty %}
+    <p>No notifications.</p>
+{% end %}
+```
+
+## Async Streaming
+
+`render_stream_async()` is the primary way to render async templates. It returns an async generator that yields chunks as they are produced — ideal for HTTP streaming responses:
 
 ```python
 async def render_page():
     template = env.get_template("page.html")
-    return await template.render_async(
-        user=await get_user(),
-        posts=await get_posts(),
-    )
+    async for chunk in template.render_stream_async(items=async_data()):
+        yield chunk  # send to client immediately
 ```
+
+You can also stream individual blocks:
+
+```python
+async for chunk in template.render_block_stream_async("content", items=data):
+    yield chunk
+```
+
+## Detecting Async Templates
+
+Check `template.is_async` to determine whether a template uses async constructs:
+
+```python
+template = env.get_template("page.html")
+if template.is_async:
+    async for chunk in template.render_stream_async(**ctx):
+        send(chunk)
+else:
+    html = template.render(**ctx)
+```
+
+> **Important**: Calling `render()` or `render_stream()` on an async template raises `TemplateRuntimeError`. Always use the async methods for async templates.
 
 ## Sync vs Async Rendering
 
 | Method | Use Case |
 |--------|----------|
 | `render()` | Sync code, no async operations |
-| `render_async()` | Async code, async for/await |
+| `render_stream()` | Sync streaming |
+| `render_async()` | Async code, buffered output |
+| `render_stream_async()` | Async streaming (preferred for async templates) |
+| `render_block_stream_async()` | Async streaming of a single block |
 
 ```python
 # Sync rendering (blocks)
 html = template.render(name="World")
 
-# Async rendering (non-blocking)
+# Async streaming (non-blocking, chunked)
+async for chunk in template.render_stream_async(items=async_generator()):
+    send_to_client(chunk)
+
+# Async buffered (non-blocking, full string)
 html = await template.render_async(items=async_generator())
 ```
 
@@ -117,12 +193,19 @@ async def render_dashboard():
 
 ### Streaming Iteration
 
-Process large async iterables without buffering:
+Process large async iterables without buffering — use `render_stream_async()` to stream output directly to the client:
 
-```kida
-{% async for record in database_cursor() %}
-    {{ record.name }}
-{% end %}
+```python
+template = env.from_string("""
+    {% async for record in database_cursor() %}
+        {{ record.name }}
+    {% end %}
+""")
+
+async for chunk in template.render_stream_async(
+    database_cursor=get_cursor,
+):
+    response.write(chunk)
 ```
 
 ## Free-Threading
@@ -183,4 +266,4 @@ html = template.render(users=users, posts=posts)
 
 - [[docs/about/thread-safety|Thread Safety]] — Free-threading support
 - [[docs/about/performance|Performance]] — Performance optimization
-- [[docs/reference/api|API Reference]] — Template.render_async()
+- [[docs/reference/api|API Reference]] — Template methods, AsyncLoopContext

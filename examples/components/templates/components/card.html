@@ -1,0 +1,9 @@
+{# Reusable card component.
+   Usage: {% call card("Title") %}...content...{% end %}
+#}
+{% def card(title) %}
+<div class="card">
+    <div class="card-header">{{ title }}</div>
+    <div class="card-body">{% slot %}</div>
+</div>
+{% end %}

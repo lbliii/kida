@@ -113,10 +113,12 @@ class Compiler(
     """
 
     __slots__ = (
+        "_async_mode",
         "_block_counter",
         "_blocks",
         "_env",
         "_filename",
+        "_has_async",
         "_locals",
         "_name",
         "_node_dispatch",
@@ -135,6 +137,10 @@ class Compiler(
         self._block_counter: int = 0
         # When True, output statements generate yield instead of _append
         self._streaming: bool = False
+        # Set True when AsyncFor or Await nodes are compiled (RFC: rfc-async-rendering)
+        self._has_async: bool = False
+        # When True, generating async function bodies (enables ast.AsyncFor/ast.Await)
+        self._async_mode: bool = False
 
     def _collect_blocks(self, nodes: Sequence[Node]) -> None:
         """Recursively collect all Block nodes from the AST.
@@ -181,6 +187,7 @@ class Compiler(
         self._filename = filename
         self._locals = set()  # Reset locals for each compilation
         self._block_counter = 0  # Reset counter for each compilation
+        self._has_async = False  # Reset async flag for each compilation
 
         # Generate Python AST
         module = self._compile_template(node)
@@ -218,6 +225,9 @@ class Compiler(
         generator functions (render_stream, _block_*_stream) in a single
         module. The StringBuilder path is used by Template.render() and
         the generator path by Template.render_stream().
+
+        When async constructs are detected (AsyncFor, Await), also generates
+        async generator functions (render_stream_async, _block_*_stream_async).
         """
         # Generate render + _block_* (StringBuilder mode, _streaming=False)
         render_func = self._make_render_function(node)
@@ -234,6 +244,34 @@ class Compiler(
         for block_name, block_node in saved_blocks.items():
             module_body.append(self._make_block_function_stream(block_name, block_node))
         module_body.append(self._make_render_function_stream(node, saved_blocks))
+        self._streaming = False
+
+        # Always generate async streaming variants so async blocks from child
+        # templates can be dispatched through sync parent templates.
+        # RFC: rfc-async-rendering
+        if self._has_async:
+            # _is_async = True  (module-level flag for Template.is_async)
+            module_body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_is_async", ctx=ast.Store())],
+                    value=ast.Constant(value=True),
+                )
+            )
+
+        # Generate async streaming functions for ALL templates.
+        # For sync templates, these wrap sync code in async def (no yield from).
+        # This ensures every parent template has render_stream_async for
+        # inheritance chains where a child introduces async constructs.
+        self._streaming = True
+        self._async_mode = True
+        for block_name, block_node in saved_blocks.items():
+            module_body.append(
+                self._make_block_function_stream_async(block_name, block_node)
+            )
+        module_body.append(
+            self._make_render_function_stream_async(node, saved_blocks)
+        )
+        self._async_mode = False
         self._streaming = False
 
         return ast.Module(
@@ -664,11 +702,207 @@ class Compiler(
             returns=None,
         )
 
+    def _make_block_function_stream_async(
+        self, name: str, block_node: Block
+    ) -> ast.AsyncFunctionDef:
+        """Generate async streaming block: _block_name_stream_async(ctx, _blocks).
+
+        Mirrors _make_block_function_stream() but produces an async generator
+        function (async def + yield). Used when the template contains async
+        constructs (AsyncFor, Await).
+
+        Part of RFC: rfc-async-rendering.
+        """
+        body: list[ast.stmt] = [
+            ast.Assign(
+                targets=[ast.Name(id="_e", ctx=ast.Store())],
+                value=ast.Name(id="_escape", ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_s", ctx=ast.Store())],
+                value=ast.Name(id="_str", ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            ),
+        ]
+
+        body.extend(self._compile_body_with_coalescing(list(block_node.body)))
+
+        # Ensure async generator semantics
+        body.append(ast.Return(value=None))
+        body.append(ast.Expr(value=ast.Yield(value=None)))
+
+        return ast.AsyncFunctionDef(
+            name=f"_block_{name}_stream_async",
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[],
+            ),
+            body=body,
+            decorator_list=[],
+            returns=None,
+        )
+
+    def _make_render_function_stream_async(
+        self, node: TemplateNode, blocks: dict[str, Block]
+    ) -> ast.AsyncFunctionDef:
+        """Generate async render_stream_async(ctx, _blocks=None) function.
+
+        Mirrors _make_render_function_stream() but produces an async generator
+        for native async iteration over AsyncFor loops and Await expressions.
+
+        For templates with extends:
+            async for chunk in _extends_stream_async(parent, ctx, _blocks):
+                yield chunk
+
+        For templates without extends:
+            yield chunks directly via async generator
+
+        Part of RFC: rfc-async-rendering.
+        """
+        extends_node: Extends | None = None
+        for child in node.body:
+            if type(child).__name__ == "Extends":
+                extends_node = child  # type: ignore[assignment]
+                break
+
+        body: list[ast.stmt] = []
+
+        # if _blocks is None: _blocks = {}
+        body.append(
+            ast.If(
+                test=ast.Compare(
+                    left=ast.Name(id="_blocks", ctx=ast.Load()),
+                    ops=[ast.Is()],
+                    comparators=[ast.Constant(value=None)],
+                ),
+                body=[
+                    ast.Assign(
+                        targets=[ast.Name(id="_blocks", ctx=ast.Store())],
+                        value=ast.Dict(keys=[], values=[]),
+                    )
+                ],
+                orelse=[],
+            )
+        )
+
+        # _scope_stack = []
+        body.append(
+            ast.Assign(
+                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            )
+        )
+
+        if extends_node:
+            # Execute top-level statements
+            for child in node.body:
+                child_type = type(child).__name__
+                if child_type in (
+                    "FromImport",
+                    "Import",
+                    "Set",
+                    "Let",
+                    "Export",
+                    "Def",
+                    "Do",
+                ):
+                    body.extend(self._compile_node(child))
+
+            # Register async streaming block functions
+            for block_name in blocks:
+                body.append(
+                    ast.Expr(
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Name(id="_blocks", ctx=ast.Load()),
+                                attr="setdefault",
+                                ctx=ast.Load(),
+                            ),
+                            args=[
+                                ast.Constant(value=block_name),
+                                ast.Name(
+                                    id=f"_block_{block_name}_stream_async",
+                                    ctx=ast.Load(),
+                                ),
+                            ],
+                            keywords=[],
+                        ),
+                    )
+                )
+
+            # async for chunk in _extends_stream_async(parent, ctx, _blocks):
+            #     yield chunk
+            # Note: yield from doesn't work with async generators, so we use
+            # async for + yield instead
+            body.append(
+                ast.AsyncFor(
+                    target=ast.Name(id="_chunk", ctx=ast.Store()),
+                    iter=ast.Call(
+                        func=ast.Name(id="_extends_stream_async", ctx=ast.Load()),
+                        args=[
+                            self._compile_expr(extends_node.template),
+                            ast.Name(id="ctx", ctx=ast.Load()),
+                            ast.Name(id="_blocks", ctx=ast.Load()),
+                        ],
+                        keywords=[],
+                    ),
+                    body=[
+                        ast.Expr(value=ast.Yield(value=ast.Name(id="_chunk", ctx=ast.Load())))
+                    ],
+                    orelse=[],
+                )
+            )
+        else:
+            # No inheritance - render directly with async streaming
+            body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_e", ctx=ast.Store())],
+                    value=ast.Name(id="_escape", ctx=ast.Load()),
+                )
+            )
+            body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_s", ctx=ast.Store())],
+                    value=ast.Name(id="_str", ctx=ast.Load()),
+                )
+            )
+
+            body.extend(self._compile_body_with_coalescing(list(node.body)))
+
+        # Ensure async generator semantics
+        body.append(ast.Return(value=None))
+        body.append(ast.Expr(value=ast.Yield(value=None)))
+
+        return ast.AsyncFunctionDef(
+            name="render_stream_async",
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[ast.Constant(value=None)],
+            ),
+            body=body,
+            decorator_list=[],
+            returns=None,
+        )
+
     # Node types that can cause runtime errors and should track line numbers
     _LINE_TRACKED_NODES = frozenset(
         {
             "Output",  # Expression evaluation
             "For",  # Iterator access, filter application
+            "AsyncFor",  # Async iterator access (RFC: rfc-async-rendering)
             "If",  # Boolean coercion, attribute access
             "Match",  # Pattern matching
             "Set",  # Expression evaluation
@@ -740,6 +974,7 @@ class Compiler(
                 "Output": self._compile_output,
                 "If": self._compile_if,
                 "For": self._compile_for,
+                "AsyncFor": self._compile_async_for,  # RFC: rfc-async-rendering
                 "While": self._compile_while,
                 "Match": self._compile_match,
                 "Set": self._compile_set,

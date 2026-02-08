@@ -32,6 +32,7 @@ _BLOCK_PARSERS: dict[str, str] = {
     "if": "_parse_if",
     "unless": "_parse_unless",  # RFC: kida-modern-syntax-features
     "for": "_parse_for",
+    "async": "_parse_async",  # RFC: rfc-async-rendering (two-token lookahead)
     "while": "_parse_while",  # RFC: kida-2.0-moonshot
     "break": "_parse_break",  # RFC: kida-modern-syntax-features
     "continue": "_parse_continue",  # RFC: kida-modern-syntax-features

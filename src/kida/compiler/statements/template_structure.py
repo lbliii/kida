@@ -27,6 +27,7 @@ class TemplateStructureMixin:
     # Cross-mixin dependencies (type-check only)
     # ─────────────────────────────────────────────────────────────────────────
     if TYPE_CHECKING:
+        _async_mode: bool
         _streaming: bool
 
         # From ExpressionCompilationMixin
@@ -35,44 +36,68 @@ class TemplateStructureMixin:
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
+    def _yield_from_or_async_for(self, call_expr: ast.expr) -> list[ast.stmt]:
+        """Generate yield from (sync) or async for + yield (async).
+
+        In sync streaming mode: yield from call_expr
+        In async streaming mode: async for _chunk in call_expr: yield _chunk
+
+        Python doesn't allow yield from inside async def, so async mode
+        must use async for + yield instead.
+        """
+        if getattr(self, "_async_mode", False):
+            return [
+                ast.AsyncFor(
+                    target=ast.Name(id="_chunk", ctx=ast.Store()),
+                    iter=call_expr,
+                    body=[
+                        ast.Expr(
+                            value=ast.Yield(
+                                value=ast.Name(id="_chunk", ctx=ast.Load()),
+                            )
+                        ),
+                    ],
+                    orelse=[],
+                )
+            ]
+        return [ast.Expr(value=ast.YieldFrom(value=call_expr))]
+
     def _compile_block(self, node: Any) -> list[ast.stmt]:
         """Compile {% block name %} ... {% endblock %.
 
         StringBuilder: _append(_blocks.get('name', _block_name)(ctx, _blocks))
         Streaming: yield from _blocks.get('name', _block_name_stream)(ctx, _blocks)
+        Async streaming: async for _chunk in _blocks.get(...): yield _chunk
         """
         block_name = node.name
 
         if self._streaming:
-            # yield from _blocks.get('name', _block_name_stream)(ctx, _blocks)
-            return [
-                ast.Expr(
-                    value=ast.YieldFrom(
-                        value=ast.Call(
-                            func=ast.Call(
-                                func=ast.Attribute(
-                                    value=ast.Name(id="_blocks", ctx=ast.Load()),
-                                    attr="get",
-                                    ctx=ast.Load(),
-                                ),
-                                args=[
-                                    ast.Constant(value=block_name),
-                                    ast.Name(
-                                        id=f"_block_{block_name}_stream",
-                                        ctx=ast.Load(),
-                                    ),
-                                ],
-                                keywords=[],
-                            ),
-                            args=[
-                                ast.Name(id="ctx", ctx=ast.Load()),
-                                ast.Name(id="_blocks", ctx=ast.Load()),
-                            ],
-                            keywords=[],
-                        ),
+            # Determine the default block function suffix based on mode
+            async_mode = getattr(self, "_async_mode", False)
+            suffix = "_stream_async" if async_mode else "_stream"
+            block_call = ast.Call(
+                func=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="_blocks", ctx=ast.Load()),
+                        attr="get",
+                        ctx=ast.Load(),
                     ),
-                )
-            ]
+                    args=[
+                        ast.Constant(value=block_name),
+                        ast.Name(
+                            id=f"_block_{block_name}{suffix}",
+                            ctx=ast.Load(),
+                        ),
+                    ],
+                    keywords=[],
+                ),
+                args=[
+                    ast.Name(id="ctx", ctx=ast.Load()),
+                    ast.Name(id="_blocks", ctx=ast.Load()),
+                ],
+                keywords=[],
+            )
+            return self._yield_from_or_async_for(block_call)
 
         # _append(_blocks.get('name', _block_name)(ctx, _blocks))
         return [
@@ -124,13 +149,16 @@ class TemplateStructureMixin:
         args.append(ast.Constant(value=node.ignore_missing))
 
         if self._streaming:
-            # yield from _include_stream(template_name, ctx, ignore_missing)
+            # Async mode: async for _chunk in _include_stream_async(...)
+            # Sync mode: yield from _include_stream(...)
+            async_mode = getattr(self, "_async_mode", False)
+            func_name = "_include_stream_async" if async_mode else "_include_stream"
             include_call = ast.Call(
-                func=ast.Name(id="_include_stream", ctx=ast.Load()),
+                func=ast.Name(id=func_name, ctx=ast.Load()),
                 args=args,
                 keywords=[],
             )
-            return [ast.Expr(value=ast.YieldFrom(value=include_call))]
+            return self._yield_from_or_async_for(include_call)
 
         # _append(_include(template_name, ctx, ignore_missing))
         include_call = ast.Call(

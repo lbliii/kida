@@ -91,11 +91,12 @@ from kida.render_accumulator import (
 )
 from kida.render_context import (
     RenderContext,
+    async_render_context,
     get_render_context,
     get_render_context_required,
     render_context,
 )
-from kida.template import LoopContext, Markup, RenderedTemplate, Template
+from kida.template import AsyncLoopContext, LoopContext, Markup, RenderedTemplate, Template
 from kida.utils.html import html_escape
 from kida.utils.workers import (
     Environment as WorkerEnvironment,
@@ -121,6 +122,7 @@ __version__ = "0.1.2"
 
 __all__ = [
     "AnalysisConfig",
+    "AsyncLoopContext",
     "BlockMetadata",
     "ChoiceLoader",
     "DictLoader",
@@ -144,6 +146,7 @@ __all__ = [
     "WorkloadProfile",
     "WorkloadType",
     "__version__",
+    "async_render_context",
     "get_accumulator",
     "get_optimal_workers",
     "get_profile",

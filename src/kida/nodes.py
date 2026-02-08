@@ -244,12 +244,20 @@ class AsyncFor(Node):
 
     Native async iteration without wrapper adapters.
 
+    Attributes:
+        target: Loop variable(s) - can be tuple for unpacking
+        iter: Async iterable expression
+        body: Loop body
+        empty: Rendered if async iterable yields no items
+        test: Optional inline filter condition (like Python's if in comprehensions)
+
     """
 
     target: Expr
     iter: Expr
     body: Sequence[Node]
     empty: Sequence[Node] = ()
+    test: Expr | None = None
 
 
 @dataclass(frozen=True, slots=True)

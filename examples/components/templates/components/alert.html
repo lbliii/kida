@@ -1,0 +1,8 @@
+{# Reusable alert component.
+   Usage: {% call alert("warning") %}...message...{% end %}
+#}
+{% def alert(level) %}
+<div class="alert alert-{{ level }}">
+    {% slot %}
+</div>
+{% end %}

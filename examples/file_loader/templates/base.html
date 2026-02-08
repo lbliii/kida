@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}{{ site_name }}{% end %}</title>
+</head>
+<body>
+    {% include "partials/nav.html" %}
+    <main>
+        {% block content %}{% end %}
+    </main>
+    <footer>
+        <p>Powered by kida</p>
+    </footer>
+</body>
+</html>

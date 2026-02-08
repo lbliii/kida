@@ -343,26 +343,40 @@ class SpecialBlockMixin:
 
         # Include the embedded template
         if self._streaming:
-            # yield from _include_stream(template, ctx, blocks=_blocks)
-            stmts.append(
-                ast.Expr(
-                    value=ast.YieldFrom(
-                        value=ast.Call(
-                            func=ast.Name(id="_include_stream", ctx=ast.Load()),
-                            args=[
-                                self._compile_expr(node.template),
-                                ast.Name(id="ctx", ctx=ast.Load()),
-                            ],
-                            keywords=[
-                                ast.keyword(
-                                    arg="blocks",
-                                    value=ast.Name(id="_blocks", ctx=ast.Load()),
-                                ),
-                            ],
-                        ),
+            # Async mode: async for _chunk in _include_stream_async(...)
+            # Sync mode: yield from _include_stream(...)
+            async_mode = getattr(self, "_async_mode", False)
+            func_name = "_include_stream_async" if async_mode else "_include_stream"
+            embed_call = ast.Call(
+                func=ast.Name(id=func_name, ctx=ast.Load()),
+                args=[
+                    self._compile_expr(node.template),
+                    ast.Name(id="ctx", ctx=ast.Load()),
+                ],
+                keywords=[
+                    ast.keyword(
+                        arg="blocks",
+                        value=ast.Name(id="_blocks", ctx=ast.Load()),
                     ),
-                )
+                ],
             )
+            if async_mode:
+                stmts.append(
+                    ast.AsyncFor(
+                        target=ast.Name(id="_chunk", ctx=ast.Store()),
+                        iter=embed_call,
+                        body=[
+                            ast.Expr(
+                                value=ast.Yield(
+                                    value=ast.Name(id="_chunk", ctx=ast.Load()),
+                                )
+                            ),
+                        ],
+                        orelse=[],
+                    )
+                )
+            else:
+                stmts.append(ast.Expr(value=ast.YieldFrom(value=embed_call)))
         else:
             # _append(_include(template, ctx, blocks=_blocks))
             stmts.append(

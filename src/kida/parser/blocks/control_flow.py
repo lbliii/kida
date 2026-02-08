@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
-from kida.nodes import Break, Continue, For, If, Match, UnaryOp, While
+from kida.nodes import AsyncFor, Break, Continue, For, If, Match, UnaryOp, While
 
 if TYPE_CHECKING:
     from kida.nodes import Expr, Node
@@ -233,6 +233,94 @@ class ControlFlowBlockParsingMixin(BlockStackMixin):
             body=tuple(body),
             elif_=tuple(elif_),
             else_=tuple(else_),
+        )
+
+    def _parse_async(self) -> AsyncFor:
+        """Parse {% async for %} — dispatcher for async constructs.
+
+        Two-token lookahead: consumes 'async', expects 'for' next.
+        Part of RFC: rfc-async-rendering.
+        """
+        start = self._advance()  # consume 'async'
+
+        if self._current.type == TokenType.NAME and self._current.value == "for":
+            return self._parse_async_for(start)
+
+        raise self._error(
+            "Expected 'for' after 'async'",
+            suggestion="Async blocks use: {% async for item in items %}...{% end %}",
+        )
+
+    def _parse_async_for(self, start: Token) -> AsyncFor:
+        """Parse {% async for %} ... {% end %} or {% endfor %}.
+
+        Mirrors _parse_for() but produces an AsyncFor node for native async
+        iteration. Supports inline if filter and {% empty %} clause.
+        Does not support recursive loops.
+
+        Part of RFC: rfc-async-rendering.
+        """
+        self._advance()  # consume 'for'
+        self._push_block("for", start)  # reuse 'for' block for end-tag matching
+
+        # Parse target (loop variable or tuple for unpacking)
+        target = self._parse_for_target()
+
+        # Expect 'in'
+        if self._current.type != TokenType.IN:
+            raise self._error(
+                "Expected 'in' in async for loop",
+                suggestion=(
+                    "Async for loops use: {% async for item in items %}"
+                    " or {% async for a, b in items %}"
+                ),
+            )
+        self._advance()
+
+        # Parse iterable - use _parse_null_coalesce_no_ternary() to support ??
+        # but avoid parsing 'if' as ternary.
+        iter_expr = self._parse_null_coalesce_no_ternary()
+
+        # Check for inline filter: {% async for x in items if condition %}
+        test = None
+        if self._current.type == TokenType.NAME and self._current.value == "if":
+            self._advance()  # consume 'if'
+            test = self._parse_or()
+
+        self._expect(TokenType.BLOCK_END)
+
+        # Parse body - stop at continuation (else/empty) or end keywords
+        body = self._parse_body(stop_on_continuation=True)
+
+        empty: list[Node] = []
+
+        # Handle {% else %}, {% empty %}, {% end %}, {% endfor %}
+        while self._current.type == TokenType.BLOCK_BEGIN:
+            next_tok = self._peek(1)
+            if next_tok.type != TokenType.NAME:
+                break
+
+            keyword = next_tok.value
+
+            if keyword in ("else", "empty"):
+                self._advance()  # consume {%
+                self._advance()  # consume 'else' or 'empty'
+                self._expect(TokenType.BLOCK_END)
+                empty = self._parse_body(stop_on_continuation=False)
+            elif keyword in ("end", "endfor"):
+                self._consume_end_tag("for")
+                break
+            else:
+                break
+
+        return AsyncFor(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            target=target,
+            iter=iter_expr,
+            body=tuple(body),
+            empty=tuple(empty),
+            test=test,
         )
 
     def _parse_for(self) -> For:

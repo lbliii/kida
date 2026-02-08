@@ -1,0 +1,16 @@
+{% include "components/card.html" %}
+{% include "components/alert.html" %}
+
+<h1>{{ title }}</h1>
+
+{% call alert("warning") %}
+    {{ warning_message }}
+{% end %}
+
+<div class="features">
+    {% for feature in features %}
+    {% call card(feature.name) %}
+        <p>{{ feature.desc }}</p>
+    {% end %}
+    {% end %}
+</div>

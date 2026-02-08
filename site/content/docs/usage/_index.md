@@ -38,6 +38,12 @@ Practical patterns for using Kida in your applications.
 :description: Passing variables, globals, nested contexts
 :::{/card}
 
+:::{card} Streaming
+:icon: zap
+:link: ./streaming
+:description: Chunked rendering, async streaming, framework integration
+:::{/card}
+
 :::{card} Escaping
 :icon: shield
 :link: ./escaping

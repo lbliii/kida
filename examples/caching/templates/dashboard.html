@@ -1,0 +1,12 @@
+<h1>{{ title }}</h1>
+
+<div class="stats">
+    <p>Users: {{ stats.users }}</p>
+    <p>Revenue: {{ stats.revenue }}</p>
+</div>
+
+{% cache "expensive-block" %}
+<div class="computed">
+    {{ compute() }}
+</div>
+{% end %}

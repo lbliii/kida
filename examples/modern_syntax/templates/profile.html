@@ -1,0 +1,26 @@
+{# Pipeline operator: |> chains filters left-to-right #}
+<h1>{{ user.name |> upper }}</h1>
+
+{# Optional chaining: ?. safely navigates nullable paths #}
+{# Null coalescing: ?? provides a fallback for None values #}
+<img src="{{ user?.profile?.avatar ?? 'default.png' }}" alt="avatar">
+
+{# Pattern matching: {% match %} for clean branching #}
+{% match status %}
+    {% case "active" %}
+    <span class="badge active">Active</span>
+    {% case "pending" %}
+    <span class="badge pending">Pending Verification</span>
+    {% case _ %}
+    <span class="badge other">{{ status |> capitalize }}</span>
+{% end %}
+
+{# Match on role with template logic inside cases #}
+{% match user.role %}
+    {% case "admin" %}
+    <p class="role">Full access</p>
+    {% case "editor" %}
+    <p class="role">Can edit content</p>
+    {% case _ %}
+    <p class="role">Read-only</p>
+{% end %}

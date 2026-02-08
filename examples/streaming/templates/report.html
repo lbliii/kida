@@ -1,0 +1,11 @@
+<h1>{{ title }}</h1>
+<table>
+    <tr><th>Metric</th><th>Value</th><th>Trend</th></tr>
+    {% for section in sections %}
+    <tr>
+        <td>{{ section.name }}</td>
+        <td>{{ section.value }}</td>
+        <td>{{ section.trend }}</td>
+    </tr>
+    {% end %}
+</table>

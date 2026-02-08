@@ -215,6 +215,7 @@ class BlockAnalyzer:
                 "Output",
                 "If",
                 "For",
+                "AsyncFor",
                 "Set",
                 "Let",
                 "With",
