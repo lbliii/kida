@@ -110,30 +110,30 @@ Unified endings are:
 
 ### How fast is Kida?
 
-**Single-threaded**: 3.4x faster on minimal templates, ~1.1x on large templates.
+**Single-threaded** (from `benchmarks/test_benchmark_render.py`, Python 3.14.2 free-threading):
 
 | Template | Kida | Jinja2 | Speedup |
 |----------|------|--------|---------|
-| Minimal | 0.94µs | 3.21µs | 3.4x |
-| Small | 3.78µs | 6.38µs | 1.7x |
-| Medium | 214µs | 229µs | 1.07x |
+| Minimal | 3.48µs | 5.44µs | 1.56x |
+| Small | 8.88µs | 10.24µs | 1.15x |
+| Large | 1.91ms | 4.09ms | **2.14x** |
 
-**Concurrent (8 workers)**: 1.81x faster due to thread-safe design.
+**Concurrent** (from `benchmarks/test_benchmark_full_comparison.py`):
 
 | Workers | Kida | Jinja2 | Speedup |
 |---------|------|--------|---------|
-| 1 | 3.31ms | 3.49ms | 1.05x |
-| 4 | 1.53ms | 2.05ms | 1.34x |
-| 8 | 2.06ms | 3.74ms | **1.81x** |
+| 1 | 1.80ms | 1.80ms | ~same |
+| 4 | 1.62ms | 1.90ms | 1.17x |
+| 8 | 1.76ms | 1.97ms | **1.12x** |
 
-Single-threaded benchmarks undersell Kida. The real advantage emerges under concurrent workloads—Jinja2 actually slows down at 8 workers (negative scaling), while Kida maintains gains.
+Kida shines on large templates (2.14x faster due to StringBuilder pattern) and under concurrent workloads — Jinja2 shows negative scaling at 4+ workers while Kida maintains its performance.
 
 ### Why is Kida faster?
 
 - **StringBuilder pattern**: O(n) vs generator overhead
 - **AST-native compilation**: No string manipulation
 - **Local variable caching**: Fewer attribute lookups
-- **Compiled regex lexer**: 49x faster delimiter detection
+- **Compiled regex lexer**: 5-24x faster delimiter detection
 - **Thread-safe design**: No locks, copy-on-write updates
 
 ### How do I optimize templates?
@@ -161,17 +161,20 @@ Yes. All public APIs are thread-safe:
 
 ### What's free-threading support?
 
-Kida declares GIL-independence (PEP 703):
+Kida declares GIL-independence (PEP 703) via module `__getattr__`:
 
 ```python
-_Py_mod_gil = 0  # Safe for free-threading
+# In kida/__init__.py
+def __getattr__(name):
+    if name == "_Py_mod_gil":
+        return 0  # Py_MOD_GIL_NOT_USED
 ```
 
 On Python 3.14t with `PYTHON_GIL=0`, templates render with true parallelism—no GIL contention.
 
 ### Can I render concurrently?
 
-Yes, and it's **1.81x faster than Jinja2** at 8 workers:
+Yes, and Kida maintains consistent performance under concurrency while Jinja2 degrades:
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
@@ -184,7 +187,7 @@ with ThreadPoolExecutor(max_workers=8) as executor:
     results = list(executor.map(lambda ctx: template.render(**ctx), contexts))
 ```
 
-Jinja2 has internal contention that causes *negative scaling* at high concurrency. Kida's thread-safe design avoids this.
+Jinja2 shows negative scaling at 4+ workers due to internal contention. Kida's thread-safe design avoids this.
 
 ---
 

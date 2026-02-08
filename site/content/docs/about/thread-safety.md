@@ -81,12 +81,12 @@ def render(self, **context):
 
 No shared mutable state between render calls.
 
-### Lock-Free Caching
+### Thread-Safe Caching
 
-LRU caches use atomic operations:
+LRU caches use an internal `RLock` for safe concurrent access:
 
 ```python
-# Thread-safe cache access
+# Thread-safe cache access (RLock-protected internally)
 cached = self._cache.get(name)
 self._cache.set(name, template)
 ```
@@ -117,13 +117,12 @@ with ThreadPoolExecutor(max_workers=4) as executor:
 ```python
 import asyncio
 
-async def render_async(env, template_name, **context):
-    template = env.get_template(template_name)
-    return template.render(**context)
+async def render_many(env):
+    template = env.get_template("page.html")
 
-async def render_many():
+    # Use asyncio.to_thread() for true parallel rendering on 3.14t
     tasks = [
-        render_async(env, "page.html", user=f"User {i}")
+        asyncio.to_thread(template.render, user=f"User {i}")
         for i in range(100)
     ]
     return await asyncio.gather(*tasks)
@@ -180,25 +179,27 @@ template = env.get_template("page.html")
 
 ## Performance with Free-Threading
 
+> Numbers from `benchmarks/test_benchmark_full_comparison.py` (Python 3.14.2 free-threading, Apple Silicon).
+
 ### Kida Scaling (vs single-threaded baseline)
 
 | Workers | Time | Speedup |
 |---------|------|---------|
-| 1 | 3.31ms | 1.0x |
-| 2 | 2.09ms | 1.58x |
-| 4 | 1.53ms | 2.16x |
-| 8 | 2.06ms | 1.61x |
+| 1 | 1.80ms | 1.0x |
+| 2 | 1.12ms | 1.61x |
+| 4 | 1.62ms | 1.11x |
+| 8 | 1.76ms | 1.02x |
 
 ### Kida vs Jinja2 (Concurrent)
 
 | Workers | Kida | Jinja2 | Kida Advantage |
 |---------|------|--------|----------------|
-| 1 | 3.31ms | 3.49ms | 1.05x |
-| 2 | 2.09ms | 2.51ms | 1.20x |
-| 4 | 1.53ms | 2.05ms | 1.34x |
-| 8 | 2.06ms | 3.74ms | **1.81x** |
+| 1 | 1.80ms | 1.80ms | ~same |
+| 2 | 1.12ms | 1.15ms | ~same |
+| 4 | 1.62ms | 1.90ms | **1.17x** |
+| 8 | 1.76ms | 1.97ms | **1.12x** |
 
-**Key insight**: Jinja2 shows *negative scaling* at 8 workers (slower than 4 workers), indicating internal contention. Kida's thread-safe design avoids this.
+**Key insight**: Jinja2 shows *negative scaling* at 4+ workers (slower than 1 worker), indicating internal contention. Kida's thread-safe design avoids this.
 
 ## See Also
 

@@ -181,7 +181,7 @@ class ControlFlowMixin:
 
         This enables lazy LoopContext optimization: when loop.index, loop.first,
         etc. are not used, we can skip creating the LoopContext wrapper and
-        iterate directly over the items (16% faster per benchmark).
+        iterate directly over the items (1.80x faster per benchmark).
 
         Args:
             nodes: A node or sequence of nodes to check
@@ -234,7 +234,7 @@ class ControlFlowMixin:
             else:
                 ... empty block ...
 
-        When loop.* is NOT used (16% faster):
+        When loop.* is NOT used (1.80x faster):
             _iter_source = iterable
             _loop_items = list(_iter_source) if _iter_source is not None else []
             if _loop_items:
@@ -316,7 +316,7 @@ class ControlFlowMixin:
             )
             loop_iter_target = ast.Name(id="loop", ctx=ast.Load())
         else:
-            # Direct iteration (16% faster) - no LoopContext overhead
+            # Direct iteration (1.80x faster) - no LoopContext overhead
             loop_iter_target = ast.Name(id="_loop_items", ctx=ast.Load())
 
         # Compile the inner body

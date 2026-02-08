@@ -29,7 +29,7 @@ Comprehensive comparison of Kida and Jinja2.
 | **Dependencies** | Zero | markupsafe |
 | **Block endings** | Unified `{% end %}` | `{% endif %}`, etc. |
 | **Dict access** | Subscript-first (`d.items` → key) | getattr-first (`d.items` → method) |
-| **Profiling** | Auto-instrumented blocks/filters/macros | N/A |
+| **Profiling** | Opt-in (`profiled_render()`) blocks/filters/macros | N/A |
 | **Pattern matching** | `{% match %}` | N/A |
 | **Pipeline** | `\|>` operator | N/A |
 | **Block caching** | `{% cache %}` | N/A |
@@ -181,25 +181,30 @@ env = Environment(
 
 ## Performance
 
+> Numbers from `benchmarks/test_benchmark_render.py` (Python 3.14.2 free-threading, Apple Silicon).
+
 ### Single-Threaded
 
 | Template | Kida | Jinja2 | Speedup |
 |----------|------|--------|---------|
-| Minimal | 0.94µs | 3.21µs | **3.4x** |
-| Small | 3.78µs | 6.38µs | 1.7x |
-| Medium | 214µs | 229µs | 1.07x |
-| Large | 2.27ms | 2.48ms | 1.09x |
+| Minimal | 3.48µs | 5.44µs | **1.56x** |
+| Small | 8.88µs | 10.24µs | 1.15x |
+| Medium | 395µs | 373µs | ~same |
+| Large | 1.91ms | 4.09ms | **2.14x** |
+| Complex | 21.4µs | 29.0µs | 1.36x |
 
 ### Concurrent (Free-Threading)
+
+> Numbers from `benchmarks/test_benchmark_full_comparison.py` (inline medium template).
 
 **This is the real differentiator.** Under concurrent workloads on Python 3.14t:
 
 | Workers | Kida | Jinja2 | Speedup |
 |---------|------|--------|---------|
-| 1 | 3.31ms | 3.49ms | 1.05x |
-| 2 | 2.09ms | 2.51ms | 1.20x |
-| 4 | 1.53ms | 2.05ms | 1.34x |
-| 8 | 2.06ms | 3.74ms | **1.81x** |
+| 1 | 1.80ms | 1.80ms | ~same |
+| 2 | 1.12ms | 1.15ms | ~same |
+| 4 | 1.62ms | 1.90ms | **1.17x** |
+| 8 | 1.76ms | 1.97ms | **1.12x** |
 
 Kida's advantage grows with concurrency because:
 
@@ -207,7 +212,7 @@ Kida's advantage grows with concurrency because:
 2. **GIL independence**: Declares `_Py_mod_gil = 0`
 3. **No shared mutable state**: Renders use only local variables
 
-Jinja2 shows *negative scaling* at 8 workers (slower than 4 workers), indicating internal contention.
+Jinja2 shows *negative scaling* at 4+ workers (slower than 1 worker), indicating internal contention.
 
 See [[docs/about/performance|Performance Benchmarks]] for detailed measurements and methodology.
 

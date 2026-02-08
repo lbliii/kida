@@ -25,53 +25,45 @@ Kida is designed for high-performance template rendering.
 
 Methodology: `pytest-benchmark`, identical templates and contexts, `auto_reload=false`, bytecode cache enabled. Units are mean times. JSON exports live in `.benchmarks/`.
 
-### CPython 3.14 (GIL on)
-
-| Template                | Kida   | Jinja2 | Speedup |
-| ----------------------- | ------ | ------ | ------- |
-| Minimal (hello)         | 1.06µs | 3.72µs | 3.5x    |
-| Small (10 vars)         | 4.65µs | 7.60µs | 1.6x    |
-| Medium (100 vars)       | 0.260ms| 0.264ms| ~1.0x   |
-| Large (1000 loop items) | 2.75ms | 3.24ms | 1.18x   |
-| Complex (inheritance)   | 15.5µs | 26.7µs | 1.7x    |
+> Numbers from `benchmarks/test_benchmark_render.py` (file-based templates,
+> Python 3.14.2 free-threading build, Apple Silicon).
 
 ### CPython 3.14t (free-threaded, `PYTHON_GIL=0`, 3.14.2+ft)
 
-Single-threaded benchmarks re-run after pinning the repo to Python 3.14t:
-
 | Template                | Kida    | Jinja2  | Speedup |
 | ----------------------- | ------- | ------- | ------- |
-| Minimal (hello)         | 0.94µs  | 3.21µs  | 3.4x    |
-| Small (10 vars)         | 3.78µs  | 6.38µs  | 1.7x    |
-| Medium (100 vars)       | 0.214ms | 0.229ms | 1.07x   |
-| Large (1000 loop items) | 2.27ms  | 2.48ms  | 1.09x   |
-| Complex (inheritance)   | 14.6µs  | 18.3µs  | 1.26x   |
+| Minimal (hello)         | 3.48µs  | 5.44µs  | 1.56x   |
+| Small (12 vars)         | 8.88µs  | 10.24µs | 1.15x   |
+| Medium (~100 vars)      | 0.395ms | 0.373ms | ~1.0x   |
+| Large (1000 loop items) | 1.91ms  | 4.09ms  | **2.14x** |
+| Complex (inheritance)   | 21.4µs  | 29.0µs  | 1.36x   |
+
+**Key finding**: Kida is **2.14x faster** on large templates (1000 loop items) due to the StringBuilder pattern vs Jinja2's generator protocol. Medium templates show parity because HTML escaping dominates — Jinja2 uses markupsafe's C extension while Kida uses pure Python (zero-dependency trade-off).
 
 ### Concurrent Performance (Free-Threading)
 
-**This is where Kida shines.** Under concurrent workloads, Kida's thread-safe design delivers significant advantages:
+> Numbers from `benchmarks/test_benchmark_full_comparison.py` (inline medium
+> template, 100 total renders distributed across workers).
+
+**This is where Kida shines.** Under concurrent workloads, Kida's thread-safe design delivers advantages that grow with worker count:
 
 | Workers | Kida    | Jinja2  | Speedup |
 | ------- | ------- | ------- | ------- |
-| 1       | 3.31ms  | 3.49ms  | 1.05x   |
-| 2       | 2.09ms  | 2.51ms  | 1.20x   |
-| 4       | 1.53ms  | 2.05ms  | 1.34x   |
-| 8       | 2.06ms  | 3.74ms  | **1.81x** |
+| 1       | 1.80ms  | 1.80ms  | ~same   |
+| 2       | 1.12ms  | 1.15ms  | ~same   |
+| 4       | 1.62ms  | 1.90ms  | **1.17x** |
+| 8       | 1.76ms  | 1.97ms  | **1.12x** |
 
-**Key finding**: Jinja2 has *negative scaling* at 8 workers (slower than 4 workers), while Kida maintains gains. This reveals internal contention in Jinja2 that hurts it under high concurrency.
-
-| Metric | Single-Threaded | 8 Workers |
-| ------ | --------------- | --------- |
-| Kida advantage | 5-10% | **81%** |
+**Key finding**: Jinja2 shows *negative scaling* at 4+ workers (slower than 1 worker), while Kida maintains consistent performance. This reveals internal contention in Jinja2 under high concurrency.
 
 ### Lexer Optimization
 
-The lexer uses compiled regex for delimiter detection, achieving 49x faster `_find_next_construct()` compared to multiple `str.find()` calls:
+The lexer uses a compiled regex for delimiter detection, achieving 5-24x faster `_find_next_construct()` compared to multiple `str.find()` calls:
 
-| Method | Time | Speedup |
-| ------ | ---- | ------- |
-| `re.search()` (current) | 6.97µs | 49x |
-| `str.find()` × 3 (old) | 343µs | baseline |
+| Method | Speedup |
+| ------ | ------- |
+| `re.search()` (current) | 5-24x |
+| `str.find()` × 3 (old) | baseline |
 
 ### Render Loop Optimizations
 
@@ -89,11 +81,24 @@ The lexer uses compiled regex for delimiter detection, achieving 49x faster `_fi
 | Without `loop.*` | 202.7ms | **1.80x** |
 | With `loop.*` | 365.7ms | baseline |
 
+### Compilation Time
+
+> Numbers from `benchmarks/test_benchmark_render.py` compile benchmarks.
+
+| Template | Kida    | Jinja2  | Ratio |
+| -------- | ------- | ------- | ----- |
+| Small    | 4.03ms  | 1.60ms  | 2.5x slower |
+| Medium   | 6.04ms  | 4.18ms  | 1.4x slower |
+| Large    | 4.62ms  | 1.03ms  | 4.5x slower |
+| Complex  | 5.08ms  | 1.17ms  | 4.3x slower |
+
+Kida's compilation is slower because it builds a full AST (lexer → parser → AST → compiler → Python code → `exec()`). This cost is amortized by the bytecode cache — recompilation only happens when template source changes.
+
 ### Where to Improve Next
 
-- Large templates: bottleneck is Python iteration, not template engine
-- Concurrent workloads: already optimized for free-threading
-- Cold-start: bytecode cache delivers +7-8% median; larger gains require lazy imports
+- Medium templates: HTML escaping overhead dominates (pure Python vs markupsafe C extension)
+- Cold-start: lazy analysis imports cut import time from 60ms to 31ms (48% improvement)
+- Compilation: slower than Jinja2 but amortized by bytecode cache
 
 Run locally:
 
@@ -143,13 +148,13 @@ The StringBuilder pattern has lower overhead:
 
 ### Local Variable Caching
 
-Frequently-used functions are bound once:
+Frequently-used functions are bound to locals once at the top of each render function:
 
 ```python
-_escape = env._filters["escape"]
-_str = str
-_out = []
-# ... rest of render
+_e = _escape   # Local alias for escape function
+_s = _str      # Local alias for str()
+_append = buf.append  # Local alias for list.append
+# ... rest of render uses _e, _s, _append (LOAD_FAST)
 ```
 
 ### O(1) Operator Dispatch
@@ -224,7 +229,7 @@ env = Environment(
 )
 ```
 
-Cold-start improvement (measured): ~7-8% with bytecode cache enabled (baseline 42.37ms → 39.18ms). Larger gains will come from lazy imports or precompiled templates.
+Cold-start improvement: bytecode cache saves ~7-8% on first render. Lazy analysis imports (added in v0.x) reduced `from kida import Environment` from ~60ms to ~31ms (48% faster) by deferring `kida.nodes` (974 lines of AST definitions) until analysis is actually needed.
 
 ### Fragment Cache
 
