@@ -139,6 +139,78 @@ loader = PrefixLoader({"app": loader1, "admin": loader2}, delimiter=":")
 env.get_template("app:index.html")
 ```
 
+## PackageLoader
+
+Load templates from an installed Python package. Uses `importlib.resources` so templates are found regardless of installation path (pip, editable installs, zipped eggs):
+
+```python
+from kida import Environment, PackageLoader
+
+# Package structure:
+# my_app/
+#   __init__.py
+#   templates/
+#     base.html
+#     pages/
+#       index.html
+
+loader = PackageLoader("my_app", "templates")
+env = Environment(loader=loader)
+
+template = env.get_template("base.html")
+template = env.get_template("pages/index.html")
+```
+
+Useful for:
+
+- Framework default templates (admin, error pages)
+- Distributable themes (`pip install my-theme`)
+- Plugin templates namespaced by package
+
+Combine with `ChoiceLoader` to allow user overrides:
+
+```python
+from kida import ChoiceLoader, FileSystemLoader, PackageLoader
+
+loader = ChoiceLoader([
+    FileSystemLoader("templates/"),           # User overrides (checked first)
+    PackageLoader("my_framework", "defaults"), # Framework defaults (fallback)
+])
+```
+
+## FunctionLoader
+
+Wrap any callable as a loader. The simplest way to create a custom loading strategy:
+
+```python
+from kida import Environment, FunctionLoader
+
+def load(name):
+    if name == "greeting.html":
+        return "Hello, {{ name }}!"
+    return None  # Not found
+
+env = Environment(loader=FunctionLoader(load))
+template = env.get_template("greeting.html")
+```
+
+The function can return:
+
+- `str` — Template source (filename defaults to `"<function>"`)
+- `tuple[str, str | None]` — `(source, filename)` for custom error messages
+- `None` — Template not found (raises `TemplateNotFoundError`)
+
+```python
+# With custom filename for better error messages
+def load_from_cms(name):
+    source = cms_client.get_template(name)
+    if source:
+        return source, f"cms://{name}"
+    return None
+
+env = Environment(loader=FunctionLoader(load_from_cms))
+```
+
 ## from_string()
 
 Compile a template from a string (not cached):

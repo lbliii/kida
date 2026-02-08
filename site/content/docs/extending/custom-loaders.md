@@ -19,7 +19,32 @@ icon: folder
 
 Build custom loaders to load templates from databases, APIs, or other sources.
 
-## Loader Protocol
+## Quick Option: FunctionLoader
+
+For simple cases, wrap a callable with the built-in `FunctionLoader` instead of writing a full class:
+
+```python
+from kida import Environment, FunctionLoader
+
+# Simple dict lookup
+templates = {"page.html": "<h1>{{ title }}</h1>"}
+env = Environment(loader=FunctionLoader(lambda name: templates.get(name)))
+
+# CMS integration in 3 lines
+def load_from_cms(name):
+    source = cms_client.get(f"templates/{name}")
+    return (source, f"cms://{name}") if source else None
+
+env = Environment(loader=FunctionLoader(load_from_cms))
+```
+
+Return `str` for source only, `tuple[str, str | None]` for source + filename, or `None` if not found.
+
+## Full Custom Loader
+
+For complex loaders with state, implement the Loader protocol.
+
+### Loader Protocol
 
 Implement two methods:
 
@@ -161,7 +186,7 @@ env.get_template("db/page.html")
 env.get_template("files/base.html")
 ```
 
-See [[docs/usage/loading-templates|Loading Templates]] for more on `ChoiceLoader` and `PrefixLoader`.
+See [[docs/usage/loading-templates|Loading Templates]] for more on built-in loaders.
 
 ## Caching Layer
 
@@ -253,6 +278,6 @@ def get_source(self, name):
 
 ## See Also
 
-- [[docs/usage/loading-templates|Loading Templates]] — FileSystemLoader, DictLoader
-- [[docs/reference/api|API Reference]] — Loader protocol
+- [[docs/usage/loading-templates|Loading Templates]] — All built-in loaders (FileSystemLoader, DictLoader, ChoiceLoader, PrefixLoader, PackageLoader, FunctionLoader)
+- [[docs/reference/api|API Reference]] — Loader protocol and API
 - [[docs/about/architecture|Architecture]] — Template compilation pipeline

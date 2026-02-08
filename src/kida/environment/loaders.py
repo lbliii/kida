@@ -8,6 +8,8 @@ Built-in Loaders:
 - `DictLoader`: Load from in-memory dictionary (testing/embedded)
 - `ChoiceLoader`: Try multiple loaders in order (theme fallback)
 - `PrefixLoader`: Namespace templates by prefix (plugin architectures)
+- `PackageLoader`: Load from installed Python packages (importlib.resources)
+- `FunctionLoader`: Wrap a callable as a loader (quick one-offs)
 
 Custom Loaders:
 Implement the Loader protocol:
@@ -27,12 +29,15 @@ Thread-Safety:
 Loaders should be thread-safe for concurrent `get_source()` calls.
 All built-in loaders are safe (FileSystemLoader reads files atomically,
 DictLoader uses immutable dict lookup, ChoiceLoader and PrefixLoader
-delegate to their child loaders).
+delegate to their child loaders, PackageLoader reads via importlib,
+FunctionLoader delegates to the user-provided callable).
 
 """
 
 from __future__ import annotations
 
+import importlib.resources
+from collections.abc import Callable
 from pathlib import Path
 
 from kida.environment.exceptions import TemplateNotFoundError
@@ -208,7 +213,17 @@ class ChoiceLoader:
 
     __slots__ = ("_loaders",)
 
-    def __init__(self, loaders: list[FileSystemLoader | DictLoader | ChoiceLoader | PrefixLoader]):
+    def __init__(
+        self,
+        loaders: list[
+            FileSystemLoader
+            | DictLoader
+            | ChoiceLoader
+            | PrefixLoader
+            | PackageLoader
+            | FunctionLoader
+        ],
+    ):
         self._loaders = loaders
 
     def get_source(self, name: str) -> tuple[str, str | None]:
@@ -261,7 +276,15 @@ class PrefixLoader:
 
     def __init__(
         self,
-        mapping: dict[str, FileSystemLoader | DictLoader | ChoiceLoader | PrefixLoader],
+        mapping: dict[
+            str,
+            FileSystemLoader
+            | DictLoader
+            | ChoiceLoader
+            | PrefixLoader
+            | PackageLoader
+            | FunctionLoader,
+        ],
         delimiter: str = "/",
     ):
         self._mapping = mapping
@@ -293,3 +316,165 @@ class PrefixLoader:
                     f"{prefix}{self._delimiter}{name}" for name in loader.list_templates()
                 )
         return sorted(templates)
+
+
+class PackageLoader:
+    """Load templates from an installed Python package.
+
+    Uses ``importlib.resources`` to locate template files inside a package's
+    directory tree. This enables pip-installable packages to ship templates
+    that are loadable without knowing the installation path.
+
+    Use Cases:
+        - Framework default templates (admin panels, error pages)
+        - Distributable themes (``pip install my-theme``)
+        - Plugin/extension templates namespaced by package
+
+    Example:
+            >>> # Package structure:
+            >>> # my_app/
+            >>> #   __init__.py
+            >>> #   templates/
+            >>> #     base.html
+            >>> #     pages/
+            >>> #       index.html
+            >>> loader = PackageLoader("my_app", "templates")
+            >>> env = Environment(loader=loader)
+            >>> env.get_template("base.html")
+            >>> env.get_template("pages/index.html")
+
+    Args:
+        package_name: Dotted Python package name (e.g. ``"my_app"``)
+        package_path: Subdirectory within the package for templates
+            (default: ``"templates"``)
+        encoding: File encoding (default: ``"utf-8"``)
+
+    Raises:
+        TemplateNotFoundError: If template not found in package
+        ModuleNotFoundError: If ``package_name`` is not installed
+
+    Thread-Safety:
+        Safe. ``importlib.resources`` is thread-safe for reads.
+    """
+
+    __slots__ = ("_encoding", "_package_name", "_package_path")
+
+    def __init__(
+        self,
+        package_name: str,
+        package_path: str = "templates",
+        encoding: str = "utf-8",
+    ):
+        self._package_name = package_name
+        self._package_path = package_path
+        self._encoding = encoding
+
+    def _get_root(self) -> importlib.resources.abc.Traversable:
+        """Get the traversable root for the template directory."""
+        root = importlib.resources.files(self._package_name)
+        for part in self._package_path.split("/"):
+            if part:
+                root = root.joinpath(part)
+        return root
+
+    def get_source(self, name: str) -> tuple[str, str | None]:
+        """Load template source from package resources."""
+        root = self._get_root()
+        resource = root.joinpath(name)
+
+        try:
+            source = resource.read_text(self._encoding)
+        except (FileNotFoundError, TypeError, IsADirectoryError):
+            raise TemplateNotFoundError(
+                f"Template '{name}' not found in package "
+                f"'{self._package_name}/{self._package_path}'"
+            )
+
+        # Provide a meaningful filename for error messages
+        filename = f"{self._package_name}/{self._package_path}/{name}"
+        return source, filename
+
+    def list_templates(self) -> list[str]:
+        """List all templates in the package directory."""
+        root = self._get_root()
+        return sorted(self._walk(root, ""))
+
+    def _walk(self, traversable: importlib.resources.abc.Traversable, prefix: str) -> list[str]:
+        """Recursively walk a traversable, collecting file paths."""
+        templates: list[str] = []
+        try:
+            for item in traversable.iterdir():
+                name = f"{prefix}{item.name}" if not prefix else f"{prefix}/{item.name}"
+                if item.is_file() and not item.name.startswith("."):
+                    templates.append(name if prefix else item.name)
+                elif item.is_dir() and not item.name.startswith((".", "__")):
+                    templates.extend(self._walk(item, name if prefix else item.name))
+        except (FileNotFoundError, TypeError):
+            pass
+        return templates
+
+
+class FunctionLoader:
+    """Wrap a callable as a template loader.
+
+    The simplest way to create a custom loader. Pass a function that takes
+    a template name and returns the source (or ``None`` if not found).
+
+    The function can return either:
+        - ``str``: Template source (filename will be ``"<function>"``).
+        - ``tuple[str, str | None]``: ``(source, filename)`` for custom
+          filenames in error messages.
+        - ``None``: Template not found (raises ``TemplateNotFoundError``).
+
+    Example:
+            >>> def load(name):
+            ...     if name == "greeting.html":
+            ...         return "Hello, {{ name }}!"
+            ...     return None
+            >>> env = Environment(loader=FunctionLoader(load))
+            >>> env.get_template("greeting.html").render(name="World")
+            'Hello, World!'
+
+    Use with tuple return for better error messages:
+            >>> def load(name):
+            ...     source = my_cms.get_template(name)
+            ...     if source:
+            ...         return source, f"cms://{name}"
+            ...     return None
+            >>> env = Environment(loader=FunctionLoader(load))
+
+    Args:
+        load_func: Callable that takes a template name and returns source
+            string, ``(source, filename)`` tuple, or ``None``.
+
+    Raises:
+        TemplateNotFoundError: If ``load_func`` returns ``None``
+
+    Thread-Safety:
+        Safe if ``load_func`` is thread-safe.
+    """
+
+    __slots__ = ("_load_func",)
+
+    def __init__(
+        self,
+        load_func: Callable[[str], str | tuple[str, str | None] | None],
+    ):
+        self._load_func = load_func
+
+    def get_source(self, name: str) -> tuple[str, str | None]:
+        """Call the load function and normalize the result."""
+        result = self._load_func(name)
+
+        if result is None:
+            raise TemplateNotFoundError(f"Template '{name}' not found")
+
+        if isinstance(result, str):
+            return result, "<function>"
+
+        # tuple[str, str | None]
+        return result
+
+    def list_templates(self) -> list[str]:
+        """FunctionLoader cannot enumerate templates."""
+        return []

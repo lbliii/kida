@@ -3,9 +3,19 @@
 Tests autoescape, whitespace control, loaders, caching, and configuration.
 """
 
+import sys
+
 import pytest
 
-from kida import DictLoader, Environment, FileSystemLoader, Markup
+from kida import (
+    DictLoader,
+    Environment,
+    FileSystemLoader,
+    FunctionLoader,
+    Markup,
+    PackageLoader,
+    TemplateNotFoundError,
+)
 
 
 class TestAutoescape:
@@ -353,3 +363,198 @@ class TestMarkupClass:
         """Markup unescape method."""
         m = Markup("&lt;script&gt;")
         assert m.unescape() == "<script>"
+
+
+class TestFunctionLoader:
+    """FunctionLoader tests."""
+
+    def test_string_return(self):
+        """Function returning a string works."""
+        def load(name):
+            if name == "hello.html":
+                return "Hello, {{ name }}!"
+            return None
+
+        env = Environment(loader=FunctionLoader(load))
+        tmpl = env.get_template("hello.html")
+        assert tmpl.render(name="World") == "Hello, World!"
+
+    def test_tuple_return(self):
+        """Function returning (source, filename) tuple works."""
+        def load(name):
+            if name == "page.html":
+                return "<h1>Page</h1>", "custom://page.html"
+            return None
+
+        env = Environment(loader=FunctionLoader(load))
+        tmpl = env.get_template("page.html")
+        assert tmpl.render() == "<h1>Page</h1>"
+
+    def test_none_return_raises(self):
+        """Function returning None raises TemplateNotFoundError."""
+        def load(name):
+            return None
+
+        env = Environment(loader=FunctionLoader(load))
+        with pytest.raises(TemplateNotFoundError):
+            env.get_template("missing.html")
+
+    def test_lambda_loader(self):
+        """Lambda as load function works."""
+        templates = {"index.html": "<p>Index</p>"}
+        env = Environment(loader=FunctionLoader(lambda name: templates.get(name)))
+        assert env.get_template("index.html").render() == "<p>Index</p>"
+
+    def test_list_templates_empty(self):
+        """FunctionLoader.list_templates returns empty list."""
+        loader = FunctionLoader(lambda name: None)
+        assert loader.list_templates() == []
+
+    def test_with_variables(self):
+        """FunctionLoader templates can use full kida syntax."""
+        def load(name):
+            if name == "loop.html":
+                return "{% for x in items %}{{ x }}{% end %}"
+            return None
+
+        env = Environment(loader=FunctionLoader(load))
+        tmpl = env.get_template("loop.html")
+        assert tmpl.render(items=["a", "b", "c"]) == "abc"
+
+    def test_with_inheritance(self):
+        """FunctionLoader supports template inheritance."""
+        def load(name):
+            templates = {
+                "base.html": "<html>{% block content %}{% end %}</html>",
+                "page.html": "{% extends 'base.html' %}{% block content %}Hi{% end %}",
+            }
+            return templates.get(name)
+
+        env = Environment(loader=FunctionLoader(load))
+        tmpl = env.get_template("page.html")
+        assert tmpl.render() == "<html>Hi</html>"
+
+    def test_with_includes(self):
+        """FunctionLoader supports includes."""
+        def load(name):
+            templates = {
+                "main.html": "Before {% include 'partial.html' %} After",
+                "partial.html": "PARTIAL",
+            }
+            return templates.get(name)
+
+        env = Environment(loader=FunctionLoader(load))
+        tmpl = env.get_template("main.html")
+        assert tmpl.render() == "Before PARTIAL After"
+
+
+class TestPackageLoader:
+    """PackageLoader tests."""
+
+    @pytest.fixture()
+    def mock_package(self, tmp_path):
+        """Create a mock Python package with templates."""
+        pkg_dir = tmp_path / "test_pkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
+
+        tmpl_dir = pkg_dir / "templates"
+        tmpl_dir.mkdir()
+        (tmpl_dir / "index.html").write_text("Hello, {{ name }}!")
+        (tmpl_dir / "base.html").write_text(
+            "<html>{% block content %}{% end %}</html>"
+        )
+
+        sub_dir = tmpl_dir / "pages"
+        sub_dir.mkdir()
+        (sub_dir / "about.html").write_text("<h1>About</h1>")
+
+        # Add to sys.path so importlib can find it
+        sys.path.insert(0, str(tmp_path))
+        yield "test_pkg"
+        sys.path.remove(str(tmp_path))
+        # Clean up module from cache
+        sys.modules.pop("test_pkg", None)
+
+    def test_basic_load(self, mock_package):
+        """Load a template from a package."""
+        loader = PackageLoader(mock_package, "templates")
+        env = Environment(loader=loader)
+        tmpl = env.get_template("index.html")
+        assert tmpl.render(name="World") == "Hello, World!"
+
+    def test_subdirectory_load(self, mock_package):
+        """Load a template from a subdirectory within the package."""
+        loader = PackageLoader(mock_package, "templates")
+        env = Environment(loader=loader)
+        tmpl = env.get_template("pages/about.html")
+        assert tmpl.render() == "<h1>About</h1>"
+
+    def test_template_not_found(self, mock_package):
+        """Missing template raises TemplateNotFoundError."""
+        loader = PackageLoader(mock_package, "templates")
+        env = Environment(loader=loader)
+        with pytest.raises(TemplateNotFoundError):
+            env.get_template("nonexistent.html")
+
+    def test_list_templates(self, mock_package):
+        """list_templates returns all templates in package."""
+        loader = PackageLoader(mock_package, "templates")
+        templates = loader.list_templates()
+        assert "index.html" in templates
+        assert "base.html" in templates
+        assert "pages/about.html" in templates
+
+    def test_filename_in_source(self, mock_package):
+        """get_source returns meaningful filename."""
+        loader = PackageLoader(mock_package, "templates")
+        _source, filename = loader.get_source("index.html")
+        assert filename is not None
+        assert "test_pkg" in filename
+        assert "index.html" in filename
+
+    def test_with_rendering(self, mock_package):
+        """Full render cycle through PackageLoader."""
+        loader = PackageLoader(mock_package, "templates")
+        env = Environment(loader=loader)
+        tmpl = env.get_template("index.html")
+        result = tmpl.render(name="Kida")
+        assert result == "Hello, Kida!"
+
+    def test_invalid_package_raises(self):
+        """Non-existent package raises ModuleNotFoundError."""
+        loader = PackageLoader("nonexistent_package_xyz_123", "templates")
+        with pytest.raises(ModuleNotFoundError):
+            loader.get_source("test.html")
+
+    def test_with_choice_loader(self, mock_package):
+        """PackageLoader works inside ChoiceLoader."""
+        from kida import ChoiceLoader
+
+        override = DictLoader({"index.html": "Override!"})
+        pkg_loader = PackageLoader(mock_package, "templates")
+        loader = ChoiceLoader([override, pkg_loader])
+
+        env = Environment(loader=loader)
+        # Override wins for index.html
+        assert env.get_template("index.html").render() == "Override!"
+        # Package provides pages/about.html
+        assert env.get_template("pages/about.html").render() == "<h1>About</h1>"
+
+    def test_default_package_path(self, tmp_path):
+        """Default package_path is 'templates'."""
+        pkg_dir = tmp_path / "default_pkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
+        tmpl_dir = pkg_dir / "templates"
+        tmpl_dir.mkdir()
+        (tmpl_dir / "test.html").write_text("Default path works")
+
+        sys.path.insert(0, str(tmp_path))
+        try:
+            loader = PackageLoader("default_pkg")
+            env = Environment(loader=loader)
+            assert env.get_template("test.html").render() == "Default path works"
+        finally:
+            sys.path.remove(str(tmp_path))
+            sys.modules.pop("default_pkg", None)

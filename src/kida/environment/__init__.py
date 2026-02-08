@@ -46,7 +46,14 @@ from kida.environment.exceptions import (
     TemplateSyntaxError,
     UndefinedError,
 )
-from kida.environment.loaders import ChoiceLoader, DictLoader, FileSystemLoader, PrefixLoader
+from kida.environment.loaders import (
+    ChoiceLoader,
+    DictLoader,
+    FileSystemLoader,
+    FunctionLoader,
+    PackageLoader,
+    PrefixLoader,
+)
 from kida.environment.protocols import Filter, Loader, Test
 from kida.environment.registry import FilterRegistry
 
@@ -57,7 +64,9 @@ __all__ = [
     "FileSystemLoader",
     "Filter",
     "FilterRegistry",
+    "FunctionLoader",
     "Loader",
+    "PackageLoader",
     "PrefixLoader",
     "TemplateError",
     "TemplateNotFoundError",

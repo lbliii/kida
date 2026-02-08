@@ -291,6 +291,51 @@ loader = PrefixLoader({
 - `get_source(name)` → `tuple[str, str | None]` — Splits on delimiter, delegates to prefix loader
 - `list_templates()` → `list[str]` — All templates with prefix prepended
 
+### PackageLoader
+
+Load templates from an installed Python package via `importlib.resources`.
+
+```python
+from kida import PackageLoader
+
+loader = PackageLoader("my_app", "templates")
+# env.get_template("pages/index.html") → my_app/templates/pages/index.html
+```
+
+#### Constructor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `package_name` | `str` | Required | Dotted Python package name |
+| `package_path` | `str` | `"templates"` | Subdirectory within the package |
+| `encoding` | `str` | `"utf-8"` | File encoding |
+
+#### Methods
+
+- `get_source(name)` → `tuple[str, str | None]` — Loads from package resources
+- `list_templates()` → `list[str]` — All templates in the package directory (recursive)
+
+### FunctionLoader
+
+Wrap a callable as a loader.
+
+```python
+from kida import FunctionLoader
+
+loader = FunctionLoader(lambda name: templates.get(name))
+```
+
+#### Constructor Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `load_func` | `Callable[[str], str \| tuple[str, str \| None] \| None]` | Returns source, `(source, filename)`, or `None` |
+
+#### Methods
+
+- `get_source(name)` → `tuple[str, str | None]` — Calls `load_func` and normalizes result
+- `list_templates()` → `list[str]` — Always returns `[]` (cannot enumerate)
+
 ---
 
 ## Exceptions
