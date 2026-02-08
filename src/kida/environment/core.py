@@ -396,13 +396,17 @@ class Environment:
 
         Args:
             source: Template source code
-            name: Optional template name for error messages
+            name: Template name for error messages and bytecode caching.
+                When a ``bytecode_cache`` is configured, providing a name
+                enables persistent caching of the compiled template.
+                Without a name, the template is compiled fresh each time.
 
         Returns:
             Compiled Template object
 
         Note:
-            String templates are NOT cached. Use get_template() for caching.
+            String templates are NOT cached in the in-memory LRU cache.
+            Use ``get_template()`` with a loader for in-memory caching.
         """
         return self._compile(source, name, None)
 
@@ -422,6 +426,14 @@ class Environment:
 
         # Check bytecode cache first (for fast cold-start)
         source_hash = None
+        if self._bytecode_cache is not None and name is None:
+            import warnings
+
+            warnings.warn(
+                "from_string() without name= bypasses bytecode cache. "
+                "Pass name='my_template' to enable caching.",
+                stacklevel=3,
+            )
         if self._bytecode_cache is not None and name is not None:
             from kida.bytecode_cache import hash_source
 
