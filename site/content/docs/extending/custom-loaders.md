@@ -193,32 +193,41 @@ See [[docs/usage/loading-templates|Loading Templates]] for more on built-in load
 Add caching to any loader:
 
 ```python
-from functools import lru_cache
+import threading
 
 class CachedLoader:
     def __init__(self, loader, maxsize=128):
         self.loader = loader
-        self._get_source = lru_cache(maxsize=maxsize)(
-            self._get_source_uncached
-        )
-
-    def _get_source_uncached(self, name: str):
-        return self.loader.get_source(name)
+        self._cache: dict[str, tuple[str, str | None]] = {}
+        self._lock = threading.Lock()
+        self._maxsize = maxsize
 
     def get_source(self, name: str) -> tuple[str, str | None]:
-        return self._get_source(name)
+        if name in self._cache:
+            return self._cache[name]
+        with self._lock:
+            if name in self._cache:
+                return self._cache[name]
+            result = self.loader.get_source(name)
+            if len(self._cache) >= self._maxsize:
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[name] = result
+            return result
 
     def list_templates(self) -> list[str]:
         return self.loader.list_templates()
 
     def clear_cache(self):
-        self._get_source.cache_clear()
+        with self._lock:
+            self._cache.clear()
 
 # Usage
 env = Environment(
     loader=CachedLoader(DatabaseLoader(db), maxsize=256)
 )
 ```
+
+> **Thread safety**: This uses a lock-based double-check pattern instead of `functools.lru_cache`, which is not thread-safe under free-threaded Python (3.13t+). See [[docs/about/thread-safety|Thread Safety]] for more on concurrent access patterns.
 
 ## Thread Safety
 

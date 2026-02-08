@@ -27,7 +27,7 @@ from kida import Environment
 env = Environment()
 
 env.add_global("site_name", "My Site")
-env.add_global("current_year", 2024)
+env.add_global("current_year", 2026)
 env.add_global("debug_mode", False)
 ```
 

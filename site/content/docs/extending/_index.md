@@ -71,7 +71,7 @@ def double(value):
 
 # Custom test
 @env.test()
-def is_even(value):
+def even(value):
     return value % 2 == 0
 
 # Custom global

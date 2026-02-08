@@ -44,7 +44,7 @@ Template usage:
 
 ```python
 @env.test()
-def is_even(value):
+def even(value):
     return value % 2 == 0
 
 @env.test("prime")  # Custom name
@@ -94,14 +94,28 @@ Use `is not` to negate tests:
 | `defined` | Value is not None |
 | `undefined` | Value is None |
 | `none` | Value is None |
+| `true` | Value is True |
+| `false` | Value is False |
 | `even` | Integer is even |
 | `odd` | Integer is odd |
+| `divisibleby` | Integer is divisible by argument |
 | `number` | Value is int or float |
 | `string` | Value is a string |
 | `sequence` | Value is list/tuple/string |
 | `mapping` | Value is a dict |
 | `iterable` | Value supports iteration |
 | `callable` | Value is callable |
+| `lower` | String is lowercase |
+| `upper` | String is uppercase |
+| `eq` / `equalto` | Equal to argument |
+| `ne` | Not equal to argument |
+| `lt` / `lessthan` | Less than argument |
+| `le` | Less than or equal to argument |
+| `gt` / `greaterthan` | Greater than argument |
+| `ge` | Greater than or equal to argument |
+| `sameas` | Same object (identity check) |
+| `in` | Value is contained in argument |
+| `match` | Value matches regex pattern |
 
 ## Common Patterns
 
