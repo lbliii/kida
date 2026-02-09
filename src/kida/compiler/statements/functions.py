@@ -141,6 +141,33 @@ class FunctionCompilationMixin:
                 ],
                 orelse=[],
             ),
+            # ctx['has_slot'] = lambda: _caller is not None
+            # Allows {% if has_slot() %} guards inside def bodies.
+            ast.Assign(
+                targets=[
+                    ast.Subscript(
+                        value=ast.Name(id="ctx", ctx=ast.Load()),
+                        slice=ast.Constant(value="has_slot"),
+                        ctx=ast.Store(),
+                    )
+                ],
+                value=ast.Lambda(
+                    args=ast.arguments(
+                        posonlyargs=[],
+                        args=[],
+                        vararg=None,
+                        kwonlyargs=[],
+                        kw_defaults=[],
+                        kwarg=None,
+                        defaults=[],
+                    ),
+                    body=ast.Compare(
+                        left=ast.Name(id="_caller", ctx=ast.Load()),
+                        ops=[ast.IsNot()],
+                        comparators=[ast.Constant(value=None)],
+                    ),
+                ),
+            ),
         ]
 
         # Add args to locals for direct access
