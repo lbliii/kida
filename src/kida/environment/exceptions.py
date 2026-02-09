@@ -181,6 +181,43 @@ class TemplateError(Exception):
 
     code: ErrorCode | None = None
 
+    def format_compact(self) -> str:
+        """Format error as a structured, human-readable summary.
+
+        Produces a clean diagnostic string suitable for terminal display,
+        without Python traceback noise. Consumers (Chirp, Bengal) can call
+        this instead of parsing ``str(exc)``.
+
+        Format::
+
+            K-RUN-001: Undefined variable 'usernme' in base.html:42
+               |
+            >42 | <h1>{{ usernme }}</h1>
+               |
+            Hint: Use {{ usernme | default('') }} for optional variables
+            Docs: https://kida.dev/docs/errors/#k-run-001
+
+        Returns:
+            Multi-line string with error code, message, source snippet,
+            and documentation URL.
+        """
+        parts: list[str] = []
+
+        # Header: code + message
+        header = str(self)
+        if self.code:
+            # Prefix with error code if not already in the message
+            code_str = self.code.value
+            if code_str not in header:
+                header = f"{code_str}: {header}"
+        parts.append(header)
+
+        # Docs URL
+        if self.code:
+            parts.append(f"  Docs: {self.code.docs_url}")
+
+        return "\n".join(parts)
+
 
 class TemplateNotFoundError(TemplateError):
     """Template not found by any configured loader.
@@ -248,6 +285,35 @@ class TemplateSyntaxError(TemplateError):
                 return header + snippet
 
         return header
+
+    def format_compact(self) -> str:
+        """Format syntax error as structured terminal diagnostic."""
+        parts: list[str] = []
+
+        # Header: code + message
+        code_prefix = f"{self.code.value}: " if self.code else ""
+        location = self.filename or self.name or "<template>"
+        if self.lineno:
+            location += f":{self.lineno}"
+        parts.append(f"{code_prefix}{self.message}")
+        parts.append(f"  --> {location}")
+
+        # Source snippet
+        if self.source and self.lineno:
+            lines = self.source.splitlines()
+            if 0 < self.lineno <= len(lines):
+                error_line = lines[self.lineno - 1]
+                parts.append("   |")
+                parts.append(f"{self.lineno:>3} | {error_line}")
+                if self.col_offset is not None:
+                    parts.append(f"   | {' ' * self.col_offset}^")
+                parts.append("   |")
+
+        # Docs URL
+        if self.code:
+            parts.append(f"  Docs: {self.code.docs_url}")
+
+        return "\n".join(parts)
 
 
 class TemplateRuntimeError(TemplateError):
@@ -335,6 +401,36 @@ class TemplateRuntimeError(TemplateError):
         # Suggestion
         if self.suggestion:
             parts.append(f"\n  Suggestion: {self.suggestion}")
+
+        return "\n".join(parts)
+
+    def format_compact(self) -> str:
+        """Format runtime error as structured terminal diagnostic."""
+        parts: list[str] = []
+
+        # Header: code + message + location
+        code_prefix = f"{self.code.value}: " if self.code else ""
+        loc = self.template_name or "<template>"
+        if self.lineno:
+            loc += f":{self.lineno}"
+        parts.append(f"{code_prefix}{self.message}")
+        parts.append(f"  Location: {loc}")
+
+        # Source snippet
+        if self.source_snippet:
+            parts.append(self.source_snippet.format())
+
+        # Expression
+        if self.expression:
+            parts.append(f"  Expression: {self.expression}")
+
+        # Suggestion
+        if self.suggestion:
+            parts.append(f"  Hint: {self.suggestion}")
+
+        # Docs URL
+        if self.code:
+            parts.append(f"  Docs: {self.code.docs_url}")
 
         return "\n".join(parts)
 
@@ -483,3 +579,40 @@ class UndefinedError(TemplateError):
 
         msg += f"\n  Hint: Use {{{{ {self.name} | default('') }}}} for optional variables"
         return msg
+
+    def format_compact(self) -> str:
+        """Format undefined variable error as structured terminal diagnostic."""
+        parts: list[str] = []
+
+        # Header: code + message
+        code_prefix = f"{self.code.value}: " if self.code else ""
+        location = self.template
+        if self.lineno:
+            location += f":{self.lineno}"
+        msg = f"{code_prefix}Undefined variable '{self.name}' in {location}"
+
+        # "Did you mean?" suggestion
+        if self._available_names:
+            from difflib import get_close_matches
+
+            matches = get_close_matches(
+                self.name, self._available_names, n=1, cutoff=0.6
+            )
+            if matches:
+                msg += f". Did you mean '{matches[0]}'?"
+        parts.append(msg)
+
+        # Source snippet
+        if self.source_snippet:
+            parts.append(self.source_snippet.format())
+
+        # Hint
+        parts.append(
+            f"  Hint: Use {{{{ {self.name} | default('') }}}} for optional variables"
+        )
+
+        # Docs URL
+        if self.code:
+            parts.append(f"  Docs: {self.code.docs_url}")
+
+        return "\n".join(parts)
