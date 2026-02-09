@@ -99,6 +99,44 @@ Functions can capture block content using `caller()`:
 {% end %}
 ```
 
+## Slot Detection
+
+When a function is called via `{% call %}`, it receives slot content accessible through `caller()`. Use the built-in `has_slot()` function inside a `{% def %}` body to detect whether slot content was provided:
+
+```kida
+{% def card(title) %}
+    <div class="card">
+        <h3>{{ title }}</h3>
+        {% if has_slot() %}
+            <div class="card-body">
+                {{ caller() }}
+            </div>
+        {% end %}
+    </div>
+{% end %}
+```
+
+When called directly, `has_slot()` returns `false`:
+
+```kida
+{{ card("Simple Card") }}
+{# Output: <div class="card"><h3>Simple Card</h3></div> #}
+```
+
+When called with `{% call %}`, `has_slot()` returns `true`:
+
+```kida
+{% call card("Rich Card") %}
+    <p>This content appears in the card body.</p>
+    <button>Action</button>
+{% end %}
+{# Output includes the card-body wrapper #}
+```
+
+This pattern is useful for components that should adapt their markup depending on whether slot content is provided — for example, rendering a wrapper `<div>` only when there's something to wrap.
+
+---
+
 ## Macros
 
 Kida also supports the `{% macro %}` syntax:

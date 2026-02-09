@@ -88,6 +88,8 @@ template.render(title="Hello", user=current_user)
 
 ### Check with is defined
 
+The `is defined` test works on attribute chains, not just top-level variables. If any part of the chain is missing, the result is `undefined`:
+
 ```kida
 {% if user is defined %}
     {{ user.name }}
@@ -95,6 +97,27 @@ template.render(title="Hello", user=current_user)
     Guest
 {% end %}
 ```
+
+#### Attribute Chains
+
+```kida
+{# Checks if pokemon has a "name" attribute — not just if pokemon exists #}
+{% if pokemon.name is defined %}
+    {{ pokemon.name }}
+{% end %}
+
+{# Works with dict keys too #}
+{% if settings.theme is defined %}
+    Theme: {{ settings.theme }}
+{% end %}
+
+{# Deep chains #}
+{% if page.author.avatar is defined %}
+    <img src="{{ page.author.avatar }}">
+{% end %}
+```
+
+> **Note:** Missing attributes resolve to an internal `Undefined` sentinel that is falsy and renders as an empty string. This means `{% if pokemon.name %}` also works as a guard, but `is defined` makes the intent explicit.
 
 ### Optional Chaining Pattern
 

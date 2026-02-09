@@ -33,7 +33,7 @@ Tests are boolean predicates used with `is` in conditionals.
 
 ### defined
 
-Value is not None.
+Value exists and is not a missing attribute. Works correctly on attribute chains — if an intermediate attribute doesn't exist, the result is `undefined`, not an empty string.
 
 ```kida
 {% if user is defined %}
@@ -41,13 +41,40 @@ Value is not None.
 {% end %}
 ```
 
+Attribute chains:
+
+```kida
+{# Works correctly even when pokemon has no "name" attribute #}
+{% if pokemon.name is defined %}
+    {{ pokemon.name }}
+{% end %}
+
+{# Check nested attributes #}
+{% if page.author.bio is defined %}
+    {{ page.author.bio }}
+{% end %}
+
+{# Dict key access #}
+{% if config.timeout is defined %}
+    Timeout: {{ config.timeout }}s
+{% end %}
+```
+
 ### undefined
 
-Value is None.
+Value is missing or not set. The inverse of `defined`.
 
 ```kida
 {% if user is undefined %}
     <p>Not logged in</p>
+{% end %}
+```
+
+Attribute chains:
+
+```kida
+{% if item.description is undefined %}
+    <p class="muted">No description provided.</p>
 {% end %}
 ```
 

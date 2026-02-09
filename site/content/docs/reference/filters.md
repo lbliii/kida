@@ -425,6 +425,52 @@ Format with thousands separator.
 
 ---
 
+## CSS / HTML Filters
+
+### classes
+
+Join a list of CSS class names, dropping falsy values. Useful for conditional class composition.
+
+```kida
+{{ ["btn", "btn-primary", ""] | classes }}  → btn btn-primary
+{{ ["card", none, "shadow"] | classes }}  → card shadow
+```
+
+Nested lists are flattened:
+
+```kida
+{{ ["base", ["active", ""], "highlight"] | classes }}  → base active highlight
+```
+
+Conditional classes pattern:
+
+```kida
+<div class="{{ ["card", "active" if is_active, "disabled" if is_disabled] | classes }}">
+```
+
+---
+
+## Number Filters
+
+### decimal
+
+Format a number to a fixed number of decimal places.
+
+```kida
+{{ 3.14159 | decimal(2) }}  → 3.14
+{{ 42 | decimal(2) }}  → 42.00
+{{ 1.5 | decimal(0) }}  → 2
+{{ 0.1 + 0.2 | decimal(1) }}  → 0.3
+```
+
+Non-numeric values pass through unchanged:
+
+```kida
+{{ "hello" | decimal(2) }}  → hello
+```
+
+---
+
 ## Utility Filters
 
 ### attr

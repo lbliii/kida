@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`_Undefined` sentinel** — Missing attribute access now returns an `_Undefined` sentinel
+  instead of an empty string. `_Undefined` is falsy, stringifies to `""`, and is iterable
+  (yields nothing), so existing templates are unaffected. The key improvement: `is defined`
+  and `is undefined` tests now work correctly on attribute chains
+  (e.g. `{% if pokemon.name is defined %}`).
+
+- **Conditional blocks** — `{% block name if condition %}` skips the block body when the
+  condition is falsy. Works with template inheritance — child blocks can override both
+  content and condition.
+
+- **`classes` filter** — Joins a list of CSS class names, dropping falsy values. Flattens
+  nested lists. Ideal for conditional class composition:
+  `{{ ["btn", "active" if is_active, ""] | classes }}` → `btn active`.
+
+- **`decimal` filter** — Formats a number to a fixed number of decimal places:
+  `{{ 3.14159 | decimal(2) }}` → `3.14`. Non-numeric values pass through unchanged.
+
+- **`has_slot()` in `{% def %}`** — Inside a `{% def %}` body, `has_slot()` returns `true`
+  when the function is invoked via `{% call %}` (i.e. slot content was provided) and `false`
+  for direct calls. Enables components to adapt their markup based on slot presence.
+
 - **Error codes** — Every exception now carries an `ErrorCode` enum (`K-LEX-*`, `K-PAR-*`,
   `K-RUN-*`, `K-TPL-*`) that categorizes the error and links to documentation. Access via
   `exc.code` and `exc.code.value`.

@@ -244,6 +244,62 @@ Multi-level inheritance for a blog:
 {% end %}
 ```
 
+## Conditional Blocks
+
+Blocks can include an `if` clause to conditionally render their content. If the condition is falsy, the block produces no output.
+
+```kida
+{% block sidebar if show_sidebar %}
+    <aside>
+        {% include "partials/sidebar.html" %}
+    </aside>
+{% end %}
+```
+
+This is equivalent to wrapping the block body in `{% if %}`, but reads more cleanly and keeps the condition visible at the block declaration.
+
+### Dynamic Conditions
+
+The condition can be any expression:
+
+```kida
+{% block hero if page.show_hero %}
+    <section class="hero">
+        <h1>{{ page.title }}</h1>
+    </section>
+{% end %}
+
+{% block debug_panel if debug_mode %}
+    <pre>{{ context | tojson(indent=2) }}</pre>
+{% end %}
+```
+
+### With Inheritance
+
+Conditional blocks work with template inheritance. A child template can override a conditional block, and the condition is evaluated in the child's context:
+
+```kida
+{# base.html #}
+{% block analytics if not debug %}
+    <script src="/analytics.js"></script>
+{% end %}
+```
+
+```kida
+{# page.html #}
+{% extends "base.html" %}
+
+{% block analytics if enable_tracking %}
+    <script src="/custom-analytics.js"></script>
+{% end %}
+```
+
+### Falsy Values
+
+The following values cause the block to be skipped: `false`, `none`, `0`, `""` (empty string), `[]` (empty list).
+
+---
+
 ## Block Scoping
 
 Blocks can be nested:

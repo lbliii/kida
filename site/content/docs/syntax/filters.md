@@ -71,10 +71,11 @@ Use `|>` for improved readability:
 | `take` | First N items | `{{ items \| take(5) }}` |
 | `skip` | Skip N items | `{{ items \| skip(10) }}` |
 
-### HTML Filters
+### CSS / HTML Filters
 
 | Filter | Description | Example |
 |--------|-------------|---------|
+| `classes` | Join CSS classes, drop falsy | `{{ ["btn", "", "lg"] \| classes }}` → `btn lg` |
 | `escape` | HTML escape | `{{ html \| escape }}` |
 | `safe` | Mark as safe | `{{ trusted \| safe }}` |
 | `striptags` | Remove tags | `{{ html \| striptags }}` |
@@ -84,6 +85,7 @@ Use `|>` for improved readability:
 | Filter | Description | Example |
 |--------|-------------|---------|
 | `abs` | Absolute value | `{{ -5 \| abs }}` → `5` |
+| `decimal` | Fixed decimal places | `{{ 3.14159 \| decimal(2) }}` → `3.14` |
 | `round` | Round number | `{{ 3.7 \| round }}` → `4` |
 | `int` | Convert to int | `{{ "42" \| int }}` → `42` |
 | `float` | Convert to float | `{{ "3.14" \| float }}` → `3.14` |
