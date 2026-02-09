@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Error codes** — Every exception now carries an `ErrorCode` enum (`K-LEX-*`, `K-PAR-*`,
+  `K-RUN-*`, `K-TPL-*`) that categorizes the error and links to documentation. Access via
+  `exc.code` and `exc.code.value`.
+
+- **`format_compact()`** — All `TemplateError` subclasses provide a structured, human-readable
+  summary including error code, source snippet, hint, and docs link. Recommended for frameworks
+  and logging integrations.
+
+- **Source snippets** — `TemplateRuntimeError` and `UndefinedError` now carry a `source_snippet`
+  attribute (`SourceSnippet` dataclass) with the relevant source lines and error pointer.
+  `build_source_snippet()` is available for manual snippet construction.
+
+- **Public API exports** — `TemplateRuntimeError`, `ErrorCode`, `SourceSnippet`, and
+  `build_source_snippet` are now exported from the top-level `kida` package.
+
 - **Compile-time partial evaluation** — `PartialEvaluator` transforms template ASTs by
   evaluating expressions whose values are known at compile time (e.g. `{{ site.title }}`
   when the Site object is available). Static expressions become `Data` nodes (literal

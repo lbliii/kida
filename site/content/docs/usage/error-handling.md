@@ -18,7 +18,7 @@ icon: alert-triangle
 
 # Error Handling
 
-Kida provides clear error messages with source locations.
+Kida provides clear error messages with source locations, error codes, and actionable hints.
 
 ## Exception Types
 
@@ -26,8 +26,21 @@ Kida provides clear error messages with source locations.
 |-----------|-------------|
 | `TemplateError` | Base class for all template errors |
 | `TemplateSyntaxError` | Invalid template syntax |
+| `TemplateRuntimeError` | Error during template rendering |
 | `TemplateNotFoundError` | Template file not found |
-| `UndefinedError` | Accessing undefined variable |
+| `UndefinedError` | Accessing undefined variable (strict mode) |
+
+All exception classes are importable from the top-level `kida` package:
+
+```python
+from kida import (
+    TemplateError,
+    TemplateSyntaxError,
+    TemplateRuntimeError,
+    TemplateNotFoundError,
+    UndefinedError,
+)
+```
 
 ## Syntax Errors
 
@@ -125,6 +138,97 @@ DEBUG [my posts]: <list[5]>
   ...
 ```
 
+## Error Codes
+
+Every Kida exception carries an `ErrorCode` that categorizes the error and links to documentation:
+
+| Code | Category | Description |
+|------|----------|-------------|
+| `K-LEX-001` | Lexer | Unterminated string literal |
+| `K-LEX-002` | Lexer | Invalid character in template |
+| `K-PAR-001` | Parser | Unexpected token |
+| `K-PAR-002` | Parser | Unclosed block tag |
+| `K-PAR-003` | Parser | Invalid expression |
+| `K-RUN-001` | Runtime | Undefined variable |
+| `K-RUN-002` | Runtime | Type error in expression |
+| `K-RUN-003` | Runtime | Index out of range |
+| `K-RUN-004` | Runtime | Filter execution error |
+| `K-TPL-001` | Template | Template not found |
+| `K-TPL-002` | Template | Circular template inheritance |
+| `K-TPL-003` | Template | Invalid block override |
+
+Access the code programmatically:
+
+```python
+from kida import UndefinedError, ErrorCode
+
+try:
+    template.render()
+except UndefinedError as e:
+    print(e.code)        # ErrorCode.K_RUN_001
+    print(e.code.value)  # "K-RUN-001"
+```
+
+## Compact Error Format
+
+All Kida exceptions provide a `format_compact()` method that produces a structured, human-readable summary for terminal output or logging:
+
+```python
+from kida import TemplateError
+
+try:
+    template.render()
+except TemplateError as e:
+    print(e.format_compact())
+```
+
+Output:
+
+```
+K-RUN-001: Undefined variable 'usernme' in base.html:42
+
+     |
+> 42 | <h1>{{ usernme }}</h1>
+     |
+
+Hint: Did you mean 'username'?
+Docs: https://kida.dev/docs/errors/#k-run-001
+```
+
+The compact format includes:
+
+- **Error code** and description
+- **Source snippet** with line numbers and error pointer
+- **Hint** with suggestions (typo corrections, `default` filter usage)
+- **Docs link** to the relevant error code documentation
+
+This is the recommended format for frameworks that wrap Kida errors (like Chirp and Bengal).
+
+## Source Snippets
+
+For programmatic access to the source context around an error, use the `source_snippet` attribute:
+
+```python
+from kida import UndefinedError, SourceSnippet
+
+try:
+    template.render()
+except UndefinedError as e:
+    snippet: SourceSnippet | None = e.source_snippet
+    if snippet:
+        print(snippet.lines)       # List of (line_number, line_text) tuples
+        print(snippet.error_line)  # The line number with the error
+        print(snippet.filename)    # Template filename
+```
+
+You can also build snippets manually with `build_source_snippet()`:
+
+```python
+from kida import build_source_snippet
+
+snippet = build_source_snippet(source_text, error_line=42, context_lines=3)
+```
+
 ## Common Error Patterns
 
 ### Missing Variable
@@ -172,8 +276,8 @@ def render_page(template_name, **context):
     try:
         return env.render(template_name, **context)
     except TemplateError as e:
-        # Log error
-        logger.error(f"Template error: {e}")
+        # Log the compact format for clean terminal output
+        logger.error("Template error:\n%s", e.format_compact())
         # Return fallback
         return env.render("error.html", error=str(e))
 ```
