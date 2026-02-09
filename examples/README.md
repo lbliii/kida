@@ -68,6 +68,93 @@ and optional chaining (`?.`). Syntax with no Jinja2 equivalent.
 cd examples/modern_syntax && python app.py
 ```
 
+### `introspection/` -- Template Introspection
+
+Static analysis API for pre-render validation and dependency tracking.
+`required_context()` lists what a template needs, `block_metadata()` reports
+per-block dependencies, `validate_context()` catches missing variables before
+rendering, and `depends_on()` returns all dotted dependency paths. This is the
+API that Purr's reactive pipeline uses to map content changes to template blocks.
+
+```bash
+cd examples/introspection && python app.py
+```
+
+### `htmx_partials/` -- Partial Block Rendering
+
+`render_block()` extracts and renders a single block from a template -- the
+pattern used by htmx, Turbo, and Unpoly for partial page updates. Full page
+renders the entire template; partial renders extract just the block needed for
+an AJAX swap response.
+
+```bash
+cd examples/htmx_partials && python app.py
+```
+
+### `bytecode_cache/` -- Cold Start Optimization
+
+`BytecodeCache` compiles templates to Python bytecode on first load, caching the
+code object to disk. Second load skips the parser and compiler entirely, loading
+the pre-compiled bytecode directly. Useful for large template sets where startup
+latency matters.
+
+```bash
+cd examples/bytecode_cache && python app.py
+```
+
+### `design_system/` -- Component Library
+
+`{% def %}`, `{% slot %}`, and `{% call %}` composed into a design system with
+reusable cards, buttons, and alerts. Components accept parameters with defaults
+and project content through slots. Demonstrates real-world component composition:
+buttons inside cards, cards inside pages.
+
+```bash
+cd examples/design_system && python app.py
+```
+
+### `fastapi_async/` -- FastAPI Integration
+
+`render_stream_async()` with FastAPI's `StreamingResponse` for true streaming HTML
+delivery. Templates with `{% async for %}` consume async data sources while the
+response streams to the client.
+
+```bash
+pip install fastapi uvicorn
+cd examples/fastapi_async && uvicorn app:app --reload
+```
+
+### `llm_streaming/` -- LLM Token Streaming
+
+`{% async for %}` consuming a simulated LLM token stream. The template renders
+progressively as tokens arrive, yielding HTML chunks via `render_stream_async()`.
+O(n) total work instead of the O(n^2) re-render-per-token pattern.
+
+```bash
+cd examples/llm_streaming && python app.py
+```
+
+### `concurrent/` -- Free-Threading Proof
+
+8 threads render different templates simultaneously with zero GIL contention.
+Each thread gets its own render context via `ContextVar`, so there is no
+cross-contamination between simultaneous renders. Demonstrates Python 3.14t
+free-threading readiness.
+
+```bash
+cd examples/concurrent && python app.py
+```
+
+### `profiling/` -- Render Profiling
+
+`profiled_render()` context manager collects block timings, filter usage, and
+macro call counts during rendering. Zero overhead when profiling is not enabled.
+Opt-in metrics for identifying template performance bottlenecks.
+
+```bash
+cd examples/profiling && python app.py
+```
+
 ## Running Tests
 
 Each example has a `test_app.py` that verifies it works end-to-end.
@@ -82,19 +169,30 @@ pytest examples/hello/
 
 ## What Each Example Exercises
 
-| Feature | hello | file_loader | components | streaming | async_rendering | caching | modern_syntax |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| `from_string()` | x | | | | | | |
-| `FileSystemLoader` | | x | x | x | | x | x |
-| `render()` | x | x | x | | | x | x |
-| `render_stream()` | | | | x | | | |
-| `render_stream_async()` | | | | | x | | |
-| `{% extends %}` / `{% block %}` | | x | | | | | |
-| `{% include %}` | | x | x | | | | |
-| `{% def %}` / `{% call %}` / `{% slot %}` | | | x | | | | |
-| `{% async for %}` / `{{ await }}` | | | | | x | | |
-| `{% cache %}` | | | | | | x | |
-| `{% match %}` / `{% case %}` | | | | | | | x |
-| `\|>` pipeline | | | | | | | x |
-| `??` null coalescing | | | | | | | x |
-| `?.` optional chaining | | | | | | | x |
+| Feature | hello | file_loader | components | streaming | async_rendering | caching | modern_syntax | introspection | htmx_partials | bytecode_cache | design_system | fastapi_async | llm_streaming | concurrent | profiling |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `from_string()` | x | | | | | | | | | | | | | x | |
+| `FileSystemLoader` | | x | x | x | | x | x | x | x | x | x | x | x | | x |
+| `render()` | x | x | x | | | x | x | x | x | x | x | | | x | x |
+| `render_stream()` | | | | x | | | | | | | | | | | |
+| `render_stream_async()` | | | | | x | | | | | | | x | x | | |
+| `render_block()` | | | | | | | | | x | | | | | | |
+| `{% extends %}` / `{% block %}` | | x | | | | | | x | x | | | | | | x |
+| `{% include %}` | | x | x | | | | | | | | | | | | |
+| `{% def %}` / `{% call %}` / `{% slot %}` | | | x | | | | | | | | x | | | | x |
+| `{% async for %}` / `{{ await }}` | | | | | x | | | | | | | x | x | | |
+| `{% cache %}` | | | | | | x | | | | | | | | | |
+| `{% match %}` / `{% case %}` | | | | | | | x | | | | | | | | |
+| `\|>` pipeline | | | | | | | x | | | | | | | | |
+| `??` null coalescing | | | | | | | x | | | | | | | | |
+| `?.` optional chaining | | | | | | | x | | | | | | | | |
+| `required_context()` | | | | | | | | x | | | | | | | |
+| `block_metadata()` | | | | | | | | x | | | | | | | |
+| `validate_context()` | | | | | | | | x | | | | | | | |
+| `depends_on()` | | | | | | | | x | | | | | | | |
+| `template_metadata()` | | | | | | | | x | | | | | | | |
+| `BytecodeCache` | | | | | | | | | | x | | | | | |
+| `profiled_render()` | | | | | | | | | | | | | | | x |
+| `ThreadPoolExecutor` | | | | | | | | | | | | | | x | |
+| FastAPI integration | | | | | | | | | | | | x | | | |
+| Filters (`upper`, `truncate`, etc.) | | | | | | | | | | | | | | | x |
