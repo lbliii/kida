@@ -391,3 +391,72 @@ class TestLoaderCoverage:
         templates = loader.list_templates()
         assert "a/x.html" in templates
         assert "b/y.html" in templates
+
+
+# ── classes filter ───────────────────────────────────────────────────────
+
+
+class TestClassesFilter:
+    """Test the classes filter that joins CSS class names."""
+
+    def test_drops_falsy_values(self) -> None:
+        env = Environment()
+        t = env.from_string('{{ ["a", "", "b", none, "c"] | classes }}')
+        assert t.render() == "a b c"
+
+    def test_conditional_classes(self) -> None:
+        env = Environment()
+        t = env.from_string('{{ ["card", "active" if a, "done" if d] | classes }}')
+        assert t.render(a=True, d=False) == "card active"
+        assert t.render(a=True, d=True) == "card active done"
+        assert t.render(a=False, d=False) == "card"
+
+    def test_empty_list(self) -> None:
+        env = Environment()
+        t = env.from_string("{{ [] | classes }}")
+        assert t.render() == ""
+
+    def test_none_input(self) -> None:
+        env = Environment()
+        t = env.from_string("{{ x | classes }}")
+        assert t.render(x=None) == ""
+
+    def test_nested_list_flattened(self) -> None:
+        env = Environment()
+        from kida.environment.filters import _filter_classes
+
+        assert _filter_classes([["a", "b"], "c"]) == "a b c"
+
+    def test_drops_false_and_zero(self) -> None:
+        from kida.environment.filters import _filter_classes
+
+        assert _filter_classes(["a", False, 0, "b"]) == "a b"
+
+
+# ── decimal filter ───────────────────────────────────────────────────────
+
+
+class TestDecimalFilter:
+    """Test the decimal filter for number formatting."""
+
+    def test_default_two_places(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ 3.1 | decimal }}").render() == "3.10"
+
+    def test_custom_places(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ 3.14159 | decimal(1) }}").render() == "3.1"
+        assert env.from_string("{{ 3.14159 | decimal(3) }}").render() == "3.142"
+
+    def test_zero_places(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ 42.7 | decimal(0) }}").render() == "43"
+
+    def test_integer_input(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ 100 | decimal }}").render() == "100.00"
+
+    def test_non_numeric_passthrough(self) -> None:
+        from kida.environment.filters import _filter_decimal
+
+        assert _filter_decimal("not a number") == "not a number"

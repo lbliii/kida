@@ -458,3 +458,67 @@ class TestInheritanceWithScoping:
         env = Environment(loader=loader)
         my_dict = {}
         assert env.get_template("child.html").render(my_dict=my_dict) == "<html>1</html>"
+
+
+# ── Conditional blocks ───────────────────────────────────────────────────
+
+
+class TestConditionalBlocks:
+    """Test {% block name if condition %} syntax."""
+
+    def test_block_if_true_renders(self):
+        env = Environment()
+        t = env.from_string("{% block greeting if show %}Hello{% end %}")
+        assert t.render(show=True) == "Hello"
+
+    def test_block_if_false_skips(self):
+        env = Environment()
+        t = env.from_string("{% block greeting if show %}Hello{% end %}")
+        assert t.render(show=False) == ""
+
+    def test_block_if_with_expression(self):
+        env = Environment()
+        t = env.from_string("{% block items if items | length > 0 %}{{ items | length }}{% end %}")
+        assert t.render(items=[1, 2]) == "2"
+        assert t.render(items=[]) == ""
+
+    def test_block_without_condition_unchanged(self):
+        env = Environment()
+        t = env.from_string("{% block always %}Always{% end %}")
+        assert t.render() == "Always"
+
+    def test_block_if_with_inheritance(self):
+        loader = DictLoader(
+            {
+                "base.html": (
+                    "HEADER"
+                    "{% block detail if show_detail %}DEFAULT{% end %}"
+                    "FOOTER"
+                ),
+                "child.html": (
+                    '{% extends "base.html" %}'
+                    "{% block detail %}CHILD{% end %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        # Condition is on the base template — child inherits the guard
+        assert env.get_template("base.html").render(show_detail=True) == "HEADERDEFAULTFOOTER"
+        assert env.get_template("base.html").render(show_detail=False) == "HEADERFOOTER"
+
+    def test_block_if_falsy_values(self):
+        """Various falsy values should all skip the block."""
+        env = Environment()
+        t = env.from_string("{% block x if cond %}Y{% end %}")
+        assert t.render(cond=None) == ""
+        assert t.render(cond=0) == ""
+        assert t.render(cond="") == ""
+        assert t.render(cond=[]) == ""
+
+    def test_block_if_truthy_values(self):
+        """Various truthy values should all render the block."""
+        env = Environment()
+        t = env.from_string("{% block x if cond %}Y{% end %}")
+        assert t.render(cond=1) == "Y"
+        assert t.render(cond="yes") == "Y"
+        assert t.render(cond=[1]) == "Y"

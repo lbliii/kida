@@ -386,3 +386,69 @@ class TestIntegration:
         result = tmpl.render()
         assert "Hi World" in result
         assert "<html>" in result
+
+
+# ── has_slot() introspection ─────────────────────────────────────────────
+
+
+class TestHasSlot:
+    """Test has_slot() inside {% def %} bodies."""
+
+    @pytest.fixture
+    def env(self):
+        return Environment()
+
+    def test_has_slot_true_with_call(self, env):
+        """has_slot() returns True when def is invoked via {% call %}."""
+        tmpl = env.from_string(
+            "{% def box() %}"
+            "{% if has_slot() %}HAS{% else %}NO{% end %}"
+            "{% end %}"
+            "{% call box() %}body{% end %}"
+        )
+        assert "HAS" in tmpl.render()
+
+    def test_has_slot_false_direct_call(self, env):
+        """has_slot() returns False when def is called directly."""
+        tmpl = env.from_string(
+            "{% def box() %}"
+            "{% if has_slot() %}HAS{% else %}NO{% end %}"
+            "{% end %}"
+            "{{ box() }}"
+        )
+        assert "NO" in tmpl.render()
+
+    def test_has_slot_conditional_slot_rendering(self, env):
+        """has_slot() enables conditional slot wrapper elements."""
+        tmpl = env.from_string(
+            "{% def card(title) %}"
+            "<h3>{{ title }}</h3>"
+            "{% if has_slot() %}<div>{% slot %}</div>{% end %}"
+            "{% end %}"
+            "{% call card('A') %}content{% end %}"
+            "|"
+            "{{ card('B') }}"
+        )
+        result = tmpl.render()
+        assert "<div>content</div>" in result
+        assert "B</h3>" in result
+        # The no-slot call should NOT have the wrapper div
+        parts = result.split("|")
+        assert "<div>" in parts[0]
+        assert "<div>" not in parts[1]
+
+    def test_has_slot_with_args(self, env):
+        """has_slot() works correctly when def has arguments."""
+        tmpl = env.from_string(
+            "{% def item(label, count) %}"
+            "{{ label }}({{ count }})"
+            "{% if has_slot() %}+{% slot %}{% end %}"
+            "{% end %}"
+            "{% call item('A', 1) %}extra{% end %}"
+            "|"
+            "{{ item('B', 2) }}"
+        )
+        result = tmpl.render()
+        assert "A(1)+extra" in result
+        assert "B(2)" in result
+        assert "B(2)+" not in result

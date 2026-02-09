@@ -140,6 +140,63 @@ class TestIsDefinedTest:
         assert result == "no"
 
 
+class TestIsDefinedAttributeChains:
+    """Test that 'is defined' works correctly for attribute chains.
+
+    Regression tests for the bug where ``pokemon.name is defined``
+    returned True when ``pokemon`` was a list (no ``.name`` attribute).
+    """
+
+    @pytest.fixture
+    def env(self) -> Environment:
+        return Environment()
+
+    def test_missing_attr_on_list_is_not_defined(self, env: Environment) -> None:
+        t = env.from_string("{% if items.name is defined %}yes{% else %}no{% end %}")
+        assert t.render(items=[1, 2, 3]) == "no"
+
+    def test_missing_attr_on_int_is_not_defined(self, env: Environment) -> None:
+        t = env.from_string("{% if x.foo is defined %}yes{% else %}no{% end %}")
+        assert t.render(x=42) == "no"
+
+    def test_existing_attr_on_dict_is_defined(self, env: Environment) -> None:
+        t = env.from_string("{% if obj.name is defined %}yes{% else %}no{% end %}")
+        assert t.render(obj={"name": "hello"}) == "yes"
+
+    def test_missing_key_on_dict_is_not_defined(self, env: Environment) -> None:
+        t = env.from_string("{% if obj.missing is defined %}yes{% else %}no{% end %}")
+        assert t.render(obj={"name": "hello"}) == "no"
+
+    def test_attr_on_none_is_not_defined(self, env: Environment) -> None:
+        t = env.from_string("{% if obj.name is defined %}yes{% else %}no{% end %}")
+        assert t.render(obj=None) == "no"
+
+    def test_existing_attr_on_object_is_defined(self, env: Environment) -> None:
+        class Obj:
+            name = "test"
+
+        t = env.from_string("{% if obj.name is defined %}yes{% else %}no{% end %}")
+        assert t.render(obj=Obj()) == "yes"
+
+    def test_is_undefined_for_missing_attr(self, env: Environment) -> None:
+        t = env.from_string("{% if items.name is undefined %}yes{% else %}no{% end %}")
+        assert t.render(items=[1, 2]) == "yes"
+
+    def test_is_not_defined_for_missing_attr(self, env: Environment) -> None:
+        t = env.from_string("{% if items.name is not defined %}yes{% else %}no{% end %}")
+        assert t.render(items=[1, 2]) == "yes"
+
+    def test_undefined_attr_renders_empty(self, env: Environment) -> None:
+        """Missing attributes still render as empty string in output."""
+        t = env.from_string("{{ items.name }}")
+        assert t.render(items=[1, 2]) == ""
+
+    def test_undefined_attr_is_falsy_in_if(self, env: Environment) -> None:
+        """Missing attributes are falsy in plain {% if %} guards."""
+        t = env.from_string("{% if items.name %}yes{% else %}no{% end %}")
+        assert t.render(items=[1, 2]) == "no"
+
+
 class TestStrictModeEdgeCases:
     """Test edge cases and complex scenarios with strict mode."""
 
