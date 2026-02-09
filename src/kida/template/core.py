@@ -639,6 +639,7 @@ class Template(TemplateIntrospectionMixin):
         with render_context(
             template_name=self._name,
             filename=self._filename,
+            source=self._source,
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
         ) as render_ctx:
@@ -721,6 +722,7 @@ class Template(TemplateIntrospectionMixin):
         with render_context(
             template_name=self._name,
             filename=self._filename,
+            source=self._source,
         ) as render_ctx:
             try:
                 # Run {% globals %} setup if present — injects macros/variables into ctx
@@ -793,6 +795,7 @@ class Template(TemplateIntrospectionMixin):
         with render_context(
             template_name=self._name,
             filename=self._filename,
+            source=self._source,
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
         ) as render_ctx:
@@ -832,11 +835,12 @@ class Template(TemplateIntrospectionMixin):
         """Enhance a generic exception with template context from RenderContext.
 
         Converts generic Python exceptions into TemplateRuntimeError with
-        template name and line number context read from RenderContext.
+        template name, line number, and source snippet context.
         """
         from kida.environment.exceptions import (
             NoneComparisonError,
             TemplateRuntimeError,
+            build_source_snippet,
         )
 
         template_name = render_ctx.template_name
@@ -855,6 +859,12 @@ class Template(TemplateIntrospectionMixin):
             else:
                 error_str = f"{error_type} (no details available)"
 
+        # Build source snippet from template source
+        snippet = None
+        source = self._source
+        if source and lineno:
+            snippet = build_source_snippet(source, lineno)
+
         # Handle None comparison errors specially
         if isinstance(error, TypeError) and "NoneType" in error_str:
             return NoneComparisonError(
@@ -863,12 +873,14 @@ class Template(TemplateIntrospectionMixin):
                 template_name=template_name,
                 lineno=lineno,
                 expression="<see stack trace>",
+                source_snippet=snippet,
             )
 
         return TemplateRuntimeError(
             error_str,
             template_name=template_name,
             lineno=lineno,
+            source_snippet=snippet,
         )
 
     async def render_async(self, *args: Any, **kwargs: Any) -> str:
@@ -934,6 +946,7 @@ class Template(TemplateIntrospectionMixin):
         async with async_render_context(
             template_name=self._name,
             filename=self._filename,
+            source=self._source,
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
         ) as render_ctx:
@@ -1016,6 +1029,7 @@ class Template(TemplateIntrospectionMixin):
         async with async_render_context(
             template_name=self._name,
             filename=self._filename,
+            source=self._source,
         ):
             if async_func is not None:
                 async for chunk in async_func(ctx, {}):

@@ -41,10 +41,12 @@ Example:
 
 from kida.environment.core import Environment
 from kida.environment.exceptions import (
+    SourceSnippet,
     TemplateError,
     TemplateNotFoundError,
     TemplateSyntaxError,
     UndefinedError,
+    build_source_snippet,
 )
 from kida.environment.loaders import (
     ChoiceLoader,
@@ -68,9 +70,11 @@ __all__ = [
     "Loader",
     "PackageLoader",
     "PrefixLoader",
+    "SourceSnippet",
     "TemplateError",
     "TemplateNotFoundError",
     "TemplateSyntaxError",
     "Test",
     "UndefinedError",
+    "build_source_snippet",
 ]

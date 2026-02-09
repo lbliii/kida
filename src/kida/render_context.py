@@ -57,6 +57,9 @@ class RenderContext:
     template_name: str | None = None
     filename: str | None = None
 
+    # Template source (for runtime error snippets)
+    source: str | None = None
+
     # Current source position (updated during render by generated code)
     line: int = 0
 
@@ -104,6 +107,7 @@ class RenderContext:
         return RenderContext(
             template_name=template_name or self.template_name,
             filename=self.filename,
+            source=None,  # Child templates load their own source
             line=0,
             include_depth=self.include_depth + 1,
             max_include_depth=self.max_include_depth,
@@ -150,6 +154,7 @@ def get_render_context_required() -> RenderContext:
 def render_context(
     template_name: str | None = None,
     filename: str | None = None,
+    source: str | None = None,
     cached_blocks: dict[str, str] | None = None,
     cache_stats: dict[str, int] | None = None,
 ) -> Iterator[RenderContext]:
@@ -162,6 +167,7 @@ def render_context(
     Args:
         template_name: Template name for error messages
         filename: Source file path for error messages
+        source: Template source for runtime error snippets
         cached_blocks: Site-scoped block cache
         cache_stats: Optional dict for cache hit/miss tracking
 
@@ -176,6 +182,7 @@ def render_context(
     ctx = RenderContext(
         template_name=template_name,
         filename=filename,
+        source=source,
         cached_blocks=cached_blocks or {},
         cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
         cache_stats=cache_stats,
@@ -191,6 +198,7 @@ def render_context(
 async def async_render_context(
     template_name: str | None = None,
     filename: str | None = None,
+    source: str | None = None,
     cached_blocks: dict[str, str] | None = None,
     cache_stats: dict[str, int] | None = None,
 ) -> AsyncIterator[RenderContext]:
@@ -204,6 +212,7 @@ async def async_render_context(
     Args:
         template_name: Template name for error messages
         filename: Source file path for error messages
+        source: Template source for runtime error snippets
         cached_blocks: Site-scoped block cache
         cache_stats: Optional dict for cache hit/miss tracking
 
@@ -213,6 +222,7 @@ async def async_render_context(
     ctx = RenderContext(
         template_name=template_name,
         filename=filename,
+        source=source,
         cached_blocks=cached_blocks or {},
         cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
         cache_stats=cache_stats,

@@ -14,19 +14,84 @@ All exceptions provide rich error messages with:
 - Source location (template name, line number)
 - Expression context where error occurred
 - Actual values and their types
+- Source snippets showing the offending template line
 - Actionable suggestions for fixing
 
 Example:
     ```
     UndefinedError: Undefined variable 'titl' in article.html:5
-    Suggestion: Did you mean 'title'? Or use {{ titl | default('') }}
+       |
+     5 | <h1>{{ titl }}</h1>
+       |
+    Hint: Did you mean 'title'? Or use {{ titl | default('') }}
     ```
 
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
+
+
+@dataclass(frozen=True, slots=True)
+class SourceSnippet:
+    """Template source context around an error line.
+
+    Provides surrounding lines of template source for display in error
+    messages. Used by TemplateRuntimeError and UndefinedError to show
+    the template line where the error occurred.
+
+    Attributes:
+        lines: Tuple of (line_number, line_content) pairs around the error.
+        error_line: The 1-based line number where the error occurred.
+        column: Optional column offset for caret pointer.
+    """
+
+    lines: tuple[tuple[int, str], ...]
+    error_line: int
+    column: int | None = None
+
+    def format(self) -> str:
+        """Format snippet in Rust-inspired diagnostic style.
+
+        Returns a multi-line string with line numbers and the error line
+        highlighted. Matches the format used by TemplateSyntaxError and
+        LexerError for visual consistency.
+        """
+        parts: list[str] = ["   |"]
+        for lineno, content in self.lines:
+            marker = ">" if lineno == self.error_line else " "
+            parts.append(f"{marker}{lineno:>3} | {content}")
+        if self.column is not None:
+            parts.append(f"   | {' ' * self.column}^")
+        parts.append("   |")
+        return "\n".join(parts)
+
+
+def build_source_snippet(
+    source: str,
+    error_line: int,
+    *,
+    context_lines: int = 2,
+    column: int | None = None,
+) -> SourceSnippet:
+    """Build a SourceSnippet from template source.
+
+    Args:
+        source: Full template source text.
+        error_line: 1-based line number of the error.
+        context_lines: Number of lines to show before/after the error line.
+        column: Optional column offset for caret pointer.
+
+    Returns:
+        SourceSnippet with surrounding context lines.
+    """
+    all_lines = source.splitlines()
+    start = max(0, error_line - 1 - context_lines)
+    end = min(len(all_lines), error_line + context_lines)
+    lines = tuple((i + 1, all_lines[i]) for i in range(start, end))
+    return SourceSnippet(lines=lines, error_line=error_line, column=column)
 
 
 class TemplateError(Exception):
@@ -148,6 +213,7 @@ class TemplateRuntimeError(TemplateError):
         template_name: str | None = None,
         lineno: int | None = None,
         suggestion: str | None = None,
+        source_snippet: SourceSnippet | None = None,
     ):
         self.message = message
         self.expression = expression
@@ -155,6 +221,7 @@ class TemplateRuntimeError(TemplateError):
         self.template_name = template_name
         self.lineno = lineno
         self.suggestion = suggestion
+        self.source_snippet = source_snippet
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
@@ -166,6 +233,10 @@ class TemplateRuntimeError(TemplateError):
             if self.lineno:
                 loc += f":{self.lineno}"
             parts.append(f"  Location: {loc}")
+
+        # Source snippet (shows the template line where error occurred)
+        if self.source_snippet:
+            parts.append(self.source_snippet.format())
 
         # Expression info
         if self.expression:
@@ -296,11 +367,13 @@ class UndefinedError(TemplateError):
         template: str | None = None,
         lineno: int | None = None,
         available_names: frozenset[str] | None = None,
+        source_snippet: SourceSnippet | None = None,
     ):
         self.name = name
         self.template = template or "<template>"
         self.lineno = lineno
         self._available_names = available_names
+        self.source_snippet = source_snippet
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
@@ -318,6 +391,10 @@ class UndefinedError(TemplateError):
             )
             if matches:
                 msg += f". Did you mean '{matches[0]}'?"
+
+        # Source snippet (shows the template line where error occurred)
+        if self.source_snippet:
+            msg += "\n" + self.source_snippet.format()
 
         msg += f"\n  Hint: Use {{{{ {self.name} | default('') }}}} for optional variables"
         return msg

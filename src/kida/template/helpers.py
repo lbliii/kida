@@ -101,7 +101,7 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
         - Fast path (defined var): O(1) dict lookup
         - Error path: Raises UndefinedError with template context
     """
-    from kida.environment.exceptions import UndefinedError
+    from kida.environment.exceptions import UndefinedError, build_source_snippet
     from kida.render_context import get_render_context
 
     try:
@@ -111,11 +111,14 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
         render_ctx = get_render_context()
         template_name = render_ctx.template_name if render_ctx else None
         lineno = render_ctx.line if render_ctx else None
+        source = render_ctx.source if render_ctx else None
+        snippet = build_source_snippet(source, lineno) if source and lineno else None
         raise UndefinedError(
             var_name,
             template_name,
             lineno,
             available_names=frozenset(ctx.keys()),
+            source_snippet=snippet,
         ) from None
 
 
@@ -137,12 +140,14 @@ def lookup_scope(
         return ctx[var_name]
 
     # Not found - raise UndefinedError with available names for suggestions
-    from kida.environment.exceptions import UndefinedError
+    from kida.environment.exceptions import UndefinedError, build_source_snippet
     from kida.render_context import get_render_context
 
     render_ctx = get_render_context()
     template_name = render_ctx.template_name if render_ctx else None
     lineno = render_ctx.line if render_ctx else None
+    source = render_ctx.source if render_ctx else None
+    snippet = build_source_snippet(source, lineno) if source and lineno else None
 
     all_names: set[str] = set(ctx.keys())
     for scope in scope_stack:
@@ -153,6 +158,7 @@ def lookup_scope(
         template_name,
         lineno,
         available_names=frozenset(all_names),
+        source_snippet=snippet,
     ) from None
 
 
