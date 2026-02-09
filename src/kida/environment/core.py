@@ -260,8 +260,14 @@ class Environment:
 
         # Auto-detect from FileSystemLoader
         if isinstance(self.loader, FileSystemLoader) and self.loader._paths:
+            first_path = self.loader._paths[0]
+            # Only auto-create cache when the path is absolute — a relative
+            # or malformed path (e.g. from str(list_of_paths)) would pollute
+            # the working directory with garbage.
+            if not first_path.is_absolute():
+                return None
             # Use __pycache__/kida/ in first search path (follows Python convention)
-            cache_dir = self.loader._paths[0] / "__pycache__" / "kida"
+            cache_dir = first_path / "__pycache__" / "kida"
             return BytecodeCache(cache_dir)
 
         # No auto-detection possible (DictLoader, no loader, etc.)
@@ -483,7 +489,10 @@ class Environment:
                     parser = Parser(tokens, name, filename, source, autoescape=should_escape)
                     optimized_ast = parser.parse()
 
-                return Template(self, cached_code, name, filename, optimized_ast=optimized_ast)
+                return Template(
+                    self, cached_code, name, filename,
+                    optimized_ast=optimized_ast, source=source,
+                )
 
         # Tokenize
         lexer = Lexer(source, self._lexer_config)
@@ -522,7 +531,7 @@ class Environment:
         ):
             self._bytecode_cache.set(name, source_hash, code)
 
-        return Template(self, code, name, filename, optimized_ast=optimized_ast)
+        return Template(self, code, name, filename, optimized_ast=optimized_ast, source=source)
 
     def _is_template_stale(self, name: str) -> bool:
         """Check if a cached template is stale (source changed).

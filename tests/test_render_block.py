@@ -279,3 +279,57 @@ class TestGlobalsBlock:
         template = env.get_template("page")
         result = template.render_block("content")
         assert "ok" in result
+
+    def test_globals_from_import_in_render_block(self) -> None:
+        """{% from...import %} inside globals makes macros available in render_block()."""
+        env = _env(
+            macros='{% def greet(name) %}Hello, {{ name }}!{% end %}',
+            page=(
+                '{% globals %}{% from "macros" import greet %}{% end %}'
+                '{% block content %}{{ greet("World") }}{% endblock %}'
+            ),
+        )
+        template = env.get_template("page")
+        # Full render: macro is available
+        result = template.render()
+        assert "Hello, World!" in result
+        # Block render: macro is also available via globals setup
+        result = template.render_block("content")
+        assert "Hello, World!" in result
+
+    def test_globals_from_import_in_fragment(self) -> None:
+        """{% from...import %} inside globals works with {% fragment %} blocks."""
+        env = _env(
+            macros='{% def card(title) %}<div>{{ title }}</div>{% end %}',
+            page=(
+                '{% globals %}{% from "macros" import card %}{% end %}'
+                'Page content'
+                '{% fragment oob %}{{ card("Task 1") }}{% endfragment %}'
+            ),
+        )
+        template = env.get_template("page")
+        # Full render: fragment is skipped
+        result = template.render()
+        assert "Page content" in result
+        assert "Task 1" not in result
+        # Block render: macro from globals is available
+        result = template.render_block("oob")
+        assert "<div>Task 1</div>" in result
+
+    def test_globals_from_import_multiple(self) -> None:
+        """Multiple {% from...import %} in globals all propagate to render_block()."""
+        env = _env(
+            helpers='{% def bold(text) %}<b>{{ text }}</b>{% end %}',
+            icons='{% def icon(name) %}<i>{{ name }}</i>{% end %}',
+            page=(
+                '{% globals %}'
+                '{% from "helpers" import bold %}'
+                '{% from "icons" import icon %}'
+                '{% end %}'
+                '{% block content %}{{ bold("hi") }} {{ icon("star") }}{% endblock %}'
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("content")
+        assert "<b>hi</b>" in result
+        assert "<i>star</i>" in result

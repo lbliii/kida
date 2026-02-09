@@ -127,6 +127,7 @@ class Template(TemplateIntrospectionMixin):
         "_render_func",
         "_render_stream_async_func",  # RFC: rfc-async-rendering
         "_render_stream_func",
+        "_source",  # Template source for runtime error snippets
     )
 
     def __init__(
@@ -136,6 +137,7 @@ class Template(TemplateIntrospectionMixin):
         name: str | None,
         filename: str | None,
         optimized_ast: TemplateNode | None = None,
+        source: str | None = None,
     ):
         """Initialize template with compiled code.
 
@@ -146,6 +148,9 @@ class Template(TemplateIntrospectionMixin):
             filename: Source filename (for error messages)
             optimized_ast: Optional preserved AST for introspection.
                 If None, introspection methods return empty results.
+            source: Template source for runtime error snippets.
+                Stored for use by _enhance_error() to provide source
+                context in TemplateRuntimeError exceptions.
         """
         # Use weakref to prevent circular reference: Template <-> Environment
         self._env_ref: weakref.ref[Environment] = weakref.ref(env)
@@ -153,6 +158,7 @@ class Template(TemplateIntrospectionMixin):
         self._name = name
         self._filename = filename
         self._optimized_ast = optimized_ast
+        self._source = source
         self._metadata_cache: TemplateMetadata | None = None
 
         # Capture env reference for closures (will be dereferenced at call time)
