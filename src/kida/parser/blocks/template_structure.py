@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
-from kida.nodes import Block, Extends, FromImport, Import, Include
+from kida.nodes import Block, Extends, FromImport, Globals, Import, Include
 
 if TYPE_CHECKING:
     from kida.nodes import Expr, Node
@@ -78,6 +78,59 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
             col_offset=start.col_offset,
             name=name,
             body=tuple(body),
+        )
+
+    def _parse_globals_tag(self) -> Globals:
+        """Parse {% globals %}...{% end %} — setup block for render_block().
+
+        The globals block defines macros and variables that are available during
+        both full render() and render_block(). This solves the problem of macros
+        defined in base templates being invisible during fragment rendering.
+
+        Only one {% globals %} block is allowed per template.
+        """
+        start = self._advance()  # consume 'globals'
+        self._push_block("globals", start)
+
+        self._expect(TokenType.BLOCK_END)
+        body = self._parse_body()
+
+        # Consume end tag
+        self._consume_end_tag("globals")
+
+        return Globals(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            body=tuple(body),
+        )
+
+    def _parse_fragment_tag(self) -> Block:
+        """Parse {% fragment name %}...{% end %} — fragment-only block.
+
+        Fragment blocks are skipped during full template render() and only
+        rendered when explicitly requested via render_block(). This avoids
+        UndefinedError for blocks whose variables are only provided during
+        fragment rendering (e.g., htmx OOB swaps, SSE partials).
+        """
+        start = self._advance()  # consume 'fragment'
+        self._push_block("fragment", start)
+
+        if self._current.type != TokenType.NAME:
+            raise self._error("Expected fragment block name")
+        name = self._advance().value
+
+        self._expect(TokenType.BLOCK_END)
+        body = self._parse_body()
+
+        # Consume end tag
+        self._consume_end_tag("fragment")
+
+        return Block(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            name=name,
+            body=tuple(body),
+            fragment=True,
         )
 
     def _parse_extends(self) -> Extends:

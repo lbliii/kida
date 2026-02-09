@@ -70,6 +70,8 @@ class BlockStackMixin:
             "endembed",
             "endunless",  # RFC: kida-modern-syntax-features
             "endwhile",  # RFC: kida-2.0-moonshot
+            "endfragment",
+            "endglobals",
         }
     )
 

@@ -125,6 +125,8 @@ class Block(Node):
         body: Block content
         scoped: If True, block has its own variable scope
         required: If True, child templates must override this block
+        fragment: If True, block is skipped during full render() and only
+            rendered via render_block(). Use {% fragment name %} syntax.
 
     """
 
@@ -132,6 +134,28 @@ class Block(Node):
     body: Sequence[Node]
     scoped: bool = False
     required: bool = False
+    fragment: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Globals(Node):
+    """Setup block for macros/variables available during render_block().
+
+    {% globals %}
+      {% def field(name, label) %}...{% end %}
+      {% set config = {...} %}
+    {% end %}
+
+    During render(): executed once before blocks (like top-level code).
+    During render_block(): also executed before the target block, injecting
+    macros and variables into the block's context.
+
+    The globals block cannot produce output — it's a setup-only block.
+    Only one {% globals %} block per template is allowed.
+
+    """
+
+    body: Sequence[Node]
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,9 +317,19 @@ class Match(Node):
             {% case _ %}Other
         {% end %}
 
+    Valueless match (switch-true):
+        {% match %}
+            {% case _ if user.is_admin %}<span class="badge">Admin</span>
+            {% case _ if user.is_mod %}<span class="badge">Mod</span>
+            {% case _ %}<span class="badge">Member</span>
+        {% end %}
+
+    When subject is None, cases are compiled as a pure if/elif/else chain
+    using only guard expressions. Non-wildcard patterns are not allowed.
+
     """
 
-    subject: Expr
+    subject: Expr | None
     cases: Sequence[tuple[Expr, Expr | None, Sequence[Node]]]  # (pattern, guard, body)
 
 

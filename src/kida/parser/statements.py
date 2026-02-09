@@ -42,6 +42,8 @@ _BLOCK_PARSERS: dict[str, str] = {
     "export": "_parse_export",
     # Template structure
     "block": "_parse_block_tag",
+    "fragment": "_parse_fragment_tag",
+    "globals": "_parse_globals_tag",
     "extends": "_parse_extends",
     "include": "_parse_include",
     "import": "_parse_import",
@@ -81,6 +83,8 @@ _END_KEYWORDS: frozenset[str] = frozenset(
         "endmatch",
         "endspaceless",
         "endembed",
+        "endfragment",
+        "endglobals",
     }
 )
 

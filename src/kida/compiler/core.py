@@ -244,6 +244,11 @@ class Compiler(
 
         module_body: list[ast.stmt] = []
 
+        # Detect {% globals %} blocks and compile _globals_setup function
+        globals_setup = self._make_globals_setup(node)
+        if globals_setup is not None:
+            module_body.append(globals_setup)
+
         for block_name, block_node in saved_blocks.items():
             module_body.append(self._make_block_function(block_name, block_node))
         module_body.append(render_func)
@@ -286,6 +291,76 @@ class Compiler(
         return ast.Module(
             body=module_body,
             type_ignores=[],
+        )
+
+    def _make_globals_setup(self, node: TemplateNode) -> ast.FunctionDef | None:
+        """Generate _globals_setup(ctx) from {% globals %} blocks.
+
+        Scans the template body for Globals nodes and compiles their contents
+        into a setup function. This function is called by render_block() to
+        inject macros and variables into the block's context.
+
+        Returns None if no {% globals %} blocks exist.
+        """
+        from kida.nodes import Globals
+
+        globals_nodes = [n for n in node.body if isinstance(n, Globals)]
+        if not globals_nodes:
+            return None
+
+        # Compile all globals block bodies
+        body_stmts: list[ast.stmt] = [
+            # _scope_stack = [] (needed by {% set %} statements)
+            ast.Assign(
+                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            ),
+            # buf = [] (needed as no-op target for any accidental output)
+            ast.Assign(
+                targets=[ast.Name(id="buf", ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            ),
+            # _append = buf.append
+            ast.Assign(
+                targets=[ast.Name(id="_append", ctx=ast.Store())],
+                value=ast.Attribute(
+                    value=ast.Name(id="buf", ctx=ast.Load()),
+                    attr="append",
+                    ctx=ast.Load(),
+                ),
+            ),
+            # _e = _escape (needed for compiled def bodies)
+            ast.Assign(
+                targets=[ast.Name(id="_e", ctx=ast.Store())],
+                value=ast.Name(id="_escape", ctx=ast.Load()),
+            ),
+            # _s = _str
+            ast.Assign(
+                targets=[ast.Name(id="_s", ctx=ast.Store())],
+                value=ast.Name(id="_str", ctx=ast.Load()),
+            ),
+            # _acc = None (profiling disabled in globals setup)
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Constant(value=None),
+            ),
+        ]
+
+        for globals_node in globals_nodes:
+            for child in globals_node.body:
+                body_stmts.extend(self._compile_node(child))
+
+        return ast.FunctionDef(
+            name="_globals_setup",
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg="ctx")],
+                kwonlyargs=[],
+                kw_defaults=[],
+                defaults=[],
+            ),
+            body=body_stmts or [ast.Pass()],
+            decorator_list=[],
         )
 
     def _make_block_function(self, name: str, block_node: Block) -> ast.FunctionDef:
@@ -1055,6 +1130,7 @@ class Compiler(
                 "Import": self._compile_import,
                 "Include": self._compile_include,
                 "Block": self._compile_block,
+                "Globals": self._compile_globals,
                 "Def": self._compile_def,
                 "CallBlock": self._compile_call_block,
                 "Slot": self._compile_slot,

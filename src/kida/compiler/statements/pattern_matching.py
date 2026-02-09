@@ -57,7 +57,18 @@ class PatternMatchingMixin:
                 logo = _match_subject_N[0]
                 if logo:
                     ...
+
+        Valueless match (switch-true):
+            {% match %}
+                {% case _ if user.is_admin %}Admin
+                {% case _ %}Member
+            {% end %}
+
+        When subject is None, generates pure if/elif/else using guard expressions only.
         """
+        # Valueless match: compile as pure if/elif/else chain from guards
+        if node.subject is None:
+            return self._compile_valueless_match(node)
 
         stmts: list[ast.stmt] = []
 
@@ -168,6 +179,65 @@ class PatternMatchingMixin:
             stmts.extend(orelse)
 
         return stmts
+
+    def _compile_valueless_match(self, node: Match) -> list[ast.stmt]:
+        """Compile valueless {% match %} as pure if/elif/else chain.
+
+        Each case must use wildcard pattern (_) with an optional guard.
+        Non-wildcard patterns are a compile error since there's no subject.
+
+        {% match %}
+            {% case _ if x > 0 %}positive
+            {% case _ if x == 0 %}zero
+            {% case _ %}negative
+        {% end %}
+
+        Generates:
+            if x > 0:
+                _append('positive')
+            elif x == 0:
+                _append('zero')
+            else:
+                _append('negative')
+        """
+        from kida.nodes import Name as KidaName
+
+        if not node.cases:
+            return []
+
+        orelse: list[ast.stmt] = []
+
+        for pattern_expr, guard_expr, case_body in reversed(node.cases):
+            # Validate: only wildcard patterns allowed in valueless match
+            is_wildcard = isinstance(pattern_expr, KidaName) and pattern_expr.name == "_"
+            if not is_wildcard:
+                raise RuntimeError(
+                    "Valueless {% match %} only allows wildcard (_) patterns. "
+                    "Use {% match subject %} for value-based pattern matching."
+                )
+
+            # Compile case body
+            body_stmts: list[ast.stmt] = []
+            for child in case_body:
+                body_stmts.extend(self._compile_node(child))
+            if not body_stmts:
+                body_stmts = [ast.Pass()]
+
+            if guard_expr is None:
+                # {% case _ %} with no guard = else branch
+                # Just set body as orelse for the previous if
+                orelse = body_stmts
+            else:
+                # {% case _ if guard %} = elif guard
+                compiled_guard = self._compile_expr(guard_expr)
+                if_node = ast.If(
+                    test=compiled_guard,
+                    body=body_stmts,
+                    orelse=orelse,
+                )
+                orelse = [if_node]
+
+        return orelse
 
     def _make_pattern_match(
         self, pattern: Node, subject_ast: ast.expr

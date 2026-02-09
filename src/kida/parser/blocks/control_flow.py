@@ -412,13 +412,24 @@ class ControlFlowBlockParsingMixin(BlockStackMixin):
                 {% case _ %}...
             {% end %}
 
+        Valueless match (switch-true):
+            {% match %}
+                {% case _ if user.is_admin %}Admin
+                {% case _ %}Member
+            {% end %}
+
         The underscore (_) is the wildcard/default case.
         """
         start = self._advance()  # consume 'match'
         self._push_block("match", start)
 
-        # Parse subject expression (supports implicit tuples: {% match a, b %})
-        subject = self._parse_tuple_or_expression()
+        # Valueless match: {% match %} with no subject expression
+        subject: Expr | None
+        if self._current.type == TokenType.BLOCK_END:
+            subject = None
+        else:
+            # Parse subject expression (supports implicit tuples: {% match a, b %})
+            subject = self._parse_tuple_or_expression()
         self._expect(TokenType.BLOCK_END)
 
         cases: list[tuple[Expr, Expr | None, Sequence[Node]]] = []

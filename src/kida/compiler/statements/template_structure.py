@@ -12,7 +12,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Block, FromImport, Import, Include, Node
+    from kida.nodes import Block, FromImport, Globals, Import, Include, Node
 
 
 class TemplateStructureMixin:
@@ -36,6 +36,7 @@ class TemplateStructureMixin:
 
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
+        def _compile_node(self, node: Node) -> list[ast.stmt]: ...
 
     def _yield_from_or_async_for(self, call_expr: ast.expr) -> list[ast.stmt]:
         """Generate yield from (sync) or async for + yield (async).
@@ -63,13 +64,33 @@ class TemplateStructureMixin:
             ]
         return [ast.Expr(value=ast.YieldFrom(value=call_expr))]
 
+    def _compile_globals(self, node: Globals) -> list[ast.stmt]:
+        """Compile {% globals %}...{% end %} inline during full render.
+
+        During render(), the globals body is compiled transparently — its
+        statements execute as part of the normal template flow. The separate
+        _globals_setup function for render_block() is handled by _compile_template.
+        """
+        stmts: list[ast.stmt] = []
+        for child in node.body:
+            stmts.extend(self._compile_node(child))
+        return stmts
+
     def _compile_block(self, node: Block) -> list[ast.stmt]:
         """Compile {% block name %} ... {% endblock %.
 
         StringBuilder: _append(_blocks.get('name', _block_name)(ctx, _blocks))
         Streaming: yield from _blocks.get('name', _block_name_stream)(ctx, _blocks)
         Async streaming: async for _chunk in _blocks.get(...): yield _chunk
+
+        Fragment blocks (node.fragment=True) are skipped entirely during
+        full template render — they emit no output. The block function is
+        still compiled and accessible via render_block().
         """
+        # Fragment blocks: skip during full render, only accessible via render_block()
+        if node.fragment:
+            return []
+
         block_name = node.name
 
         if self._streaming:

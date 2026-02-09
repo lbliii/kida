@@ -285,3 +285,60 @@ class TestMatchParser:
 
         with pytest.raises(ParseError):
             env.from_string("{% case 1 %}One{% end %}")
+
+
+class TestValuelessMatch:
+    """Tests for valueless {% match %} (switch-true pattern)."""
+
+    def test_valueless_match_first_guard(self, env):
+        """First matching guard wins."""
+        template = env.from_string(
+            "{% match %}"
+            "{% case _ if x > 0 %}positive"
+            "{% case _ if x == 0 %}zero"
+            "{% case _ %}negative"
+            "{% end %}"
+        )
+        assert template.render(x=5).strip() == "positive"
+        assert template.render(x=0).strip() == "zero"
+        assert template.render(x=-3).strip() == "negative"
+
+    def test_valueless_match_default_only(self, env):
+        """Wildcard with no guard is the default branch."""
+        template = env.from_string(
+            "{% match %}{% case _ %}always{% end %}"
+        )
+        assert template.render().strip() == "always"
+
+    def test_valueless_match_no_match(self, env):
+        """No output when no guard matches and no default."""
+        template = env.from_string(
+            "{% match %}"
+            "{% case _ if x > 100 %}big"
+            "{% end %}"
+        )
+        assert template.render(x=1).strip() == ""
+
+    def test_valueless_match_with_complex_guards(self, env):
+        """Guards can use complex expressions."""
+        template = env.from_string(
+            "{% match %}"
+            '{% case _ if role == "admin" %}Admin'
+            '{% case _ if role == "mod" %}Moderator'
+            "{% case _ %}Member"
+            "{% end %}"
+        )
+        assert template.render(role="admin").strip() == "Admin"
+        assert template.render(role="mod").strip() == "Moderator"
+        assert template.render(role="user").strip() == "Member"
+
+    def test_valueless_match_with_body_content(self, env):
+        """Case bodies can contain HTML and expressions."""
+        template = env.from_string(
+            "{% match %}"
+            '{% case _ if level > 5 %}<span class="high">{{ name }}</span>'
+            '{% case _ %}<span class="low">{{ name }}</span>'
+            "{% end %}"
+        )
+        assert '<span class="high">Alice</span>' in template.render(level=10, name="Alice")
+        assert '<span class="low">Bob</span>' in template.render(level=2, name="Bob")

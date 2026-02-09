@@ -717,6 +717,11 @@ class Template(TemplateIntrospectionMixin):
             filename=self._filename,
         ) as render_ctx:
             try:
+                # Run {% globals %} setup if present — injects macros/variables into ctx
+                globals_setup = self._namespace.get("_globals_setup")
+                if globals_setup is not None:
+                    globals_setup(ctx)
+
                 result: str = block_func(ctx, {})
                 return result
             except TemplateRuntimeError:
