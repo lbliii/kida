@@ -18,6 +18,54 @@ from typing import Any
 from kida.render_accumulator import get_accumulator as _get_accumulator
 from kida.utils.html import _SPACELESS_RE, Markup
 
+
+# =============================================================================
+# Undefined Sentinel
+# =============================================================================
+# Returned by _safe_getattr when attribute access fails. Distinguished from
+# real values by is_defined() so that ``x.missing_attr is defined`` is False.
+# Stringifies as "" and is falsy — matching Kida's existing behavior for
+# missing attributes in template output.
+#
+# Thread-Safety: Singleton, immutable, no mutable state.
+# =============================================================================
+
+
+class _Undefined:
+    """Sentinel for failed attribute access on objects.
+
+    - ``str(_Undefined())`` returns ``""`` (template output unchanged)
+    - ``bool(_Undefined())`` returns ``False`` (falsy guard works)
+    - ``is_defined()`` recognises it as "not defined"
+    """
+
+    __slots__ = ()
+
+    def __str__(self) -> str:
+        return ""
+
+    def __repr__(self) -> str:
+        return "Undefined"
+
+    def __bool__(self) -> bool:
+        return False
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _Undefined)
+
+    def __hash__(self) -> int:
+        return hash(type(self))
+
+    def __iter__(self):  # noqa: ANN204
+        """Empty iterator so ``{% for x in missing %}`` silently yields nothing."""
+        return iter(())
+
+    def __len__(self) -> int:
+        return 0
+
+
+UNDEFINED = _Undefined()
+
 # =============================================================================
 # Shared Base Namespace (Performance Optimization)
 # =============================================================================
@@ -44,6 +92,7 @@ STATIC_NAMESPACE: dict[str, Any] = {
     "_float": float,
     "_get_accumulator": _get_accumulator,
     "_perf_counter": _perf_counter,
+    "_UNDEFINED": UNDEFINED,
 }
 
 
@@ -202,18 +251,26 @@ def is_defined(value_fn: Callable[[], Any]) -> bool:
     In strict mode, we need to catch UndefinedError to determine
     if a variable is defined.
 
+    A value is considered *undefined* when:
+    - The variable doesn't exist (raises UndefinedError)
+    - The value is ``None``
+    - The value is the ``_Undefined`` sentinel (failed attribute access)
+
+    This means ``obj.missing_attr is defined`` correctly returns False
+    even when ``obj`` itself exists, because ``_safe_getattr`` returns
+    the ``UNDEFINED`` sentinel for missing attributes.
+
     Args:
         value_fn: A lambda that evaluates the value expression
 
     Returns:
-        True if the value is defined (doesn't raise UndefinedError
-        and is not None), False otherwise
+        True if the value is defined, False otherwise
     """
     from kida.environment.exceptions import UndefinedError
 
     try:
         value = value_fn()
-        return value is not None
+        return value is not None and not isinstance(value, _Undefined)
     except UndefinedError:
         return False
 
@@ -278,6 +335,10 @@ def coerce_numeric(value: Any) -> int | float:
     Returns:
         int if value parses as integer, float if decimal, 0 for non-numeric
     """
+    # Undefined sentinel → 0
+    if isinstance(value, _Undefined):
+        return 0
+
     # Fast path: already numeric (but not bool, which is a subclass of int)
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return value

@@ -64,13 +64,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from kida.template.helpers import _Undefined
+
 
 def _apply_test(value: Any, test_name: str, *args: Any) -> bool:
     """Apply a test to a value."""
     if test_name == "defined":
-        return value is not None
+        return value is not None and not isinstance(value, _Undefined)
     if test_name == "undefined":
-        return value is None
+        return value is None or isinstance(value, _Undefined)
     if test_name == "none":
         return value is None
     if test_name == "equalto" or test_name == "eq" or test_name == "sameas":
@@ -111,8 +113,8 @@ def _test_callable(value: Any) -> bool:
 
 
 def _test_defined(value: Any) -> bool:
-    """Test if value is defined (not None)."""
-    return value is not None
+    """Test if value is defined (not None and not the Undefined sentinel)."""
+    return value is not None and not isinstance(value, _Undefined)
 
 
 def _test_divisible_by(value: int, num: int) -> bool:

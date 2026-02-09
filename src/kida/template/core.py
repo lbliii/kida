@@ -47,6 +47,7 @@ from typing import TYPE_CHECKING, Any
 from kida.template.cached_blocks import CachedBlocksDict
 from kida.template.helpers import (
     STATIC_NAMESPACE,
+    UNDEFINED,
     coerce_numeric,
     default_safe,
     is_defined,
@@ -1062,13 +1063,19 @@ class Template(TemplateIntrospectionMixin):
         - Objects: getattr first, subscript fallback.
 
         None Handling (like Hugo/Go templates):
-        - If obj is None, returns "" (prevents crashes)
+        - If obj is None, returns UNDEFINED (prevents crashes)
         - If attribute value is None, returns "" (normalizes output)
+
+        Not-Found Handling:
+        - Returns the ``UNDEFINED`` sentinel when the attribute/key is
+          not found.  ``UNDEFINED`` stringifies as ``""`` (so template
+          output is unchanged) but ``is_defined()`` recognises it as
+          *not defined*, fixing ``x.missing is defined`` → False.
 
         Complexity: O(1)
         """
         if obj is None:
-            return ""
+            return UNDEFINED
         # Dicts: subscript first so keys like "items" resolve to user data,
         # not the dict.items method
         if isinstance(obj, dict):
@@ -1080,7 +1087,7 @@ class Template(TemplateIntrospectionMixin):
                     val = getattr(obj, name)
                     return "" if val is None else val
                 except AttributeError:
-                    return ""
+                    return UNDEFINED
         # Objects: getattr first, subscript fallback
         try:
             val = getattr(obj, name)
@@ -1090,7 +1097,7 @@ class Template(TemplateIntrospectionMixin):
                 val = obj[name]
                 return "" if val is None else val
             except (KeyError, TypeError):
-                return ""
+                return UNDEFINED
 
     @staticmethod
     def _getattr_preserve_none(obj: Any, name: str) -> Any:

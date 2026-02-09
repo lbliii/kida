@@ -377,10 +377,12 @@ class TestPerformanceCharacteristics:
         result = Template._safe_getattr(obj, "key")
         assert result == "value"
 
-        # None access should also be fast
+        # None access should return UNDEFINED sentinel (stringifies as "")
         result = Template._safe_getattr(None, "key")
-        assert result == ""
+        assert str(result) == ""
+        assert not result  # falsy
 
-        # Missing key should return ""
+        # Missing key should return UNDEFINED sentinel (stringifies as "")
         result = Template._safe_getattr(obj, "missing")
-        assert result == ""
+        assert str(result) == ""
+        assert not result  # falsy
