@@ -146,6 +146,17 @@ class Environment:
     # - BytecodeCache instance: User-provided cache
     bytecode_cache: BytecodeCache | bool | None = None
 
+    # Static context for partial evaluation (RFC: partial-evaluation)
+    # Values known at compile time.  When set, expressions that depend only
+    # on these values are evaluated during compilation and replaced with
+    # constants in the bytecode.  This enables near-``str.format()`` speed
+    # for static regions (e.g. site.title, config.base_url).
+    #
+    # Applied automatically to all templates loaded via ``get_template()``.
+    # ``from_string()`` accepts its own ``static_context`` kwarg which takes
+    # precedence if provided.
+    static_context: dict[str, Any] | None = None
+
     # Resolved bytecode cache (set in __post_init__)
     _bytecode_cache: BytecodeCache | None = field(init=False, default=None)
 
@@ -390,7 +401,9 @@ class Environment:
 
         source_hash = hash_source(source)
 
-        template = self._compile(source, name, filename)
+        template = self._compile(
+            source, name, filename, static_context=self.static_context,
+        )
 
         # Update cache (LRU handles eviction)
         self._cache.set(name, template)
@@ -434,7 +447,9 @@ class Environment:
             >>> tmpl.render()  # site.title is pre-baked as "My Blog"
             '<title>My Blog</title>'
         """
-        return self._compile(source, name, None, static_context=static_context)
+        # Use provided static_context, or fall back to environment-level
+        resolved_static = static_context if static_context is not None else self.static_context
+        return self._compile(source, name, None, static_context=resolved_static)
 
     def _compile(
         self,
