@@ -731,7 +731,7 @@ class TestErrorCodes:
     def test_error_code_docs_url(self) -> None:
         """docs_url returns the correct documentation link."""
         assert ErrorCode.UNDEFINED_VARIABLE.docs_url == (
-            "https://kida.dev/docs/errors/#k-run-001"
+            "https://lbliii.github.io/kida/docs/errors/#k-run-001"
         )
 
     def test_error_code_category(self) -> None:
@@ -780,7 +780,7 @@ class TestFormatCompact:
         assert "page.html:42" in compact
         assert "Did you mean 'username'?" in compact
         assert "default('')" in compact
-        assert "kida.dev/docs/errors" in compact
+        assert "lbliii.github.io/kida/docs/errors" in compact
 
     def test_undefined_format_compact_with_snippet(self) -> None:
         """UndefinedError.format_compact() includes source snippet."""
@@ -804,7 +804,7 @@ class TestFormatCompact:
         assert "K-RUN-007" in compact
         assert "division by zero" in compact
         assert "calc.html:10" in compact
-        assert "kida.dev/docs/errors" in compact
+        assert "lbliii.github.io/kida/docs/errors" in compact
 
     def test_runtime_error_format_compact_with_snippet(self) -> None:
         """TemplateRuntimeError.format_compact() includes source snippet."""
@@ -831,14 +831,14 @@ class TestFormatCompact:
         assert "K-TPL-002" in compact
         assert "broken.html:5" in compact
         assert "^" in compact
-        assert "kida.dev/docs/errors" in compact
+        assert "lbliii.github.io/kida/docs/errors" in compact
 
     def test_not_found_format_compact(self) -> None:
         """TemplateNotFoundError.format_compact() includes code and docs."""
         exc = TemplateNotFoundError("missing.html")
         compact = exc.format_compact()
         assert "K-TPL-001" in compact
-        assert "kida.dev/docs/errors" in compact
+        assert "lbliii.github.io/kida/docs/errors" in compact
 
     def test_base_template_error_format_compact(self) -> None:
         """Base TemplateError.format_compact() works without code."""

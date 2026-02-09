@@ -192,7 +192,7 @@ K-RUN-001: Undefined variable 'usernme' in base.html:42
      |
 
 Hint: Did you mean 'username'?
-Docs: https://kida.dev/docs/errors/#k-run-001
+Docs: https://lbliii.github.io/kida/docs/errors/#k-run-001
 ```
 
 The compact format includes:

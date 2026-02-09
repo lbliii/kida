@@ -38,7 +38,7 @@ from typing import Any
 # Error codes
 # ---------------------------------------------------------------------------
 
-_KIDA_DOCS_BASE = "https://kida.dev/docs/errors"
+_KIDA_DOCS_BASE = "https://lbliii.github.io/kida/docs/errors"
 
 
 class ErrorCode(Enum):
@@ -48,11 +48,11 @@ class ErrorCode(Enum):
     Categories: LEX (lexer), PAR (parser), RUN (runtime), TPL (template loading)
 
     Each code maps to a documentation URL for quick lookup:
-        https://kida.dev/docs/errors/#k-run-001
+        https://lbliii.github.io/kida/docs/errors/#k-run-001
 
     Example:
         >>> raise UndefinedError("x", code=ErrorCode.UNDEFINED_VARIABLE)
-        # Error message includes: Docs: https://kida.dev/docs/errors/#k-run-001
+        # Error message includes: Docs: https://lbliii.github.io/kida/docs/errors/#k-run-001
     """
 
     # Lexer errors (K-LEX-xxx)
@@ -195,7 +195,7 @@ class TemplateError(Exception):
             >42 | <h1>{{ usernme }}</h1>
                |
             Hint: Use {{ usernme | default('') }} for optional variables
-            Docs: https://kida.dev/docs/errors/#k-run-001
+            Docs: https://lbliii.github.io/kida/docs/errors/#k-run-001
 
         Returns:
             Multi-line string with error code, message, source snippet,
