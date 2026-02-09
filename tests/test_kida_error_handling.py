@@ -12,10 +12,13 @@ import pytest
 
 from kida import DictLoader, Environment
 from kida.environment.exceptions import (
+    ErrorCode,
+    SourceSnippet,
     TemplateNotFoundError,
     TemplateRuntimeError,
     TemplateSyntaxError,
     UndefinedError,
+    build_source_snippet,
 )
 
 
@@ -620,3 +623,227 @@ class TestErrorMessageQuality:
         tmpl._render_func = None
         with pytest.raises(RuntimeError, match=r"broken\.html"):
             tmpl.render(x=1)
+
+
+# ---------------------------------------------------------------------------
+# Error DX: Source Snippets
+# ---------------------------------------------------------------------------
+
+
+class TestSourceSnippets:
+    """Test source snippet generation and attachment to errors."""
+
+    def test_build_source_snippet_basic(self) -> None:
+        """build_source_snippet returns correct lines and error_line."""
+        source = "line1\nline2\nline3\nline4\nline5"
+        snippet = build_source_snippet(source, 3)
+        assert snippet.error_line == 3
+        assert snippet.column is None
+        # Should include lines 1-5 (2 context lines each side)
+        assert len(snippet.lines) == 5
+        assert snippet.lines[2] == (3, "line3")
+
+    def test_build_source_snippet_with_column(self) -> None:
+        """build_source_snippet passes column through."""
+        source = "hello {{ world }}"
+        snippet = build_source_snippet(source, 1, column=9)
+        assert snippet.column == 9
+
+    def test_build_source_snippet_at_start(self) -> None:
+        """Snippet at line 1 doesn't go negative."""
+        source = "line1\nline2\nline3"
+        snippet = build_source_snippet(source, 1)
+        assert snippet.lines[0][0] == 1
+
+    def test_build_source_snippet_at_end(self) -> None:
+        """Snippet at last line doesn't overflow."""
+        source = "line1\nline2\nline3"
+        snippet = build_source_snippet(source, 3)
+        assert snippet.lines[-1][0] == 3
+
+    def test_snippet_format_highlights_error_line(self) -> None:
+        """format() marks the error line with '>'."""
+        source = "line1\nline2\nline3\nline4\nline5"
+        snippet = build_source_snippet(source, 3)
+        formatted = snippet.format()
+        assert ">  3 | line3" in formatted
+        assert " " * 1 + " 2 | line2" in formatted  # Non-error line has space
+
+    def test_snippet_format_with_column_shows_caret(self) -> None:
+        """format() shows ^ pointer when column is set."""
+        source = "hello {{ world }}"
+        snippet = build_source_snippet(source, 1, column=9)
+        formatted = snippet.format()
+        assert "^" in formatted
+
+    def test_runtime_error_has_source_snippet(self) -> None:
+        """TemplateRuntimeError via _enhance_error includes source snippet."""
+        env = Environment(loader=DictLoader({
+            "test.html": "<html>\n<body>\n{% if x %}\n<p>{{ 1/y }}</p>\n{% end %}\n</body>",
+        }))
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            env.get_template("test.html").render(x=True, y=0)
+        assert exc_info.value.source_snippet is not None
+        assert exc_info.value.source_snippet.error_line > 0
+
+    def test_undefined_error_has_source_snippet(self) -> None:
+        """UndefinedError includes source snippet when line tracking is active."""
+        env = Environment(loader=DictLoader({
+            "test.html": "<html>\n{% if x %}\n<p>hi</p>\n{% end %}\n<h1>{{ missin }}</h1>",
+        }))
+        with pytest.raises(UndefinedError) as exc_info:
+            env.get_template("test.html").render(x=True)
+        exc = exc_info.value
+        # lineno may be 0 if coalescing skips line tracking,
+        # but if available, snippet should be attached
+        if exc.lineno:
+            assert exc.source_snippet is not None
+
+    def test_template_stores_source(self) -> None:
+        """Template._source is populated after compilation."""
+        env = Environment()
+        t = env.from_string("Hello {{ name }}", name="test.html")
+        assert t._source == "Hello {{ name }}"
+
+    def test_template_source_from_loader(self) -> None:
+        """Template._source is populated for file-based templates."""
+        source = "<h1>{{ title }}</h1>"
+        env = Environment(loader=DictLoader({"page.html": source}))
+        t = env.get_template("page.html")
+        assert t._source == source
+
+
+# ---------------------------------------------------------------------------
+# Error DX: Error Codes
+# ---------------------------------------------------------------------------
+
+
+class TestErrorCodes:
+    """Test error code assignment and properties."""
+
+    def test_error_code_enum_values(self) -> None:
+        """Error codes follow K-{CAT}-{NUM} format."""
+        assert ErrorCode.UNDEFINED_VARIABLE.value == "K-RUN-001"
+        assert ErrorCode.TEMPLATE_NOT_FOUND.value == "K-TPL-001"
+        assert ErrorCode.SYNTAX_ERROR.value == "K-TPL-002"
+        assert ErrorCode.RUNTIME_ERROR.value == "K-RUN-007"
+
+    def test_error_code_docs_url(self) -> None:
+        """docs_url returns the correct documentation link."""
+        assert ErrorCode.UNDEFINED_VARIABLE.docs_url == (
+            "https://kida.dev/docs/errors/#k-run-001"
+        )
+
+    def test_error_code_category(self) -> None:
+        """category returns human-readable category name."""
+        assert ErrorCode.UNDEFINED_VARIABLE.category == "runtime"
+        assert ErrorCode.UNCLOSED_TAG.category == "lexer"
+        assert ErrorCode.UNEXPECTED_TOKEN.category == "parser"
+        assert ErrorCode.TEMPLATE_NOT_FOUND.category == "template"
+
+    def test_undefined_error_has_code(self) -> None:
+        """UndefinedError instances have the correct error code."""
+        exc = UndefinedError("x")
+        assert exc.code == ErrorCode.UNDEFINED_VARIABLE
+        assert exc.code.value == "K-RUN-001"
+
+    def test_runtime_error_has_code(self) -> None:
+        """TemplateRuntimeError instances have the correct error code."""
+        exc = TemplateRuntimeError("test")
+        assert exc.code == ErrorCode.RUNTIME_ERROR
+
+    def test_not_found_error_has_code(self) -> None:
+        """TemplateNotFoundError instances have the correct error code."""
+        exc = TemplateNotFoundError("missing.html")
+        assert exc.code == ErrorCode.TEMPLATE_NOT_FOUND
+
+    def test_syntax_error_has_code(self) -> None:
+        """TemplateSyntaxError instances have the correct error code."""
+        exc = TemplateSyntaxError("bad syntax")
+        assert exc.code == ErrorCode.SYNTAX_ERROR
+
+
+# ---------------------------------------------------------------------------
+# Error DX: format_compact()
+# ---------------------------------------------------------------------------
+
+
+class TestFormatCompact:
+    """Test format_compact() output on all exception types."""
+
+    def test_undefined_format_compact(self) -> None:
+        """UndefinedError.format_compact() includes code, message, hint, docs."""
+        exc = UndefinedError("usernme", "page.html", 42, frozenset({"username", "email"}))
+        compact = exc.format_compact()
+        assert "K-RUN-001" in compact
+        assert "usernme" in compact
+        assert "page.html:42" in compact
+        assert "Did you mean 'username'?" in compact
+        assert "default('')" in compact
+        assert "kida.dev/docs/errors" in compact
+
+    def test_undefined_format_compact_with_snippet(self) -> None:
+        """UndefinedError.format_compact() includes source snippet."""
+        snippet = build_source_snippet("<h1>{{ usernme }}</h1>", 1)
+        exc = UndefinedError(
+            "usernme", "page.html", 1,
+            frozenset({"username"}),
+            source_snippet=snippet,
+        )
+        compact = exc.format_compact()
+        assert "{{ usernme }}" in compact
+
+    def test_runtime_error_format_compact(self) -> None:
+        """TemplateRuntimeError.format_compact() includes code, location, docs."""
+        exc = TemplateRuntimeError(
+            "division by zero",
+            template_name="calc.html",
+            lineno=10,
+        )
+        compact = exc.format_compact()
+        assert "K-RUN-007" in compact
+        assert "division by zero" in compact
+        assert "calc.html:10" in compact
+        assert "kida.dev/docs/errors" in compact
+
+    def test_runtime_error_format_compact_with_snippet(self) -> None:
+        """TemplateRuntimeError.format_compact() includes source snippet."""
+        snippet = build_source_snippet("<p>{{ 1 / x }}</p>", 1)
+        exc = TemplateRuntimeError(
+            "division by zero",
+            template_name="calc.html",
+            lineno=1,
+            source_snippet=snippet,
+        )
+        compact = exc.format_compact()
+        assert "1 / x" in compact
+
+    def test_syntax_error_format_compact(self) -> None:
+        """TemplateSyntaxError.format_compact() includes code and location."""
+        exc = TemplateSyntaxError(
+            "Unexpected token",
+            lineno=5,
+            filename="broken.html",
+            source="line1\nline2\nline3\nline4\n{{ bad }",
+            col_offset=6,
+        )
+        compact = exc.format_compact()
+        assert "K-TPL-002" in compact
+        assert "broken.html:5" in compact
+        assert "^" in compact
+        assert "kida.dev/docs/errors" in compact
+
+    def test_not_found_format_compact(self) -> None:
+        """TemplateNotFoundError.format_compact() includes code and docs."""
+        exc = TemplateNotFoundError("missing.html")
+        compact = exc.format_compact()
+        assert "K-TPL-001" in compact
+        assert "kida.dev/docs/errors" in compact
+
+    def test_base_template_error_format_compact(self) -> None:
+        """Base TemplateError.format_compact() works without code."""
+        from kida.environment.exceptions import TemplateError
+
+        exc = TemplateError("something went wrong")
+        compact = exc.format_compact()
+        assert "something went wrong" in compact
