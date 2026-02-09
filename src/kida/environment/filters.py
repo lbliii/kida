@@ -838,6 +838,55 @@ def _filter_commas(value: Any) -> str:
     return _filter_format_number(value, 0)
 
 
+def _filter_classes(value: Any) -> str:
+    """Join a list of CSS class names, dropping falsy values.
+
+    Simplifies conditional class building in templates:
+
+    Example:
+        {{ ['card', 'active' if is_active, 'done' if todo.done] | classes }}
+        → "card active"   (when is_active=True, todo.done=False)
+
+    Handles:
+    - None values (dropped)
+    - Empty strings (dropped)
+    - False / 0 (dropped)
+    - Nested lists (flattened one level)
+
+    """
+    if value is None:
+        return ""
+    parts: list[str] = []
+    try:
+        items = list(value)
+    except TypeError:
+        return str(value)
+    for item in items:
+        if isinstance(item, (list, tuple)):
+            for sub in item:
+                if sub:
+                    parts.append(str(sub))
+        elif item:
+            parts.append(str(item))
+    return " ".join(parts)
+
+
+def _filter_decimal(value: Any, places: int = 2) -> str:
+    """Format a number with a fixed number of decimal places.
+
+    Example:
+        {{ 3.1 | decimal }}     → "3.10"
+        {{ 3.1 | decimal(1) }}  → "3.1"
+        {{ 1234 | decimal(2) }} → "1234.00"
+
+    """
+    try:
+        num = float(value)
+        return f"{num:.{places}f}"
+    except (ValueError, TypeError):
+        return str(value)
+
+
 def _filter_dictsort(
     value: dict[str, Any],
     case_sensitive: bool = False,
@@ -1144,9 +1193,11 @@ DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {
     "sum": _filter_sum,
     "take": _filter_take,
     "unique": _filter_unique,
+    "classes": _filter_classes,
     "compact": _filter_compact,
     # Additional filters
     "count": _filter_length,  # alias
+    "decimal": _filter_decimal,
     "dictsort": _filter_dictsort,
     "filesizeformat": _filter_filesizeformat,
     "float": _filter_float,
