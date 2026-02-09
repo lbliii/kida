@@ -31,7 +31,77 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
+
+# ---------------------------------------------------------------------------
+# Error codes
+# ---------------------------------------------------------------------------
+
+_KIDA_DOCS_BASE = "https://kida.dev/docs/errors"
+
+
+class ErrorCode(Enum):
+    """Searchable error codes for Kida template errors.
+
+    Format: K-{CATEGORY}-{NUMBER}
+    Categories: LEX (lexer), PAR (parser), RUN (runtime), TPL (template loading)
+
+    Each code maps to a documentation URL for quick lookup:
+        https://kida.dev/docs/errors/#k-run-001
+
+    Example:
+        >>> raise UndefinedError("x", code=ErrorCode.UNDEFINED_VARIABLE)
+        # Error message includes: Docs: https://kida.dev/docs/errors/#k-run-001
+    """
+
+    # Lexer errors (K-LEX-xxx)
+    UNCLOSED_TAG = "K-LEX-001"
+    UNCLOSED_COMMENT = "K-LEX-002"
+    UNCLOSED_VARIABLE = "K-LEX-003"
+    TOKEN_LIMIT = "K-LEX-004"
+
+    # Parser errors (K-PAR-xxx)
+    UNEXPECTED_TOKEN = "K-PAR-001"
+    UNCLOSED_BLOCK = "K-PAR-002"
+    INVALID_EXPRESSION = "K-PAR-003"
+    INVALID_FILTER = "K-PAR-004"
+    INVALID_TEST = "K-PAR-005"
+
+    # Runtime errors (K-RUN-xxx)
+    UNDEFINED_VARIABLE = "K-RUN-001"
+    FILTER_ERROR = "K-RUN-002"
+    TEST_ERROR = "K-RUN-003"
+    REQUIRED_VALUE = "K-RUN-004"
+    NONE_COMPARISON = "K-RUN-005"
+    INCLUDE_DEPTH = "K-RUN-006"
+    RUNTIME_ERROR = "K-RUN-007"
+
+    # Template loading errors (K-TPL-xxx)
+    TEMPLATE_NOT_FOUND = "K-TPL-001"
+    SYNTAX_ERROR = "K-TPL-002"
+
+    @property
+    def docs_url(self) -> str:
+        """Documentation URL for this error code."""
+        anchor = self.value.lower()
+        return f"{_KIDA_DOCS_BASE}/#{anchor}"
+
+    @property
+    def category(self) -> str:
+        """Error category (e.g., 'runtime', 'lexer', 'parser', 'template')."""
+        prefix = self.value.split("-")[1]
+        return {
+            "LEX": "lexer",
+            "PAR": "parser",
+            "RUN": "runtime",
+            "TPL": "template",
+        }.get(prefix, "unknown")
+
+
+# ---------------------------------------------------------------------------
+# Source snippets
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,8 +175,11 @@ class TemplateError(Exception):
         ... except TemplateError as e:
         ...     log.error(f"Template error: {e}")
 
+    Attributes:
+        code: Optional ErrorCode for searchable, documentable error identification.
     """
 
+    code: ErrorCode | None = None
 
 
 class TemplateNotFoundError(TemplateError):
@@ -121,6 +194,8 @@ class TemplateNotFoundError(TemplateError):
 
     """
 
+    code: ErrorCode | None = ErrorCode.TEMPLATE_NOT_FOUND
+
 
 
 class TemplateSyntaxError(TemplateError):
@@ -133,6 +208,8 @@ class TemplateSyntaxError(TemplateError):
     a source snippet with the offending line.  If ``col_offset`` is also
     given, a caret (``^``) points at the exact column.
     """
+
+    code: ErrorCode | None = ErrorCode.SYNTAX_ERROR
 
     def __init__(
         self,
@@ -204,6 +281,8 @@ class TemplateRuntimeError(TemplateError):
 
     """
 
+    code: ErrorCode | None = ErrorCode.RUNTIME_ERROR
+
     def __init__(
         self,
         message: str,
@@ -273,6 +352,8 @@ class RequiredValueError(TemplateRuntimeError):
 
     """
 
+    code: ErrorCode | None = ErrorCode.REQUIRED_VALUE
+
     def __init__(
         self,
         field_name: str,
@@ -306,6 +387,8 @@ class NoneComparisonError(TemplateRuntimeError):
         Suggestion: Ensure all items have 'weight' set, or filter out None values first
 
     """
+
+    code: ErrorCode | None = ErrorCode.NONE_COMPARISON
 
     def __init__(
         self,
@@ -360,6 +443,8 @@ class UndefinedError(TemplateError):
         - Use the default filter: {{ undefined_var | default("fallback") }}
 
     """
+
+    code: ErrorCode | None = ErrorCode.UNDEFINED_VARIABLE
 
     def __init__(
         self,

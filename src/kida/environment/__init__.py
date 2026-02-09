@@ -41,6 +41,7 @@ Example:
 
 from kida.environment.core import Environment
 from kida.environment.exceptions import (
+    ErrorCode,
     SourceSnippet,
     TemplateError,
     TemplateNotFoundError,
@@ -63,6 +64,7 @@ __all__ = [
     "ChoiceLoader",
     "DictLoader",
     "Environment",
+    "ErrorCode",
     "FileSystemLoader",
     "Filter",
     "FilterRegistry",
