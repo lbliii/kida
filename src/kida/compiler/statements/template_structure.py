@@ -77,7 +77,7 @@ class TemplateStructureMixin:
         return stmts
 
     def _compile_block(self, node: Block) -> list[ast.stmt]:
-        """Compile {% block name %} ... {% endblock %.
+        """Compile {% block name [if cond] %} ... {% endblock %.
 
         StringBuilder: _append(_blocks.get('name', _block_name)(ctx, _blocks))
         Streaming: yield from _blocks.get('name', _block_name_stream)(ctx, _blocks)
@@ -86,6 +86,10 @@ class TemplateStructureMixin:
         Fragment blocks (node.fragment=True) are skipped entirely during
         full template render — they emit no output. The block function is
         still compiled and accessible via render_block().
+
+        Conditional blocks (node.condition is not None) wrap the block
+        output in ``if <cond>:``, so the block is only rendered when the
+        condition is truthy.
         """
         # Fragment blocks: skip during full render, only accessible via render_block()
         if node.fragment:
@@ -119,7 +123,8 @@ class TemplateStructureMixin:
                 ],
                 keywords=[],
             )
-            return self._yield_from_or_async_for(block_call)
+            stmts = self._yield_from_or_async_for(block_call)
+            return self._wrap_block_condition(node, stmts)
 
         # StringBuilder mode with profiling instrumentation:
         #   if _acc is not None:
@@ -161,7 +166,7 @@ class TemplateStructureMixin:
                 ),
             )
 
-        return [
+        stmts = [
             ast.If(
                 test=ast.Compare(
                     left=ast.Name(id="_acc", ctx=ast.Load()),
@@ -210,6 +215,24 @@ class TemplateStructureMixin:
                     ),
                 ],
                 orelse=[_make_block_append()],
+            )
+        ]
+        return self._wrap_block_condition(node, stmts)
+
+    def _wrap_block_condition(
+        self, node: Block, stmts: list[ast.stmt]
+    ) -> list[ast.stmt]:
+        """Wrap block statements in ``if <cond>:`` when a guard is present.
+
+        If ``node.condition`` is None, returns *stmts* unchanged.
+        """
+        if node.condition is None:
+            return stmts
+        return [
+            ast.If(
+                test=self._compile_expr(node.condition),
+                body=stmts,
+                orelse=[],
             )
         ]
 

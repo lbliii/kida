@@ -127,6 +127,9 @@ class Block(Node):
         required: If True, child templates must override this block
         fragment: If True, block is skipped during full render() and only
             rendered via render_block(). Use {% fragment name %} syntax.
+        condition: Optional guard expression.  When present, the block is
+            only rendered if the condition is truthy during full render.
+            Syntax: ``{% block name if expr %}``
 
     """
 
@@ -135,6 +138,7 @@ class Block(Node):
     scoped: bool = False
     required: bool = False
     fragment: bool = False
+    condition: Expr | None = None
 
 
 @dataclass(frozen=True, slots=True)

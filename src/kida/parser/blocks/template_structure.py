@@ -59,13 +59,23 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
         def _parse_expression(self) -> Expr: ...
 
     def _parse_block_tag(self) -> Block:
-        """Parse {% block name %}...{% end %} or {% endblock %}."""
+        """Parse {% block name [if expr] %}...{% end %} or {% endblock %}.
+
+        The optional ``if expr`` guard causes the block to be skipped
+        during full render when the expression is falsy.
+        """
         start = self._advance()  # consume 'block'
         self._push_block("block", start)
 
         if self._current.type != TokenType.NAME:
             raise self._error("Expected block name")
         name = self._advance().value
+
+        # Optional condition: {% block detail if show_detail %}
+        condition: Expr | None = None
+        if self._current.type == TokenType.NAME and self._current.value == "if":
+            self._advance()  # consume 'if'
+            condition = self._parse_expression()
 
         self._expect(TokenType.BLOCK_END)
         body = self._parse_body()
@@ -78,6 +88,7 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
             col_offset=start.col_offset,
             name=name,
             body=tuple(body),
+            condition=condition,
         )
 
     def _parse_globals_tag(self) -> Globals:
