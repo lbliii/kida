@@ -14,6 +14,9 @@ keywords:
 - macros
 - def
 - reusable
+- typed parameters
+- type annotations
+- validate_calls
 icon: function
 ---
 
@@ -75,6 +78,71 @@ Use `{% def %}` to create a function:
 {{ card(title="Hello", content="World") }}
 {{ card("Title Only") }}
 ```
+
+## Typed Parameters
+
+Parameters can carry optional type annotations following Python syntax:
+
+```kida
+{% def card(title: str, items: list, footer: str | None = none) %}
+    <h3>{{ title }}</h3>
+    {% for item in items %}<p>{{ item }}</p>{% end %}
+    {% if footer %}<footer>{{ footer }}</footer>{% end %}
+{% end %}
+```
+
+Annotations are optional per-parameter — you can mix typed and untyped:
+
+```kida
+{% def mixed(name: str, options, count: int = 0) %}
+    ...
+{% end %}
+```
+
+### Supported Syntax
+
+| Syntax | Meaning |
+|--------|---------|
+| `x: str` | Simple type |
+| `x: int` | Simple type |
+| `x: list` | Generic without params |
+| `x: dict[str, int]` | Generic with params |
+| `x: str \| None` | Union (PEP 604 style) |
+| `x: MyModel` | Custom type name |
+
+### What Annotations Do
+
+Annotations are **documentation and validation hints**, not enforced at runtime.
+The template engine does not perform `isinstance` checks. Their value is:
+
+1. **Compile-time call-site validation** — wrong parameter names are caught immediately when `validate_calls=True` is set on the Environment
+2. **IDE support** — annotations flow into the generated Python code, enabling autocomplete in tooling
+3. **Self-documenting** — makes component interfaces explicit
+
+### Call-Site Validation
+
+Enable `validate_calls` on the Environment to catch parameter errors at compile time:
+
+```python
+from kida import Environment
+
+env = Environment(validate_calls=True)
+
+# This emits a warning: 'titl' is not a param of 'card'
+env.from_string("""
+    {% def card(title: str) %}{{ title }}{% end %}
+    {{ card(titl="oops") }}
+""")
+```
+
+Validation checks:
+- **Unknown parameters** — keyword args not in the definition
+- **Missing required parameters** — params without defaults not provided
+- `*args` / `**kwargs` in the definition relax validation accordingly
+
+See [[docs/advanced/analysis|Static Analysis]] for the programmatic API.
+
+---
 
 ## Capturing Content
 

@@ -291,6 +291,26 @@ Filters in this set are assumed to have no side effects and can be coalesced int
 pure_filters={"markdown", "highlight", "currency"}
 ```
 
+### validate_calls
+
+Enable compile-time call-site validation for `{% def %}` functions.
+
+| Type | Default | Description |
+|------|---------|-------------|
+| `bool` | `False` | Validate call sites against `{% def %}` signatures |
+
+When enabled, the compiler checks every `{{ func(...) }}` call against the matching `{% def %}` signature and emits `UserWarning` for unknown parameters, missing required arguments, and other mismatches.
+
+```python
+# Enable call validation (recommended for development/CI)
+validate_calls=True
+
+# Disabled (default) — no validation overhead
+validate_calls=False
+```
+
+See [[docs/advanced/analysis|Static Analysis — Call-Site Validation]] for programmatic API details.
+
 ### preserve_ast
 
 Preserve AST for template introspection.

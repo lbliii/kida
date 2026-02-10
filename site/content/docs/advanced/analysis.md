@@ -15,6 +15,8 @@ keywords:
 - purity
 - cache scope
 - introspection
+- call validation
+- validate_calls
 icon: magnifying-glass
 ---
 
@@ -178,6 +180,75 @@ top-level variable names against the provided context keys plus environment
 globals. It returns a sorted list of missing names, or an empty list if
 everything is present.
 
+## Call-Site Validation
+
+Kida can validate `{% def %}` call sites at compile time, catching parameter errors
+before any template is rendered:
+
+```python
+from kida import Environment
+
+env = Environment(validate_calls=True)
+
+template = env.from_string("""
+    {% def button(text: str, url: str, style="primary") %}
+        <a href="{{ url }}" class="btn btn-{{ style }}">{{ text }}</a>
+    {% end %}
+
+    {{ button(text="Save", urll="/save") }}
+""")
+# UserWarning: Call to 'button' at <string>:6 — unknown params: urll; missing required: url
+```
+
+### What It Checks
+
+| Issue | Example |
+|-------|---------|
+| **Unknown params** | Calling `button(labl="X")` when param is `label` |
+| **Missing required** | Calling `button()` when `text` has no default |
+| **`*args` / `**kwargs` relaxation** | Definitions with `*args` or `**kwargs` suppress unknown-param warnings |
+
+### Programmatic API
+
+For build systems and CI pipelines, use the `BlockAnalyzer` directly:
+
+```python
+from kida import Environment, DictLoader
+from kida.analysis import BlockAnalyzer
+
+env = Environment(
+    loader=DictLoader({"page.html": src}),
+    preserve_ast=True,
+)
+template = env.get_template("page.html")
+
+analyzer = BlockAnalyzer()
+issues = analyzer.validate_calls(template._optimized_ast)
+
+for issue in issues:
+    if not issue.is_valid:
+        print(f"{issue.def_name} at line {issue.lineno}: "
+              f"unknown={issue.unknown_params}, "
+              f"missing={issue.missing_required}")
+```
+
+### CallValidation
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `def_name` | `str` | Name of the called `{% def %}` |
+| `lineno` | `int` | Line number of the call site |
+| `col_offset` | `int` | Column offset of the call site |
+| `unknown_params` | `tuple[str, ...]` | Keyword args not in the definition |
+| `missing_required` | `tuple[str, ...]` | Required params not provided |
+| `duplicate_params` | `tuple[str, ...]` | Params passed more than once |
+
+| Property | Description |
+|----------|-------------|
+| `is_valid` | `True` if no issues were found |
+
+---
+
 ## Configuration
 
 Use `AnalysisConfig` to customize analysis behavior for your framework:
@@ -259,6 +330,21 @@ and footer blocks.
 | `get_block(name)` | Get metadata for a specific block |
 | `cacheable_blocks()` | List of blocks where `is_cacheable()` is True |
 | `site_cacheable_blocks()` | List of blocks with `cache_scope == "site"` |
+
+### CallValidation
+
+| Field | Type | Description |
+|---|---|---|
+| `def_name` | `str` | Name of the called `{% def %}` |
+| `lineno` | `int` | Line number of the call site |
+| `col_offset` | `int` | Column offset of the call site |
+| `unknown_params` | `tuple[str, ...]` | Keyword args not in the definition |
+| `missing_required` | `tuple[str, ...]` | Required params not provided |
+| `duplicate_params` | `tuple[str, ...]` | Params passed more than once |
+
+| Property | Type | Description |
+|---|---|---|
+| `is_valid` | `bool` | `True` if no issues were found |
 
 ### AnalysisConfig
 

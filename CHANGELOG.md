@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Typed `{% def %}` parameters** — Function parameters now accept optional type annotations
+  following Python syntax: `{% def card(title: str, items: list, style: str | None = none) %}`.
+  Annotations support simple types, unions (`str | None`), and generics (`dict[str, int]`).
+  A new `DefParam` AST node carries name and annotation. The compiler propagates annotations
+  into generated Python AST for IDE support. Enable `validate_calls=True` on the Environment
+  to get compile-time warnings for unknown params, missing required args, and other call-site
+  mismatches. Backward-compatible — the `Def.args` property still returns parameter names.
+
 - **`_Undefined` sentinel** — Missing attribute access now returns an `_Undefined` sentinel
   instead of an empty string. `_Undefined` is falsy, stringifies to `""`, and is iterable
   (yields nothing), so existing templates are unaffected. The key improvement: `is defined`
