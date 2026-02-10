@@ -559,6 +559,115 @@ class TestTypedDefParser:
         assert "My Card" in tmpl.render()
         assert "content" in tmpl.render()
 
+    def test_nested_generic_type(self, env):
+        """Nested generic: dict[str, list[int]]"""
+        tmpl = env.from_string(
+            "{% def show(data: dict[str, list[int]]) %}"
+            "{% for k, v in data.items() %}{{ k }}={{ v | join(',') }}{% end %}"
+            "{% end %}{{ show({'nums': [1, 2]}) }}"
+        )
+        assert tmpl.render() == "nums=1,2"
+
+    def test_custom_model_type(self, env):
+        """Custom model type name: data: MyModel"""
+        tmpl = env.from_string(
+            "{% def show(data: MyModel) %}"
+            "{{ data.name }}"
+            "{% end %}{{ show({'name': 'test'}) }}"
+        )
+        assert tmpl.render() == "test"
+
+
+class TestTypedDefCompiler:
+    """Compiler: annotations propagate into generated Python AST."""
+
+    def _compile_to_pyast(self, env, source):
+        """Parse and compile source to Python AST module."""
+        import ast as pyast
+
+        from kida.compiler import Compiler
+        from kida.lexer import Lexer
+        from kida.parser import Parser
+
+        lexer = Lexer(source)
+        tokens = list(lexer.tokenize())
+        parser = Parser(tokens, None, None, source)
+        tree = parser.parse()
+
+        compiler = Compiler(env)
+        # Use internal _compile_template to get the AST before code gen
+        compiler._name = None
+        compiler._filename = None
+        compiler._locals = set()
+        compiler._block_counter = 0
+        compiler._has_async = False
+        module = compiler._compile_template(tree)
+        pyast.fix_missing_locations(module)
+        return module
+
+    def test_annotation_in_compiled_ast(self, env):
+        """Compiled function carries annotation on ast.arg nodes."""
+        import ast as pyast
+
+        source = "{% def greet(name: str, count: int = 0) %}{{ name }}{% end %}"
+        module = self._compile_to_pyast(env, source)
+
+        # Find the FunctionDef for _def_greet (compiler may emit multiple
+        # copies for different render modes — check the first one)
+        func_defs = [
+            n for n in pyast.walk(module)
+            if isinstance(n, pyast.FunctionDef) and n.name == "_def_greet"
+        ]
+        assert len(func_defs) >= 1
+        func = func_defs[0]
+
+        # Check annotations on the first two args (name: str, count: int)
+        assert func.args.args[0].arg == "name"
+        assert isinstance(func.args.args[0].annotation, pyast.Name)
+        assert func.args.args[0].annotation.id == "str"
+
+        assert func.args.args[1].arg == "count"
+        assert isinstance(func.args.args[1].annotation, pyast.Name)
+        assert func.args.args[1].annotation.id == "int"
+
+    def test_union_annotation_in_compiled_ast(self, env):
+        """Union annotation produces BinOp in compiled AST."""
+        import ast as pyast
+
+        source = "{% def show(val: str | None = none) %}{{ val }}{% end %}"
+        module = self._compile_to_pyast(env, source)
+
+        func_defs = [
+            n for n in pyast.walk(module)
+            if isinstance(n, pyast.FunctionDef) and n.name == "_def_show"
+        ]
+        assert len(func_defs) >= 1
+        ann = func_defs[0].args.args[0].annotation
+        # str | None compiles to BinOp(Name('str'), BitOr, Constant(None))
+        assert ann is not None
+        assert isinstance(ann, pyast.BinOp)
+
+    def test_unannotated_param_has_no_annotation(self, env):
+        """Unannotated params produce ast.arg with annotation=None."""
+        import ast as pyast
+
+        source = "{% def greet(name) %}{{ name }}{% end %}"
+        module = self._compile_to_pyast(env, source)
+
+        func_defs = [
+            n for n in pyast.walk(module)
+            if isinstance(n, pyast.FunctionDef) and n.name == "_def_greet"
+        ]
+        assert len(func_defs) >= 1
+        assert func_defs[0].args.args[0].annotation is None
+
+    def test_malformed_annotation_falls_back(self, env):
+        """Malformed annotation string falls back to None gracefully."""
+        from kida.compiler.statements.functions import FunctionCompilationMixin
+
+        result = FunctionCompilationMixin._parse_annotation("not a[valid type")
+        assert result is None
+
 
 class TestTypedDefBackwardCompat:
     """Backward compatibility: Def.args property still works."""
@@ -733,3 +842,45 @@ class TestCallSiteValidation:
             "{{ greet('World') }}"
         )
         assert issues == []
+
+    def test_positional_args_fill_required(self):
+        """Positional args satisfy required params left-to-right."""
+        issues = self._validate(
+            "{% def card(title, items) %}{{ title }}{% end %}"
+            "{{ card('hello', [1, 2]) }}"
+        )
+        assert issues == []
+
+    def test_unknown_function_no_false_positive(self):
+        """Calls to functions not from {% def %} are silently skipped."""
+        issues = self._validate(
+            "{% def card(title) %}{{ title }}{% end %}"
+            "{{ other_func('test') }}"
+        )
+        assert issues == []
+
+    def test_multiple_defs_validated_independently(self):
+        """Multiple defs each have their own signature for validation."""
+        issues = self._validate(
+            "{% def greet(name) %}{{ name }}{% end %}"
+            "{% def card(title, items) %}{{ title }}{% end %}"
+            "{{ greet('hi') }}"
+            "{{ card(titl='oops') }}"
+        )
+        # greet call is fine; card call has unknown 'titl' and missing 'title', 'items'
+        assert len(issues) == 1
+        assert issues[0].def_name == "card"
+        assert "titl" in issues[0].unknown_params
+
+    def test_nested_def_validated(self):
+        """Calls to nested defs are validated."""
+        issues = self._validate(
+            "{% def outer() %}"
+            "{% def inner(x) %}{{ x }}{% end %}"
+            "{{ inner(y='bad') }}"
+            "{% end %}"
+            "{{ outer() }}"
+        )
+        assert len(issues) == 1
+        assert issues[0].def_name == "inner"
+        assert "y" in issues[0].unknown_params

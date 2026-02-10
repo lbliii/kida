@@ -189,6 +189,22 @@ class TestDependencyWalker:
         assert "item.title" not in deps
         assert "site.name" in deps
 
+    def test_typed_function_args_excluded(self) -> None:
+        """Typed function arguments are excluded from dependencies."""
+        env = Environment()
+        t = env.from_string("""
+            {% def card(title: str, items: list, footer: str | None = none) %}
+                {{ title }}
+                {% for i in items %}{{ i }}{% end %}
+                {{ site.name }}
+            {% end %}
+        """)
+        deps = t.depends_on()
+        assert "title" not in deps
+        assert "items" not in deps
+        assert "footer" not in deps
+        assert "site.name" in deps
+
     def test_builtins_excluded(self) -> None:
         """Built-in names are excluded."""
         env = Environment()
