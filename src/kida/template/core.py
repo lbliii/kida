@@ -742,6 +742,90 @@ class Template(TemplateIntrospectionMixin):
                     raise
                 raise self._enhance_error(e, render_ctx) from e
 
+    def render_with_blocks(
+        self,
+        block_overrides: dict[str, str],
+        *args: Any,
+        **kwargs: Any,
+    ) -> str:
+        """Render this template with pre-rendered HTML injected into blocks.
+
+        Enables programmatic layout composition: render a page's content,
+        then inject it as the ``content`` block of a parent layout template,
+        without needing ``{% extends %}`` in the template source.
+
+        Each key in *block_overrides* names a block; the value is a
+        pre-rendered HTML string that replaces that block's default content.
+
+        Args:
+            block_overrides: Mapping of block name → pre-rendered HTML string.
+            *args: Single dict of context variables.
+            **kwargs: Context variables as keyword arguments.
+
+        Returns:
+            Rendered template as string with block overrides applied.
+
+        Raises:
+            RuntimeError: If template not properly compiled.
+
+        Example:
+            >>> layout = env.get_template("_layout.html")
+            >>> inner = "<h1>Hello</h1>"
+            >>> layout.render_with_blocks({"content": inner}, title="Home")
+        """
+        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.render_context import render_context
+
+        # Build context
+        ctx: dict[str, Any] = {}
+        ctx.update(self._env.globals)
+
+        if args:
+            if len(args) == 1 and isinstance(args[0], dict):
+                ctx.update(args[0])
+            else:
+                raise TypeError(
+                    f"render_with_blocks() takes at most 1 positional argument "
+                    f"(a dict), got {len(args)}"
+                )
+
+        ctx.update(kwargs)
+
+        render_func = self._render_func
+        if render_func is None:
+            raise RuntimeError(
+                f"Template '{self._name or '(inline)'}' not properly compiled"
+            )
+
+        # Build _blocks dict with callables matching the compiled signature:
+        # block_func(ctx, _blocks) -> str
+        _blocks: dict[str, Any] = {}
+        for name, html in block_overrides.items():
+            # Use default arg to capture html by value (avoid closure over loop var)
+            _blocks[name] = lambda ctx, _blocks, _html=html: _html
+
+        with render_context(
+            template_name=self._name,
+            filename=self._filename,
+            source=self._source,
+        ) as render_ctx:
+            try:
+                # Run {% globals %} setup if present
+                globals_setup = self._namespace.get("_globals_setup")
+                if globals_setup is not None:
+                    globals_setup(ctx)
+
+                result: str = render_func(ctx, _blocks)
+                return result
+            except TemplateRuntimeError:
+                raise
+            except Exception as e:
+                from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
+
+                if isinstance(e, (UndefinedError, TemplateNotFoundError)):
+                    raise
+                raise self._enhance_error(e, render_ctx) from e
+
     def render_stream(self, *args: Any, **kwargs: Any):
         """Render template as a generator of HTML chunks.
 
