@@ -275,6 +275,29 @@ class TestBytecodeCacheIntegration:
         stats = cache.stats()
         assert stats["file_count"] == 1
 
+    def test_cache_is_context_aware_for_static_context(self, tmp_path):
+        """Static context participates in cache keying."""
+        from kida import Environment
+
+        cache = BytecodeCache(tmp_path / "cache")
+        env = Environment(bytecode_cache=cache)
+
+        template_a = env.from_string(
+            "{{ site.title }}",
+            name="ctx.html",
+            static_context={"site": {"title": "A"}},
+        )
+        template_b = env.from_string(
+            "{{ site.title }}",
+            name="ctx.html",
+            static_context={"site": {"title": "B"}},
+        )
+
+        assert template_a.render() == "A"
+        assert template_b.render() == "B"
+        # Same template name + source with different static context should coexist.
+        assert cache.stats()["file_count"] == 2
+
     def test_cache_invalidation_on_source_change(self, tmp_path):
         """Cache is invalidated when source changes."""
         from kida import Environment

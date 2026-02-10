@@ -75,6 +75,9 @@ class BlockMetadata:
 
     # Derived optimization hints
     cache_scope: Literal["none", "page", "site", "unknown"] = "unknown"
+    # Deterministic structural hash of this block's AST.
+    # Stable across runs for identical template source.
+    block_hash: str = ""
 
     def is_cacheable(self) -> bool:
         """Check if this block can be safely cached.
@@ -179,3 +182,22 @@ class TemplateMetadata:
             List of BlockMetadata where cache_scope is "site".
         """
         return [block for block in self.blocks.values() if block.cache_scope == "site"]
+
+
+@dataclass(frozen=True, slots=True)
+class TemplateStructureManifest:
+    """Lightweight template structure for schedulers and dependency planners.
+
+    Attributes:
+        name: Template name.
+        extends: Parent template name from `{% extends %}`.
+        block_names: Ordered block names in this template.
+        block_hashes: Deterministic per-block structural hashes.
+        dependencies: Top-level + block context dependencies.
+    """
+
+    name: str | None
+    extends: str | None
+    block_names: tuple[str, ...]
+    block_hashes: dict[str, str]
+    dependencies: frozenset[str]

@@ -85,7 +85,7 @@ class BytecodeCache:
         self._pattern = pattern
         self._dir.mkdir(parents=True, exist_ok=True)
 
-    def _make_path(self, name: str, source_hash: str) -> Path:
+    def _make_path(self, name: str, source_hash: str, context_hash: str | None = None) -> Path:
         """Generate cache file path.
 
         Includes Python version in filename to prevent cross-version
@@ -93,14 +93,23 @@ class BytecodeCache:
         """
         # Sanitize name for filesystem
         safe_name = name.replace("/", "_").replace("\\", "_").replace(":", "_")
+        hash_key = source_hash[:16]
+        if context_hash:
+            hash_key = f"{hash_key}_{context_hash[:16]}"
         filename = self._pattern.format(
             version=_PY_VERSION_TAG,
             name=safe_name,
-            hash=source_hash[:16],
+            hash=hash_key,
         )
         return self._dir / filename
 
-    def get(self, name: str, source_hash: str) -> CodeType | None:
+    def get(
+        self,
+        name: str,
+        source_hash: str,
+        *,
+        context_hash: str | None = None,
+    ) -> CodeType | None:
         """Load cached bytecode if available.
 
         Args:
@@ -110,7 +119,7 @@ class BytecodeCache:
         Returns:
             Compiled code object, or None if not cached
         """
-        path = self._make_path(name, source_hash)
+        path = self._make_path(name, source_hash, context_hash)
 
         if not path.exists():
             return None
@@ -126,7 +135,14 @@ class BytecodeCache:
                 path.unlink(missing_ok=True)
             return None
 
-    def set(self, name: str, source_hash: str, code: CodeType) -> None:
+    def set(
+        self,
+        name: str,
+        source_hash: str,
+        code: CodeType,
+        *,
+        context_hash: str | None = None,
+    ) -> None:
         """Cache compiled bytecode.
 
         Args:
@@ -134,7 +150,7 @@ class BytecodeCache:
             source_hash: Hash of template source
             code: Compiled code object
         """
-        path = self._make_path(name, source_hash)
+        path = self._make_path(name, source_hash, context_hash)
         tmp_path = path.with_suffix(".tmp")
 
         try:

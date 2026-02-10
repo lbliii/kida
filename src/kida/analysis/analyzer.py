@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
+from hashlib import sha256
 from typing import Any
 
 from kida.analysis.cache import infer_cache_scope
@@ -140,6 +141,7 @@ class BlockAnalyzer:
             depends_on=depends_on,
             is_pure=is_pure,
             cache_scope=cache_scope,
+            block_hash=_compute_block_hash(block_node),
         )
 
     def _collect_blocks(self, ast: Template) -> list[Block]:
@@ -282,3 +284,41 @@ class BlockAnalyzer:
                         return True
 
         return False
+
+
+def _compute_block_hash(block_node: Block) -> str:
+    """Compute deterministic structural hash for a block AST."""
+    parts: list[str] = []
+
+    def visit(node: Node) -> None:
+        parts.append(type(node).__name__)
+
+        for attr in ("name", "value", "data"):
+            raw_value = getattr(node, attr, None)
+            if raw_value is not None:
+                parts.append(repr(raw_value))
+
+        for attr in ("body", "else_", "empty"):
+            children = getattr(node, attr, None)
+            if children:
+                for child in children:
+                    if isinstance(child, Node):
+                        visit(child)
+
+        elif_ = getattr(node, "elif_", None)
+        if elif_:
+            for _test, body in elif_:
+                for child in body:
+                    if isinstance(child, Node):
+                        visit(child)
+
+        cases = getattr(node, "cases", None)
+        if cases:
+            for _pattern, _guard, body in cases:
+                for child in body:
+                    if isinstance(child, Node):
+                        visit(child)
+
+    visit(block_node)
+    payload = "|".join(parts)
+    return sha256(payload.encode("utf-8")).hexdigest()[:16]

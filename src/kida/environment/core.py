@@ -21,8 +21,10 @@ Example:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from hashlib import sha256
 from typing import TYPE_CHECKING, Any
 
 from kida.environment.exceptions import TemplateNotFoundError
@@ -35,7 +37,7 @@ from kida.template import Template
 from kida.utils.lru_cache import LRUCache
 
 if TYPE_CHECKING:
-    from kida.analysis.metadata import TemplateMetadata
+    from kida.analysis.metadata import TemplateMetadata, TemplateStructureManifest
     from kida.bytecode_cache import BytecodeCache
 
 
@@ -217,6 +219,10 @@ class Environment:
     # Shared analysis cache (template_name -> TemplateMetadata)
     # Prevents redundant analysis when multiple templates include the same partial
     _analysis_cache: dict[str, TemplateMetadata] = field(init=False, default_factory=dict)
+    _structure_manifest_cache: dict[str, TemplateStructureManifest] = field(
+        init=False,
+        default_factory=dict,
+    )
 
     def __post_init__(self) -> None:
         """Initialize derived configuration."""
@@ -470,10 +476,10 @@ class Environment:
         from kida.compiler import Compiler
         from kida.parser import Parser
 
-        # Check bytecode cache first (for fast cold-start)
-        # Note: bytecode cache is bypassed when static_context is provided,
-        # because the cache key doesn't include the static context values.
+        # Check bytecode cache first (for fast cold-start). If static_context
+        # is used for partial evaluation, include a deterministic context hash.
         source_hash = None
+        context_hash = _hash_static_context(static_context)
         if self._bytecode_cache is not None and name is None:
             import warnings
 
@@ -485,12 +491,11 @@ class Environment:
         if (
             self._bytecode_cache is not None
             and name is not None
-            and static_context is None  # Skip cache when partial-evaluating
         ):
             from kida.bytecode_cache import hash_source
 
             source_hash = hash_source(source)
-            cached_code = self._bytecode_cache.get(name, source_hash)
+            cached_code = self._bytecode_cache.get(name, source_hash, context_hash=context_hash)
             if cached_code is not None:
                 # If introspection is needed, re-parse source to get AST
                 # (AST can't be serialized in bytecode cache, so we re-parse)
@@ -537,14 +542,13 @@ class Environment:
         compiler = Compiler(self)
         code = compiler.compile(ast, name, filename)
 
-        # Cache bytecode for future cold-starts (only without static_context)
+        # Cache bytecode for future cold-starts.
         if (
             self._bytecode_cache is not None
             and name is not None
             and source_hash is not None
-            and static_context is None
         ):
-            self._bytecode_cache.set(name, source_hash, code)
+            self._bytecode_cache.set(name, source_hash, code, context_hash=context_hash)
 
         return Template(self, code, name, filename, optimized_ast=optimized_ast, source=source)
 
@@ -599,12 +603,42 @@ class Environment:
             self._cache.clear()
             self._template_hashes.clear()
             self._analysis_cache.clear()
+            self._structure_manifest_cache.clear()
         else:
             # Clear specific templates
             for name in names:
                 self._cache.delete(name)
                 self._template_hashes.pop(name, None)
                 self._analysis_cache.pop(name, None)  # Invalidate analysis cache
+                self._structure_manifest_cache.pop(name, None)
+
+    def get_template_structure(self, name: str) -> TemplateStructureManifest | None:
+        """Return lightweight manifest with extends/blocks/dependencies."""
+        from kida.analysis.metadata import TemplateStructureManifest
+
+        cached = self._structure_manifest_cache.get(name)
+        if cached is not None:
+            return cached
+
+        try:
+            template = self.get_template(name)
+            meta = template.template_metadata()
+            if meta is None:
+                return None
+        except Exception:
+            return None
+
+        manifest = TemplateStructureManifest(
+            name=meta.name,
+            extends=meta.extends,
+            block_names=tuple(meta.blocks.keys()),
+            block_hashes={
+                block_name: block_meta.block_hash for block_name, block_meta in meta.blocks.items()
+            },
+            dependencies=meta.all_dependencies(),
+        )
+        self._structure_manifest_cache[name] = manifest
+        return manifest
 
     def render(self, template_name: str, *args: Any, **kwargs: Any) -> str:
         """Render a template by name with context.
@@ -761,3 +795,19 @@ class Environment:
         else:
             info["bytecode"] = None
         return info
+
+
+def _hash_static_context(static_context: dict[str, Any] | None) -> str | None:
+    """Hash static context deterministically for bytecode cache keys."""
+    if static_context is None:
+        return None
+    try:
+        canonical = json.dumps(
+            static_context,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=repr,
+        )
+    except (TypeError, ValueError):
+        canonical = repr(static_context)
+    return sha256(canonical.encode("utf-8")).hexdigest()[:16]
