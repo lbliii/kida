@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any
 
@@ -15,10 +16,22 @@ from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.dependencies import DependencyWalker
 from kida.analysis.landmarks import LandmarkDetector
-from kida.analysis.metadata import BlockMetadata, TemplateMetadata
+from kida.analysis.metadata import BlockMetadata, CallValidation, TemplateMetadata
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
-from kida.nodes import Block, Const, Data, Extends, Node, Output, Template
+from kida.nodes import (
+    Block,
+    CallBlock,
+    Const,
+    Data,
+    Def,
+    Extends,
+    FuncCall,
+    Name,
+    Node,
+    Output,
+    Template,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +297,204 @@ class BlockAnalyzer:
                         return True
 
         return False
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Call-site validation
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def validate_calls(self, ast: Template) -> list[CallValidation]:
+        """Validate call sites against {% def %} signatures.
+
+        Walks the AST to collect all ``{% def %}`` signatures, then checks
+        every ``FuncCall`` and ``{% call %}`` site that references a known
+        definition. Reports unknown parameters, missing required parameters,
+        and duplicate keyword arguments.
+
+        Only validates calls within the same compilation unit. Cross-template
+        calls (via ``{% from ... import %}``) are not checked.
+
+        When a ``{% def %}`` declares ``*args`` or ``**kwargs``, validation
+        is relaxed accordingly (extra positional/keyword args are allowed).
+
+        Args:
+            ast: Parsed template AST.
+
+        Returns:
+            List of ``CallValidation`` results — one per problematic call site.
+            An empty list means all call sites are valid.
+        """
+        # 1. Collect all {% def %} signatures
+        signatures: dict[str, _DefSignature] = {}
+        self._collect_defs(ast.body, signatures)
+
+        # 2. Walk AST for FuncCall nodes and validate
+        issues: list[CallValidation] = []
+        self._validate_call_nodes(ast.body, signatures, issues)
+
+        return issues
+
+    def _collect_defs(
+        self,
+        nodes: Sequence[Node],
+        signatures: dict[str, _DefSignature],
+    ) -> None:
+        """Recursively collect {% def %} signatures from the AST."""
+        for node in nodes:
+            if isinstance(node, Def):
+                sig = _DefSignature.from_def(node)
+                signatures[node.name] = sig
+                # Also recurse into def body (nested defs)
+                self._collect_defs(node.body, signatures)
+                continue
+
+            # Recurse into containers
+            for attr in ("body", "else_", "empty"):
+                children = getattr(node, attr, None)
+                if children and isinstance(children, (list, tuple)):
+                    self._collect_defs(children, signatures)
+
+            # Handle elif
+            elif_ = getattr(node, "elif_", None)
+            if elif_:
+                for _test, body in elif_:
+                    self._collect_defs(body, signatures)
+
+            # Handle match cases
+            cases = getattr(node, "cases", None)
+            if cases:
+                for _pattern, _guard, body in cases:
+                    self._collect_defs(body, signatures)
+
+    def _validate_call_nodes(
+        self,
+        nodes: Sequence[Node],
+        signatures: dict[str, _DefSignature],
+        issues: list[CallValidation],
+    ) -> None:
+        """Recursively walk nodes and validate FuncCall sites."""
+        for node in nodes:
+            # Check CallBlock: {% call func(...) %}
+            if isinstance(node, CallBlock):
+                self._check_func_call(node.call, signatures, issues)
+                self._validate_call_nodes(node.body, signatures, issues)
+                continue
+
+            # Check Output expressions ({{ func(...) }})
+            if isinstance(node, Output):
+                self._check_func_call(node.expr, signatures, issues)
+                continue
+
+            # Check {% def %} body
+            if isinstance(node, Def):
+                self._validate_call_nodes(node.body, signatures, issues)
+                continue
+
+            # Check expression nodes that may contain FuncCall
+            expr = getattr(node, "value", None)
+            if expr and hasattr(expr, "lineno"):
+                self._check_func_call(expr, signatures, issues)
+
+            # Recurse into containers
+            for attr in ("body", "else_", "empty"):
+                children = getattr(node, attr, None)
+                if children and isinstance(children, (list, tuple)):
+                    self._validate_call_nodes(children, signatures, issues)
+
+            elif_ = getattr(node, "elif_", None)
+            if elif_:
+                for _test, body in elif_:
+                    self._validate_call_nodes(body, signatures, issues)
+
+            cases = getattr(node, "cases", None)
+            if cases:
+                for _pattern, _guard, body in cases:
+                    self._validate_call_nodes(body, signatures, issues)
+
+    def _check_func_call(
+        self,
+        expr: Node,
+        signatures: dict[str, _DefSignature],
+        issues: list[CallValidation],
+    ) -> None:
+        """Check a single expression for FuncCall nodes targeting known defs."""
+        if not isinstance(expr, FuncCall):
+            return
+
+        # Only validate calls to names (not attribute calls like obj.method())
+        if not isinstance(expr.func, Name):
+            return
+
+        func_name = expr.func.name
+        sig = signatures.get(func_name)
+        if sig is None:
+            return  # Not a known {% def %} — skip
+
+        # Validate keyword arguments
+        call_kwargs = list(expr.kwargs.keys())
+
+        # Check for duplicate keyword args
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for kw in call_kwargs:
+            if kw in seen:
+                duplicates.append(kw)
+            seen.add(kw)
+
+        # Check for unknown parameter names
+        unknown: list[str] = (
+            [kw for kw in call_kwargs if kw not in sig.param_names]
+            if not sig.has_kwarg
+            else []
+        )
+
+        # Check for missing required parameters
+        # Required = params without defaults that aren't supplied
+        # Positional args fill params left-to-right
+        n_positional = len(expr.args)
+        missing: list[str] = []
+
+        if not sig.has_vararg:
+            for i, param_name in enumerate(sig.required_params):
+                if i < n_positional:
+                    continue  # Filled by positional arg
+                if param_name not in seen:
+                    missing.append(param_name)
+
+        if unknown or missing or duplicates:
+            issues.append(CallValidation(
+                def_name=func_name,
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                unknown_params=tuple(unknown),
+                missing_required=tuple(missing),
+                duplicate_params=tuple(duplicates),
+            ))
+
+
+@dataclass(frozen=True, slots=True)
+class _DefSignature:
+    """Internal: extracted signature of a {% def %} for call validation."""
+
+    param_names: frozenset[str]
+    required_params: tuple[str, ...]
+    has_vararg: bool
+    has_kwarg: bool
+
+    @staticmethod
+    def from_def(node: Def) -> _DefSignature:
+        """Build signature from a Def AST node."""
+        all_names = [p.name for p in node.params]
+        # Required params: those without defaults (counted from the end)
+        n_defaults = len(node.defaults)
+        n_total = len(all_names)
+        required = all_names[: n_total - n_defaults] if n_defaults < n_total else []
+
+        return _DefSignature(
+            param_names=frozenset(all_names),
+            required_params=tuple(required),
+            has_vararg=node.vararg is not None,
+            has_kwarg=node.kwarg is not None,
+        )
 
 
 def _compute_block_hash(block_node: Block) -> str:

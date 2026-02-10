@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
-from kida.nodes import CallBlock, Def, Slot
+from kida.nodes import CallBlock, Def, DefParam, Slot
 
 if TYPE_CHECKING:
     from kida.nodes import Expr, Node
@@ -57,11 +57,118 @@ class FunctionBlockParsingMixin(BlockStackMixin):
         # From ExpressionParsingMixin
         def _parse_expression(self) -> Expr: ...
 
+    def _parse_type_annotation(self) -> str | None:
+        """Parse an optional type annotation after a parameter name.
+
+        Called when the current token is COLON (indicating a type follows).
+        Consumes the colon and type expression tokens, returning the raw
+        annotation string.
+
+        Grammar::
+
+            type_expr := NAME [ '|' NAME ]* [ '[' type_expr (',' type_expr)* ']' ]
+
+        Handles: ``str``, ``int``, ``list``, ``str | None``,
+        ``dict[str, int]``, ``MyModel``.
+
+        Returns:
+            Raw annotation string, or None if no colon follows.
+        """
+        if not self._match(TokenType.COLON):
+            return None
+
+        self._advance()  # consume ':'
+
+        # Must start with a NAME
+        if self._current.type != TokenType.NAME:
+            raise self._error(
+                "Expected type name after ':'",
+                suggestion="Annotation syntax: name: str, name: str | None",
+            )
+
+        parts: list[str] = [self._advance().value]
+
+        # Handle generic parameters: name[T, U]
+        if self._match(TokenType.LBRACKET):
+            parts.append("[")
+            self._advance()  # consume '['
+            parts.append(self._parse_type_annotation_inner())
+            while self._match(TokenType.COMMA):
+                self._advance()  # consume ','
+                parts.append(", ")
+                parts.append(self._parse_type_annotation_inner())
+            self._expect(TokenType.RBRACKET)
+            parts.append("]")
+
+        # Handle union: T | U | V
+        while self._match(TokenType.PIPE):
+            self._advance()  # consume '|'
+            if self._current.type != TokenType.NAME:
+                raise self._error(
+                    "Expected type name after '|'",
+                    suggestion="Union syntax: str | None",
+                )
+            parts.append(" | ")
+            parts.append(self._advance().value)
+
+            # Handle generic after union member: T | list[U]
+            if self._match(TokenType.LBRACKET):
+                parts.append("[")
+                self._advance()  # consume '['
+                parts.append(self._parse_type_annotation_inner())
+                while self._match(TokenType.COMMA):
+                    self._advance()
+                    parts.append(", ")
+                    parts.append(self._parse_type_annotation_inner())
+                self._expect(TokenType.RBRACKET)
+                parts.append("]")
+
+        return "".join(parts)
+
+    def _parse_type_annotation_inner(self) -> str:
+        """Parse a single type inside brackets (for generic parameters).
+
+        Returns:
+            Type string (e.g. "str", "str | None").
+        """
+        if self._current.type != TokenType.NAME:
+            raise self._error("Expected type name in generic parameter")
+
+        parts: list[str] = [self._advance().value]
+
+        # Nested generics: dict[str, list[int]]
+        if self._match(TokenType.LBRACKET):
+            parts.append("[")
+            self._advance()
+            parts.append(self._parse_type_annotation_inner())
+            while self._match(TokenType.COMMA):
+                self._advance()
+                parts.append(", ")
+                parts.append(self._parse_type_annotation_inner())
+            self._expect(TokenType.RBRACKET)
+            parts.append("]")
+
+        # Union inside generics: list[str | None]
+        while self._match(TokenType.PIPE):
+            self._advance()
+            if self._current.type != TokenType.NAME:
+                raise self._error("Expected type name after '|'")
+            parts.append(" | ")
+            parts.append(self._advance().value)
+
+        return "".join(parts)
+
     def _parse_def(self) -> Def:
         """Parse {% def name(args) %}...{% end %} or {% enddef %.
 
         Kida functions with true lexical scoping (can access outer scope).
         Uses stack-based parsing for proper nested block handling.
+
+        Supports optional type annotations on parameters::
+
+            {% def card(title: str, items: list, footer: str | None = None) %}
+                ...
+            {% end %}
 
         Example:
             {% def card(item, show_date=true) %}
@@ -83,8 +190,8 @@ class FunctionBlockParsingMixin(BlockStackMixin):
             )
         name = self._advance().value
 
-        # Parse arguments (supports *args and **kwargs)
-        args: list[str] = []
+        # Parse arguments (supports type annotations, *args and **kwargs)
+        params: list[DefParam] = []
         defaults: list[Expr] = []
         vararg: str | None = None
         kwarg: str | None = None
@@ -122,8 +229,18 @@ class FunctionBlockParsingMixin(BlockStackMixin):
             # Regular argument
             if self._current.type != TokenType.NAME:
                 raise self._error("Expected argument name")
+            param_token = self._current
             arg_name = self._advance().value
-            args.append(arg_name)
+
+            # Optional type annotation: name: type
+            annotation = self._parse_type_annotation()
+
+            params.append(DefParam(
+                lineno=param_token.lineno,
+                col_offset=param_token.col_offset,
+                name=arg_name,
+                annotation=annotation,
+            ))
             has_args = True
 
             # Check for default value
@@ -144,7 +261,7 @@ class FunctionBlockParsingMixin(BlockStackMixin):
             lineno=start.lineno,
             col_offset=start.col_offset,
             name=name,
-            args=tuple(args),
+            params=tuple(params),
             body=tuple(body),
             defaults=tuple(defaults),
             vararg=vararg,

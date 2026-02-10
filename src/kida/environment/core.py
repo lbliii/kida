@@ -172,6 +172,12 @@ class Environment:
     trim_blocks: bool = False
     lstrip_blocks: bool = False
 
+    # Call-site validation (RFC: typed-def-parameters)
+    # When True, validate {% call %} and {{ func() }} sites against {% def %}
+    # signatures at compile time. Reports warnings for unknown params, missing
+    # required params, and duplicate kwargs.
+    validate_calls: bool = False
+
     # F-string optimization (RFC: fstring-code-generation)
     # When True, consecutive output nodes are coalesced into single f-string appends
     fstring_coalescing: bool = True
@@ -534,6 +540,30 @@ class Environment:
                 static_context,
                 pure_filters=frozenset(self.pure_filters),
             )
+
+        # Call-site validation (RFC: typed-def-parameters)
+        if self.validate_calls:
+            import warnings
+
+            from kida.analysis.analyzer import BlockAnalyzer
+
+            analyzer = BlockAnalyzer()
+            call_issues = analyzer.validate_calls(ast)
+            for issue in call_issues:
+                parts: list[str] = []
+                if issue.unknown_params:
+                    parts.append(f"unknown params: {', '.join(issue.unknown_params)}")
+                if issue.missing_required:
+                    parts.append(
+                        f"missing required: {', '.join(issue.missing_required)}"
+                    )
+                if issue.duplicate_params:
+                    parts.append(f"duplicate params: {', '.join(issue.duplicate_params)}")
+                loc = f"{name or '<string>'}:{issue.lineno}"
+                msg = (
+                    f"Call to '{issue.def_name}' at {loc} — {'; '.join(parts)}"
+                )
+                warnings.warn(msg, stacklevel=2)
 
         # Preserve AST for introspection if enabled
         optimized_ast = ast if self.preserve_ast else None

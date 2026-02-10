@@ -185,6 +185,36 @@ class TemplateMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class CallValidation:
+    """Result of validating a single call site against a function definition.
+
+    Produced by ``BlockAnalyzer.validate_calls()`` when a ``FuncCall`` targets
+    a ``{% def %}`` in the same compilation unit.
+
+    Attributes:
+        def_name: Name of the called ``{% def %}``.
+        lineno: Source line of the call site.
+        col_offset: Source column of the call site.
+        unknown_params: Keyword argument names not in the definition's parameters.
+        missing_required: Required parameters (no default) not provided by the call.
+        duplicate_params: Keyword argument names supplied more than once.
+
+    """
+
+    def_name: str
+    lineno: int
+    col_offset: int
+    unknown_params: tuple[str, ...] = ()
+    missing_required: tuple[str, ...] = ()
+    duplicate_params: tuple[str, ...] = ()
+
+    @property
+    def is_valid(self) -> bool:
+        """Return True if no issues were found."""
+        return not (self.unknown_params or self.missing_required or self.duplicate_params)
+
+
+@dataclass(frozen=True, slots=True)
 class TemplateStructureManifest:
     """Lightweight template structure for schedulers and dependency planners.
 

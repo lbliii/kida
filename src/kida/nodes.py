@@ -414,8 +414,22 @@ class Capture(Node):
 
 
 @dataclass(frozen=True, slots=True)
+class DefParam(Node):
+    """A single parameter in a {% def %} with optional type annotation.
+
+    Attributes:
+        name: Parameter name.
+        annotation: Raw annotation text (e.g. "str | None"), or None if untyped.
+
+    """
+
+    name: str
+    annotation: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Def(Node):
-    """Function definition: {% def name(args) %}...{% end %}
+    """Function definition: {% def name(params) %}...{% end %}
 
     Kida uses functions with true lexical scoping instead of macros.
     Functions can access variables from their enclosing scope.
@@ -426,6 +440,10 @@ class Def(Node):
             <span>From: {{ site.title }}</span>  {# Can access outer scope #}
         {% end %}
 
+        {% def greet(name: str, greeting: str = "Hello") %}
+            {{ greeting }}, {{ name }}!
+        {% end %}
+
         {% def join_all(*args) %}{{ args | join(', ') }}{% end %}
 
         {% def tag(name, **attrs) %}
@@ -434,7 +452,7 @@ class Def(Node):
 
     Attributes:
         name: Function name
-        args: Positional argument names
+        params: Typed parameter definitions (replaces bare string args)
         body: Function body
         defaults: Default argument values
         vararg: Name for *args parameter (e.g., "args" from *args), or None
@@ -443,11 +461,21 @@ class Def(Node):
     """
 
     name: str
-    args: Sequence[str]
+    params: Sequence[DefParam]
     body: Sequence[Node]
     defaults: Sequence[Expr] = ()
     vararg: str | None = None
     kwarg: str | None = None
+
+    @property
+    def args(self) -> tuple[str, ...]:
+        """Backward-compat bridge: returns parameter names.
+
+        .. deprecated::
+            Use ``params`` instead. This property will be removed in a future release.
+
+        """
+        return tuple(p.name for p in self.params)
 
 
 @dataclass(frozen=True, slots=True)

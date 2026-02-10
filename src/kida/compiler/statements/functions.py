@@ -9,10 +9,13 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kida.nodes import CallBlock, Def, Node
+
+logger = logging.getLogger(__name__)
 
 
 class FunctionCompilationMixin:
@@ -37,8 +40,28 @@ class FunctionCompilationMixin:
         # From Compiler core
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
 
+    @staticmethod
+    def _parse_annotation(raw: str) -> ast.expr | None:
+        """Convert a raw annotation string to a Python AST expression node.
+
+        Uses ``ast.parse`` in eval mode to parse annotation text like
+        ``"str | None"`` into the corresponding AST. Falls back to None
+        for malformed annotations.
+
+        Args:
+            raw: Annotation text from the template source.
+
+        Returns:
+            AST expression node, or None if parsing fails.
+        """
+        try:
+            return ast.parse(raw, mode="eval").body
+        except SyntaxError:
+            logger.warning("Malformed type annotation in {%% def %%}: %r", raw)
+            return None
+
     def _compile_def(self, node: Def) -> list[ast.stmt]:
-        """Compile {% def name(args) %}...{% enddef %.
+        """Compile {% def name(params) %}...{% enddef %.
 
         Kida functions have true lexical scoping - they can access variables
         from their enclosing scope, unlike Jinja2 macros.
@@ -58,8 +81,16 @@ class FunctionCompilationMixin:
         # Track for profiling: FuncCall to this name will be instrumented
         self._def_names.add(def_name)
 
-        # Build function arguments
-        args_list = [ast.arg(arg=name) for name in node.args]
+        # Build function arguments with optional type annotations
+        args_list = [
+            ast.arg(
+                arg=p.name,
+                annotation=(
+                    self._parse_annotation(p.annotation) if p.annotation else None
+                ),
+            )
+            for p in node.params
+        ]
         defaults = [self._compile_expr(d) for d in node.defaults]
 
         # Build vararg and kwarg AST nodes
@@ -67,8 +98,13 @@ class FunctionCompilationMixin:
         kwarg_node = ast.arg(arg=node.kwarg) if node.kwarg else None
 
         # Build context dict entries: regular args + vararg + kwarg
-        ctx_keys: list[ast.expr | None] = [ast.Constant(value=name) for name in node.args]
-        ctx_values: list[ast.expr] = [ast.Name(id=name, ctx=ast.Load()) for name in node.args]
+        param_names = [p.name for p in node.params]
+        ctx_keys: list[ast.expr | None] = [
+            ast.Constant(value=name) for name in param_names
+        ]
+        ctx_values: list[ast.expr] = [
+            ast.Name(id=name, ctx=ast.Load()) for name in param_names
+        ]
 
         if node.vararg:
             ctx_keys.append(ast.Constant(value=node.vararg))
@@ -171,8 +207,8 @@ class FunctionCompilationMixin:
         ]
 
         # Add args to locals for direct access
-        for arg_name in node.args:
-            self._locals.add(arg_name)
+        for p in node.params:
+            self._locals.add(p.name)
         if node.vararg:
             self._locals.add(node.vararg)
         if node.kwarg:
@@ -190,8 +226,8 @@ class FunctionCompilationMixin:
             self._async_mode = saved_async
 
         # Remove args from locals
-        for arg_name in node.args:
-            self._locals.discard(arg_name)
+        for p in node.params:
+            self._locals.discard(p.name)
         if node.vararg:
             self._locals.discard(node.vararg)
         if node.kwarg:

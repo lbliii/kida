@@ -424,8 +424,8 @@ class DependencyWalker:
         for default in node.defaults:
             self._visit(default)
 
-        # Push function arguments into scope
-        self._scope_stack.append(set(node.args))
+        # Push function parameter names into scope
+        self._scope_stack.append({p.name for p in node.params})
 
         # Visit body
         for child in node.body:

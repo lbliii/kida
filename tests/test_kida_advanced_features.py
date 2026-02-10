@@ -452,3 +452,284 @@ class TestHasSlot:
         assert "A(1)+extra" in result
         assert "B(2)" in result
         assert "B(2)+" not in result
+
+
+# =============================================================================
+# Typed {% def %} parameters (RFC: typed-def-parameters)
+# =============================================================================
+
+
+class TestTypedDefParser:
+    """Parser: type annotation syntax in {% def %} parameters."""
+
+    def test_simple_type(self, env):
+        """Simple type annotation: name: str"""
+        tmpl = env.from_string(
+            "{% def greet(name: str) %}Hello {{ name }}!{% end %}{{ greet('World') }}"
+        )
+        assert tmpl.render() == "Hello World!"
+
+    def test_union_type(self, env):
+        """Union type annotation: name: str | None"""
+        tmpl = env.from_string(
+            "{% def show(val: str | None = none) %}"
+            "{% if val %}{{ val }}{% else %}empty{% end %}"
+            "{% end %}{{ show() }}"
+        )
+        assert tmpl.render() == "empty"
+
+    def test_mixed_typed_untyped(self, env):
+        """Mix of typed and untyped parameters."""
+        tmpl = env.from_string(
+            "{% def card(title: str, items, count: int = 0) %}"
+            "{{ title }}:{{ count }}"
+            "{% end %}{{ card('A', []) }}"
+        )
+        assert tmpl.render() == "A:0"
+
+    def test_generic_type(self, env):
+        """Generic type annotation: items: list"""
+        tmpl = env.from_string(
+            "{% def show(items: list) %}"
+            "{% for i in items %}{{ i }}{% end %}"
+            "{% end %}{{ show([1, 2, 3]) }}"
+        )
+        assert tmpl.render() == "123"
+
+    def test_generic_with_params(self, env):
+        """Generic with type parameters: mapping: dict[str, int]"""
+        tmpl = env.from_string(
+            "{% def show(data: dict[str, int]) %}"
+            "{% for k, v in data.items() %}{{ k }}={{ v }}{% end %}"
+            "{% end %}{{ show({'a': 1}) }}"
+        )
+        assert tmpl.render() == "a=1"
+
+    def test_multiple_typed_with_defaults(self, env):
+        """Multiple typed params with defaults."""
+        tmpl = env.from_string(
+            "{% def greet(name: str, greeting: str = 'Hello') %}"
+            "{{ greeting }}, {{ name }}!"
+            "{% end %}{{ greet('World') }}"
+        )
+        assert tmpl.render() == "Hello, World!"
+
+    def test_typed_override_default(self, env):
+        """Override default on typed parameter."""
+        tmpl = env.from_string(
+            "{% def greet(name: str, greeting: str = 'Hello') %}"
+            "{{ greeting }}, {{ name }}!"
+            "{% end %}{{ greet('World', 'Hi') }}"
+        )
+        assert tmpl.render() == "Hi, World!"
+
+    def test_untyped_still_works(self, env):
+        """Untyped parameters remain fully supported."""
+        tmpl = env.from_string(
+            "{% def greet(name) %}Hello {{ name }}!{% end %}{{ greet('World') }}"
+        )
+        assert tmpl.render() == "Hello World!"
+
+    def test_vararg_untyped(self, env):
+        """*args and **kwargs remain untyped."""
+        tmpl = env.from_string(
+            "{% def join_all(*args) %}{{ args | join(', ') }}{% end %}"
+            "{{ join_all('a', 'b', 'c') }}"
+        )
+        assert tmpl.render() == "a, b, c"
+
+    def test_typed_with_vararg(self, env):
+        """Typed params alongside *args."""
+        tmpl = env.from_string(
+            "{% def label(prefix: str, *items) %}"
+            "{{ prefix }}: {{ items | join(', ') }}"
+            "{% end %}{{ label('Tags', 'a', 'b') }}"
+        )
+        assert tmpl.render() == "Tags: a, b"
+
+    def test_typed_with_call_slot(self, env):
+        """Typed params work with {% call %} and {% slot %}."""
+        tmpl = env.from_string(
+            "{% def card(title: str) %}"
+            "<h3>{{ title }}</h3>"
+            "<div>{% slot %}</div>"
+            "{% end %}"
+            "{% call card('My Card') %}content{% end %}"
+        )
+        assert "My Card" in tmpl.render()
+        assert "content" in tmpl.render()
+
+
+class TestTypedDefBackwardCompat:
+    """Backward compatibility: Def.args property still works."""
+
+    def test_args_property_returns_names(self, env):
+        """Def.args backward-compat property returns param names."""
+        from kida.nodes import Def, DefParam
+
+        node = Def(
+            lineno=1,
+            col_offset=0,
+            name="test",
+            params=(
+                DefParam(lineno=1, col_offset=0, name="x", annotation="str"),
+                DefParam(lineno=1, col_offset=0, name="y"),
+            ),
+            body=(),
+        )
+        assert node.args == ("x", "y")
+
+    def test_params_has_annotations(self, env):
+        """Def.params carries annotation data."""
+        from kida.nodes import Def, DefParam
+
+        node = Def(
+            lineno=1,
+            col_offset=0,
+            name="test",
+            params=(
+                DefParam(lineno=1, col_offset=0, name="x", annotation="str"),
+                DefParam(lineno=1, col_offset=0, name="y"),
+            ),
+            body=(),
+        )
+        assert node.params[0].annotation == "str"
+        assert node.params[1].annotation is None
+
+
+class TestCallSiteValidation:
+    """Analysis: call-site validation against {% def %} signatures."""
+
+    def _validate(self, source):
+        """Parse source and return call validation issues."""
+        from kida.analysis.analyzer import BlockAnalyzer
+        from kida.lexer import Lexer
+        from kida.parser import Parser
+
+        lexer = Lexer(source)
+        tokens = list(lexer.tokenize())
+        parser = Parser(tokens, None, None, source)
+        ast = parser.parse()
+        analyzer = BlockAnalyzer()
+        return analyzer.validate_calls(ast)
+
+    def test_correct_call_no_issues(self):
+        """Correct call produces no validation issues."""
+        issues = self._validate(
+            "{% def card(title, items) %}"
+            "{{ title }}{% for i in items %}{{ i }}{% end %}"
+            "{% end %}"
+            "{{ card('hi', [1, 2]) }}"
+        )
+        assert issues == []
+
+    def test_unknown_param(self):
+        """Unknown keyword argument is detected."""
+        issues = self._validate(
+            "{% def card(title) %}{{ title }}{% end %}"
+            "{{ card(titl='oops') }}"
+        )
+        assert len(issues) == 1
+        assert "titl" in issues[0].unknown_params
+
+    def test_missing_required_param(self):
+        """Missing required parameter is detected."""
+        issues = self._validate(
+            "{% def card(title, items) %}{{ title }}{% end %}"
+            "{{ card(items=[1, 2]) }}"
+        )
+        assert len(issues) == 1
+        assert "title" in issues[0].missing_required
+
+    def test_duplicate_param_last_wins(self):
+        """Duplicate kwargs are deduplicated by the parser (last-wins).
+
+        The AST stores kwargs in a dict, so duplicates can't be detected
+        at the analysis level. The call is valid since 'title' is provided.
+        """
+        issues = self._validate(
+            "{% def card(title) %}{{ title }}{% end %}"
+            "{{ card(title='a', title='b') }}"
+        )
+        # No issues — the dict already deduplicated the kwargs
+        assert issues == []
+
+    def test_vararg_relaxes_positional(self):
+        """*args in def relaxes positional validation."""
+        issues = self._validate(
+            "{% def join_all(*args) %}{{ args | join }}{% end %}"
+            "{{ join_all('a', 'b', 'c') }}"
+        )
+        assert issues == []
+
+    def test_kwarg_relaxes_keyword(self):
+        """**kwargs in def relaxes keyword validation."""
+        issues = self._validate(
+            "{% def tag(name, **attrs) %}"
+            "<{{ name }}>{% end %}"
+            "{{ tag('div', id='main', class='big') }}"
+        )
+        assert issues == []
+
+    def test_default_params_not_required(self):
+        """Parameters with defaults are not required."""
+        issues = self._validate(
+            "{% def greet(name: str = 'World') %}Hello {{ name }}{% end %}"
+            "{{ greet() }}"
+        )
+        assert issues == []
+
+    def test_environment_validate_calls_flag(self):
+        """Environment.validate_calls emits warnings on bad calls."""
+        import warnings
+
+        env = Environment(validate_calls=True)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            env.from_string(
+                "{% def card(title) %}{{ title }}{% end %}"
+                "{{ card(titl='oops') }}"
+            )
+        assert len(w) == 1
+        assert "titl" in str(w[0].message)
+
+    def test_environment_validate_calls_disabled_by_default(self):
+        """By default, no validation warnings are emitted."""
+        import warnings
+
+        env = Environment()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            env.from_string(
+                "{% def card(title) %}{{ title }}{% end %}"
+                "{{ card(titl='oops') }}"
+            )
+        # No validation warnings (there may be other warnings, so filter)
+        call_warnings = [x for x in w if "titl" in str(x.message)]
+        assert call_warnings == []
+
+    def test_call_block_validated(self):
+        """{% call %} blocks are also validated."""
+        issues = self._validate(
+            "{% def card(title) %}<h3>{{ title }}</h3>{% slot %}{% end %}"
+            "{% call card(titl='oops') %}body{% end %}"
+        )
+        assert len(issues) == 1
+        assert "titl" in issues[0].unknown_params
+
+    def test_is_valid_property(self):
+        """CallValidation.is_valid returns False when issues exist."""
+        issues = self._validate(
+            "{% def card(title) %}{{ title }}{% end %}"
+            "{{ card(titl='oops') }}"
+        )
+        assert len(issues) == 1
+        assert not issues[0].is_valid
+
+    def test_valid_call_returns_empty(self):
+        """Valid calls return empty issues list."""
+        issues = self._validate(
+            "{% def greet(name: str) %}Hello {{ name }}{% end %}"
+            "{{ greet('World') }}"
+        )
+        assert issues == []

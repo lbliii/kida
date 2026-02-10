@@ -40,7 +40,12 @@ from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.dependencies import DependencyWalker
 from kida.analysis.landmarks import LandmarkDetector
-from kida.analysis.metadata import BlockMetadata, TemplateMetadata, TemplateStructureManifest
+from kida.analysis.metadata import (
+    BlockMetadata,
+    CallValidation,
+    TemplateMetadata,
+    TemplateStructureManifest,
+)
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
 
@@ -49,6 +54,7 @@ __all__ = [
     "AnalysisConfig",
     "BlockAnalyzer",
     "BlockMetadata",
+    "CallValidation",
     "DependencyWalker",
     "LandmarkDetector",
     "PurityAnalyzer",
