@@ -104,6 +104,57 @@ class TestCollectionFilters:
         r = env.from_string("{{ items | skip(2) }}").render(items=None)
         assert r == "[]"
 
+    def test_last_list(self) -> None:
+        env = Environment()
+        r = env.from_string("{{ items | last }}").render(items=[1, 2, 3])
+        assert r == "3"
+
+    def test_last_generator(self) -> None:
+        """last filter works with generators (O(1) space via deque)."""
+        env = Environment()
+
+        def gen() -> object:
+            yield 1
+            yield 2
+            yield 3
+
+        r = env.from_string("{{ items | last }}").render(items=gen())
+        assert r == "3"
+
+    def test_last_empty(self) -> None:
+        """Empty sequence returns None, which renders as 'None' in template."""
+        env = Environment()
+        r = env.from_string("{{ items | last }}").render(items=[])
+        assert r == "None"
+
+    def test_take_generator(self) -> None:
+        """take filter works with generators (O(count) via islice)."""
+        env = Environment()
+
+        def gen() -> object:
+            yield 1
+            yield 2
+            yield 3
+            yield 4
+
+        r = env.from_string("{{ items | take(2) }}").render(items=gen())
+        assert "1" in r
+        assert "2" in r
+
+    def test_skip_generator(self) -> None:
+        """skip filter works with generators (O(count) via islice)."""
+        env = Environment()
+
+        def gen() -> object:
+            yield 1
+            yield 2
+            yield 3
+            yield 4
+
+        r = env.from_string("{{ items | skip(2) }}").render(items=gen())
+        assert "3" in r
+        assert "4" in r
+
     def test_compact_truthy(self) -> None:
         env = Environment()
         r = env.from_string("{{ items | compact }}").render(items=[0, None, "", False, "value"])

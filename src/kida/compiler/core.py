@@ -52,6 +52,10 @@ if TYPE_CHECKING:
     from kida.nodes import Block, Extends, Node
     from kida.nodes import Template as TemplateNode
 
+_TOP_LEVEL_STATEMENTS = frozenset(
+    {"FromImport", "Import", "Set", "Let", "Export", "Def", "Do"}
+)
+
 
 class Compiler(
     OperatorUtilsMixin,
@@ -116,10 +120,12 @@ class Compiler(
         "_async_mode",
         "_block_counter",
         "_blocks",
+        "_def_names",
         "_env",
         "_filename",
         "_has_async",
         "_locals",
+        "_loop_vars",
         "_name",
         "_node_dispatch",
         "_streaming",
@@ -363,39 +369,24 @@ class Compiler(
             decorator_list=[],
         )
 
-    def _make_block_function(self, name: str, block_node: Block) -> ast.FunctionDef:
-        """Generate a block function: _block_name(ctx, _blocks) -> str."""
-        body: list[ast.stmt] = [
-            # _e = _escape
+    def _make_block_preamble(self, streaming: bool) -> list[ast.stmt]:
+        """Common setup stmts for block functions.
+
+        Non-streaming adds buf and _append for StringBuilder.
+        """
+        stmts: list[ast.stmt] = [
             ast.Assign(
                 targets=[ast.Name(id="_e", ctx=ast.Store())],
                 value=ast.Name(id="_escape", ctx=ast.Load()),
             ),
-            # _s = _str
             ast.Assign(
                 targets=[ast.Name(id="_s", ctx=ast.Store())],
                 value=ast.Name(id="_str", ctx=ast.Load()),
             ),
-            # buf = []
-            ast.Assign(
-                targets=[ast.Name(id="buf", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            # _append = buf.append
-            ast.Assign(
-                targets=[ast.Name(id="_append", ctx=ast.Store())],
-                value=ast.Attribute(
-                    value=ast.Name(id="buf", ctx=ast.Load()),
-                    attr="append",
-                    ctx=ast.Load(),
-                ),
-            ),
-            # _scope_stack = [] (for block-scoped variables)
             ast.Assign(
                 targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
             ),
-            # Profiling: _acc = _get_accumulator()
             ast.Assign(
                 targets=[ast.Name(id="_acc", ctx=ast.Store())],
                 value=ast.Call(
@@ -405,6 +396,26 @@ class Compiler(
                 ),
             ),
         ]
+        if not streaming:
+            stmts.extend([
+                ast.Assign(
+                    targets=[ast.Name(id="buf", ctx=ast.Store())],
+                    value=ast.List(elts=[], ctx=ast.Load()),
+                ),
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Attribute(
+                        value=ast.Name(id="buf", ctx=ast.Load()),
+                        attr="append",
+                        ctx=ast.Load(),
+                    ),
+                ),
+            ])
+        return stmts
+
+    def _make_block_function(self, name: str, block_node: Block) -> ast.FunctionDef:
+        """Generate a block function: _block_name(ctx, _blocks) -> str."""
+        body: list[ast.stmt] = self._make_block_preamble(streaming=False)
 
         # Compile block body with f-string coalescing
         body.extend(self._compile_body_with_coalescing(list(block_node.body)))
@@ -513,15 +524,7 @@ class Compiler(
             # We compile FromImport, Import, Set, Let, Export, and Def nodes at the top level.
             for child in node.body:
                 child_type = type(child).__name__
-                if child_type in (
-                    "FromImport",
-                    "Import",
-                    "Set",
-                    "Let",
-                    "Export",
-                    "Def",
-                    "Do",
-                ):
+                if child_type in _TOP_LEVEL_STATEMENTS:
                     body.extend(self._compile_node(child))
 
             # For each block: _blocks.setdefault('name', block_func)
@@ -630,32 +633,7 @@ class Compiler(
 
     def _make_block_function_stream(self, name: str, block_node: Block) -> ast.FunctionDef:
         """Generate a streaming block: _block_name_stream(ctx, _blocks) -> Generator[str]."""
-        body: list[ast.stmt] = [
-            # _e = _escape
-            ast.Assign(
-                targets=[ast.Name(id="_e", ctx=ast.Store())],
-                value=ast.Name(id="_escape", ctx=ast.Load()),
-            ),
-            # _s = _str
-            ast.Assign(
-                targets=[ast.Name(id="_s", ctx=ast.Store())],
-                value=ast.Name(id="_str", ctx=ast.Load()),
-            ),
-            # _scope_stack = []
-            ast.Assign(
-                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            # Profiling: _acc = _get_accumulator()
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            ),
-        ]
+        body: list[ast.stmt] = self._make_block_preamble(streaming=True)
 
         # Compile block body with streaming yields
         body.extend(self._compile_body_with_coalescing(list(block_node.body)))
@@ -743,15 +721,7 @@ class Compiler(
             # Execute top-level statements (imports, sets, etc.)
             for child in node.body:
                 child_type = type(child).__name__
-                if child_type in (
-                    "FromImport",
-                    "Import",
-                    "Set",
-                    "Let",
-                    "Export",
-                    "Def",
-                    "Do",
-                ):
+                if child_type in _TOP_LEVEL_STATEMENTS:
                     body.extend(self._compile_node(child))
 
             # Register streaming block functions
@@ -839,29 +809,7 @@ class Compiler(
 
         Part of RFC: rfc-async-rendering.
         """
-        body: list[ast.stmt] = [
-            ast.Assign(
-                targets=[ast.Name(id="_e", ctx=ast.Store())],
-                value=ast.Name(id="_escape", ctx=ast.Load()),
-            ),
-            ast.Assign(
-                targets=[ast.Name(id="_s", ctx=ast.Store())],
-                value=ast.Name(id="_str", ctx=ast.Load()),
-            ),
-            ast.Assign(
-                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            # Profiling: _acc = _get_accumulator()
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            ),
-        ]
+        body: list[ast.stmt] = self._make_block_preamble(streaming=True)
 
         body.extend(self._compile_body_with_coalescing(list(block_node.body)))
 
@@ -952,15 +900,7 @@ class Compiler(
             # Execute top-level statements
             for child in node.body:
                 child_type = type(child).__name__
-                if child_type in (
-                    "FromImport",
-                    "Import",
-                    "Set",
-                    "Let",
-                    "Export",
-                    "Def",
-                    "Do",
-                ):
+                if child_type in _TOP_LEVEL_STATEMENTS:
                     body.extend(self._compile_node(child))
 
             # Register async streaming block functions

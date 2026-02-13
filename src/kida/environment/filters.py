@@ -71,8 +71,9 @@ from __future__ import annotations
 import json
 import random as random_module
 import textwrap
+from collections import deque
 from collections.abc import Callable
-from itertools import groupby
+from itertools import groupby, islice
 from pprint import pformat
 from typing import Any
 from urllib.parse import quote
@@ -188,12 +189,18 @@ def _filter_join(value: Any, separator: str = "") -> str:
 
 
 def _filter_last(value: Any) -> Any:
-    """Return last item of sequence."""
+    """Return last item of sequence.
+
+    Uses deque(maxlen=1) for O(1) space on iterators; avoids materializing
+    entire sequence.
+    """
     if value is None:
         return None
     try:
-        return list(value)[-1]
-    except (IndexError, TypeError, ValueError):
+        it = iter(value)
+        dq = deque(it, maxlen=1)
+        return dq[0] if dq else None
+    except (TypeError, ValueError):
         return None
 
 
@@ -478,7 +485,7 @@ def _filter_take(value: Any, count: int) -> list[Any]:
     if value is None:
         return []
     try:
-        return list(value)[:count]
+        return list(islice(value, count))
     except (TypeError, ValueError):
         return []
 
@@ -503,7 +510,7 @@ def _filter_skip(value: Any, count: int) -> list[Any]:
     if value is None:
         return []
     try:
-        return list(value)[count:]
+        return list(islice(value, count, None))
     except (TypeError, ValueError):
         return []
 

@@ -44,6 +44,7 @@ from __future__ import annotations
 import weakref
 from typing import TYPE_CHECKING, Any
 
+from kida.render_context import RenderContext
 from kida.template.cached_blocks import CachedBlocksDict
 from kida.template.helpers import (
     STATIC_NAMESPACE,
@@ -68,6 +69,25 @@ if TYPE_CHECKING:
     from kida.environment import Environment
     from kida.nodes import Template as TemplateNode
     from kida.render_context import RenderContext
+
+
+def _wrap_blocks_if_cached(
+    blocks: dict[str, Any],
+    render_ctx: RenderContext,
+) -> dict[str, Any] | CachedBlocksDict:
+    """Wrap blocks with CachedBlocksDict if render context has cached blocks."""
+    if (
+        not render_ctx.cached_blocks
+        or isinstance(blocks, CachedBlocksDict)
+        or not render_ctx.cached_block_names
+    ):
+        return blocks
+    return CachedBlocksDict(
+        blocks,
+        render_ctx.cached_blocks,
+        render_ctx.cached_block_names,
+        stats=render_ctx.cache_stats,
+    )
 
 
 class Template(TemplateIntrospectionMixin):
@@ -117,6 +137,7 @@ class Template(TemplateIntrospectionMixin):
     """
 
     __slots__ = (
+        "_block_names",  # Cached block names for O(1) list_blocks
         "_code",
         "_env_ref",
         "_filename",
@@ -165,6 +186,16 @@ class Template(TemplateIntrospectionMixin):
         # Capture env reference for closures (will be dereferenced at call time)
         env_ref = self._env_ref
 
+        def _resolve_env(template_name: str) -> Environment:
+            """Resolve env from weakref or raise if GC'd."""
+            _env = env_ref()
+            if _env is None:
+                raise RuntimeError(
+                    f"Environment has been garbage collected while including "
+                    f"'{template_name}'"
+                )
+            return _env
+
         # Include helper - loads and renders included template
         def _include(
             template_name: str,
@@ -195,11 +226,7 @@ class Template(TemplateIntrospectionMixin):
             if acc is not None:
                 acc.record_include(template_name)
 
-            _env = env_ref()
-            if _env is None:
-                raise RuntimeError(
-                    f"Environment has been garbage collected while including '{template_name}'"
-                )
+            _env = _resolve_env(template_name)
             try:
                 included = _env.get_template(template_name)
 
@@ -242,12 +269,7 @@ class Template(TemplateIntrospectionMixin):
             from kida.render_context import get_render_context_required
 
             render_ctx = get_render_context_required()
-
-            _env = env_ref()
-            if _env is None:
-                raise RuntimeError(
-                    f"Environment has been garbage collected while extending '{template_name}'"
-                )
+            _env = _resolve_env(template_name)
             parent = _env.get_template(template_name)
             # Guard against templates that failed to compile properly
             if parent._render_func is None:
@@ -255,20 +277,7 @@ class Template(TemplateIntrospectionMixin):
                     f"Template '{template_name}' not properly compiled: "
                     f"_render_func is None. Check for syntax errors in the template."
                 )
-            # Apply cached blocks wrapper from RenderContext
-            blocks_to_use: dict[str, Any] | CachedBlocksDict = blocks
-            if (
-                render_ctx.cached_blocks
-                and not isinstance(blocks, CachedBlocksDict)
-                and render_ctx.cached_block_names
-            ):
-                blocks_to_use = CachedBlocksDict(
-                    blocks,
-                    render_ctx.cached_blocks,
-                    render_ctx.cached_block_names,
-                    stats=render_ctx.cache_stats,
-                )
-
+            blocks_to_use = _wrap_blocks_if_cached(blocks, render_ctx)
             result: str = parent._render_func(context, blocks_to_use)
             return result
 
@@ -332,12 +341,7 @@ class Template(TemplateIntrospectionMixin):
             from kida.render_context import get_render_context_required
 
             render_ctx = get_render_context_required()
-
-            _env = env_ref()
-            if _env is None:
-                raise RuntimeError(
-                    f"Environment has been garbage collected while extending '{template_name}'"
-                )
+            _env = _resolve_env(template_name)
             parent = _env.get_template(template_name)
             stream_func = parent._namespace.get("render_stream")
             if stream_func is None:
@@ -345,20 +349,7 @@ class Template(TemplateIntrospectionMixin):
                     f"Template '{template_name}' not properly compiled: "
                     f"render_stream is None."
                 )
-            # Apply cached blocks wrapper from RenderContext
-            blocks_to_use: dict[str, Any] | CachedBlocksDict = blocks
-            if (
-                render_ctx.cached_blocks
-                and not isinstance(blocks, CachedBlocksDict)
-                and render_ctx.cached_block_names
-            ):
-                blocks_to_use = CachedBlocksDict(
-                    blocks,
-                    render_ctx.cached_blocks,
-                    render_ctx.cached_block_names,
-                    stats=render_ctx.cache_stats,
-                )
-
+            blocks_to_use = _wrap_blocks_if_cached(blocks, render_ctx)
             yield from stream_func(context, blocks_to_use)
 
         # Async streaming include helper — yields chunks from included template
@@ -389,11 +380,7 @@ class Template(TemplateIntrospectionMixin):
             if acc is not None:
                 acc.record_include(template_name)
 
-            _env = env_ref()
-            if _env is None:
-                raise RuntimeError(
-                    f"Environment has been garbage collected while including '{template_name}'"
-                )
+            _env = _resolve_env(template_name)
             try:
                 included = _env.get_template(template_name)
                 child_ctx = render_ctx.child_context(template_name)
@@ -435,27 +422,9 @@ class Template(TemplateIntrospectionMixin):
             from kida.render_context import get_render_context_required
 
             render_ctx = get_render_context_required()
-
-            _env = env_ref()
-            if _env is None:
-                raise RuntimeError(
-                    f"Environment has been garbage collected while extending '{template_name}'"
-                )
+            _env = _resolve_env(template_name)
             parent = _env.get_template(template_name)
-
-            # Apply cached blocks wrapper from RenderContext
-            blocks_to_use: dict[str, Any] | CachedBlocksDict = blocks
-            if (
-                render_ctx.cached_blocks
-                and not isinstance(blocks, CachedBlocksDict)
-                and render_ctx.cached_block_names
-            ):
-                blocks_to_use = CachedBlocksDict(
-                    blocks,
-                    render_ctx.cached_blocks,
-                    render_ctx.cached_block_names,
-                    stats=render_ctx.cache_stats,
-                )
+            blocks_to_use = _wrap_blocks_if_cached(blocks, render_ctx)
 
             # Always use async streaming — all templates generate render_stream_async
             async_func = parent._namespace.get("render_stream_async")
@@ -554,6 +523,11 @@ class Template(TemplateIntrospectionMixin):
         self._render_stream_func = namespace.get("render_stream")
         self._render_stream_async_func = namespace.get("render_stream_async")
         self._namespace = namespace  # Keep for render_block()
+        self._block_names = tuple(
+            k[7:]
+            for k in namespace
+            if k.startswith("_block_") and callable(namespace[k])
+        )
 
     @property
     def _env(self) -> Environment:
@@ -565,6 +539,27 @@ class Template(TemplateIntrospectionMixin):
                 f" (template: {self._name or 'unknown'})"
             )
         return env
+
+    def _build_context(
+        self, args: tuple[Any, ...], kwargs: dict[str, Any], method_name: str
+    ) -> dict[str, Any]:
+        """Build render context from args and kwargs.
+
+        Shared by render, render_block, render_with_blocks, render_stream,
+        render_stream_async, render_block_stream_async.
+        """
+        ctx: dict[str, Any] = {}
+        ctx.update(self._env.globals)
+        if args:
+            if len(args) == 1 and isinstance(args[0], dict):
+                ctx.update(args[0])
+            else:
+                raise TypeError(
+                    f"{method_name}() takes at most 1 positional argument (a dict), "
+                    f"got {len(args)}"
+                )
+        ctx.update(kwargs)
+        return ctx
 
     @property
     def name(self) -> str | None:
@@ -608,25 +603,7 @@ class Template(TemplateIntrospectionMixin):
                 template_name=self._name,
             )
 
-        # Build context (CLEAN - no internal keys!)
-        ctx: dict[str, Any] = {}
-
-        # Add globals
-        ctx.update(self._env.globals)
-
-        # Add positional dict arg
-        if args:
-            if len(args) == 1 and isinstance(args[0], dict):
-                ctx.update(args[0])
-            else:
-                raise TypeError(
-                    f"render() takes at most 1 positional argument (a dict), got {len(args)}"
-                )
-
-        # Add keyword args
-        ctx.update(kwargs)
-
-        # Extract internal state from kwargs (backward compat for Bengal)
+        ctx = self._build_context(args, kwargs, "render")
         cached_blocks = ctx.pop("_cached_blocks", {})
         cache_stats = ctx.pop("_cached_stats", None)
 
@@ -703,30 +680,12 @@ class Template(TemplateIntrospectionMixin):
         block_func = self._namespace.get(func_name)
 
         if block_func is None:
-            available = [
-                k[7:]
-                for k in self._namespace
-                if k.startswith("_block_") and callable(self._namespace[k])
-            ]
             raise KeyError(
                 f"Block '{block_name}' not found in template '{self._name}'. "
-                f"Available blocks: {available}"
+                f"Available blocks: {list(self._block_names)}"
             )
 
-        # Build clean user context
-        ctx: dict[str, Any] = {}
-        ctx.update(self._env.globals)
-
-        if args:
-            if len(args) == 1 and isinstance(args[0], dict):
-                ctx.update(args[0])
-            else:
-                raise TypeError(
-                    f"render_block() takes at most 1 positional argument (a dict), "
-                    f"got {len(args)}"
-                )
-
-        ctx.update(kwargs)
+        ctx = self._build_context(args, kwargs, "render_block")
 
         # Inherit metadata from parent context if present
         from kida.render_context import get_render_context
@@ -791,20 +750,7 @@ class Template(TemplateIntrospectionMixin):
         from kida.environment.exceptions import TemplateRuntimeError
         from kida.render_context import render_context
 
-        # Build context
-        ctx: dict[str, Any] = {}
-        ctx.update(self._env.globals)
-
-        if args:
-            if len(args) == 1 and isinstance(args[0], dict):
-                ctx.update(args[0])
-            else:
-                raise TypeError(
-                    f"render_with_blocks() takes at most 1 positional argument "
-                    f"(a dict), got {len(args)}"
-                )
-
-        ctx.update(kwargs)
+        ctx = self._build_context(args, kwargs, "render_with_blocks")
 
         render_func = self._render_func
         if render_func is None:
@@ -877,19 +823,7 @@ class Template(TemplateIntrospectionMixin):
                 template_name=self._name,
             )
 
-        ctx: dict[str, Any] = {}
-        ctx.update(self._env.globals)
-
-        if args:
-            if len(args) == 1 and isinstance(args[0], dict):
-                ctx.update(args[0])
-            else:
-                raise TypeError(
-                    f"render_stream() takes at most 1 positional argument (a dict), "
-                    f"got {len(args)}"
-                )
-        ctx.update(kwargs)
-
+        ctx = self._build_context(args, kwargs, "render_stream")
         cached_blocks = ctx.pop("_cached_blocks", {})
         cache_stats = ctx.pop("_cached_stats", None)
 
@@ -935,11 +869,7 @@ class Template(TemplateIntrospectionMixin):
         Returns:
             List of block names available for render_block()
         """
-        return [
-            k[7:]
-            for k in self._namespace
-            if k.startswith("_block_") and callable(self._namespace[k])
-        ]
+        return list(self._block_names)
 
     def _enhance_error(
         self,
@@ -1037,19 +967,7 @@ class Template(TemplateIntrospectionMixin):
         """
         from kida.render_context import async_render_context
 
-        ctx: dict[str, Any] = {}
-        ctx.update(self._env.globals)
-
-        if args:
-            if len(args) == 1 and isinstance(args[0], dict):
-                ctx.update(args[0])
-            else:
-                raise TypeError(
-                    f"render_stream_async() takes at most 1 positional argument (a dict), "
-                    f"got {len(args)}"
-                )
-        ctx.update(kwargs)
-
+        ctx = self._build_context(args, kwargs, "render_stream_async")
         cached_blocks = ctx.pop("_cached_blocks", {})
         cache_stats = ctx.pop("_cached_stats", None)
 
@@ -1117,28 +1035,12 @@ class Template(TemplateIntrospectionMixin):
         sync_func = self._namespace.get(sync_func_name)
 
         if async_func is None and sync_func is None:
-            available = [
-                k[7:]
-                for k in self._namespace
-                if k.startswith("_block_") and callable(self._namespace[k])
-            ]
             raise KeyError(
                 f"Block '{block_name}' not found in template '{self._name}'. "
-                f"Available blocks: {available}"
+                f"Available blocks: {list(self._block_names)}"
             )
 
-        ctx: dict[str, Any] = {}
-        ctx.update(self._env.globals)
-
-        if args:
-            if len(args) == 1 and isinstance(args[0], dict):
-                ctx.update(args[0])
-            else:
-                raise TypeError(
-                    f"render_block_stream_async() takes at most 1 positional argument "
-                    f"(a dict), got {len(args)}"
-                )
-        ctx.update(kwargs)
+        ctx = self._build_context(args, kwargs, "render_block_stream_async")
 
         async with async_render_context(
             template_name=self._name,
