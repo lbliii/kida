@@ -637,12 +637,20 @@ class Template(TemplateIntrospectionMixin):
                 f"Template '{self._name or '(inline)'}' not properly compiled"
             )
 
+        # Check if we're already inside a RenderContext (e.g., from framework or parent template)
+        # If so, inherit its metadata for framework integration (HTMX headers, CSRF tokens, etc.)
+        from kida.render_context import get_render_context
+
+        parent_ctx = get_render_context()
+        parent_meta = parent_ctx._meta if parent_ctx else None
+
         with render_context(
             template_name=self._name,
             filename=self._filename,
             source=self._source,
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
+            parent_meta=parent_meta,  # Inherit metadata from parent context
         ) as render_ctx:
             # Prepare blocks dictionary (inject cache wrapper if site-scoped blocks exist)
             blocks_arg = None
@@ -720,10 +728,17 @@ class Template(TemplateIntrospectionMixin):
 
         ctx.update(kwargs)
 
+        # Inherit metadata from parent context if present
+        from kida.render_context import get_render_context
+
+        parent_ctx = get_render_context()
+        parent_meta = parent_ctx._meta if parent_ctx else None
+
         with render_context(
             template_name=self._name,
             filename=self._filename,
             source=self._source,
+            parent_meta=parent_meta,
         ) as render_ctx:
             try:
                 # Run {% globals %} setup if present — injects macros/variables into ctx
@@ -804,10 +819,17 @@ class Template(TemplateIntrospectionMixin):
             # Use default arg to capture html by value (avoid closure over loop var)
             _blocks[name] = lambda ctx, _blocks, _html=html: _html
 
+        # Inherit metadata from parent context if present
+        from kida.render_context import get_render_context
+
+        parent_ctx = get_render_context()
+        parent_meta = parent_ctx._meta if parent_ctx else None
+
         with render_context(
             template_name=self._name,
             filename=self._filename,
             source=self._source,
+            parent_meta=parent_meta,
         ) as render_ctx:
             try:
                 # Run {% globals %} setup if present
@@ -877,12 +899,19 @@ class Template(TemplateIntrospectionMixin):
                 f"Template '{self._name or '(inline)'}' has no render_stream function"
             )
 
+        # Inherit metadata from parent context if present
+        from kida.render_context import get_render_context
+
+        parent_ctx = get_render_context()
+        parent_meta = parent_ctx._meta if parent_ctx else None
+
         with render_context(
             template_name=self._name,
             filename=self._filename,
             source=self._source,
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
+            parent_meta=parent_meta,
         ) as render_ctx:
             blocks_arg = None
             if render_ctx.cached_blocks:

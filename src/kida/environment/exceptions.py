@@ -34,6 +34,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from kida.environment import terminal
+
 # ---------------------------------------------------------------------------
 # Error codes
 # ---------------------------------------------------------------------------
@@ -104,6 +106,32 @@ class ErrorCode(Enum):
 # ---------------------------------------------------------------------------
 
 
+def format_template_stack(stack: list[tuple[str, int]] | None) -> str:
+    """Format template call stack for error messages with colors.
+
+    Args:
+        stack: List of (template_name, line_number) tuples showing include chain
+
+    Returns:
+        Formatted stack trace string with colors
+
+    Example:
+        >>> stack = [("base.html", 42), ("includes/nav.html", 12)]
+        >>> print(format_template_stack(stack))
+        Template stack:
+          • base.html:42
+          • includes/nav.html:12
+    """
+    if not stack:
+        return ""
+
+    lines = [terminal.dim_text("Template stack:")]
+    for template_name, line_num in stack:
+        location_str = f"{template_name}:{line_num}"
+        lines.append(f"  • {terminal.location(location_str)}")
+    return "\n".join(lines)
+
+
 @dataclass(frozen=True, slots=True)
 class SourceSnippet:
     """Template source context around an error line.
@@ -123,19 +151,20 @@ class SourceSnippet:
     column: int | None = None
 
     def format(self) -> str:
-        """Format snippet in Rust-inspired diagnostic style.
+        """Format snippet in Rust-inspired diagnostic style with colors.
 
         Returns a multi-line string with line numbers and the error line
-        highlighted. Matches the format used by TemplateSyntaxError and
-        LexerError for visual consistency.
+        highlighted. Uses terminal colors when supported.
         """
-        parts: list[str] = ["   |"]
+        parts: list[str] = [terminal.dim_text("   |")]
         for lineno, content in self.lines:
-            marker = ">" if lineno == self.error_line else " "
-            parts.append(f"{marker}{lineno:>3} | {content}")
+            is_error = lineno == self.error_line
+            parts.append(terminal.format_source_line(lineno, content, is_error=is_error))
         if self.column is not None:
-            parts.append(f"   | {' ' * self.column}^")
-        parts.append("   |")
+            # Caret pointer in bright red
+            caret = " " * self.column + "^"
+            parts.append(f"{terminal.dim_text('   |')} {terminal.error_line(caret)}")
+        parts.append(terminal.dim_text("   |"))
         return "\n".join(parts)
 
 
@@ -359,6 +388,7 @@ class TemplateRuntimeError(TemplateError):
         lineno: int | None = None,
         suggestion: str | None = None,
         source_snippet: SourceSnippet | None = None,
+        template_stack: list[tuple[str, int]] | None = None,
     ):
         self.message = message
         self.expression = expression
@@ -367,6 +397,7 @@ class TemplateRuntimeError(TemplateError):
         self.lineno = lineno
         self.suggestion = suggestion
         self.source_snippet = source_snippet
+        self.template_stack = template_stack or []
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
@@ -377,11 +408,16 @@ class TemplateRuntimeError(TemplateError):
             loc = self.template_name or "<template>"
             if self.lineno:
                 loc += f":{self.lineno}"
-            parts.append(f"  Location: {loc}")
+            parts.append(f"  Location: {terminal.location(loc)}")
 
         # Source snippet (shows the template line where error occurred)
         if self.source_snippet:
             parts.append(self.source_snippet.format())
+
+        # Template stack trace (Feature 2.1)
+        if self.template_stack:
+            parts.append("")
+            parts.append(format_template_stack(self.template_stack))
 
         # Expression info
         if self.expression:
@@ -400,7 +436,7 @@ class TemplateRuntimeError(TemplateError):
 
         # Suggestion
         if self.suggestion:
-            parts.append(f"\n  Suggestion: {self.suggestion}")
+            parts.append(f"\n  {terminal.hint('Suggestion:')} {self.suggestion}")
 
         return "\n".join(parts)
 
@@ -409,16 +445,23 @@ class TemplateRuntimeError(TemplateError):
         parts: list[str] = []
 
         # Header: code + message + location
-        code_prefix = f"{self.code.value}: " if self.code else ""
         loc = self.template_name or "<template>"
         if self.lineno:
             loc += f":{self.lineno}"
-        parts.append(f"{code_prefix}{self.message}")
-        parts.append(f"  Location: {loc}")
+        parts.append(terminal.format_error_header(
+            self.code.value if self.code else None,
+            self.message
+        ))
+        parts.append(f"  Location: {terminal.location(loc)}")
 
         # Source snippet
         if self.source_snippet:
             parts.append(self.source_snippet.format())
+
+        # Template stack trace (Feature 2.1)
+        if self.template_stack:
+            parts.append("")
+            parts.append(format_template_stack(self.template_stack))
 
         # Expression
         if self.expression:
@@ -426,11 +469,11 @@ class TemplateRuntimeError(TemplateError):
 
         # Suggestion
         if self.suggestion:
-            parts.append(f"  Hint: {self.suggestion}")
+            parts.append(f"  {terminal.hint('Hint:')} {self.suggestion}")
 
         # Docs URL
         if self.code:
-            parts.append(f"  Docs: {self.code.docs_url}")
+            parts.append(f"  {terminal.dim_text('Docs:')} {terminal.docs_url(self.code.docs_url)}")
 
         return "\n".join(parts)
 
@@ -549,19 +592,21 @@ class UndefinedError(TemplateError):
         lineno: int | None = None,
         available_names: frozenset[str] | None = None,
         source_snippet: SourceSnippet | None = None,
+        template_stack: list[tuple[str, int]] | None = None,
     ):
         self.name = name
         self.template = template or "<template>"
         self.lineno = lineno
         self._available_names = available_names
         self.source_snippet = source_snippet
+        self.template_stack = template_stack or []
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
         location = self.template
         if self.lineno:
             location += f":{self.lineno}"
-        msg = f"Undefined variable '{self.name}' in {location}"
+        msg = f"Undefined variable '{self.name}' in {terminal.location(location)}"
 
         # "Did you mean?" suggestion via fuzzy matching
         if self._available_names:
@@ -571,13 +616,19 @@ class UndefinedError(TemplateError):
                 self.name, self._available_names, n=1, cutoff=0.6
             )
             if matches:
-                msg += f". Did you mean '{matches[0]}'?"
+                suggested = terminal.suggestion(matches[0])
+                msg += f". Did you mean '{suggested}'?"
 
         # Source snippet (shows the template line where error occurred)
         if self.source_snippet:
             msg += "\n" + self.source_snippet.format()
 
-        msg += f"\n  Hint: Use {{{{ {self.name} | default('') }}}} for optional variables"
+        # Template stack trace (Feature 2.1)
+        if self.template_stack:
+            msg += "\n\n" + format_template_stack(self.template_stack)
+
+        hint_text = f"Use {{{{ {self.name} | default('') }}}} for optional variables"
+        msg += f"\n  {terminal.hint('Hint:')} {hint_text}"
         return msg
 
     def format_compact(self) -> str:
@@ -585,11 +636,13 @@ class UndefinedError(TemplateError):
         parts: list[str] = []
 
         # Header: code + message
-        code_prefix = f"{self.code.value}: " if self.code else ""
         location = self.template
         if self.lineno:
             location += f":{self.lineno}"
-        msg = f"{code_prefix}Undefined variable '{self.name}' in {location}"
+        msg = terminal.format_error_header(
+            self.code.value if self.code else None,
+            f"Undefined variable '{self.name}' in {terminal.location(location)}"
+        )
 
         # "Did you mean?" suggestion
         if self._available_names:
@@ -599,20 +652,25 @@ class UndefinedError(TemplateError):
                 self.name, self._available_names, n=1, cutoff=0.6
             )
             if matches:
-                msg += f". Did you mean '{matches[0]}'?"
+                suggested = terminal.suggestion(matches[0])
+                msg += f". Did you mean '{suggested}'?"
         parts.append(msg)
 
         # Source snippet
         if self.source_snippet:
             parts.append(self.source_snippet.format())
 
+        # Template stack trace (Feature 2.1)
+        if self.template_stack:
+            parts.append("")
+            parts.append(format_template_stack(self.template_stack))
+
         # Hint
-        parts.append(
-            f"  Hint: Use {{{{ {self.name} | default('') }}}} for optional variables"
-        )
+        hint_text = f"Use {{{{ {self.name} | default('') }}}} for optional variables"
+        parts.append(f"  {terminal.hint('Hint:')} {hint_text}")
 
         # Docs URL
         if self.code:
-            parts.append(f"  Docs: {self.code.docs_url}")
+            parts.append(f"  {terminal.dim_text('Docs:')} {terminal.docs_url(self.code.docs_url)}")
 
         return "\n".join(parts)

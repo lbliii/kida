@@ -51,6 +51,7 @@ class RenderContext:
         cached_blocks: Site-scoped block cache (shared across includes)
         cached_block_names: Frozenset of cached block names for O(1) lookup
         cache_stats: Optional dict for cache hit/miss tracking
+        template_stack: Stack of (template_name, line) for error traces
     """
 
     # Template identification (for error messages)
@@ -69,10 +70,68 @@ class RenderContext:
     include_depth: int = 0
     max_include_depth: int = 50
 
+    # Template call stack for error traces (Feature 2.1: Rich Error Messages)
+    # List of (template_name, line_number) showing the full include/extend chain
+    template_stack: list[tuple[str, int]] = field(default_factory=list)
+
     # Block caching (RFC: kida-template-introspection)
     cached_blocks: dict[str, str] = field(default_factory=dict)
     cached_block_names: frozenset[str] = field(default_factory=frozenset)
     cache_stats: dict[str, int] | None = None
+
+    # Framework metadata (for HTMX, CSRF, etc.)
+    _meta: dict[str, object] = field(default_factory=dict)
+
+    def get_meta(self, key: str, default: object = None) -> object:
+        """Get framework-specific metadata.
+
+        Used by frameworks (like Chirp) to pass request context into templates.
+        Commonly used for:
+        - HTMX headers: hx_request, hx_target, hx_trigger, hx_boosted
+        - Security: csrf_token
+        - User context: current_user, permissions
+
+        Args:
+            key: Metadata key
+            default: Value to return if key not found
+
+        Returns:
+            Metadata value or default
+
+        Example:
+            # In Chirp framework:
+            from kida.render_context import render_context
+
+            with render_context() as ctx:
+                # Set HTMX metadata from request headers
+                ctx.set_meta("hx_request", request.headers.get("HX-Request") == "true")
+                ctx.set_meta("hx_target", request.headers.get("HX-Target"))
+
+                # Set CSRF token
+                ctx.set_meta("csrf_token", session.csrf_token())
+
+                html = template.render(**data)
+
+            # In template:
+            # {% if hx_request() %}...{% end %}
+            # {{ csrf_token() }}
+        """
+        return self._meta.get(key, default)
+
+    def set_meta(self, key: str, value: object) -> None:
+        """Set framework-specific metadata.
+
+        Args:
+            key: Metadata key
+            value: Metadata value
+
+        Example:
+            with render_context() as ctx:
+                ctx.set_meta("hx_request", True)
+                ctx.set_meta("csrf_token", "abc123")
+                html = template.render()
+        """
+        self._meta[key] = value
 
     def check_include_depth(self, template_name: str) -> None:
         """Check if include depth limit exceeded.
@@ -96,14 +155,21 @@ class RenderContext:
     def child_context(self, template_name: str | None = None) -> RenderContext:
         """Create child context for include/embed with incremented depth.
 
-        Shares cached_blocks and cache_stats with parent (they're document-wide).
+        Shares cached_blocks, cache_stats, and _meta with parent
+        (they're document-wide). Appends current location to template_stack
+        for error traces.
 
         Args:
             template_name: Optional override for child template name
 
         Returns:
-            New RenderContext with incremented include_depth
+            New RenderContext with incremented include_depth and updated stack
         """
+        # Build new stack with current location appended
+        new_stack = self.template_stack.copy()
+        if self.template_name and self.line > 0:
+            new_stack.append((self.template_name, self.line))
+
         return RenderContext(
             template_name=template_name or self.template_name,
             filename=self.filename,
@@ -114,6 +180,8 @@ class RenderContext:
             cached_blocks=self.cached_blocks,
             cached_block_names=self.cached_block_names,
             cache_stats=self.cache_stats,
+            _meta=self._meta,  # Share metadata with child templates
+            template_stack=new_stack,  # Pass stack to child
         )
 
 
@@ -157,6 +225,7 @@ def render_context(
     source: str | None = None,
     cached_blocks: dict[str, str] | None = None,
     cache_stats: dict[str, int] | None = None,
+    parent_meta: dict[str, object] | None = None,
 ) -> Iterator[RenderContext]:
     """Context manager for render-scoped state.
 
@@ -170,6 +239,7 @@ def render_context(
         source: Template source for runtime error snippets
         cached_blocks: Site-scoped block cache
         cache_stats: Optional dict for cache hit/miss tracking
+        parent_meta: Metadata from parent context to inherit (for framework integration)
 
     Yields:
         The new RenderContext
@@ -178,6 +248,12 @@ def render_context(
         with render_context(template_name="page.html") as ctx:
             html = template._render_func(user_ctx, blocks)
             # ctx.line updated during render for error tracking
+
+        # Framework integration (inherit metadata):
+        with render_context() as ctx:
+            ctx.set_meta("hx_request", True)
+            # When template.render() is called, it inherits this metadata
+            html = template.render(user=user)
     """
     ctx = RenderContext(
         template_name=template_name,
@@ -186,6 +262,7 @@ def render_context(
         cached_blocks=cached_blocks or {},
         cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
         cache_stats=cache_stats,
+        _meta=parent_meta.copy() if parent_meta else {},  # Inherit parent metadata
     )
     token: Token[RenderContext | None] = _render_context.set(ctx)
     try:
@@ -201,6 +278,7 @@ async def async_render_context(
     source: str | None = None,
     cached_blocks: dict[str, str] | None = None,
     cache_stats: dict[str, int] | None = None,
+    parent_meta: dict[str, object] | None = None,
 ) -> AsyncIterator[RenderContext]:
     """Async context manager for render-scoped state.
 
@@ -215,6 +293,7 @@ async def async_render_context(
         source: Template source for runtime error snippets
         cached_blocks: Site-scoped block cache
         cache_stats: Optional dict for cache hit/miss tracking
+        parent_meta: Metadata from parent context to inherit (for framework integration)
 
     Yields:
         The new RenderContext
@@ -226,6 +305,7 @@ async def async_render_context(
         cached_blocks=cached_blocks or {},
         cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
         cache_stats=cache_stats,
+        _meta=parent_meta.copy() if parent_meta else {},  # Inherit parent metadata
     )
     token: Token[RenderContext | None] = _render_context.set(ctx)
     try:

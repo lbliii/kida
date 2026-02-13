@@ -110,7 +110,7 @@ wheels = [
 
 [[package]]
 name = "bengal"
-version = "0.1.9"
+version = "0.1.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -131,9 +131,9 @@ dependencies = [
     { name = "uvloop", marker = "sys_platform != 'win32'" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6f/1d/2bb66f616caf003dcf6d473312442c27116f8530f9986e051b5558574f5b/bengal-0.1.9.tar.gz", hash = "sha256:c248584eb61de3c6ebc1de38319c34a5afdc7e25120570e1554844cc967bee6c", size = 2381974, upload-time = "2026-02-08T17:16:49.479Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6d/a3/56c86612eb8a6c1525f9870fa65011a8e312d08716b2fc5e86ef6aeb36bd/bengal-0.1.10.tar.gz", hash = "sha256:7678d68fa136fc715e0bf4d8b7dc040fff385a3e5d162fdccba65569b6b5b32d", size = 2384777, upload-time = "2026-02-09T01:12:39.474Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/90/b7/16044ae2183011c6524981cc0f639e5bccda6f1e28273b3c84f3d4d2d17f/bengal-0.1.9-py3-none-any.whl", hash = "sha256:3cf3371a7fa36216057cd848110ea177642156e595e5a014e74f6231735fac6f", size = 3050163, upload-time = "2026-02-08T17:16:47.734Z" },
+    { url = "https://files.pythonhosted.org/packages/19/c6/3e5366f153f0cd59a7ea7d5e5c28899fb1b74bd3e447ad8e6be2628bbfb9/bengal-0.1.10-py3-none-any.whl", hash = "sha256:18b2255e520c7f55871c437ce6fc0382c19d64bda48a62341d978a80d51446ea", size = 3056520, upload-time = "2026-02-09T01:12:37.715Z" },
 ]
 
 [[package]]
@@ -374,7 +374,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/5e/73/e01e4c5e11ad0494f
 
 [[package]]
 name = "kida-templates"
-version = "0.1.2"
+version = "0.2.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
@@ -401,7 +401,7 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "bengal", marker = "extra == 'docs'", specifier = ">=0.1.9" }]
+requires-dist = [{ name = "bengal", marker = "extra == 'docs'", specifier = ">=0.1.10" }]
 provides-extras = ["docs"]
 
 [package.metadata.requires-dev]
@@ -418,7 +418,7 @@ dev = [
     { name = "ruff", specifier = ">=0.14.0" },
     { name = "ty", specifier = ">=0.0.11" },
 ]
-docs = [{ name = "bengal", specifier = ">=0.1.9" }]
+docs = [{ name = "bengal", specifier = ">=0.1.10" }]
 
 [[package]]
 name = "linkify-it-py"

@@ -38,6 +38,11 @@ Categories:
     - `lower`: String is all lowercase
     - `upper`: String is all uppercase
 
+**HTMX Tests** (Feature 1.2):
+    - `hx_request`: Request is from HTMX (checks HX-Request header)
+    - `hx_target(id)`: HTMX target matches element ID
+    - `hx_boosted`: Request is HTMX-boosted
+
 Negation:
 Use `is not` for negated tests:
 `{% if user is not defined %}` or `{% if count is not even %}`
@@ -227,6 +232,105 @@ def _test_match(value: Any, pattern: str) -> bool:
     return bool(re.match(pattern, str(value)))
 
 
+def _test_hx_request(value: Any) -> bool:
+    """Test if value indicates an HTMX request.
+
+    Works with request objects that have a headers dict/attribute,
+    or with boolean values directly.
+
+    Usage:
+        {% if request is hx_request %}
+          {# Render fragment for HTMX #}
+        {% else %}
+          {# Render full page #}
+        {% end %}
+
+    Args:
+        value: Request object with headers, or boolean value
+
+    Returns:
+        bool: True if HTMX request, False otherwise
+
+    Example:
+        # In Chirp:
+        @app.route("/items")
+        def items(request):
+            if request is hx_request:
+                return Fragment("items.html", "item_list")
+            return Template("items.html")
+    """
+    # If value has headers attribute/dict, check HX-Request header
+    if hasattr(value, "headers"):
+        headers = value.headers
+        if isinstance(headers, dict):
+            return headers.get("HX-Request", "").lower() == "true"
+        # For framework request objects with attribute access
+        return getattr(headers, "get", lambda k, d: d)("HX-Request", "").lower() == "true"
+
+    # Otherwise treat as boolean
+    return bool(value)
+
+
+def _test_hx_target(value: Any, target: str) -> bool:
+    """Test if HTMX target matches expected element ID.
+
+    Usage:
+        {% if request is hx_target("user-list") %}
+          {# Rendering into user-list element #}
+        {% end %}
+
+    Args:
+        value: Request object with headers, or string target value
+        target: Expected target element ID
+
+    Returns:
+        bool: True if target matches, False otherwise
+
+    Example:
+        {% if request is hx_target("sidebar") %}
+          <aside id="sidebar">{{ sidebar_content }}</aside>
+        {% elif request is hx_target("main") %}
+          <main>{{ main_content }}</main>
+        {% end %}
+    """
+    # If value has headers attribute/dict, check HX-Target header
+    if hasattr(value, "headers"):
+        headers = value.headers
+        if isinstance(headers, dict):
+            return headers.get("HX-Target", "") == target
+        return getattr(headers, "get", lambda k, d: d)("HX-Target", "") == target
+
+    # Otherwise compare string values
+    return str(value) == target
+
+
+def _test_hx_boosted(value: Any) -> bool:
+    """Test if request is HTMX-boosted.
+
+    Boosted requests are regular links/forms enhanced by hx-boost="true".
+
+    Usage:
+        {% if request is hx_boosted %}
+          {# Progressive enhancement - AJAX navigation #}
+        {% end %}
+
+    Args:
+        value: Request object with headers, or boolean value
+
+    Returns:
+        bool: True if boosted request, False otherwise
+    """
+    # If value has headers attribute/dict, check HX-Boosted header
+    if hasattr(value, "headers"):
+        headers = value.headers
+        if isinstance(headers, dict):
+            return headers.get("HX-Boosted", "").lower() == "true"
+        return getattr(headers, "get", lambda k, d: d)("HX-Boosted", "").lower() == "true"
+
+    # Otherwise treat as boolean
+    return bool(value)
+
+
 # Default tests
 DEFAULT_TESTS: dict[str, Callable[..., bool]] = {
     "callable": _test_callable,
@@ -257,4 +361,8 @@ DEFAULT_TESTS: dict[str, Callable[..., bool]] = {
     "undefined": lambda v: v is None,
     "upper": _test_upper,
     "match": _test_match,
+    # HTMX integration tests (Feature 1.2)
+    "hx_request": _test_hx_request,
+    "hx_target": _test_hx_target,
+    "hx_boosted": _test_hx_boosted,
 }

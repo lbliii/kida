@@ -186,6 +186,13 @@ class Environment:
     # Filters in this set are assumed to have no side effects and can be coalesced
     pure_filters: set[str] = field(default_factory=set)
 
+    # HTMX integration (Feature 1.1: HTMX Context Detection)
+    # When True (default), registers HTMX helper globals:
+    #   - hx_request(), hx_target(), hx_trigger(), hx_boosted()
+    #   - csrf_token()
+    # Disable if you're not using HTMX or want to register manually
+    enable_htmx_helpers: bool = True
+
     # Globals (available in all templates)
     # Includes Python builtins commonly used in templates
     globals: dict[str, Any] = field(
@@ -256,6 +263,12 @@ class Environment:
 
         # Resolve bytecode cache
         self._bytecode_cache = self._resolve_bytecode_cache()
+
+        # Register HTMX helper globals (Feature 1.1)
+        if self.enable_htmx_helpers:
+            from kida.environment.globals import HTMX_GLOBALS
+
+            self.globals.update(HTMX_GLOBALS)
 
     def _resolve_bytecode_cache(self) -> BytecodeCache | None:
         """Resolve bytecode cache from configuration.
