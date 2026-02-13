@@ -7,8 +7,10 @@ excludes paths that are actually used.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 
+from kida.analysis.visitor import visit_children
 from kida.nodes import (
     Const,
     Getattr,
@@ -148,6 +150,12 @@ class DependencyWalker:
         """Initialize walker (stateless until analyze() is called)."""
         self._scope_stack: list[set[str]] = []
         self._dependencies: set[str] = set()
+        self._dispatch: dict[str, Callable[..., None]] = {}
+        for name in dir(self):
+            if name.startswith("_visit_") and name != "_visit_children":
+                method = getattr(self, name)
+                if callable(method):
+                    self._dispatch[name[7:]] = method
 
     def analyze(self, node: Node) -> frozenset[str]:
         """Analyze a node and return all context dependencies.
@@ -171,119 +179,12 @@ class DependencyWalker:
 
         node_type = type(node).__name__
 
-        # Dispatch to specific handlers
-        handler = getattr(self, f"_visit_{node_type.lower()}", None)
+        # O(1) dispatch to specific handlers
+        handler = self._dispatch.get(node_type.lower())
         if handler:
             handler(node)
         else:
-            self._visit_children(node)
-
-    def _visit_children(self, node: Node) -> None:
-        """Visit all child nodes (generic handler)."""
-        # Handle common container attributes
-        for attr in ("body", "else_", "empty", "elif_"):
-            if hasattr(node, attr):
-                children = getattr(node, attr)
-                if children and isinstance(children, (list, tuple)):
-                    for child in children:
-                        if hasattr(child, "lineno"):  # It's a node
-                            self._visit(child)
-                        elif isinstance(child, tuple):  # elif case
-                            test, body = child
-                            self._visit(test)
-                            for b in body:
-                                self._visit(b)
-
-        # Handle expression attributes
-        for attr in (
-            "test",
-            "expr",
-            "value",
-            "iter",
-            "left",
-            "right",
-            "operand",
-            "obj",
-            "key",
-            "func",
-            "subject",
-            "if_true",
-            "if_false",
-            "start",
-            "end",
-            "step",
-            "stop",
-            "template",
-        ):
-            if hasattr(node, attr):
-                child = getattr(node, attr)
-                if child and hasattr(child, "lineno"):
-                    self._visit(child)
-
-        # Handle sequence attributes
-        for attr in (
-            "args",
-            "items",
-            "nodes",
-            "comparators",
-            "values",
-            "keys",
-            "defaults",
-            "depends",
-        ):
-            if hasattr(node, attr):
-                children = getattr(node, attr)
-                if children:
-                    for child in children:
-                        if hasattr(child, "lineno"):
-                            self._visit(child)
-
-        # Handle dict attributes (kwargs)
-        for attr in ("kwargs",):
-            if hasattr(node, attr):
-                mapping = getattr(node, attr)
-                if mapping:
-                    for child in mapping.values():
-                        if hasattr(child, "lineno"):
-                            self._visit(child)
-
-        # Handle steps in Pipeline
-        steps = getattr(node, "steps", None)
-        if steps:
-            for step in steps:
-                if isinstance(step, tuple) and len(step) == 3:
-                    _name, args, kwargs = step
-                    for arg in args:
-                        if hasattr(arg, "lineno"):
-                            self._visit(arg)
-                    for val in kwargs.values():
-                        if hasattr(val, "lineno"):
-                            self._visit(val)
-
-        # Handle cases in Match
-        cases = getattr(node, "cases", None)
-        if cases:
-            for pattern, guard, body in cases:
-                self._visit(pattern)
-                if guard:
-                    self._visit(guard)
-                for child in body:
-                    self._visit(child)
-
-        # Handle targets in With
-        targets = getattr(node, "targets", None)
-        if targets and isinstance(targets, (list, tuple)):
-            for target in targets:
-                if isinstance(target, tuple) and len(target) == 2:
-                    _name, value = target
-                    self._visit(value)
-
-        # Handle blocks in Embed
-        blocks = getattr(node, "blocks", None)
-        if isinstance(blocks, dict):
-            for block in blocks.values():
-                if hasattr(block, "lineno"):
-                    self._visit(block)
+            visit_children(node, self._visit)
 
     def _visit_name(self, node: Name) -> None:
         """Handle variable reference."""
