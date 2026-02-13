@@ -451,6 +451,147 @@ class Compiler(
             returns=None,
         )
 
+    def _make_render_preamble(self) -> list[ast.stmt]:
+        """Shared init block for render functions: if _blocks, _scope_stack, _acc."""
+        return [
+            ast.If(
+                test=ast.Compare(
+                    left=ast.Name(id="_blocks", ctx=ast.Load()),
+                    ops=[ast.Is()],
+                    comparators=[ast.Constant(value=None)],
+                ),
+                body=[
+                    ast.Assign(
+                        targets=[ast.Name(id="_blocks", ctx=ast.Store())],
+                        value=ast.Dict(keys=[], values=[]),
+                    )
+                ],
+                orelse=[],
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                ),
+            ),
+        ]
+
+    def _make_render_extends_body(
+        self,
+        node: TemplateNode,
+        extends_node: Extends,
+        block_names: dict[str, Block],
+        block_suffix: str,
+        extends_helper: str,
+    ) -> list[ast.stmt]:
+        """Top-level statements, block registration, and extends return/yield."""
+        body: list[ast.stmt] = []
+        for child in node.body:
+            child_type = type(child).__name__
+            if child_type in _TOP_LEVEL_STATEMENTS:
+                body.extend(self._compile_node(child))
+        body.extend(
+            ast.Expr(
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="_blocks", ctx=ast.Load()),
+                        attr="setdefault",
+                        ctx=ast.Load(),
+                    ),
+                    args=[
+                        ast.Constant(value=bn),
+                        ast.Name(id=f"_block_{bn}{block_suffix}", ctx=ast.Load()),
+                    ],
+                    keywords=[],
+                ),
+            )
+            for bn in block_names
+        )
+        extend_call = ast.Call(
+            func=ast.Name(id=extends_helper, ctx=ast.Load()),
+            args=[
+                self._compile_expr(extends_node.template),
+                ast.Name(id="ctx", ctx=ast.Load()),
+                ast.Name(id="_blocks", ctx=ast.Load()),
+            ],
+            keywords=[],
+        )
+        if extends_helper == "_extends":
+            body.append(ast.Return(value=extend_call))
+        elif extends_helper == "_extends_stream":
+            body.append(ast.Expr(value=ast.YieldFrom(value=extend_call)))
+        else:
+            body.append(
+                ast.AsyncFor(
+                    target=ast.Name(id="_chunk", ctx=ast.Store()),
+                    iter=extend_call,
+                    body=[
+                        ast.Expr(
+                            value=ast.Yield(
+                                value=ast.Name(id="_chunk", ctx=ast.Load())
+                            )
+                        )
+                    ],
+                    orelse=[],
+                )
+            )
+        return body
+
+    def _make_render_direct_body(
+        self, node: TemplateNode, streaming: bool
+    ) -> list[ast.stmt]:
+        """No-extends path: buf setup (if not streaming), body compile, return vs yield."""
+        body: list[ast.stmt] = [
+            ast.Assign(
+                targets=[ast.Name(id="_e", ctx=ast.Store())],
+                value=ast.Name(id="_escape", ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_s", ctx=ast.Store())],
+                value=ast.Name(id="_str", ctx=ast.Load()),
+            ),
+        ]
+        if not streaming:
+            body.extend([
+                ast.Assign(
+                    targets=[ast.Name(id="buf", ctx=ast.Store())],
+                    value=ast.List(elts=[], ctx=ast.Load()),
+                ),
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Attribute(
+                        value=ast.Name(id="buf", ctx=ast.Load()),
+                        attr="append",
+                        ctx=ast.Load(),
+                    ),
+                ),
+            ])
+        body.extend(self._compile_body_with_coalescing(list(node.body)))
+        if streaming:
+            body.append(ast.Return(value=None))
+            body.append(ast.Expr(value=ast.Yield(value=None)))
+        else:
+            body.append(
+                ast.Return(
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Constant(value=""),
+                            attr="join",
+                            ctx=ast.Load(),
+                        ),
+                        args=[ast.Name(id="buf", ctx=ast.Load())],
+                        keywords=[],
+                    ),
+                )
+            )
+        return body
+
     def _make_render_function(self, node: TemplateNode) -> ast.FunctionDef:
         """Generate the render(ctx, _blocks=None) function.
 
@@ -465,10 +606,7 @@ class Compiler(
                 # Render parent with blocks
                 return _extends('parent.html', ctx, _blocks)
         """
-        # Reset blocks dict for this compilation
         self._blocks = {}
-
-        # First pass: recursively collect ALL blocks (including nested) and find extends
         extends_node: Extends | None = None
         self._collect_blocks(node.body)
         for child in node.body:
@@ -476,144 +614,15 @@ class Compiler(
                 extends_node = child  # type: ignore[assignment]
                 break
 
-        body: list[ast.stmt] = []
-
-        # Initialize _blocks parameter: if _blocks is None: _blocks = {}
-        body.append(
-            ast.If(
-                test=ast.Compare(
-                    left=ast.Name(id="_blocks", ctx=ast.Load()),
-                    ops=[ast.Is()],
-                    comparators=[ast.Constant(value=None)],
-                ),
-                body=[
-                    ast.Assign(
-                        targets=[ast.Name(id="_blocks", ctx=ast.Store())],
-                        value=ast.Dict(keys=[], values=[]),
-                    )
-                ],
-                orelse=[],
-            )
-        )
-
-        # Initialize scope stack for block-scoped variables
-        body.append(
-            ast.Assign(
-                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            )
-        )
-
-        # Profiling: _acc = _get_accumulator() — cached once per render call
-        body.append(
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            )
-        )
-
+        body: list[ast.stmt] = self._make_render_preamble()
         if extends_node:
-            # Template with inheritance - collect blocks and delegate to parent
-
-            # First, execute top-level statements that modify context (imports, sets, etc.)
-            # These need to run before blocks are called so imported macros are available.
-            # We compile FromImport, Import, Set, Let, Export, and Def nodes at the top level.
-            for child in node.body:
-                child_type = type(child).__name__
-                if child_type in _TOP_LEVEL_STATEMENTS:
-                    body.extend(self._compile_node(child))
-
-            # For each block: _blocks.setdefault('name', block_func)
-            # Block functions are added to module namespace during compilation
             body.extend(
-                ast.Expr(
-                    value=ast.Call(
-                        func=ast.Attribute(
-                            value=ast.Name(id="_blocks", ctx=ast.Load()),
-                            attr="setdefault",
-                            ctx=ast.Load(),
-                        ),
-                        args=[
-                            ast.Constant(value=block_name),
-                            ast.Name(id=f"_block_{block_name}", ctx=ast.Load()),
-                        ],
-                        keywords=[],
-                    ),
-                )
-                for block_name in self._blocks
-            )
-
-            # return _extends('parent.html', ctx, _blocks)
-            body.append(
-                ast.Return(
-                    value=ast.Call(
-                        func=ast.Name(id="_extends", ctx=ast.Load()),
-                        args=[
-                            self._compile_expr(extends_node.template),
-                            ast.Name(id="ctx", ctx=ast.Load()),
-                            ast.Name(id="_blocks", ctx=ast.Load()),
-                        ],
-                        keywords=[],
-                    ),
+                self._make_render_extends_body(
+                    node, extends_node, self._blocks, "", "_extends"
                 )
             )
         else:
-            # No inheritance - render directly
-            # Local function cache for hot-path operations
-            body.append(
-                ast.Assign(
-                    targets=[ast.Name(id="_e", ctx=ast.Store())],
-                    value=ast.Name(id="_escape", ctx=ast.Load()),
-                )
-            )
-            body.append(
-                ast.Assign(
-                    targets=[ast.Name(id="_s", ctx=ast.Store())],
-                    value=ast.Name(id="_str", ctx=ast.Load()),
-                )
-            )
-
-            # buf = []
-            body.append(
-                ast.Assign(
-                    targets=[ast.Name(id="buf", ctx=ast.Store())],
-                    value=ast.List(elts=[], ctx=ast.Load()),
-                )
-            )
-
-            # _append = buf.append (cache method lookup)
-            body.append(
-                ast.Assign(
-                    targets=[ast.Name(id="_append", ctx=ast.Store())],
-                    value=ast.Attribute(
-                        value=ast.Name(id="buf", ctx=ast.Load()),
-                        attr="append",
-                        ctx=ast.Load(),
-                    ),
-                )
-            )
-
-            # Compile template body with f-string coalescing
-            body.extend(self._compile_body_with_coalescing(list(node.body)))
-
-            # return ''.join(buf)
-            body.append(
-                ast.Return(
-                    value=ast.Call(
-                        func=ast.Attribute(
-                            value=ast.Constant(value=""),
-                            attr="join",
-                            ctx=ast.Load(),
-                        ),
-                        args=[ast.Name(id="buf", ctx=ast.Load())],
-                        keywords=[],
-                    ),
-                )
-            )
+            body.extend(self._make_render_direct_body(node, streaming=False))
 
         return ast.FunctionDef(
             name="render",
@@ -670,117 +679,21 @@ class Compiler(
         For templates without extends:
             yield chunks directly
         """
-        # Find extends node
         extends_node: Extends | None = None
         for child in node.body:
             if type(child).__name__ == "Extends":
                 extends_node = child  # type: ignore[assignment]
                 break
 
-        body: list[ast.stmt] = []
-
-        # if _blocks is None: _blocks = {}
-        body.append(
-            ast.If(
-                test=ast.Compare(
-                    left=ast.Name(id="_blocks", ctx=ast.Load()),
-                    ops=[ast.Is()],
-                    comparators=[ast.Constant(value=None)],
-                ),
-                body=[
-                    ast.Assign(
-                        targets=[ast.Name(id="_blocks", ctx=ast.Store())],
-                        value=ast.Dict(keys=[], values=[]),
-                    )
-                ],
-                orelse=[],
-            )
-        )
-
-        # _scope_stack = []
-        body.append(
-            ast.Assign(
-                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            )
-        )
-
-        # Profiling: _acc = _get_accumulator()
-        body.append(
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            )
-        )
-
+        body: list[ast.stmt] = self._make_render_preamble()
         if extends_node:
-            # Execute top-level statements (imports, sets, etc.)
-            for child in node.body:
-                child_type = type(child).__name__
-                if child_type in _TOP_LEVEL_STATEMENTS:
-                    body.extend(self._compile_node(child))
-
-            # Register streaming block functions
             body.extend(
-                ast.Expr(
-                    value=ast.Call(
-                        func=ast.Attribute(
-                            value=ast.Name(id="_blocks", ctx=ast.Load()),
-                            attr="setdefault",
-                            ctx=ast.Load(),
-                        ),
-                        args=[
-                            ast.Constant(value=block_name),
-                            ast.Name(
-                                id=f"_block_{block_name}_stream", ctx=ast.Load()
-                            ),
-                        ],
-                        keywords=[],
-                    ),
-                )
-                for block_name in blocks
-            )
-
-            # yield from _extends_stream('parent.html', ctx, _blocks)
-            body.append(
-                ast.Expr(
-                    value=ast.YieldFrom(
-                        value=ast.Call(
-                            func=ast.Name(id="_extends_stream", ctx=ast.Load()),
-                            args=[
-                                self._compile_expr(extends_node.template),
-                                ast.Name(id="ctx", ctx=ast.Load()),
-                                ast.Name(id="_blocks", ctx=ast.Load()),
-                            ],
-                            keywords=[],
-                        ),
-                    ),
+                self._make_render_extends_body(
+                    node, extends_node, blocks, "_stream", "_extends_stream"
                 )
             )
         else:
-            # No inheritance - render directly with streaming
-            body.append(
-                ast.Assign(
-                    targets=[ast.Name(id="_e", ctx=ast.Store())],
-                    value=ast.Name(id="_escape", ctx=ast.Load()),
-                )
-            )
-            body.append(
-                ast.Assign(
-                    targets=[ast.Name(id="_s", ctx=ast.Store())],
-                    value=ast.Name(id="_str", ctx=ast.Load()),
-                )
-            )
-
-            body.extend(self._compile_body_with_coalescing(list(node.body)))
-
-        # Ensure generator semantics
-        body.append(ast.Return(value=None))
-        body.append(ast.Expr(value=ast.Yield(value=None)))
+            body.extend(self._make_render_direct_body(node, streaming=True))
 
         return ast.FunctionDef(
             name="render_stream",
@@ -856,117 +769,19 @@ class Compiler(
                 extends_node = child  # type: ignore[assignment]
                 break
 
-        body: list[ast.stmt] = []
-
-        # if _blocks is None: _blocks = {}
-        body.append(
-            ast.If(
-                test=ast.Compare(
-                    left=ast.Name(id="_blocks", ctx=ast.Load()),
-                    ops=[ast.Is()],
-                    comparators=[ast.Constant(value=None)],
-                ),
-                body=[
-                    ast.Assign(
-                        targets=[ast.Name(id="_blocks", ctx=ast.Store())],
-                        value=ast.Dict(keys=[], values=[]),
-                    )
-                ],
-                orelse=[],
-            )
-        )
-
-        # _scope_stack = []
-        body.append(
-            ast.Assign(
-                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            )
-        )
-
-        # Profiling: _acc = _get_accumulator()
-        body.append(
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            )
-        )
-
+        body: list[ast.stmt] = self._make_render_preamble()
         if extends_node:
-            # Execute top-level statements
-            for child in node.body:
-                child_type = type(child).__name__
-                if child_type in _TOP_LEVEL_STATEMENTS:
-                    body.extend(self._compile_node(child))
-
-            # Register async streaming block functions
             body.extend(
-                ast.Expr(
-                    value=ast.Call(
-                        func=ast.Attribute(
-                            value=ast.Name(id="_blocks", ctx=ast.Load()),
-                            attr="setdefault",
-                            ctx=ast.Load(),
-                        ),
-                        args=[
-                            ast.Constant(value=block_name),
-                            ast.Name(
-                                id=f"_block_{block_name}_stream_async",
-                                ctx=ast.Load(),
-                            ),
-                        ],
-                        keywords=[],
-                    ),
-                )
-                for block_name in blocks
-            )
-
-            # async for chunk in _extends_stream_async(parent, ctx, _blocks):
-            #     yield chunk
-            # Note: yield from doesn't work with async generators, so we use
-            # async for + yield instead
-            body.append(
-                ast.AsyncFor(
-                    target=ast.Name(id="_chunk", ctx=ast.Store()),
-                    iter=ast.Call(
-                        func=ast.Name(id="_extends_stream_async", ctx=ast.Load()),
-                        args=[
-                            self._compile_expr(extends_node.template),
-                            ast.Name(id="ctx", ctx=ast.Load()),
-                            ast.Name(id="_blocks", ctx=ast.Load()),
-                        ],
-                        keywords=[],
-                    ),
-                    body=[
-                        ast.Expr(value=ast.Yield(value=ast.Name(id="_chunk", ctx=ast.Load())))
-                    ],
-                    orelse=[],
+                self._make_render_extends_body(
+                    node,
+                    extends_node,
+                    blocks,
+                    "_stream_async",
+                    "_extends_stream_async",
                 )
             )
         else:
-            # No inheritance - render directly with async streaming
-            body.append(
-                ast.Assign(
-                    targets=[ast.Name(id="_e", ctx=ast.Store())],
-                    value=ast.Name(id="_escape", ctx=ast.Load()),
-                )
-            )
-            body.append(
-                ast.Assign(
-                    targets=[ast.Name(id="_s", ctx=ast.Store())],
-                    value=ast.Name(id="_str", ctx=ast.Load()),
-                )
-            )
-
-            body.extend(self._compile_body_with_coalescing(list(node.body)))
-
-        # Ensure async generator semantics
-        body.append(ast.Return(value=None))
-        body.append(ast.Expr(value=ast.Yield(value=None)))
+            body.extend(self._make_render_direct_body(node, streaming=True))
 
         return ast.AsyncFunctionDef(
             name="render_stream_async",
