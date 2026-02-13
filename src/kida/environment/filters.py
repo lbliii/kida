@@ -870,9 +870,7 @@ def _filter_classes(value: Any) -> str:
         return str(value)
     for item in items:
         if isinstance(item, (list, tuple)):
-            for sub in item:
-                if sub:
-                    parts.append(str(sub))
+            parts.extend(str(sub) for sub in item if sub)
         elif item:
             parts.append(str(item))
     return " ".join(parts)

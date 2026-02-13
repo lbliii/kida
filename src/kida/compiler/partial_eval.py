@@ -26,6 +26,7 @@ Integration:
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from kida.nodes import (
@@ -244,7 +245,7 @@ class PartialEvaluator:
                     return _UNRESOLVED
                 if not val:
                     return val
-            return val  # noqa: F821 – `val` is always assigned in the loop
+            return val
         # "or"
         for val_node in expr.values:
             val = self._try_eval(val_node)
@@ -252,7 +253,7 @@ class PartialEvaluator:
                 return _UNRESOLVED
             if val:
                 return val
-        return val  # noqa: F821
+        return val
 
     # ------------------------------------------------------------------
     # AST transformation (structural rewriting)
@@ -496,10 +497,7 @@ class PartialEvaluator:
         return expr
 
 
-from dataclasses import dataclass as _dataclass
-
-
-@_dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True)
 class _InlinedBody(Node):
     """Temporary node for inlined If branches.
 

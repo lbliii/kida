@@ -251,10 +251,10 @@ HTMX_GLOBALS = {
 
 
 __all__ = [
+    "HTMX_GLOBALS",
+    "csrf_token",
+    "hx_boosted",
     "hx_request",
     "hx_target",
     "hx_trigger",
-    "hx_boosted",
-    "csrf_token",
-    "HTMX_GLOBALS",
 ]

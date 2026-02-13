@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from kida.nodes import Block, Node
 
@@ -194,7 +194,7 @@ def recompile_blocks(
 
         # Execute in the template's existing namespace so block functions
         # can access all helpers (_escape, _lookup, etc.)
-        exec(code, template._namespace)  # noqa: S102
+        exec(code, template._namespace)
         recompiled.add(block_name)
 
     # Remove deleted blocks

@@ -204,10 +204,5 @@ def format_source_line(
     marker = ">" if (is_error and show_marker) else " "
     num_str = f"{marker}{lineno:>3}"
     num_colored = line_number(num_str)
-
-    if is_error:
-        content_colored = error_line(content)
-    else:
-        content_colored = dim_text(content)
-
+    content_colored = error_line(content) if is_error else dim_text(content)
     return f"{num_colored} | {content_colored}"

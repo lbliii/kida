@@ -18,7 +18,6 @@ from typing import Any
 from kida.render_accumulator import get_accumulator as _get_accumulator
 from kida.utils.html import _SPACELESS_RE, Markup
 
-
 # =============================================================================
 # Undefined Sentinel
 # =============================================================================
@@ -56,7 +55,7 @@ class _Undefined:
     def __hash__(self) -> int:
         return hash(type(self))
 
-    def __iter__(self):  # noqa: ANN204
+    def __iter__(self):
         """Empty iterator so ``{% for x in missing %}`` silently yields nothing."""
         return iter(())
 
