@@ -68,6 +68,35 @@ def test_render_medium_kida(
     benchmark(template.render, **medium_context)
 
 
+@pytest.mark.benchmark(group="render:profiling-overhead")
+def test_render_medium_profiling_off_kida(
+    benchmark: BenchmarkFixture,
+    kida_env: KidaEnvironment,
+    medium_context: dict[str, object],
+) -> None:
+    """Kida: Sync render baseline (profiling disabled)."""
+    template = kida_env.get_template("medium.html")
+    benchmark(template.render, **medium_context)
+
+
+@pytest.mark.benchmark(group="render:profiling-overhead")
+def test_render_medium_profiling_on_kida(
+    benchmark: BenchmarkFixture,
+    kida_env: KidaEnvironment,
+    medium_context: dict[str, object],
+) -> None:
+    """Kida: Sync render with profiled_render() context (profiling enabled)."""
+    from kida.render_accumulator import profiled_render
+
+    template = kida_env.get_template("medium.html")
+
+    def run():
+        with profiled_render():
+            return template.render(**medium_context)
+
+    benchmark(run)
+
+
 @pytest.mark.benchmark(group="render:medium")
 def test_render_medium_jinja2(
     benchmark: BenchmarkFixture,
@@ -257,6 +286,34 @@ def test_compile_complex_jinja2(
 
 
 # =============================================================================
+# Bytecode cache: compile vs load from cache
+# =============================================================================
+
+
+@pytest.mark.benchmark(group="compile:bytecode-cache-hit")
+def test_load_from_bytecode_cache_kida(
+    benchmark: BenchmarkFixture, kida_env: KidaEnvironment
+) -> None:
+    """Kida: get_template() when bytecode cache is warm (cache hit)."""
+    # Warm the cache
+    kida_env.get_template("small.html")
+
+    def run():
+        return kida_env.get_template("small.html")
+
+    benchmark(run)
+
+
+@pytest.mark.benchmark(group="compile:bytecode-cache-hit")
+def test_compile_from_string_kida(
+    benchmark: BenchmarkFixture, kida_env: KidaEnvironment, template_loader
+) -> None:
+    """Kida: from_string() compiles from source (no bytecode cache)."""
+    source = template_loader("small.html", engine="kida")
+    benchmark(kida_env.from_string, source)
+
+
+# =============================================================================
 # Kida Specific Features
 # =============================================================================
 
@@ -275,9 +332,9 @@ def test_render_t_string_kida(benchmark: BenchmarkFixture) -> None:
     benchmark(run)
 
 
-@pytest.mark.benchmark(group="kida:fragment-cache")
+@pytest.mark.benchmark(group="kida:fragment-cache-hit")
 def test_render_fragment_cache_kida(benchmark: BenchmarkFixture, kida_env: KidaEnvironment) -> None:
-    """Kida: Fragment caching via {% cache %}.
+    """Kida: Fragment caching via {% cache %} (cache hit).
 
     This feature is unique to Kida and provides significant speedups for
     partially static templates.
@@ -296,3 +353,27 @@ def test_render_fragment_cache_kida(benchmark: BenchmarkFixture, kida_env: KidaE
     template.render()
     # Benchmark cache hit performance
     benchmark(template.render)
+
+
+@pytest.mark.benchmark(group="kida:fragment-cache-cold")
+def test_render_fragment_cache_cold_kida(benchmark: BenchmarkFixture) -> None:
+    """Kida: Fragment caching via {% cache %} (cold, first render).
+
+    Measures first render when fragment cache is empty (new env per iteration).
+    """
+    source = """
+    {% cache "bench-key", ttl=300 %}
+        <ul>
+        {% for i in range(100) %}
+            <li>Item {{ i }}</li>
+        {% end %}
+        </ul>
+    {% end %}
+    """
+
+    def run():
+        env = KidaEnvironment()
+        template = env.from_string(source)
+        return template.render()
+
+    benchmark(run)

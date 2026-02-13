@@ -45,6 +45,8 @@ else:
 
 ## Core Functions
 
+> **Import:** Use `from kida.utils.workers import ...` or `from kida import get_optimal_workers, should_parallelize, ...`
+
 ### should_parallelize
 
 Determine if parallelization is worthwhile. Thread pool overhead (~1-2ms per task) only pays off above a threshold.

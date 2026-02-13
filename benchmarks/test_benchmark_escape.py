@@ -290,3 +290,30 @@ def test_escape_optimized(benchmark: pytest.BenchmarkFixture) -> None:
     """Optimized escape for comparison."""
     content = "<script>alert('test & \"xss\"')</script>"
     benchmark(html_escape, content)
+
+
+# =============================================================================
+# Autoescape overhead benchmarks
+# =============================================================================
+
+
+@pytest.mark.benchmark(group="escape:autoescape-overhead")
+def test_render_autoescape_on(benchmark: pytest.BenchmarkFixture) -> None:
+    """Render with autoescape=True (HTML escaping applied)."""
+    from kida import Environment
+
+    env = Environment(autoescape=True)
+    template = env.from_string("{{ content }}")
+    content = "<script>alert('xss');</script>" * 10
+    benchmark(template.render, content=content)
+
+
+@pytest.mark.benchmark(group="escape:autoescape-overhead")
+def test_render_autoescape_off(benchmark: pytest.BenchmarkFixture) -> None:
+    """Render with autoescape=False (no escaping overhead)."""
+    from kida import Environment
+
+    env = Environment(autoescape=False)
+    template = env.from_string("{{ content }}")
+    content = "<script>alert('xss');</script>" * 10
+    benchmark(template.render, content=content)

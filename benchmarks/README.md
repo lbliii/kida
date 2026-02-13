@@ -93,6 +93,24 @@ pytest benchmarks/test_benchmark_full_comparison.py -v --benchmark-only
 # File-based rendering (single-threaded, reported in performance docs)
 pytest benchmarks/test_benchmark_render.py -v --benchmark-only
 
+# Streaming: render() vs render_stream(), time-to-first-chunk
+pytest benchmarks/test_benchmark_streaming.py -v --benchmark-only
+
+# Kida features: pattern matching, fragment cache cold/hit, bytecode cache
+pytest benchmarks/test_benchmark_features.py -v --benchmark-only
+
+# Compile pipeline (lex → parse → compile)
+pytest benchmarks/test_benchmark_compile_pipeline.py -v --benchmark-only
+
+# Scaling: variables, loops, filters, inheritance, include depth
+pytest benchmarks/test_benchmark_scaling.py -v --benchmark-only
+
+# Cold-start (subprocess, Kida vs Jinja2)
+pytest benchmarks/test_benchmark_cold_start.py -v --benchmark-only
+
+# Optional: Mako comparison (requires pip install mako)
+pytest benchmarks/test_benchmark_mako.py -v --benchmark-only
+
 # Concurrent comparison only
 pytest benchmarks/test_benchmark_concurrent.py -v --benchmark-only
 

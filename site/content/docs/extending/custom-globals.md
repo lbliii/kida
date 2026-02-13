@@ -80,6 +80,52 @@ Kida includes common Python builtins:
 - `sorted`, `reversed`, `enumerate`, `zip`
 - `map`, `filter`
 
+## HTMX Helpers
+
+Kida includes optional HTMX helpers for partial rendering and form security. When `enable_htmx_helpers=True` (default), these functions are available in all templates:
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `hx_request()` | `bool` | True if the request is from HTMX |
+| `hx_target()` | `str \| None` | HTMX target element ID from HX-Target header |
+| `hx_trigger()` | `str \| None` | Element ID that triggered the request |
+| `hx_boosted()` | `bool` | True if request came from hx-boost="true" |
+| `csrf_token()` | `Markup` | Hidden input with CSRF token for forms |
+
+### Framework Integration
+
+Frameworks must set metadata via `render_context().set_meta()` before rendering:
+
+```python
+from kida import Environment, render_context
+
+with render_context() as ctx:
+    ctx.set_meta("hx_request", request.headers.get("HX-Request") == "true")
+    ctx.set_meta("hx_target", request.headers.get("HX-Target"))
+    ctx.set_meta("csrf_token", session.generate_csrf_token())
+
+    html = template.render(**data)
+```
+
+### Template Usage
+
+```kida
+{% if hx_request() %}
+    {# Partial render — just the updated component #}
+    {% block content %}...{% end %}
+{% else %}
+    {# Full page render #}
+    {% extends "base.html" %}
+{% end %}
+
+<form method="POST">
+    {{ csrf_token() }}
+    ...
+</form>
+```
+
+Disable HTMX helpers with `Environment(enable_htmx_helpers=False)`.
+
 ## Common Patterns
 
 ### Site Configuration

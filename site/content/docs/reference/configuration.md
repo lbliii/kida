@@ -327,6 +327,16 @@ preserve_ast=True
 preserve_ast=False
 ```
 
+### enable_htmx_helpers
+
+Register HTMX helper globals (`hx_request`, `hx_target`, `hx_trigger`, `hx_boosted`, `csrf_token`).
+
+| Type | Default | Description |
+|------|---------|-------------|
+| `bool` | `True` | Enable HTMX helpers |
+
+When enabled, templates can use `hx_request()`, `hx_target()`, etc. Frameworks must set metadata via `render_context().set_meta()` before rendering. See [[docs/extending/custom-globals|Custom Globals]] for HTMX helper details.
+
 ---
 
 ## Development vs Production

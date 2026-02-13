@@ -47,9 +47,29 @@ def _build_inheritance_env(depth: int) -> tuple[Environment, str]:
     return env, f"level_{depth}.html"
 
 
+def _build_include_env(depth: int) -> tuple[Environment, str]:
+    """Build N-level include chain: level_1 includes level_2 includes ... level_N."""
+    templates: dict[str, str] = {}
+    for i in range(1, depth + 1):
+        if i == depth:
+            templates[f"level_{i}.html"] = "{{ value }}"
+        else:
+            templates[f"level_{i}.html"] = f'{{% include "level_{i + 1}.html" %}}'
+    env = Environment(loader=DictLoader(templates))
+    return env, "level_1.html"
+
+
 @pytest.mark.benchmark(group="scaling:inheritance")
 @pytest.mark.parametrize("depth", [1, 3, 5, 10])
 def test_inheritance_depth(benchmark: BenchmarkFixture, depth: int) -> None:
     env, template_name = _build_inheritance_env(depth)
+    template = env.get_template(template_name)
+    benchmark(template.render, value="x")
+
+
+@pytest.mark.benchmark(group="scaling:include-depth")
+@pytest.mark.parametrize("depth", [1, 3, 5, 10])
+def test_include_depth(benchmark: BenchmarkFixture, depth: int) -> None:
+    env, template_name = _build_include_env(depth)
     template = env.get_template(template_name)
     benchmark(template.render, value="x")

@@ -155,9 +155,68 @@ Opt-in metrics for identifying template performance bottlenecks.
 cd examples/profiling && python app.py
 ```
 
+### `dict_loader/` -- In-Memory Templates
+
+`DictLoader` loads templates from a dictionary. No filesystem required.
+Use case: tests, generated templates, single-file apps.
+
+```bash
+cd examples/dict_loader && python app.py
+```
+
+### `custom_filters/` -- Custom Filters and Tests
+
+`add_filter()`, `@env.filter()` decorator, and `add_test()` for extending Kida
+with domain-specific helpers. Demonstrates money formatting, pluralize, and
+custom tests like `is prime`.
+
+```bash
+cd examples/custom_filters && python app.py
+```
+
+### `rendered_template/` -- RenderedTemplate Lazy Wrapper
+
+`RenderedTemplate(template, context)` wraps a template + context pair.
+- `str(rt)` renders fully
+- `for chunk in rt` iterates over `render_stream()` chunks
+
+Use case: pass to `StreamingResponse` without calling `render()` first.
+
+```bash
+cd examples/rendered_template && python app.py
+```
+
+### `t_string/` -- t-string Interpolation (Python 3.14+)
+
+`k(t"Hello {name}!")` processes PEP 750 t-strings with automatic HTML escaping.
+Zero parser overhead. Ideal for high-frequency simple interpolation.
+
+```bash
+cd examples/t_string && python app.py
+```
+
+### `jinja2_migration/` -- Jinja2 Migration Guide
+
+Side-by-side comparison of equivalent templates. Highlights syntax differences:
+`{% end %}` vs `{% endif %}/{% endfor %}`, `{% match %}` vs `{% if %}/{% elif %}`,
+`??` vs `| default()`, `?.` vs optional chaining patterns.
+
+```bash
+cd examples/jinja2_migration && python app.py
+```
+
+### `loop_context/` -- Loop Helpers
+
+`loop.first`, `loop.last`, `loop.index`, `loop.length` in `{% for %}` blocks.
+Use for styling first/last rows, row numbers, and progress indicators.
+
+```bash
+cd examples/loop_context && python app.py
+```
+
 ## Running Tests
 
-Each example has a `test_app.py` that verifies it works end-to-end.
+Each example has a `test_<name>.py` that verifies it works end-to-end.
 
 ```bash
 # All examples
@@ -169,30 +228,36 @@ pytest examples/hello/
 
 ## What Each Example Exercises
 
-| Feature | hello | file_loader | components | streaming | async_rendering | caching | modern_syntax | introspection | htmx_partials | bytecode_cache | design_system | fastapi_async | llm_streaming | concurrent | profiling |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| `from_string()` | x | | | | | | | | | | | | | x | |
-| `FileSystemLoader` | | x | x | x | | x | x | x | x | x | x | x | x | | x |
-| `render()` | x | x | x | | | x | x | x | x | x | x | | | x | x |
-| `render_stream()` | | | | x | | | | | | | | | | | |
-| `render_stream_async()` | | | | | x | | | | | | | x | x | | |
-| `render_block()` | | | | | | | | | x | | | | | | |
-| `{% extends %}` / `{% block %}` | | x | | | | | | x | x | | | | | | x |
-| `{% include %}` | | x | x | | | | | | | | | | | | |
-| `{% def %}` / `{% call %}` / `{% slot %}` | | | x | | | | | | | | x | | | | x |
-| `{% async for %}` / `{{ await }}` | | | | | x | | | | | | | x | x | | |
-| `{% cache %}` | | | | | | x | | | | | | | | | |
-| `{% match %}` / `{% case %}` | | | | | | | x | | | | | | | | |
-| `\|>` pipeline | | | | | | | x | | | | | | | | |
-| `??` null coalescing | | | | | | | x | | | | | | | | |
-| `?.` optional chaining | | | | | | | x | | | | | | | | |
-| `required_context()` | | | | | | | | x | | | | | | | |
-| `block_metadata()` | | | | | | | | x | | | | | | | |
-| `validate_context()` | | | | | | | | x | | | | | | | |
-| `depends_on()` | | | | | | | | x | | | | | | | |
-| `template_metadata()` | | | | | | | | x | | | | | | | |
-| `BytecodeCache` | | | | | | | | | | x | | | | | |
-| `profiled_render()` | | | | | | | | | | | | | | | x |
-| `ThreadPoolExecutor` | | | | | | | | | | | | | | x | |
-| FastAPI integration | | | | | | | | | | | | x | | | |
-| Filters (`upper`, `truncate`, etc.) | | | | | | | | | | | | | | | x |
+| Feature | hello | file_loader | components | streaming | async_rendering | caching | modern_syntax | introspection | htmx_partials | bytecode_cache | design_system | fastapi_async | llm_streaming | concurrent | profiling | dict_loader | custom_filters | rendered_template | t_string | jinja2_migration | loop_context |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `from_string()` | x | | | | | | | | | | | | | x | | x | x | x | | x |
+| `FileSystemLoader` | | x | x | x | | x | x | x | x | x | x | x | x | | x | | x | | | | x |
+| `DictLoader` | | | | | | | | | | | | | | | | x | | | | | |
+| `render()` | x | x | x | | | x | x | x | x | x | x | | | x | x | x | x | | x | x | x |
+| `render_stream()` | | | | x | | | | | | | | | | | | | x | | | | |
+| `render_stream_async()` | | | | | x | | | | | | | x | x | | | | | | | | |
+| `render_block()` | | | | | | | | | x | | | | | | | | | | | | |
+| `RenderedTemplate` | | | | | | | | | | | | | | | | | | x | | | | |
+| `render_stream()` via RenderedTemplate | | | | | | | | | | | | | | | | | | x | | | | |
+| `{% extends %}` / `{% block %}` | | x | | | | | | x | x | | | | | | x | x | | | | | | |
+| `{% include %}` | | x | x | | | | | | | | | | | | | | | | | | |
+| `{% def %}` / `{% call %}` / `{% slot %}` | | | x | | | | | | | | x | | | | x | | | | | | |
+| `{% async for %}` / `{{ await }}` | | | | | x | | | | | | | x | x | | | | | | | | |
+| `{% cache %}` | | | | | | x | | | | | | | | | | | | | | | |
+| `{% match %}` / `{% case %}` | | | | | | | x | | | | | | | | | | | | x | | |
+| `\|>` pipeline | | | | | | | x | | | | | | | | | | | | | | |
+| `??` null coalescing | | | | | | | x | | | | | | | | | | | | x | | |
+| `?.` optional chaining | | | | | | | x | | | | | | | | | | | | x | | |
+| `required_context()` | | | | | | | | x | | | | | | | | | | | | | |
+| `block_metadata()` | | | | | | | | x | | | | | | | | | | | | | |
+| `validate_context()` | | | | | | | | x | | | | | | | | | | | | | |
+| `depends_on()` | | | | | | | | x | | | | | | | | | | | | | |
+| `template_metadata()` | | | | | | | | x | | | | | | | | | | | | | |
+| `BytecodeCache` | | | | | | | | | | x | | | | | | | | | | | |
+| `profiled_render()` | | | | | | | | | | | | | | | x | | | | | | |
+| `add_filter()` / `add_test()` | | | | | | | | | | | | | | | | | x | | | | | |
+| `k()` t-string | | | | | | | | | | | | | | | | | | | x | | | |
+| `loop` (loop.first, etc.) | | | | | | | | | | | | | | | | | | | | | x |
+| `ThreadPoolExecutor` | | | | | | | | | | | | | | x | | | | | | | |
+| FastAPI integration | | | | | | | | | | | | x | | | | | | | | | |
+| Filters (`upper`, `truncate`, etc.) | | | | | | | | | | | | | | | x | | x | | | | |

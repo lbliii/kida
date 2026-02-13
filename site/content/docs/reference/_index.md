@@ -54,4 +54,11 @@ Boolean predicates for conditionals.
 All configuration options explained.
 :::{/card}
 
+:::{card} Error Codes
+:icon: alert-triangle
+:link: ../errors
+:description: K-LEX, K-PAR, K-RUN, K-TPL
+Reference for all error codes and fixes.
+:::{/card}
+
 :::{/cards}

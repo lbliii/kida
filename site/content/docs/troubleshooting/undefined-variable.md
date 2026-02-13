@@ -117,7 +117,15 @@ The `is defined` test works on attribute chains, not just top-level variables. I
 {% end %}
 ```
 
-> **Note:** Missing attributes resolve to an internal `Undefined` sentinel that is falsy and renders as an empty string. This means `{% if pokemon.name %}` also works as a guard, but `is defined` makes the intent explicit.
+#### Undefined Sentinel
+
+Missing attribute access returns an `_Undefined` sentinel (not an empty string). The sentinel is:
+
+- **Falsy** — `{% if pokemon.name %}` works as a guard
+- **Stringifies to `""`** — `{{ pokemon.name }}` renders nothing when undefined
+- **Iterable** — yields nothing, so `{% for x in missing_attr %}` produces no output
+
+The `is defined` and `is undefined` tests work correctly on attribute chains (e.g. `{% if pokemon.name is defined %}`), making intent explicit. See [[docs/reference/tests|Tests Reference]] for the full test list.
 
 ### Optional Chaining Pattern
 

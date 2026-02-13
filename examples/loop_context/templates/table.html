@@ -1,0 +1,12 @@
+<table>
+<thead><tr><th>#</th><th>Item</th><th>Position</th></tr></thead>
+<tbody>
+{% for item in items %}
+<tr class="{% if loop.first %}first{% end %} {% if loop.last %}last{% end %}">
+    <td>{{ loop.index }}</td>
+    <td>{{ item }}</td>
+    <td>{{ loop.index }}/{{ loop.length }}</td>
+</tr>
+{% end %}
+</tbody>
+</table>

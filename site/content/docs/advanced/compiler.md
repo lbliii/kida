@@ -159,6 +159,39 @@ TemplateRuntimeError: 'page' is undefined
   File "page.html", line 42, in template
 ```
 
+## Block-Level Recompilation
+
+For live-reload and reactive pipelines, Kida can recompile only changed blocks instead of the entire template. This yields O(changed_blocks) updates instead of a full recompile.
+
+```python
+from kida.compiler.block_recompile import detect_block_changes, recompile_blocks, BlockDelta
+```
+
+### detect_block_changes
+
+Compares two `TemplateNode` ASTs and returns a `BlockDelta` describing which named blocks changed, were added, or were removed:
+
+```python
+delta = detect_block_changes(old_ast, new_ast)
+# delta.changed, delta.added, delta.removed
+```
+
+`detect_block_changes` is a pure function — safe from any thread.
+
+### recompile_blocks
+
+Patches a live `Template` by recompiling only the affected block functions (standard, streaming, async streaming):
+
+```python
+recompile_blocks(env, template, new_ast, delta)
+```
+
+`recompile_blocks` mutates the Template's namespace; callers must synchronize access when used from multiple threads.
+
+### Use Case
+
+Purr's reactive pipeline uses block recompilation for incremental template updates when source files change. Only changed blocks are recompiled, reducing latency for large templates.
+
 ## See Also
 
 - [[docs/advanced/analysis|Static Analysis]] — Using analysis results from preserved ASTs

@@ -1,0 +1,19 @@
+<html>
+<head><title>Invoice</title></head>
+<body>
+    <h1>Invoice</h1>
+    <p>Total: {{ total | money }}</p>
+    <p>Total (EUR): {{ total | money(currency="€") }}</p>
+    <p>You have {{ item_count }} {{ item_count | pluralize("item", "items") }}.</p>
+    {% if item_count is prime %}
+    <p>Item count is prime.</p>
+    {% else %}
+    <p>Item count is not prime.</p>
+    {% end %}
+    <ul>
+    {% for item in items %}
+        <li>{{ item.name }}: {{ (item.price * item.qty) | money }}</li>
+    {% end %}
+    </ul>
+</body>
+</html>
