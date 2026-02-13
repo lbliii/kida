@@ -1,0 +1,53 @@
+"""Built-in filters for Kida templates.
+
+Re-exports DEFAULT_FILTERS and filter implementations for backward compatibility.
+"""
+
+from __future__ import annotations
+
+from kida.environment.filters._impl import (
+    DEFAULT_FILTERS,
+    SORT_KEY_NONE,
+    _filter_attr,
+    _filter_batch,
+    _filter_classes,
+    _filter_compact,
+    _filter_debug,
+    _filter_decimal,
+    _filter_default,
+    _filter_dictsort,
+    _filter_escape,
+    _filter_filesizeformat,
+    _filter_first,
+    _filter_format,
+    _filter_get,
+    _filter_groupby,
+    _filter_join,
+    _filter_last,
+    _filter_length,
+    _filter_list,
+    _filter_map,
+    _filter_max,
+    _filter_min,
+    _filter_pprint,
+    _filter_random,
+    _filter_reject,
+    _filter_rejectattr,
+    _filter_require,
+    _filter_reverse,
+    _filter_safe,
+    _filter_select,
+    _filter_selectattr,
+    _filter_shuffle,
+    _filter_skip,
+    _filter_slice,
+    _filter_sort,
+    _filter_string,
+    _filter_sum,
+    _filter_take,
+    _filter_tojson,
+    _filter_trim,
+    _filter_unique,
+    _make_sort_key_numeric,
+    _make_sort_key_string,
+)
