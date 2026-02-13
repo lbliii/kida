@@ -1,8 +1,18 @@
 """Pytest configuration and fixtures for Kida tests."""
 
+import re
+
 import pytest
 
 from kida import DictLoader, Environment
+
+# Strip ANSI escape sequences so tests can assert on plain text regardless of TTY
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences for plain-text assertions."""
+    return _ANSI_RE.sub("", text)
 
 
 @pytest.fixture

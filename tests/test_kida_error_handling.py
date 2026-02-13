@@ -11,6 +11,7 @@ import contextlib
 import pytest
 
 from kida import DictLoader, Environment
+from tests.conftest import strip_ansi
 from kida.environment.exceptions import (
     ErrorCode,
     SourceSnippet,
@@ -526,9 +527,10 @@ class TestErrorMessageQuality:
     def test_undefined_error_suggests_close_match(self) -> None:
         """Typo in variable name produces 'Did you mean?' suggestion."""
         env = Environment()
-        with pytest.raises(UndefinedError, match="Did you mean 'title'") as exc_info:
+        with pytest.raises(UndefinedError) as exc_info:
             env.from_string("{{ titl }}").render(title="Hello")
         assert exc_info.value.name == "titl"
+        assert "Did you mean 'title'" in strip_ansi(str(exc_info.value))
 
     def test_undefined_error_no_suggestion_for_distant_name(self) -> None:
         """No suggestion when no close match exists."""
@@ -549,8 +551,9 @@ class TestErrorMessageQuality:
         env = Environment()
         # 'items' is in ctx; 'itms' is a typo that is close to 'items'
         tmpl = env.from_string("{{ itms }}")
-        with pytest.raises(UndefinedError, match="Did you mean 'items'"):
+        with pytest.raises(UndefinedError) as exc_info:
             tmpl.render(items=[1, 2, 3])
+        assert "Did you mean 'items'" in strip_ansi(str(exc_info.value))
 
     # -- TemplateSyntaxError source snippets ---------------------------------
 
@@ -666,8 +669,9 @@ class TestSourceSnippets:
         source = "line1\nline2\nline3\nline4\nline5"
         snippet = build_source_snippet(source, 3)
         formatted = snippet.format()
-        assert ">  3 | line3" in formatted
-        assert " " * 1 + " 2 | line2" in formatted  # Non-error line has space
+        plain = strip_ansi(formatted)
+        assert ">  3 | line3" in plain
+        assert " 2 | line2" in plain  # Non-error line has space (not '>')
 
     def test_snippet_format_with_column_shows_caret(self) -> None:
         """format() shows ^ pointer when column is set."""
@@ -775,12 +779,13 @@ class TestFormatCompact:
         """UndefinedError.format_compact() includes code, message, hint, docs."""
         exc = UndefinedError("usernme", "page.html", 42, frozenset({"username", "email"}))
         compact = exc.format_compact()
-        assert "K-RUN-001" in compact
-        assert "usernme" in compact
-        assert "page.html:42" in compact
-        assert "Did you mean 'username'?" in compact
-        assert "default('')" in compact
-        assert "lbliii.github.io/kida/docs/errors" in compact
+        plain = strip_ansi(compact)
+        assert "K-RUN-001" in plain
+        assert "usernme" in plain
+        assert "page.html:42" in plain
+        assert "Did you mean 'username'?" in plain
+        assert "default('')" in plain
+        assert "lbliii.github.io/kida/docs/errors" in plain
 
     def test_undefined_format_compact_with_snippet(self) -> None:
         """UndefinedError.format_compact() includes source snippet."""
