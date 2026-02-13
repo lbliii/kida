@@ -511,3 +511,60 @@ class TestDecimalFilter:
         from kida.environment.filters import _filter_decimal
 
         assert _filter_decimal("not a number") == "not a number"
+
+
+# ── date, slug, pluralize filters ─────────────────────────────────────────
+
+
+class TestDateSlugPluralizeFilters:
+    """Test date, slug, and pluralize filters."""
+
+    def test_date_default(self) -> None:
+        from datetime import date
+
+        env = Environment()
+        assert env.from_string("{{ dt | date }}").render(dt=date(2025, 2, 13)) == "2025-02-13"
+
+    def test_date_custom_format(self) -> None:
+        from datetime import date
+
+        env = Environment()
+        r = env.from_string('{{ dt | date("%b %d, %Y") }}').render(dt=date(2025, 2, 13))
+        assert r == "Feb 13, 2025"
+
+    def test_date_none(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ dt | date }}").render(dt=None) == ""
+
+    def test_date_epoch(self) -> None:
+        env = Environment()
+        r = env.from_string("{{ ts | date }}").render(ts=1707782400)
+        assert "2024" in r or "2025" in r
+
+    def test_slug_basic(self) -> None:
+        env = Environment()
+        assert env.from_string('{{ "Hello World" | slug }}').render() == "hello-world"
+
+    def test_slug_spaces(self) -> None:
+        env = Environment()
+        assert env.from_string('{{ "  foo  bar  " | slug }}').render() == "foo-bar"
+
+    def test_slug_none(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ x | slug }}").render(x=None) == ""
+
+    def test_pluralize_singular(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ 1 | pluralize }}").render() == ""
+
+    def test_pluralize_plural(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ 2 | pluralize }}").render() == "s"
+
+    def test_pluralize_y_ies_singular(self) -> None:
+        env = Environment()
+        assert env.from_string('{{ 1 | pluralize("y,ies") }}').render() == "y"
+
+    def test_pluralize_y_ies_plural(self) -> None:
+        env = Environment()
+        assert env.from_string('{{ 2 | pluralize("y,ies") }}').render() == "ies"

@@ -70,9 +70,11 @@ from __future__ import annotations
 
 import json
 import random as random_module
+import re
 import textwrap
 from collections import deque
 from collections.abc import Callable
+from datetime import datetime
 from itertools import groupby, islice
 from pprint import pformat
 from typing import Any
@@ -1147,6 +1149,59 @@ def _debug_repr(value: Any, max_len: int = 60) -> str:
     return r
 
 
+def _filter_date(value: Any, format: str = "%Y-%m-%d") -> str:
+    """Format datetime, date, or epoch timestamp with strftime.
+
+    Example:
+        {{ dt | date }} → "2025-02-13"
+        {{ dt | date("%b %d, %Y") }} → "Feb 13, 2025"
+        {{ none | date }} → ""
+    """
+    if value is None:
+        return ""
+    if hasattr(value, "strftime"):
+        return value.strftime(format)
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value).strftime(format)
+    return ""
+
+
+def _filter_slug(value: Any) -> str:
+    """Convert text to URL-safe slug (lowercase, hyphens, ASCII-only).
+
+    Example:
+        {{ "Hello World" | slug }} → "hello-world"
+        {{ "  foo  bar  " | slug }} → "foo-bar"
+        {{ none | slug }} → ""
+    """
+    if value is None:
+        return ""
+    s = str(value).lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
+
+
+def _filter_pluralize(value: Any, suffix: str = "s") -> str:
+    """Django-style pluralization suffix.
+
+    Example:
+        {{ 1 | pluralize }} → ""
+        {{ 2 | pluralize }} → "s"
+        {{ 1 | pluralize("y,ies") }} → "y"
+        {{ 2 | pluralize("y,ies") }} → "ies"
+    """
+    if value is None:
+        return suffix
+    n = int(value) if not isinstance(value, int) else value
+    if n == 1:
+        if "," in suffix:
+            return suffix.split(",")[0].strip()
+        return ""
+    if "," in suffix:
+        return suffix.split(",")[1].strip()
+    return suffix
+
+
 # Default filters - comprehensive set matching Jinja2
 DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {
     # Basic transformations
@@ -1154,6 +1209,7 @@ DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {
     "capitalize": _filter_capitalize,
     "center": _filter_center,
     "d": _filter_default,
+    "date": _filter_date,
     "default": _filter_default,
     "e": _filter_escape,
     "escape": _filter_escape,
@@ -1166,6 +1222,7 @@ DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {
     "length": _filter_length,
     "list": _filter_list,
     "lower": _filter_lower,
+    "pluralize": _filter_pluralize,
     "pprint": _filter_pprint,
     "replace": _filter_replace,
     "reverse": _filter_reverse,
@@ -1195,6 +1252,7 @@ DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {
     "selectattr": _filter_selectattr,
     "skip": _filter_skip,
     "slice": _filter_slice,
+    "slug": _filter_slug,
     "sum": _filter_sum,
     "take": _filter_take,
     "unique": _filter_unique,

@@ -85,6 +85,10 @@ _BUILTIN_PURE_FILTERS: frozenset[str] = frozenset(
         "indent",
         # URL encoding
         "urlencode",
+        # Formatting (pure)
+        "date",
+        "slug",
+        "pluralize",
     }
 )
 

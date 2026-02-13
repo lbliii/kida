@@ -148,6 +148,27 @@ URL-encode a string.
 {{ "hello world" | urlencode }}  → hello%20world
 ```
 
+### date
+
+Format datetime, date, or epoch timestamp with strftime.
+
+```kida
+{{ dt | date }}  → 2025-02-13
+{{ dt | date("%b %d, %Y") }}  → Feb 13, 2025
+{{ none | date }}  → ""
+{{ 1707782400 | date }}  → epoch to date
+```
+
+### slug
+
+Convert text to URL-safe slug (lowercase, hyphens, ASCII-only).
+
+```kida
+{{ "Hello World" | slug }}  → hello-world
+{{ "  foo  bar  " | slug }}  → foo-bar
+{{ none | slug }}  → ""
+```
+
 ### wordcount
 
 Count words.
@@ -489,6 +510,17 @@ Return default if undefined or None.
 {{ missing | default("N/A") }}
 {{ value | d("fallback") }}
 {{ maybe_false | default(true, boolean=true) }}
+```
+
+### pluralize
+
+Django-style pluralization suffix.
+
+```kida
+{{ 1 | pluralize }}  → ""
+{{ 2 | pluralize }}  → s
+{{ 1 | pluralize("y,ies") }}  → y
+{{ 2 | pluralize("y,ies") }}  → ies
 ```
 
 ### dictsort

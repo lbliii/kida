@@ -60,4 +60,11 @@ Comprehensive feature comparison.
 Common questions answered.
 :::{/card}
 
+:::{card} Ecosystem
+:icon: layers
+:link: ./ecosystem
+:description: The Bengal stack
+All seven projects in the reactive Python stack.
+:::{/card}
+
 :::{/cards}
