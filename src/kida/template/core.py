@@ -205,6 +205,7 @@ class Template(TemplateIntrospectionMixin):
             blocks: dict[str, Any] | None = None,
         ) -> str:
             from kida.environment.exceptions import (
+                TemplateError,
                 TemplateNotFoundError,
                 TemplateRuntimeError,
                 TemplateSyntaxError,
@@ -257,10 +258,13 @@ class Template(TemplateIntrospectionMixin):
                     return str(included.render(**context))
                 finally:
                     reset_render_context(token)
-            except (TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError):
-                if ignore_missing:
+            except TemplateError as e:
+                if ignore_missing and isinstance(e, TemplateNotFoundError):
                     return ""
                 raise
+            except Exception as e:
+                # Enhance with child's context (child_ctx has correct template_stack)
+                raise included._enhance_error(e, child_ctx) from e
 
         # Extends helper - renders parent template with child's blocks
         def _extends(
@@ -890,10 +894,10 @@ class Template(TemplateIntrospectionMixin):
         template_name = render_ctx.template_name
         lineno = render_ctx.line
         error_str = str(error).strip()
+        error_type = type(error).__name__
 
-        # Handle empty error messages (e.g., StopIteration, bare exceptions)
+        # Handle empty or ambiguous error messages (e.g., KeyError(1) yields "1")
         if not error_str:
-            error_type = type(error).__name__
             if hasattr(error, "args") and error.args:
                 non_empty = [str(a) for a in error.args if str(a).strip()]
                 if non_empty:
@@ -902,6 +906,8 @@ class Template(TemplateIntrospectionMixin):
                     error_str = f"{error_type} (no details available)"
             else:
                 error_str = f"{error_type} (no details available)"
+        elif not error_str.startswith(error_type):
+            error_str = f"{error_type}: {error_str}"
 
         # Build source snippet from template source
         snippet = None
@@ -925,6 +931,7 @@ class Template(TemplateIntrospectionMixin):
             template_name=template_name,
             lineno=lineno,
             source_snippet=snippet,
+            template_stack=render_ctx.template_stack,
         )
 
     async def render_async(self, *args: Any, **kwargs: Any) -> str:

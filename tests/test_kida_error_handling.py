@@ -462,6 +462,51 @@ class TestComplexErrorScenarios:
             # Error should reference partial.html
             pass
 
+    def test_enhance_error_includes_exception_type(self) -> None:
+        """KeyError(1) yields 'KeyError: 1' not just '1'."""
+        loader = DictLoader({"test.html": "{{ items[1] }}"})
+        env = Environment(loader=loader)
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            env.get_template("test.html").render(items={})
+        msg = str(exc_info.value)
+        assert "KeyError" in msg
+        assert "1" in msg
+        # Must not be ambiguous (e.g. just "1")
+        assert msg.startswith("Runtime Error:") or "KeyError" in msg.split(":")[0]
+
+    def test_include_error_shows_template_stack(self) -> None:
+        """Error in included template shows both templates in stack."""
+        loader = DictLoader(
+            {
+                "tags.html": 'line 1\nline 2\n{% include "partials/tag-nav.html" %}\nline 4',
+                "partials/tag-nav.html": "{{ items[1] }}",
+            }
+        )
+        env = Environment(loader=loader)
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            env.get_template("tags.html").render(items={})
+        err = exc_info.value
+        # template_stack = callers; template_name = where error occurred
+        assert len(err.template_stack) >= 1
+        names = [t[0] for t in err.template_stack]
+        assert "tags.html" in names
+        assert err.template_name == "partials/tag-nav.html"
+
+    def test_include_error_shows_included_template_location(self) -> None:
+        """Location points to included template, not include line."""
+        loader = DictLoader(
+            {
+                "parent.html": "line 1\nline 2\nline 3\n{% include 'child.html' %}\nline 5",
+                "child.html": "{{ items[1] }}",
+            }
+        )
+        env = Environment(loader=loader)
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            env.get_template("parent.html").render(items={})
+        err = exc_info.value
+        # Location should be child.html (where error occurred), not parent.html:4
+        assert err.template_name == "child.html"
+
     def test_error_in_inherited_template(self) -> None:
         """Error in inherited template."""
         loader = DictLoader(
