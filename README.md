@@ -18,13 +18,17 @@ print(template.render(name="World"))
 
 ---
 
-## Why Kida?
+## What is Kida?
 
-- **AST-native** — Compiles to Python AST directly, no string generation
-- **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703)
-- **Fast** — Benchmarks on 3.14t: 3.6x (minimal), 1.7x (small), 1.1x (medium), ~1.0x (large), 1.2x (complex); cold-start +7-8% with bytecode cache (details in performance docs)
-- **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`
-- **Zero dependencies** — Pure Python, includes native `Markup` implementation
+Kida is a modern template engine for Python 3.14t. It compiles templates to Python AST directly (no string generation), supports streaming and fragment rendering, and is built for free-threading.
+
+**What's good about it:**
+
+- **AST-native** — Compiles to Python AST directly. Structured code manipulation, compile-time optimization, precise error source mapping.
+- **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703). All public APIs are thread-safe.
+- **Dual-mode rendering** — `render()` uses StringBuilder for maximum throughput. `render_stream()` yields chunks for streaming HTTP and SSE.
+- **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`, null coalescing, optional chaining.
+- **Zero dependencies** — Pure Python, includes native `Markup` implementation.
 
 ---
 
@@ -206,26 +210,6 @@ Works with inheritance (`{% extends %}`), includes, and all control flow. Blocks
 
 ---
 
-## Jinja2 Comparison
-
-| Feature | Kida | Jinja2 |
-|---------|------|--------|
-| **Compilation** | AST → AST | String generation |
-| **Rendering** | StringBuilder + streaming generator | Generator yields only |
-| **Block endings** | Unified `{% end %}` | `{% endif %}`, `{% endfor %}` |
-| **Dict access** | Subscript-first (`d.items` → key) | getattr-first (`d.items` → method) |
-| **Profiling** | Auto-instrumented blocks/filters/macros | N/A |
-| **Scoping** | Explicit `let`/`set`/`export` | Implicit |
-| **Async** | Native `async for`, `await` | `auto_await()` wrapper |
-| **Pattern matching** | `{% match %}...{% case %}` | N/A |
-| **Null coalescing** | `{{ a ?? b }}` | `{{ a \| default(b) }}` |
-| **Optional chaining** | `{{ obj?.attr }}` | N/A |
-| **Pipeline syntax** | `{{ value \|> filter }}` | `{{ value \| filter }}` |
-| **Caching** | `{% cache key %}...{% end %}` | N/A (extension required) |
-| **Free-threading** | Native (PEP 703) | N/A |
-
----
-
 ## Architecture
 
 <details>
@@ -235,7 +219,7 @@ Works with inheritance (`{% extends %}`), includes, and all control flow. Blocks
 Template Source → Lexer → Parser → Kida AST → Compiler → Python AST → exec()
 ```
 
-Unlike Jinja2 which generates Python source strings, Kida generates `ast.Module` objects directly. This enables:
+Kida generates `ast.Module` objects directly. This enables:
 
 - **Structured code manipulation** — Transform and optimize AST nodes
 - **Compile-time optimization** — Dead code elimination, constant folding
@@ -255,7 +239,7 @@ return "".join(_out)
 yield ...
 ```
 
-The compiler generates both modes from a single template. `render()` uses StringBuilder for maximum throughput (25-40% faster than Jinja2). `render_stream()` uses Python generators for statement-level streaming -- ideal for chunked HTTP responses and Server-Sent Events.
+The compiler generates both modes from a single template. `render()` uses StringBuilder for maximum throughput. `render_stream()` uses Python generators for statement-level streaming — ideal for chunked HTTP responses and Server-Sent Events.
 
 </details>
 
@@ -277,11 +261,9 @@ Module declares itself GIL-independent via `_Py_mod_gil = 0` (PEP 703).
 
 ## Performance
 
-| Metric | Kida | Jinja2 | Improvement |
-|--------|------|--------|-------------|
-| Simple render | 0.12ms | 0.18ms | **33% faster** |
-| Complex template | 2.1ms | 3.2ms | **34% faster** |
-| Concurrent (8 threads) | 0.15ms avg | GIL contention | **Free-threading** |
+- **Simple render** — ~0.12ms
+- **Complex template** — ~2.1ms
+- **Concurrent (8 threads)** — ~0.15ms avg under Python 3.14t free-threading
 
 ---
 
