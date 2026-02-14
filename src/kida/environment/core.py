@@ -544,6 +544,11 @@ class Environment:
         parser = Parser(tokens, name, filename, source, autoescape=should_escape)
         ast = parser.parse()
 
+        # Dead code elimination: remove const-only dead branches (always runs)
+        from kida.compiler.partial_eval import eliminate_dead_code
+
+        ast = eliminate_dead_code(ast)
+
         # Partial evaluation: replace static expressions with constants
         if static_context:
             from kida.compiler.partial_eval import partial_evaluate
@@ -552,6 +557,7 @@ class Environment:
                 ast,
                 static_context,
                 pure_filters=frozenset(self.pure_filters),
+                filter_callables=self._filters,
             )
 
         # Call-site validation (RFC: typed-def-parameters)

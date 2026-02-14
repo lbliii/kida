@@ -248,6 +248,92 @@ class TestNoStaticContext:
         assert tmpl.render(name="World") == "World"
 
 
+class TestDeadCodeElimination:
+    """Const-only dead code elimination (runs without static_context)."""
+
+    def test_if_false_removed(self):
+        """{% if false %}...{% end %} is removed entirely."""
+        env = _env()
+        tmpl = env.from_string("a{% if false %}DEAD{% end %}b")
+        assert tmpl.render() == "ab"
+
+    def test_if_true_inlined(self):
+        """{% if true %}x{% end %} is inlined to x."""
+        env = _env()
+        tmpl = env.from_string("a{% if true %}LIVE{% end %}b")
+        assert tmpl.render() == "aLIVEb"
+
+    def test_const_expr_eliminated(self):
+        """{% if 1+1==2 %}ok{% end %} is inlined."""
+        env = _env()
+        tmpl = env.from_string("{% if 1 + 1 == 2 %}ok{% end %}")
+        assert tmpl.render() == "ok"
+
+    def test_scoping_preserved(self):
+        """If body with Set is not inlined (block scoping)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set x = 'outer' %}{% if true %}{% set x = 'inner' %}{{ x }}{% end %}{{ x }}"
+        )
+        assert tmpl.render() == "innerouter"
+
+    def test_nested_dead_if_removed(self):
+        """{% if false %}{% if true %}x{% end %}{% end %} yields empty."""
+        env = _env()
+        tmpl = env.from_string("a{% if false %}{% if true %}x{% end %}{% end %}b")
+        assert tmpl.render() == "ab"
+
+
+class TestFilterPartialEval:
+    """Filter and Pipeline evaluation in partial eval."""
+
+    def test_filter_default(self):
+        """{{ site.title | default("x") }} with static_context evaluates."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ site.title | default('Home') }}",
+            static_context={"site": FakeSite(title="My Blog", url="", nav=())},
+        )
+        assert tmpl.render() == "My Blog"
+
+    def test_filter_default_fallback(self):
+        """{{ missing | default("x") }} with static None uses default."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ val | default('N/A') }}",
+            static_context={"val": None},
+        )
+        assert tmpl.render() == "N/A"
+
+    def test_pipeline_upper(self):
+        """{{ site.title | upper }} with static_context evaluates."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ site.title | upper }}",
+            static_context={"site": FakeSite(title="hello", url="", nav=())},
+        )
+        assert tmpl.render() == "HELLO"
+
+    def test_pipeline_multiple_filters(self):
+        """{{ x | default("") | upper }} with static_context evaluates."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ x | default('fallback') | upper }}",
+            static_context={"x": "hello"},
+        )
+        assert tmpl.render() == "HELLO"
+
+    def test_filter_with_kwargs(self):
+        """{{ text | truncate(5) }} with static_context evaluates."""
+        env = _env()
+        tmpl = env.from_string(
+            '{{ text | truncate(5) }}',
+            static_context={"text": "hello world"},
+        )
+        # truncate(5) = first 2 chars + "..." (5 total)
+        assert tmpl.render() == "he..."
+
+
 class TestEdgeCases:
     """Edge cases and error handling."""
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-02-14
+
+### Added
+
+- **Dead code elimination** — Const-only pass removes branches whose conditions are
+  provably constant (e.g. `{% if false %}...{% end %}`, `{% if 1+1==2 %}...{% end %}`).
+  Runs without `static_context`. Skips inlining when the body contains block-scoped nodes
+  (Set, Let, Capture, Export) to preserve scoping semantics.
+
+- **Filter/Pipeline partial evaluation** — When `static_context` is provided, the
+  partial evaluator now evaluates Filter and Pipeline nodes for pure filters
+  (e.g. `{{ site.title | default("Home") }}`, `{{ site.title | upper }}`). Uses
+  built-in pure filters plus `Environment.pure_filters`.
+
 ## [0.2.0] - 2026-02-13
 
 ### Added
@@ -184,6 +198,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.1]: https://github.com/lbliii/kida/releases/tag/v0.2.1
 [0.2.0]: https://github.com/lbliii/kida/releases/tag/v0.2.0
 [0.1.2]: https://github.com/lbliii/kida/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lbliii/kida/releases/tag/v0.1.1

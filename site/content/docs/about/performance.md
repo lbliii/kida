@@ -199,10 +199,15 @@ for item in loop:
 
 ### Compile-Time Optimization
 
-Kida is AST-native and ready for more passes, but today relies on:
+Kida is AST-native and uses several compile-time passes:
 
 - Python’s optimizer for constant folding
-- Planned (not yet shipped): dead code elimination and richer static eval
+- **Dead code elimination** — Removes branches whose conditions are provably constant
+  (e.g. `{% if false %}...{% end %}`, `{% if 1+1==2 %}...{% end %}`). Skips inlining
+  when the body contains block-scoped nodes (Set, Let, Capture, Export).
+- **Partial evaluation** — When `static_context` is provided, evaluates static expressions
+  and replaces them with constants. Supports Filter and Pipeline for pure filters
+  (e.g. `{{ site.title | default("x") }}`).
 
 ## Caching Strategies
 

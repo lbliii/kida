@@ -25,7 +25,7 @@ Integration:
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -33,25 +33,247 @@ from kida.nodes import (
     BinOp,
     Block,
     BoolOp,
+    Capture,
     Compare,
     Concat,
     CondExpr,
     Const,
     Data,
+    Export,
     Expr,
+    Filter,
     For,
     Getattr,
     Getitem,
     If,
+    Let,
     Name,
     Node,
     Output,
+    Pipeline,
+    Set,
     Template,
     UnaryOp,
 )
 
 # Sentinel for "evaluation failed" — distinct from None (which is a valid result)
 _UNRESOLVED = object()
+
+
+# ---------------------------------------------------------------------------
+# Dead code elimination (const-only, no static_context)
+# ---------------------------------------------------------------------------
+
+
+def _try_eval_const_only(expr: Expr) -> Any:
+    """Evaluate expression using only literals and constant expressions.
+
+    Resolves Const, BinOp, UnaryOp, Compare, BoolOp. No Name/Getattr/Getitem
+    (those require static_context). Used for dead code elimination.
+    """
+    if isinstance(expr, Const):
+        return expr.value
+
+    if isinstance(expr, BinOp):
+        left = _try_eval_const_only(expr.left)
+        right = _try_eval_const_only(expr.right)
+        if left is _UNRESOLVED or right is _UNRESOLVED:
+            return _UNRESOLVED
+        try:
+            if expr.op == "+":
+                return left + right
+            if expr.op == "-":
+                return left - right
+            if expr.op == "*":
+                return left * right
+            if expr.op == "/":
+                return left / right
+            if expr.op == "//":
+                return left // right
+            if expr.op == "%":
+                return left % right
+            if expr.op == "**":
+                return left**right
+            if expr.op == "~":
+                return str(left) + str(right)
+        except Exception:
+            return _UNRESOLVED
+        return _UNRESOLVED
+
+    if isinstance(expr, UnaryOp):
+        operand = _try_eval_const_only(expr.operand)
+        if operand is _UNRESOLVED:
+            return _UNRESOLVED
+        try:
+            if expr.op == "-":
+                return -operand
+            if expr.op == "+":
+                return +operand
+            if expr.op == "not":
+                return not operand
+        except Exception:
+            return _UNRESOLVED
+        return _UNRESOLVED
+
+    if isinstance(expr, Compare):
+        left = _try_eval_const_only(expr.left)
+        if left is _UNRESOLVED:
+            return _UNRESOLVED
+        for op, comp_node in zip(expr.ops, expr.comparators, strict=True):
+            right = _try_eval_const_only(comp_node)
+            if right is _UNRESOLVED:
+                return _UNRESOLVED
+            try:
+                result = _compare_op(op, left, right)
+            except Exception:
+                return _UNRESOLVED
+            if not result:
+                return False
+            left = right
+        return True
+
+    if isinstance(expr, BoolOp):
+        if expr.op == "and":
+            for val_node in expr.values:
+                val = _try_eval_const_only(val_node)
+                if val is _UNRESOLVED:
+                    return _UNRESOLVED
+                if not val:
+                    return val
+            return val
+        for val_node in expr.values:
+            val = _try_eval_const_only(val_node)
+            if val is _UNRESOLVED:
+                return _UNRESOLVED
+            if val:
+                return val
+        return val
+
+    if isinstance(expr, CondExpr):
+        test = _try_eval_const_only(expr.test)
+        if test is _UNRESOLVED:
+            return _UNRESOLVED
+        return _try_eval_const_only(expr.if_true if test else expr.if_false)
+
+    return _UNRESOLVED
+
+
+def _body_has_scoping_nodes(nodes: Sequence[Node]) -> bool:
+    """True if body contains Set, Let, Capture, or Export (block-scoped)."""
+    for n in nodes:
+        if isinstance(n, (Set, Let, Capture, Export)):
+            return True
+        if isinstance(n, Block) and _body_has_scoping_nodes(n.body):
+            return True
+    return False
+
+
+def _dce_transform_if(node: If) -> Node | None:
+    """Eliminate dead branches when test is const-only resolvable."""
+    test_val = _try_eval_const_only(node.test)
+    if test_val is _UNRESOLVED:
+        return node
+
+    if test_val:
+        if _body_has_scoping_nodes(node.body):
+            return node  # Preserve If structure for block scoping
+        body = _dce_transform_body(node.body)
+        if len(body) == 1:
+            return body[0]
+        return _InlinedBody(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            nodes=body,
+        )
+
+    for cond, branch_body in node.elif_:
+        cond_val = _try_eval_const_only(cond)
+        if cond_val is _UNRESOLVED:
+            return node
+        if cond_val:
+            if _body_has_scoping_nodes(branch_body):
+                return node
+            body = _dce_transform_body(branch_body)
+            if len(body) == 1:
+                return body[0]
+            return _InlinedBody(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                nodes=body,
+            )
+
+    if node.else_:
+        if _body_has_scoping_nodes(node.else_):
+            return node
+        body = _dce_transform_body(node.else_)
+        if len(body) == 1:
+            return body[0]
+        return _InlinedBody(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            nodes=body,
+        )
+
+    return None
+
+
+def _dce_transform_body(body: Sequence[Node]) -> Sequence[Node]:
+    """Transform body, eliminating dead If nodes and flattening _InlinedBody."""
+    result: list[Node] = []
+    changed = False
+
+    for node in body:
+        if isinstance(node, If):
+            transformed = _dce_transform_if(node)
+            if transformed is None:
+                changed = True
+                continue
+            if isinstance(transformed, _InlinedBody):
+                changed = True
+                result.extend(transformed.nodes)
+            else:
+                result.append(transformed)
+        elif isinstance(node, Block):
+            new_block_body = _dce_transform_body(node.body)
+            if new_block_body is not node.body:
+                changed = True
+                result.append(
+                    Block(
+                        lineno=node.lineno,
+                        col_offset=node.col_offset,
+                        name=node.name,
+                        body=new_block_body,
+                        scoped=node.scoped,
+                        required=node.required,
+                    )
+                )
+            else:
+                result.append(node)
+        else:
+            result.append(node)
+
+    if not changed:
+        return body
+    return tuple(result)
+
+
+def eliminate_dead_code(template: Template) -> Template:
+    """Remove branches whose conditions are provably constant.
+
+    Runs without static_context. Eliminates e.g. {% if false %}...{% end %},
+    {% if true %}x{% else %}y{% end %}, {% if 1+1==2 %}...{% end %}.
+    """
+    new_body = _dce_transform_body(template.body)
+    if new_body is template.body:
+        return template
+    result = Template(
+        lineno=template.lineno,
+        col_offset=template.col_offset,
+        body=new_body,
+        extends=template.extends,
+        context_type=template.context_type,
+    )
+    return _flatten_inlined(result)
 
 
 class PartialEvaluator:
@@ -67,10 +289,13 @@ class PartialEvaluator:
             static Output nodes are replaced with unescaped string values.
         pure_filters: Filter names that are safe to evaluate at compile
             time (no side effects, deterministic).
+        filter_callables: Map of filter name to callable for compile-time
+            Filter/Pipeline evaluation. When provided, pure filters can
+            be evaluated (e.g. {{ site.title | default("x") }}).
 
     """
 
-    __slots__ = ("_ctx", "_escape", "_pure_filters")
+    __slots__ = ("_ctx", "_escape", "_filter_callables", "_pure_filters")
 
     def __init__(
         self,
@@ -78,10 +303,12 @@ class PartialEvaluator:
         *,
         escape_func: Any | None = None,
         pure_filters: frozenset[str] = frozenset(),
+        filter_callables: dict[str, Callable[..., Any]] | None = None,
     ) -> None:
         self._ctx = static_context
         self._escape = escape_func
         self._pure_filters = pure_filters
+        self._filter_callables = filter_callables or {}
 
     def evaluate(self, template: Template) -> Template:
         """Transform a template AST by evaluating static expressions.
@@ -176,8 +403,70 @@ class PartialEvaluator:
                 parts.append(str(val))
             return "".join(parts)
 
-        # Anything else (FuncCall, Filter, Pipeline, etc.) — not resolved
+        if isinstance(expr, Filter):
+            return self._try_eval_filter(expr)
+
+        if isinstance(expr, Pipeline):
+            return self._try_eval_pipeline(expr)
+
+        # Anything else (FuncCall, etc.) — not resolved
         return _UNRESOLVED
+
+    def _try_eval_filter(self, expr: Filter) -> Any:
+        """Evaluate a Filter node when value and args are resolvable."""
+        if expr.name not in self._pure_filters:
+            return _UNRESOLVED
+        func = self._filter_callables.get(expr.name)
+        if func is None:
+            return _UNRESOLVED
+        value = self._try_eval(expr.value)
+        if value is _UNRESOLVED:
+            return _UNRESOLVED
+        args_resolved: list[Any] = []
+        for arg in expr.args:
+            a = self._try_eval(arg)
+            if a is _UNRESOLVED:
+                return _UNRESOLVED
+            args_resolved.append(a)
+        kwargs_resolved: dict[str, Any] = {}
+        for k, v in expr.kwargs.items():
+            kv = self._try_eval(v)
+            if kv is _UNRESOLVED:
+                return _UNRESOLVED
+            kwargs_resolved[k] = kv
+        try:
+            return func(value, *args_resolved, **kwargs_resolved)
+        except Exception:
+            return _UNRESOLVED
+
+    def _try_eval_pipeline(self, expr: Pipeline) -> Any:
+        """Evaluate a Pipeline node when value and all steps are resolvable."""
+        value = self._try_eval(expr.value)
+        if value is _UNRESOLVED:
+            return _UNRESOLVED
+        for name, args, kwargs in expr.steps:
+            if name not in self._pure_filters:
+                return _UNRESOLVED
+            func = self._filter_callables.get(name)
+            if func is None:
+                return _UNRESOLVED
+            args_resolved: list[Any] = []
+            for arg in args:
+                a = self._try_eval(arg)
+                if a is _UNRESOLVED:
+                    return _UNRESOLVED
+                args_resolved.append(a)
+            kwargs_resolved: dict[str, Any] = {}
+            for k, v in kwargs.items():
+                kv = self._try_eval(v)
+                if kv is _UNRESOLVED:
+                    return _UNRESOLVED
+                kwargs_resolved[k] = kv
+            try:
+                value = func(value, *args_resolved, **kwargs_resolved)
+            except Exception:
+                return _UNRESOLVED
+        return value
 
     @staticmethod
     def _eval_binop(op: str, left: Any, right: Any) -> Any:
@@ -196,7 +485,7 @@ class PartialEvaluator:
             if op == "%":
                 return left % right
             if op == "**":
-                return left ** right
+                return left**right
             if op == "~":
                 return str(left) + str(right)
         except Exception:
@@ -349,16 +638,9 @@ class PartialEvaluator:
         if test_val is _UNRESOLVED:
             # Can't resolve test — recurse into branches
             new_body = self._transform_body(node.body)
-            new_elif = tuple(
-                (cond, self._transform_body(body))
-                for cond, body in node.elif_
-            )
+            new_elif = tuple((cond, self._transform_body(body)) for cond, body in node.elif_)
             new_else = self._transform_body(node.else_) if node.else_ else node.else_
-            if (
-                new_body is node.body
-                and new_elif == node.elif_
-                and new_else is node.else_
-            ):
+            if new_body is node.body and new_elif == node.elif_ and new_else is node.else_:
                 return node
             return If(
                 lineno=node.lineno,
@@ -537,6 +819,7 @@ def partial_evaluate(
     *,
     escape_func: Any | None = None,
     pure_filters: frozenset[str] = frozenset(),
+    filter_callables: dict[str, Callable[..., Any]] | None = None,
 ) -> Template:
     """Convenience function: partially evaluate a template AST.
 
@@ -545,6 +828,7 @@ def partial_evaluate(
         static_context: Values known at compile time.
         escape_func: HTML escape function for static Output nodes.
         pure_filters: Filter names safe for compile-time evaluation.
+        filter_callables: Filter name to callable for Filter/Pipeline eval.
 
     Returns:
         Transformed template AST with static expressions replaced.
@@ -553,10 +837,15 @@ def partial_evaluate(
     if not static_context:
         return template
 
+    from kida.compiler.coalescing import _BUILTIN_PURE_FILTERS
+
+    all_pure = _BUILTIN_PURE_FILTERS | pure_filters
+
     evaluator = PartialEvaluator(
         static_context,
         escape_func=escape_func,
-        pure_filters=pure_filters,
+        pure_filters=all_pure,
+        filter_callables=filter_callables or {},
     )
     result = evaluator.evaluate(template)
 
@@ -594,14 +883,16 @@ def _flatten_body(body: Sequence[Node]) -> Sequence[Node]:
             new_block_body = _flatten_body(node.body)
             if new_block_body is not node.body:
                 changed = True
-                result.append(Block(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    name=node.name,
-                    body=new_block_body,
-                    scoped=node.scoped,
-                    required=node.required,
-                ))
+                result.append(
+                    Block(
+                        lineno=node.lineno,
+                        col_offset=node.col_offset,
+                        name=node.name,
+                        body=new_block_body,
+                        scoped=node.scoped,
+                        required=node.required,
+                    )
+                )
             else:
                 result.append(node)
         else:
