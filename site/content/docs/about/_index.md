@@ -46,11 +46,11 @@ StringBuilder rendering, caching strategies.
 PEP 703 compliance and concurrent rendering.
 :::{/card}
 
-:::{card} Comparison
+:::{card} Syntax and Features
 :icon: arrows-angle-contract
 :link: ./comparison
-:description: Kida vs Jinja2
-Comprehensive feature comparison.
+:description: Kida syntax and when it fits
+Syntax reference and migration notes.
 :::{/card}
 
 :::{card} FAQ

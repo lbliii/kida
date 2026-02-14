@@ -30,31 +30,29 @@ Methodology: `pytest-benchmark`, identical templates and contexts, `auto_reload=
 
 ### CPython 3.14t (free-threaded, `PYTHON_GIL=0`, 3.14.2+ft)
 
-| Template                | Kida    | Jinja2  | Speedup |
-| ----------------------- | ------- | ------- | ------- |
-| Minimal (hello)         | 3.48µs  | 5.44µs  | 1.56x   |
-| Small (12 vars)         | 8.88µs  | 10.24µs | 1.15x   |
-| Medium (~100 vars)      | 0.395ms | 0.373ms | ~1.0x   |
-| Large (1000 loop items) | 1.91ms  | 4.09ms  | **2.14x** |
-| Complex (inheritance)   | 21.4µs  | 29.0µs  | 1.36x   |
+| Template                | Kida    |
+| ----------------------- | ------- |
+| Minimal (hello)         | 3.48µs  |
+| Small (12 vars)         | 8.88µs  |
+| Medium (~100 vars)      | 0.395ms |
+| Large (1000 loop items) | 1.91ms  |
+| Complex (inheritance)   | 21.4µs  |
 
-**Key finding**: Kida is **2.14x faster** on large templates (1000 loop items) due to the StringBuilder pattern vs Jinja2's generator protocol. Medium templates show parity because HTML escaping dominates — Jinja2 uses markupsafe's C extension while Kida uses pure Python (zero-dependency trade-off).
+Large templates benefit from the StringBuilder pattern. Medium templates are dominated by HTML escaping (Kida uses pure Python for zero-dependency).
 
 ### Concurrent Performance (Free-Threading)
 
 > Numbers from `benchmarks/test_benchmark_full_comparison.py` (inline medium
 > template, 100 total renders distributed across workers).
 
-**This is where Kida shines.** Under concurrent workloads, Kida's thread-safe design delivers advantages that grow with worker count:
+Under concurrent workloads, Kida's thread-safe design scales with worker count:
 
-| Workers | Kida    | Jinja2  | Speedup |
-| ------- | ------- | ------- | ------- |
-| 1       | 1.80ms  | 1.80ms  | ~same   |
-| 2       | 1.12ms  | 1.15ms  | ~same   |
-| 4       | 1.62ms  | 1.90ms  | **1.17x** |
-| 8       | 1.76ms  | 1.97ms  | **1.12x** |
-
-**Key finding**: Jinja2 shows *negative scaling* at 4+ workers (slower than 1 worker), while Kida maintains consistent performance. This reveals internal contention in Jinja2 under high concurrency.
+| Workers | Kida    |
+| ------- | ------- |
+| 1       | 1.80ms  |
+| 2       | 1.12ms  |
+| 4       | 1.62ms  |
+| 8       | 1.76ms  |
 
 ### Lexer Optimization
 
@@ -85,20 +83,20 @@ The lexer uses a compiled regex for delimiter detection, achieving 5-24x faster 
 
 > Numbers from `benchmarks/test_benchmark_render.py` compile benchmarks.
 
-| Template | Kida    | Jinja2  | Ratio |
-| -------- | ------- | ------- | ----- |
-| Small    | 4.03ms  | 1.60ms  | 2.5x slower |
-| Medium   | 6.04ms  | 4.18ms  | 1.4x slower |
-| Large    | 4.62ms  | 1.03ms  | 4.5x slower |
-| Complex  | 5.08ms  | 1.17ms  | 4.3x slower |
+| Template | Kida    |
+| -------- | ------- |
+| Small    | 4.03ms  |
+| Medium   | 6.04ms  |
+| Large    | 4.62ms  |
+| Complex  | 5.08ms  |
 
-Kida's compilation is slower because it builds a full AST (lexer → parser → AST → compiler → Python code → `exec()`). This cost is amortized by the bytecode cache — recompilation only happens when template source changes.
+Kida builds a full AST (lexer → parser → AST → compiler → Python code → `exec()`). This cost is amortized by the bytecode cache — recompilation only happens when template source changes.
 
 ### Where to Improve Next
 
-- Medium templates: HTML escaping overhead dominates (pure Python vs markupsafe C extension)
+- Medium templates: HTML escaping overhead dominates (pure Python)
 - Cold-start: lazy analysis imports cut import time from 60ms to 31ms (48% improvement)
-- Compilation: slower than Jinja2 but amortized by bytecode cache
+- Compilation: amortized by bytecode cache
 
 Run locally:
 
@@ -130,21 +128,10 @@ def render():
     return "".join(_out)
 ```
 
-**vs Jinja2's generator pattern**:
-
-```python
-# Jinja2's approach
-def render():
-    yield "Hello, "
-    yield name
-    yield "!"
-```
-
 The StringBuilder pattern has lower overhead:
 
 - No generator/iterator protocol
 - Single memory allocation for final string
-- 25-40% faster in benchmarks
 
 ### Local Variable Caching
 

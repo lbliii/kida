@@ -41,7 +41,7 @@ print(template.render(name="World"))
 
 ---
 
-## Why Kida?
+## What's good about it
 
 :::{cards}
 :columns: 2
@@ -71,37 +71,21 @@ Pure Python with no runtime dependencies. Includes native `Markup` class—no ma
 
 ---
 
-## Quick Comparison
-
-| Feature | Kida | Jinja2 |
-|---------|------|--------|
-| **Compilation** | AST → AST | String generation |
-| **Rendering** | StringBuilder O(n) | Generator yields |
-| **Block endings** | Unified `{% end %}` | `{% endif %}`, `{% endfor %}` |
-| **Async** | Native `async for` | `auto_await()` wrapper |
-| **Pattern matching** | `{% match %}` | N/A |
-| **Free-threading** | Native (PEP 703) | N/A |
-
----
-
 ## Performance
 
-StringBuilder rendering is 25-40% faster than Jinja2's generator pattern:
+StringBuilder rendering for O(n) concatenation:
 
 ```python
 # Kida: O(n) StringBuilder
 _out.append(...)
 return "".join(_out)
-
-# Jinja2: Generator yields (higher overhead)
-yield ...
 ```
 
-| Template Size | Kida | Jinja2 | Speedup |
-|---------------|------|--------|---------|
-| Small (10 vars) | 0.3ms | 0.5ms | 1.6x |
-| Medium (100 vars) | 2ms | 3.5ms | 1.75x |
-| Large (1000 vars) | 15ms | 25ms | 1.67x |
+| Template Size | Time |
+|---------------|------|
+| Small (10 vars) | ~0.3ms |
+| Medium (100 vars) | ~2ms |
+| Large (1000 vars) | ~15ms |
 
 ---
 
