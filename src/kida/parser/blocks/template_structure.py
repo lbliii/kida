@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
-from kida.nodes import Block, Extends, FromImport, Globals, Import, Include
+from kida.nodes import Block, Extends, FromImport, Globals, Import, Imports, Include
 
 if TYPE_CHECKING:
     from kida.nodes import Expr, Node
@@ -110,6 +110,27 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
         self._consume_end_tag("globals")
 
         return Globals(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            body=tuple(body),
+        )
+
+    def _parse_imports_tag(self) -> Imports:
+        """Parse {% imports %}...{% end %} — intent-revealing imports for fragments.
+
+        Same semantics as {% globals %} but signals: these are imports for
+        fragment/block scope. Compiles to _globals_setup.
+        """
+        start = self._advance()  # consume 'imports'
+        self._push_block("imports", start)
+
+        self._expect(TokenType.BLOCK_END)
+        body = self._parse_body()
+
+        # Consume end tag
+        self._consume_end_tag("imports")
+
+        return Imports(
             lineno=start.lineno,
             col_offset=start.col_offset,
             body=tuple(body),

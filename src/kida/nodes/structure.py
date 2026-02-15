@@ -43,6 +43,17 @@ class Globals(Node):
 
 
 @dataclass(frozen=True, slots=True)
+class Imports(Node):
+    """Imports block — {% imports %}...{% end %}.
+
+    Same semantics as {% globals %} but signals intent: these imports
+    are for fragment/block scope. Compiles to _globals_setup.
+    """
+
+    body: Sequence[Node]
+
+
+@dataclass(frozen=True, slots=True)
 class Include(Node):
     """Include another template: {% include "partial.html" %}"""
 

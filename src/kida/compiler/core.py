@@ -300,21 +300,30 @@ class Compiler(
         )
 
     def _make_globals_setup(self, node: TemplateNode) -> ast.FunctionDef | None:
-        """Generate _globals_setup(ctx) from {% globals %} blocks.
+        """Generate _globals_setup(ctx) from {% globals %}, {% imports %}, and top-level imports.
 
-        Scans the template body for Globals nodes and compiles their contents
-        into a setup function. This function is called by render_block() to
-        inject macros and variables into the block's context.
+        Scans the template body for:
+        1. Top-level FromImport and Import nodes (so render_block has macros in scope)
+        2. Globals and Imports nodes (macros/variables for block context)
 
-        Returns None if no {% globals %} blocks exist.
+        This function is called by render_block() to inject macros and variables
+        into the block's context. Returns None if neither globals nor top-level
+        imports exist.
         """
-        from kida.nodes import Globals
+        from kida.nodes import FromImport, Globals, Import, Imports
 
-        globals_nodes = [n for n in node.body if isinstance(n, Globals)]
-        if not globals_nodes:
+        setup_nodes = [
+            n for n in node.body
+            if isinstance(n, (Globals, Imports))
+        ]
+        top_level_imports = [
+            n for n in node.body
+            if isinstance(n, (FromImport, Import))
+        ]
+        if not setup_nodes and not top_level_imports:
             return None
 
-        # Compile all globals block bodies
+        # Preamble: scope stack, buf, _append, _e, _s, _acc (needed by imports/globals)
         body_stmts: list[ast.stmt] = [
             # _scope_stack = [] (needed by {% set %} statements)
             ast.Assign(
@@ -352,8 +361,12 @@ class Compiler(
             ),
         ]
 
-        for globals_node in globals_nodes:
-            for child in globals_node.body:
+        # Top-level imports first (so macros are in ctx for blocks)
+        for imp_node in top_level_imports:
+            body_stmts.extend(self._compile_node(imp_node))
+
+        for setup_node in setup_nodes:
+            for child in setup_node.body:
                 body_stmts.extend(self._compile_node(child))
 
         return ast.FunctionDef(
@@ -886,6 +899,7 @@ class Compiler(
                 "Include": self._compile_include,
                 "Block": self._compile_block,
                 "Globals": self._compile_globals,
+                "Imports": self._compile_imports,
                 "Def": self._compile_def,
                 "CallBlock": self._compile_call_block,
                 "Slot": self._compile_slot,

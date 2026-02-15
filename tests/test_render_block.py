@@ -333,3 +333,113 @@ class TestGlobalsBlock:
         result = template.render_block("content")
         assert "<b>hi</b>" in result
         assert "<i>star</i>" in result
+
+
+class TestImportsBlock:
+    """{% imports %}...{% end %} — intent-revealing imports for fragments.
+
+    Same semantics as {% globals %} but signals: these are imports for
+    fragment/block scope. Compiles to _globals_setup.
+    """
+
+    def test_imports_block_makes_macros_available_in_render_block(self) -> None:
+        """{% imports %} with {% from %} makes macros available in render_block()."""
+        env = _env(
+            macros='{% def greet(name) %}Hello, {{ name }}!{% end %}',
+            page=(
+                '{% imports %}{% from "macros" import greet %}{% end %}'
+                '{% block content %}{{ greet("World") }}{% endblock %}'
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("content")
+        assert "Hello, World!" in result
+
+    def test_imports_block_with_fragment(self) -> None:
+        """{% imports %} works with {% fragment %} blocks."""
+        env = _env(
+            macros='{% def card(title) %}<div>{{ title }}</div>{% end %}',
+            page=(
+                '{% imports %}{% from "macros" import card %}{% end %}'
+                'Page content'
+                '{% fragment oob %}{{ card("Task 1") }}{% endfragment %}'
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("oob")
+        assert "<div>Task 1</div>" in result
+
+    def test_imports_endimports_closing(self) -> None:
+        """Imports blocks accept {% endimports %} as closing tag."""
+        env = _env(
+            macros='{% def f() %}ok{% end %}',
+            page=(
+                '{% imports %}{% from "macros" import f %}{% endimports %}'
+                '{% block content %}{{ f() }}{% endblock %}'
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("content")
+        assert "ok" in result
+
+    def test_imports_unified_end_closing(self) -> None:
+        """Imports blocks accept {% end %} as closing tag."""
+        env = _env(
+            macros='{% def f() %}ok{% end %}',
+            page=(
+                '{% imports %}{% from "macros" import f %}{% end %}'
+                '{% block content %}{{ f() }}{% endblock %}'
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("content")
+        assert "ok" in result
+
+
+class TestTopLevelImportInRenderBlock:
+    """Top-level {% from %}...{% import %} available in render_block() without {% globals %}."""
+
+    def test_top_level_import_available_in_render_block(self) -> None:
+        """Template with {% from "macros" import greet %} at root, no globals."""
+        env = _env(
+            macros='{% def greet(name) %}Hello, {{ name }}!{% end %}',
+            page=(
+                '{% from "macros" import greet %}'
+                '{% block content %}{{ greet("World") }}{% endblock %}'
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("content")
+        assert "Hello, World!" in result
+
+    def test_top_level_import_in_fragment(self) -> None:
+        """Top-level import works with {% fragment %} blocks."""
+        env = _env(
+            macros='{% def card(title) %}<div>{{ title }}</div>{% end %}',
+            page=(
+                '{% from "macros" import card %}'
+                'Page content '
+                '{% fragment oob %}{{ card("Task 1") }}{% endfragment %}'
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render()
+        assert "Page content" in result
+        assert "Task 1" not in result
+        result = template.render_block("oob")
+        assert "<div>Task 1</div>" in result
+
+    def test_top_level_import_with_globals(self) -> None:
+        """Both top-level import and {% globals %} available in block."""
+        env = _env(
+            macros='{% def greet(name) %}Hello, {{ name }}!{% end %}',
+            page=(
+                '{% from "macros" import greet %}'
+                '{% globals %}{% set site = "Kida" %}{% end %}'
+                '{% block content %}{{ greet("World") }} from {{ site }}{% endblock %}'
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("content")
+        assert "Hello, World!" in result
+        assert "Kida" in result

@@ -72,6 +72,7 @@ class BlockStackMixin:
             "endwhile",  # RFC: kida-2.0-moonshot
             "endfragment",
             "endglobals",
+            "endimports",
         }
     )
 

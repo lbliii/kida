@@ -12,7 +12,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Block, FromImport, Globals, Import, Include, Node
+    from kida.nodes import Block, FromImport, Globals, Import, Imports, Include, Node
 
 
 class TemplateStructureMixin:
@@ -70,6 +70,17 @@ class TemplateStructureMixin:
         During render(), the globals body is compiled transparently — its
         statements execute as part of the normal template flow. The separate
         _globals_setup function for render_block() is handled by _compile_template.
+        """
+        stmts: list[ast.stmt] = []
+        for child in node.body:
+            stmts.extend(self._compile_node(child))
+        return stmts
+
+    def _compile_imports(self, node: Imports) -> list[ast.stmt]:
+        """Compile {% imports %}...{% end %} inline during full render.
+
+        Same as {% globals %} — body runs during render(). _globals_setup
+        for render_block() is handled by _compile_template.
         """
         stmts: list[ast.stmt] = []
         for child in node.body:
