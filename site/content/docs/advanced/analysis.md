@@ -279,12 +279,38 @@ pure functions like `asset_url`, `t`, `canonical_url`, etc.
 [Bengal](https://github.com/bengal-ssg/bengal) uses Kida's analysis API to
 implement smart incremental builds:
 
-1. **Compile all templates** with AST preservation enabled
-2. **Analyze each template** to get block metadata
-3. **Identify site-cacheable blocks** (nav, footer, sidebar) using `cache_scope == "site"`
-4. **Cache site-scoped blocks** once per build, reuse across all pages
-5. **Only re-render page-scoped blocks** when page content changes
-6. **Track dependencies** to invalidate caches when upstream data changes
+:::{steps}
+:::{step} Compile all templates
+
+Enable AST preservation when compiling.
+
+:::{/step}
+:::{step} Analyze each template
+
+Get block metadata for each compiled template.
+
+:::{/step}
+:::{step} Identify site-cacheable blocks
+
+Find nav, footer, sidebar using `cache_scope == "site"`.
+
+:::{/step}
+:::{step} Cache site-scoped blocks
+
+Cache once per build, reuse across all pages.
+
+:::{/step}
+:::{step} Re-render page-scoped blocks only
+
+Only when page content changes.
+
+:::{/step}
+:::{step} Track dependencies
+
+Invalidate caches when upstream data changes.
+
+:::{/step}
+:::{/steps}
 
 This reduces full-site rebuild time by 40-60% for sites with shared navigation
 and footer blocks.

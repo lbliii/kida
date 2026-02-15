@@ -27,7 +27,8 @@ UndefinedError: Undefined variable 'usre' in page.html:5
 
 ## Common Causes
 
-### 1. Typo in Variable Name
+:::{dropdown} Typo in variable name
+:icon: spell-check
 
 ```kida
 {# ❌ Typo #}
@@ -37,9 +38,11 @@ UndefinedError: Undefined variable 'usre' in page.html:5
 {{ user.name }}
 ```
 
-**Fix**: Check spelling against what's passed to `render()`.
+Check spelling against what's passed to `render()`.
+:::
 
-### 2. Variable Not Passed to Template
+:::{dropdown} Variable not passed to template
+:icon: plug
 
 ```python
 # ❌ Missing variable
@@ -49,9 +52,11 @@ template.render(title="Hello")
 template.render(title="Hello", user=current_user)
 ```
 
-**Fix**: Ensure all template variables are passed in `render()`.
+Ensure all template variables are passed in `render()`.
+:::
 
-### 3. Wrong Attribute Name
+:::{dropdown} Wrong attribute name
+:icon: tag
 
 ```kida
 {# ❌ Wrong attribute #}
@@ -61,9 +66,11 @@ template.render(title="Hello", user=current_user)
 {{ user.name }}
 ```
 
-**Fix**: Verify object attributes match your code.
+Verify object attributes match your code.
+:::
 
-### 4. Nested Object is None
+:::{dropdown} Nested object is None
+:icon: layers
 
 ```kida
 {# ❌ parent might be None #}
@@ -75,7 +82,8 @@ template.render(title="Hello", user=current_user)
 {% end %}
 ```
 
-**Fix**: Use conditional checks or `default` filter.
+Use conditional checks or `default` filter.
+:::
 
 ## Solutions
 

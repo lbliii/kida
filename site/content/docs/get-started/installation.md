@@ -19,22 +19,32 @@ icon: download
 
 ## Requirements
 
-- **Python 3.14+** (required)
-- No runtime dependencies (pure Python)
+:::{checklist} Prerequisites
+:show-progress:
+- [ ] Python 3.14+ installed
+- [x] No runtime dependencies (pure Python)
+:::{/checklist}
 
-## Using pip
+## Install
 
-```bash
-pip install kida-templates
-```
-
-## Using uv
+:::{tab-set}
+:::{tab-item} uv
 
 ```bash
 uv add kida-templates
 ```
 
-## From Source
+:::{/tab-item}
+
+:::{tab-item} pip
+
+```bash
+pip install kida-templates
+```
+
+:::{/tab-item}
+
+:::{tab-item} From Source
 
 ```bash
 git clone https://github.com/lbliii/kida.git
@@ -49,6 +59,9 @@ git clone https://github.com/lbliii/kida.git
 cd kida
 uv sync
 ```
+
+:::{/tab-item}
+:::{/tab-set}
 
 ## Verify Installation
 
@@ -67,9 +80,23 @@ python -c "import kida; print(kida.__version__)"
 
 Kida is optimized for Python 3.14t with free-threading enabled (PEP 703). To use free-threading:
 
-1. Install the free-threaded Python 3.14 build (look for `python3.14t` or the "free-threaded" installer option)
-2. Install Kida normally
-3. Render templates concurrently with true parallelism
+:::{steps}
+:::{step} Install free-threaded Python 3.14
+
+Look for `python3.14t` or the "free-threaded" installer option.
+
+:::{/step}
+:::{step} Install Kida normally
+
+Use pip or uv as shown above.
+
+:::{/step}
+:::{step} Render templates concurrently
+
+Use true parallelism with `ThreadPoolExecutor` or similar.
+
+:::{/step}
+:::{/steps}
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
@@ -87,3 +114,10 @@ with ThreadPoolExecutor(max_workers=4) as executor:
 ```
 
 See [[docs/about/thread-safety|Thread Safety]] for details on Kida's free-threading support.
+
+## Next Steps
+
+:::{related}
+:limit: 3
+:section_title: Next Steps
+:::

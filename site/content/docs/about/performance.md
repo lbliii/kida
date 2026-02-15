@@ -235,14 +235,16 @@ Cache expensive template sections:
 
 ## Optimization Tips
 
-### 1. Disable Auto-Reload in Production
+:::{steps}
+:::{step} Disable auto-reload in production
 
 ```python
 # Production
 env = Environment(auto_reload=False)
 ```
 
-### 2. Pre-Warm Template Cache
+:::{/step}
+:::{step} Pre-warm template cache
 
 ```python
 def warmup():
@@ -252,7 +254,8 @@ def warmup():
 warmup()  # On startup
 ```
 
-### 3. Use Bytecode Cache
+:::{/step}
+:::{step} Use bytecode cache
 
 ```python
 env = Environment(
@@ -260,7 +263,8 @@ env = Environment(
 )
 ```
 
-### 4. Precompute in Python
+:::{/step}
+:::{step} Precompute in Python
 
 ```python
 # ✅ Python handles complexity
@@ -274,7 +278,8 @@ template.render(
 # {% set total = 0 %}{% for i in items %}...
 ```
 
-### 5. Use Fragment Caching
+:::{/step}
+:::{step} Use fragment caching
 
 ```kida
 {# Cache expensive computations #}
@@ -285,7 +290,8 @@ template.render(
 {% end %}
 ```
 
-### 6. Minimize Filter Chains
+:::{/step}
+:::{step} Minimize filter chains
 
 ```kida
 {# Less efficient: multiple passes #}
@@ -294,6 +300,9 @@ template.render(
 {# More efficient: single Python call #}
 {{ preprocess(text) }}
 ```
+
+:::{/step}
+:::{/steps}
 
 ## Profiling
 

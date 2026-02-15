@@ -21,8 +21,14 @@ Kida's compilation and rendering pipeline.
 
 ## Overview
 
-```
-Template Source → Lexer → Parser → Kida AST → Compiler → Python AST → exec()
+```mermaid
+flowchart LR
+    A[Template Source] --> B[Lexer]
+    B --> C[Parser]
+    C --> D[Kida AST]
+    D --> E[Compiler]
+    E --> F[Python AST]
+    F --> G[exec]
 ```
 
 ## Pipeline Stages
