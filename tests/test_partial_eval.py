@@ -327,7 +327,7 @@ class TestFilterPartialEval:
         """{{ text | truncate(5) }} with static_context evaluates."""
         env = _env()
         tmpl = env.from_string(
-            '{{ text | truncate(5) }}',
+            "{{ text | truncate(5) }}",
             static_context={"text": "hello world"},
         )
         # truncate(5) = first 2 chars + "..." (5 total)

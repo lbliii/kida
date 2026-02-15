@@ -252,8 +252,7 @@ class CachingMixin:
         filter_node = node.filter
         filter_args.extend([self._compile_expr(a) for a in filter_node.args])
         filter_kwargs = [
-            ast.keyword(arg=k, value=self._compile_expr(v))
-            for k, v in filter_node.kwargs.items()
+            ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in filter_node.kwargs.items()
         ]
 
         filter_call = ast.Call(

@@ -61,10 +61,28 @@ arbitrary_template_source = st.text(
 # ---------------------------------------------------------------------------
 
 # Identifiers safe to use as variable names (avoid kida keywords)
-safe_identifier = st.sampled_from([
-    "x", "y", "z", "a", "b", "val", "item", "count", "name", "data",
-    "foo", "bar", "num", "text", "flag", "total", "score", "idx",
-])
+safe_identifier = st.sampled_from(
+    [
+        "x",
+        "y",
+        "z",
+        "a",
+        "b",
+        "val",
+        "item",
+        "count",
+        "name",
+        "data",
+        "foo",
+        "bar",
+        "num",
+        "text",
+        "flag",
+        "total",
+        "score",
+        "idx",
+    ]
+)
 
 # Integer values in a safe range for arithmetic tests
 safe_integer = st.integers(min_value=-10_000, max_value=10_000)
@@ -81,14 +99,27 @@ ascii_lowercase_text = st.text(
 # ---------------------------------------------------------------------------
 
 # Filters that are safe to apply to strings without arguments
-string_safe_filters = st.sampled_from([
-    "upper", "lower", "trim", "title", "capitalize", "string",
-])
+string_safe_filters = st.sampled_from(
+    [
+        "upper",
+        "lower",
+        "trim",
+        "title",
+        "capitalize",
+        "string",
+    ]
+)
 
 # Filters safe for lists
-list_safe_filters = st.sampled_from([
-    "length", "first", "last", "reverse", "list",
-])
+list_safe_filters = st.sampled_from(
+    [
+        "length",
+        "first",
+        "last",
+        "reverse",
+        "list",
+    ]
+)
 
 # Build a filter chain of 1-4 string-safe filters
 string_filter_chain = st.lists(

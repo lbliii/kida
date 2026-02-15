@@ -1,6 +1,5 @@
 """Tests for terminal color utilities (Feature 2.1 Phase 2: Terminal Colors)."""
 
-import os
 import pytest
 
 from kida.environment import terminal
@@ -36,8 +35,8 @@ class TestColorDetection:
         monkeypatch.setattr(terminal, "_USE_COLORS", True)
         result = terminal.colorize("Error", "red", "bold")
         assert "\033[31m" in result  # red
-        assert "\033[1m" in result   # bold
-        assert "\033[0m" in result   # reset
+        assert "\033[1m" in result  # bold
+        assert "\033[0m" in result  # reset
 
     def test_strip_colors_removes_ansi_codes(self):
         """Test strip_colors removes all ANSI escape sequences."""
@@ -182,9 +181,9 @@ class TestColorization:
         monkeypatch.setattr(terminal, "_USE_COLORS", True)
         result = terminal.colorize("Error", "red", "bold", "dim")
         assert "\033[31m" in result  # red
-        assert "\033[1m" in result   # bold
-        assert "\033[2m" in result   # dim
-        assert "\033[0m" in result   # reset
+        assert "\033[1m" in result  # bold
+        assert "\033[2m" in result  # dim
+        assert "\033[0m" in result  # reset
 
 
 if __name__ == "__main__":

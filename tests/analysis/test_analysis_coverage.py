@@ -45,22 +45,14 @@ class TestDependencyWalkerControlFlow:
     def test_while_loop(self) -> None:
         """While loop test and body track dependencies."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}"
-            "{% while items %}{{ items }}{% end %}"
-            "{% end %}"
-        )
+        t = env.from_string("{% block content %}{% while items %}{{ items }}{% end %}{% end %}")
         deps = t.depends_on()
         assert "items" in deps
 
     def test_with_statement(self) -> None:
         """With bindings track value deps but not the bound name."""
         env = Environment()
-        t = env.from_string(
-            "{% with x = page.title %}"
-            "{{ x }}"
-            "{% end %}"
-        )
+        t = env.from_string("{% with x = page.title %}{{ x }}{% end %}")
         deps = t.depends_on()
         assert "page.title" in deps
         # x is a local binding, not a context dependency
@@ -69,23 +61,14 @@ class TestDependencyWalkerControlFlow:
     def test_conditional_with(self) -> None:
         """Conditional with ({% with expr as target %}) tracks expression."""
         env = Environment()
-        t = env.from_string(
-            "{% with items as data %}"
-            "{{ data }}"
-            "{% end %}"
-        )
+        t = env.from_string("{% with items as data %}{{ data }}{% end %}")
         deps = t.depends_on()
         assert "items" in deps
 
     def test_def_arguments_excluded(self) -> None:
         """Function arguments are excluded from dependencies."""
         env = Environment()
-        t = env.from_string(
-            "{% def show(item) %}"
-            "{{ item.name }}"
-            "{% end %}"
-            "{{ show(page) }}"
-        )
+        t = env.from_string("{% def show(item) %}{{ item.name }}{% end %}{{ show(page) }}")
         deps = t.depends_on()
         assert "page" in deps
         assert "item" not in deps
@@ -93,21 +76,14 @@ class TestDependencyWalkerControlFlow:
     def test_def_with_defaults(self) -> None:
         """Default values in def are tracked as dependencies."""
         env = Environment()
-        t = env.from_string(
-            "{% def show(title=site.name) %}"
-            "{{ title }}"
-            "{% end %}"
-        )
+        t = env.from_string("{% def show(title=site.name) %}{{ title }}{% end %}")
         deps = t.depends_on()
         assert "site.name" in deps or "site" in deps
 
     def test_set_statement(self) -> None:
         """Set statement tracks value deps and adds to scope."""
         env = Environment()
-        t = env.from_string(
-            "{% set x = page.title %}"
-            "{{ x }}"
-        )
+        t = env.from_string("{% set x = page.title %}{{ x }}")
         deps = t.depends_on()
         assert "page.title" in deps
         # x should be scoped after set
@@ -115,22 +91,14 @@ class TestDependencyWalkerControlFlow:
     def test_let_statement(self) -> None:
         """Let statement tracks value deps."""
         env = Environment()
-        t = env.from_string(
-            "{% let x = config.value %}"
-            "{{ x }}"
-        )
+        t = env.from_string("{% let x = config.value %}{{ x }}")
         deps = t.depends_on()
         assert "config.value" in deps or "config" in deps
 
     def test_if_elif_else(self) -> None:
         """If/elif/else tracks all branch dependencies."""
         env = Environment()
-        t = env.from_string(
-            "{% if a %}{{ x }}"
-            "{% elif b %}{{ y }}"
-            "{% else %}{{ z }}"
-            "{% end %}"
-        )
+        t = env.from_string("{% if a %}{{ x }}{% elif b %}{{ y }}{% else %}{{ z }}{% end %}")
         deps = t.depends_on()
         assert "a" in deps
         assert "b" in deps
@@ -251,10 +219,12 @@ class TestDependencyWalkerExpressions:
 
     def test_include_dependency(self) -> None:
         """Include statement tracks template name."""
-        loader = DictLoader({
-            "main.html": '{% include "partial.html" %}{{ extra }}',
-            "partial.html": "{{ partial_var }}",
-        })
+        loader = DictLoader(
+            {
+                "main.html": '{% include "partial.html" %}{{ extra }}',
+                "partial.html": "{{ partial_var }}",
+            }
+        )
         env = Environment(loader=loader)
         t = env.get_template("main.html")
         deps = t.depends_on()
@@ -263,24 +233,14 @@ class TestDependencyWalkerExpressions:
     def test_for_with_filter(self) -> None:
         """For loop with filter condition tracks filter deps."""
         env = Environment()
-        t = env.from_string(
-            "{% for item in items if item.active %}"
-            "{{ item.name }}"
-            "{% end %}"
-        )
+        t = env.from_string("{% for item in items if item.active %}{{ item.name }}{% end %}")
         deps = t.depends_on()
         assert "items" in deps
 
     def test_for_with_empty(self) -> None:
         """For loop with empty block tracks all deps."""
         env = Environment()
-        t = env.from_string(
-            "{% for item in items %}"
-            "{{ item }}"
-            "{% empty %}"
-            "{{ fallback }}"
-            "{% end %}"
-        )
+        t = env.from_string("{% for item in items %}{{ item }}{% empty %}{{ fallback }}{% end %}")
         deps = t.depends_on()
         assert "items" in deps
         assert "fallback" in deps
@@ -331,9 +291,7 @@ class TestPurityKnownFilters:
         env = Environment()
         # Register a custom filter so it compiles
         env.add_filter("custom_filter", lambda x: x)
-        t = env.from_string(
-            "{% block content %}{{ name | custom_filter }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ name | custom_filter }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "unknown"
 
@@ -345,9 +303,7 @@ class TestPurityControlFlow:
         """For loop with pure body is pure."""
         env = Environment()
         t = env.from_string(
-            "{% block content %}"
-            "{% for x in items %}{{ x | upper }}{% end %}"
-            "{% end %}"
+            "{% block content %}{% for x in items %}{{ x | upper }}{% end %}{% end %}"
         )
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
@@ -356,9 +312,7 @@ class TestPurityControlFlow:
         """If/else with pure branches is pure."""
         env = Environment()
         t = env.from_string(
-            "{% block content %}"
-            "{% if flag %}{{ a }}{% else %}{{ b }}{% end %}"
-            "{% end %}"
+            "{% block content %}{% if flag %}{{ a }}{% else %}{{ b }}{% end %}{% end %}"
         )
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
@@ -367,9 +321,7 @@ class TestPurityControlFlow:
         """If/elif with pure branches is pure."""
         env = Environment()
         t = env.from_string(
-            "{% block content %}"
-            "{% if x %}A{% elif y %}B{% else %}C{% end %}"
-            "{% end %}"
+            "{% block content %}{% if x %}A{% elif y %}B{% else %}C{% end %}{% end %}"
         )
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
@@ -378,9 +330,7 @@ class TestPurityControlFlow:
         """For loop with empty block, all pure branches."""
         env = Environment()
         t = env.from_string(
-            "{% block content %}"
-            "{% for x in items %}{{ x }}{% empty %}No items{% end %}"
-            "{% end %}"
+            "{% block content %}{% for x in items %}{{ x }}{% empty %}No items{% end %}{% end %}"
         )
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
@@ -389,9 +339,7 @@ class TestPurityControlFlow:
         """Match with pure cases is pure."""
         env = Environment()
         t = env.from_string(
-            "{% block content %}"
-            '{% match status %}{% case "a" %}A{% case "b" %}B{% end %}'
-            "{% end %}"
+            '{% block content %}{% match status %}{% case "a" %}A{% case "b" %}B{% end %}{% end %}'
         )
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
@@ -410,9 +358,7 @@ class TestPurityExpressions:
     def test_variable_access_pure(self) -> None:
         """Variable and attribute access is pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ page.title }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ page.title }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
@@ -426,18 +372,14 @@ class TestPurityExpressions:
     def test_comparison_pure(self) -> None:
         """Comparisons are pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{% if a == b %}eq{% end %}{% end %}"
-        )
+        t = env.from_string("{% block content %}{% if a == b %}eq{% end %}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_ternary_pure(self) -> None:
         """Ternary expression with pure branches is pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ x if flag else y }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ x if flag else y }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
@@ -451,45 +393,35 @@ class TestPurityExpressions:
     def test_dict_literal_pure(self) -> None:
         """Dict literal with pure values is pure."""
         env = Environment()
-        t = env.from_string(
-            '{% block content %}{{ {"a": 1, "b": 2} }}{% end %}'
-        )
+        t = env.from_string('{% block content %}{{ {"a": 1, "b": 2} }}{% end %}')
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_null_coalesce_pure(self) -> None:
         """Null coalescing is pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ x ?? y }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ x ?? y }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_optional_chaining_pure(self) -> None:
         """Optional chaining is pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ user?.name }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ user?.name }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_subscript_pure(self) -> None:
         """Subscript access is pure."""
         env = Environment()
-        t = env.from_string(
-            '{% block content %}{{ data["key"] }}{% end %}'
-        )
+        t = env.from_string('{% block content %}{{ data["key"] }}{% end %}')
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_unary_op_pure(self) -> None:
         """Unary operations are pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ not flag }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ not flag }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
@@ -500,18 +432,14 @@ class TestPurityFunctionCalls:
     def test_known_pure_builtin(self) -> None:
         """Known pure builtins like range() are pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ range(10) }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ range(10) }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_unknown_function(self) -> None:
         """Unknown function calls are conservatively 'unknown'."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ custom_func(x) }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ custom_func(x) }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "unknown"
 
@@ -522,11 +450,7 @@ class TestPurityTests:
     def test_test_expression_pure(self) -> None:
         """Test expressions are pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}"
-            "{% if x is defined %}{{ x }}{% end %}"
-            "{% end %}"
-        )
+        t = env.from_string("{% block content %}{% if x is defined %}{{ x }}{% end %}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
@@ -536,10 +460,12 @@ class TestPurityInclude:
 
     def test_include_pure_content(self) -> None:
         """Include of pure template is pure."""
-        loader = DictLoader({
-            "main.html": '{% block content %}{% include "pure.html" %}{% end %}',
-            "pure.html": "{{ name | upper }}",
-        })
+        loader = DictLoader(
+            {
+                "main.html": '{% block content %}{% include "pure.html" %}{% end %}',
+                "pure.html": "{{ name | upper }}",
+            }
+        )
         env = Environment(loader=loader)
         t = env.get_template("main.html")
         meta = t.block_metadata()
@@ -547,9 +473,11 @@ class TestPurityInclude:
 
     def test_include_missing_template_unknown(self) -> None:
         """Include of missing template falls back to unknown."""
-        loader = DictLoader({
-            "main.html": '{% block content %}{% include "missing.html" ignore missing %}{% end %}',
-        })
+        loader = DictLoader(
+            {
+                "main.html": '{% block content %}{% include "missing.html" ignore missing %}{% end %}',
+            }
+        )
         env = Environment(loader=loader)
         t = env.get_template("main.html")
         meta = t.block_metadata()
@@ -563,18 +491,14 @@ class TestPurityPipeline:
     def test_pure_pipeline(self) -> None:
         """Pipeline with pure filters is pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ name |> upper |> strip }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ name |> upper |> strip }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_impure_pipeline(self) -> None:
         """Pipeline with impure filter is impure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ items |> shuffle }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ items |> shuffle }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "impure"
 
@@ -585,20 +509,14 @@ class TestPuritySliceRange:
     def test_range_expression(self) -> None:
         """Range expressions are pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}"
-            "{% for i in 1..10 %}{{ i }}{% end %}"
-            "{% end %}"
-        )
+        t = env.from_string("{% block content %}{% for i in 1..10 %}{{ i }}{% end %}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_slice_expression(self) -> None:
         """Slice expressions are pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ items[1:3] }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ items[1:3] }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
@@ -609,9 +527,7 @@ class TestPurityConcat:
     def test_concat_pure(self) -> None:
         """String concat with pure parts is pure."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ a ~ b }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ a ~ b }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
@@ -622,18 +538,14 @@ class TestPurityFilterArgs:
     def test_filter_with_args(self) -> None:
         """Filter arguments don't affect pure filter purity."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ text | truncate(100) }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ text | truncate(100) }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
     def test_filter_with_kwargs(self) -> None:
         """Filter kwargs don't affect pure filter purity."""
         env = Environment()
-        t = env.from_string(
-            "{% block content %}{{ items | join(separator=', ') }}{% end %}"
-        )
+        t = env.from_string("{% block content %}{{ items | join(separator=', ') }}{% end %}")
         meta = t.block_metadata()
         assert meta["content"].is_pure == "pure"
 
@@ -678,12 +590,14 @@ class TestTemplateAnalysisAPI:
 
     def test_is_cacheable_specific_block(self) -> None:
         """is_cacheable checks specific block."""
-        loader = DictLoader({
-            "test.html": (
-                "{% block nav %}<nav>{{ site.menu }}</nav>{% end %}"
-                "{% block content %}{{ page.body }}{% end %}"
-            ),
-        })
+        loader = DictLoader(
+            {
+                "test.html": (
+                    "{% block nav %}<nav>{{ site.menu }}</nav>{% end %}"
+                    "{% block content %}{{ page.body }}{% end %}"
+                ),
+            }
+        )
         env = Environment(loader=loader)
         t = env.get_template("test.html")
         # Both blocks should be pure and cacheable
@@ -693,10 +607,7 @@ class TestTemplateAnalysisAPI:
     def test_is_cacheable_all_blocks(self) -> None:
         """is_cacheable() with no args checks all blocks."""
         env = Environment()
-        t = env.from_string(
-            "{% block a %}{{ x }}{% end %}"
-            "{% block b %}{{ y }}{% end %}"
-        )
+        t = env.from_string("{% block a %}{{ x }}{% end %}{% block b %}{{ y }}{% end %}")
         result = t.is_cacheable()
         assert isinstance(result, bool)
 
@@ -708,10 +619,12 @@ class TestTemplateAnalysisAPI:
 
     def test_template_metadata(self) -> None:
         """template_metadata returns full analysis."""
-        loader = DictLoader({
-            "child.html": '{% extends "base.html" %}{% block content %}Hi{% end %}',
-            "base.html": "{% block content %}{% end %}",
-        })
+        loader = DictLoader(
+            {
+                "child.html": '{% extends "base.html" %}{% block content %}Hi{% end %}',
+                "base.html": "{% block content %}{% end %}",
+            }
+        )
         env = Environment(loader=loader)
         t = env.get_template("child.html")
         meta = t.template_metadata()

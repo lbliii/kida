@@ -160,9 +160,7 @@ class TemplateStructureMixin:
                                 ),
                                 args=[
                                     ast.Constant(value=block_name),
-                                    ast.Name(
-                                        id=f"_block_{block_name}", ctx=ast.Load()
-                                    ),
+                                    ast.Name(id=f"_block_{block_name}", ctx=ast.Load()),
                                 ],
                                 keywords=[],
                             ),
@@ -208,9 +206,7 @@ class TemplateStructureMixin:
                                 ast.BinOp(
                                     left=ast.BinOp(
                                         left=ast.Call(
-                                            func=ast.Name(
-                                                id="_perf_counter", ctx=ast.Load()
-                                            ),
+                                            func=ast.Name(id="_perf_counter", ctx=ast.Load()),
                                             args=[],
                                             keywords=[],
                                         ),
@@ -230,9 +226,7 @@ class TemplateStructureMixin:
         ]
         return self._wrap_block_condition(node, stmts)
 
-    def _wrap_block_condition(
-        self, node: Block, stmts: list[ast.stmt]
-    ) -> list[ast.stmt]:
+    def _wrap_block_condition(self, node: Block, stmts: list[ast.stmt]) -> list[ast.stmt]:
         """Wrap block statements in ``if <cond>:`` when a guard is present.
 
         If ``node.condition`` is None, returns *stmts* unchanged.

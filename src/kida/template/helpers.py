@@ -172,9 +172,7 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
         ) from None
 
 
-def lookup_scope(
-    ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_name: str
-) -> Any:
+def lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_name: str) -> Any:
     """Lookup variable in scope stack (top to bottom), then ctx.
 
     Checks scopes from innermost to outermost, then falls back to ctx.

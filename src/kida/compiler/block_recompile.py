@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from kida.nodes import Block, Node
 
@@ -79,16 +79,16 @@ def _walk_for_blocks(nodes: Sequence[Node], out: dict[str, Block]) -> None:
         elif hasattr(node, "body"):
             body = node.body
             if isinstance(body, Sequence):
-                _walk_for_blocks(body, out)
+                _walk_for_blocks(cast(Sequence[Node], body), out)
             # Walk alternate branches
             for attr in ("else_", "empty"):
                 branch = getattr(node, attr, None)
                 if isinstance(branch, Sequence):
-                    _walk_for_blocks(branch, out)
+                    _walk_for_blocks(cast(Sequence[Node], branch), out)
             elif_ = getattr(node, "elif_", None)
             if elif_:
                 for _, elif_body in elif_:
-                    _walk_for_blocks(elif_body, out)
+                    _walk_for_blocks(cast(Sequence[Node], elif_body), out)
 
 
 def detect_block_changes(
@@ -117,9 +117,7 @@ def detect_block_changes(
     removed = old_names - new_names
     common = old_names & new_names
 
-    changed = frozenset(
-        name for name in common if old_blocks[name] != new_blocks[name]
-    )
+    changed = frozenset(name for name in common if old_blocks[name] != new_blocks[name])
 
     return BlockDelta(changed=changed, added=added, removed=removed)
 
@@ -181,9 +179,7 @@ def recompile_blocks(
         # Async streaming block function
         compiler._streaming = True
         compiler._async_mode = True
-        module_body.append(
-            compiler._make_block_function_stream_async(block_name, block_node)
-        )
+        module_body.append(compiler._make_block_function_stream_async(block_name, block_node))
         compiler._async_mode = False
         compiler._streaming = False
 

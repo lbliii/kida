@@ -553,4 +553,3 @@ class ControlFlowMixin:
                 names.extend(self._extract_names(item))
             return names
         return []
-

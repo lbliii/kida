@@ -72,7 +72,7 @@ class TestUndefinedSentinel:
 
     def test_equality_with_another_undefined(self) -> None:
         other = _Undefined()
-        assert UNDEFINED == other
+        assert other == UNDEFINED
 
     def test_not_equal_to_empty_string(self) -> None:
         assert UNDEFINED != ""

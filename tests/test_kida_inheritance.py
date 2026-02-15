@@ -490,15 +490,8 @@ class TestConditionalBlocks:
     def test_block_if_with_inheritance(self):
         loader = DictLoader(
             {
-                "base.html": (
-                    "HEADER"
-                    "{% block detail if show_detail %}DEFAULT{% end %}"
-                    "FOOTER"
-                ),
-                "child.html": (
-                    '{% extends "base.html" %}'
-                    "{% block detail %}CHILD{% end %}"
-                ),
+                "base.html": ("HEADER{% block detail if show_detail %}DEFAULT{% end %}FOOTER"),
+                "child.html": ('{% extends "base.html" %}{% block detail %}CHILD{% end %}'),
             }
         )
         env = Environment(loader=loader)

@@ -330,18 +330,12 @@ class TestIncludeScopePropagation:
         """Tuple-unpacked loop vars visible in include."""
         loader = DictLoader(
             {
-                "main.html": (
-                    "{% for key, val in items %}"
-                    "{% include 'row.html' %}"
-                    "{% end %}"
-                ),
+                "main.html": ("{% for key, val in items %}{% include 'row.html' %}{% end %}"),
                 "row.html": "{{ key }}={{ val }} ",
             }
         )
         env = Environment(loader=loader)
-        result = env.get_template("main.html").render(
-            items=[("a", 1), ("b", 2)]
-        )
+        result = env.get_template("main.html").render(items=[("a", 1), ("b", 2)])
         assert result == "a=1 b=2 "
 
     def test_include_without_context_no_propagation(self):
@@ -351,9 +345,7 @@ class TestIncludeScopePropagation:
         loader = DictLoader(
             {
                 "main.html": (
-                    "{% for item in items %}"
-                    "{% include 'row.html' without context %}"
-                    "{% end %}"
+                    "{% for item in items %}{% include 'row.html' without context %}{% end %}"
                 ),
                 "row.html": "[{{ item }}]",
             }

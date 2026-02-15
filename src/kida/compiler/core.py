@@ -52,9 +52,7 @@ if TYPE_CHECKING:
     from kida.nodes import Block, Extends, Node
     from kida.nodes import Template as TemplateNode
 
-_TOP_LEVEL_STATEMENTS = frozenset(
-    {"FromImport", "Import", "Set", "Let", "Export", "Def", "Do"}
-)
+_TOP_LEVEL_STATEMENTS = frozenset({"FromImport", "Import", "Set", "Let", "Export", "Def", "Do"})
 
 
 class Compiler(
@@ -285,12 +283,8 @@ class Compiler(
         self._streaming = True
         self._async_mode = True
         for block_name, block_node in saved_blocks.items():
-            module_body.append(
-                self._make_block_function_stream_async(block_name, block_node)
-            )
-        module_body.append(
-            self._make_render_function_stream_async(node, saved_blocks)
-        )
+            module_body.append(self._make_block_function_stream_async(block_name, block_node))
+        module_body.append(self._make_render_function_stream_async(node, saved_blocks))
         self._async_mode = False
         self._streaming = False
 
@@ -312,14 +306,8 @@ class Compiler(
         """
         from kida.nodes import FromImport, Globals, Import, Imports
 
-        setup_nodes = [
-            n for n in node.body
-            if isinstance(n, (Globals, Imports))
-        ]
-        top_level_imports = [
-            n for n in node.body
-            if isinstance(n, (FromImport, Import))
-        ]
+        setup_nodes = [n for n in node.body if isinstance(n, (Globals, Imports))]
+        top_level_imports = [n for n in node.body if isinstance(n, (FromImport, Import))]
         if not setup_nodes and not top_level_imports:
             return None
 
@@ -410,20 +398,22 @@ class Compiler(
             ),
         ]
         if not streaming:
-            stmts.extend([
-                ast.Assign(
-                    targets=[ast.Name(id="buf", ctx=ast.Store())],
-                    value=ast.List(elts=[], ctx=ast.Load()),
-                ),
-                ast.Assign(
-                    targets=[ast.Name(id="_append", ctx=ast.Store())],
-                    value=ast.Attribute(
-                        value=ast.Name(id="buf", ctx=ast.Load()),
-                        attr="append",
-                        ctx=ast.Load(),
+            stmts.extend(
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id="buf", ctx=ast.Store())],
+                        value=ast.List(elts=[], ctx=ast.Load()),
                     ),
-                ),
-            ])
+                    ast.Assign(
+                        targets=[ast.Name(id="_append", ctx=ast.Store())],
+                        value=ast.Attribute(
+                            value=ast.Name(id="buf", ctx=ast.Load()),
+                            attr="append",
+                            ctx=ast.Load(),
+                        ),
+                    ),
+                ]
+            )
         return stmts
 
     def _make_block_function(self, name: str, block_node: Block) -> ast.FunctionDef:
@@ -544,21 +534,13 @@ class Compiler(
                 ast.AsyncFor(
                     target=ast.Name(id="_chunk", ctx=ast.Store()),
                     iter=extend_call,
-                    body=[
-                        ast.Expr(
-                            value=ast.Yield(
-                                value=ast.Name(id="_chunk", ctx=ast.Load())
-                            )
-                        )
-                    ],
+                    body=[ast.Expr(value=ast.Yield(value=ast.Name(id="_chunk", ctx=ast.Load())))],
                     orelse=[],
                 )
             )
         return body
 
-    def _make_render_direct_body(
-        self, node: TemplateNode, streaming: bool
-    ) -> list[ast.stmt]:
+    def _make_render_direct_body(self, node: TemplateNode, streaming: bool) -> list[ast.stmt]:
         """No-extends path: buf setup (if not streaming), body compile, return vs yield."""
         body: list[ast.stmt] = [
             ast.Assign(
@@ -571,20 +553,22 @@ class Compiler(
             ),
         ]
         if not streaming:
-            body.extend([
-                ast.Assign(
-                    targets=[ast.Name(id="buf", ctx=ast.Store())],
-                    value=ast.List(elts=[], ctx=ast.Load()),
-                ),
-                ast.Assign(
-                    targets=[ast.Name(id="_append", ctx=ast.Store())],
-                    value=ast.Attribute(
-                        value=ast.Name(id="buf", ctx=ast.Load()),
-                        attr="append",
-                        ctx=ast.Load(),
+            body.extend(
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id="buf", ctx=ast.Store())],
+                        value=ast.List(elts=[], ctx=ast.Load()),
                     ),
-                ),
-            ])
+                    ast.Assign(
+                        targets=[ast.Name(id="_append", ctx=ast.Store())],
+                        value=ast.Attribute(
+                            value=ast.Name(id="buf", ctx=ast.Load()),
+                            attr="append",
+                            ctx=ast.Load(),
+                        ),
+                    ),
+                ]
+            )
         body.extend(self._compile_body_with_coalescing(list(node.body)))
         if streaming:
             body.append(ast.Return(value=None))
@@ -630,9 +614,7 @@ class Compiler(
         body: list[ast.stmt] = self._make_render_preamble()
         if extends_node:
             body.extend(
-                self._make_render_extends_body(
-                    node, extends_node, self._blocks, "", "_extends"
-                )
+                self._make_render_extends_body(node, extends_node, self._blocks, "", "_extends")
             )
         else:
             body.extend(self._make_render_direct_body(node, streaming=False))

@@ -362,8 +362,7 @@ class ExpressionCompilationMixin:
                 ),
                 args=[value] + [self._compile_expr(a) for a in node.args],
                 keywords=[
-                    ast.keyword(arg=k, value=self._compile_expr(v))
-                    for k, v in node.kwargs.items()
+                    ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
                 ],
             )
             # Profiling: _record_filter(_acc, 'name', filter_result)

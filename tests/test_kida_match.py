@@ -305,18 +305,12 @@ class TestValuelessMatch:
 
     def test_valueless_match_default_only(self, env):
         """Wildcard with no guard is the default branch."""
-        template = env.from_string(
-            "{% match %}{% case _ %}always{% end %}"
-        )
+        template = env.from_string("{% match %}{% case _ %}always{% end %}")
         assert template.render().strip() == "always"
 
     def test_valueless_match_no_match(self, env):
         """No output when no guard matches and no default."""
-        template = env.from_string(
-            "{% match %}"
-            "{% case _ if x > 100 %}big"
-            "{% end %}"
-        )
+        template = env.from_string("{% match %}{% case _ if x > 100 %}big{% end %}")
         assert template.render(x=1).strip() == ""
 
     def test_valueless_match_with_complex_guards(self, env):

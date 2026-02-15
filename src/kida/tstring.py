@@ -55,7 +55,6 @@ class PatternError(Exception):
     """Error raised when a regex pattern is invalid or unsafe."""
 
 
-
 # Known ReDoS-vulnerable patterns (simplified detection)
 _REDOS_PATTERNS = [
     re.compile(r"\([^)]*[+*][^)]*\)[+*]"),  # (a+)+ or (a*)+ or (a+)* etc.

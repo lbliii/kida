@@ -411,10 +411,7 @@ class TestHasSlot:
     def test_has_slot_false_direct_call(self, env):
         """has_slot() returns False when def is called directly."""
         tmpl = env.from_string(
-            "{% def box() %}"
-            "{% if has_slot() %}HAS{% else %}NO{% end %}"
-            "{% end %}"
-            "{{ box() }}"
+            "{% def box() %}{% if has_slot() %}HAS{% else %}NO{% end %}{% end %}{{ box() }}"
         )
         assert "NO" in tmpl.render()
 
@@ -533,8 +530,7 @@ class TestTypedDefParser:
     def test_vararg_untyped(self, env):
         """*args and **kwargs remain untyped."""
         tmpl = env.from_string(
-            "{% def join_all(*args) %}{{ args | join(', ') }}{% end %}"
-            "{{ join_all('a', 'b', 'c') }}"
+            "{% def join_all(*args) %}{{ args | join(', ') }}{% end %}{{ join_all('a', 'b', 'c') }}"
         )
         assert tmpl.render() == "a, b, c"
 
@@ -571,9 +567,7 @@ class TestTypedDefParser:
     def test_custom_model_type(self, env):
         """Custom model type name: data: MyModel"""
         tmpl = env.from_string(
-            "{% def show(data: MyModel) %}"
-            "{{ data.name }}"
-            "{% end %}{{ show({'name': 'test'}) }}"
+            "{% def show(data: MyModel) %}{{ data.name }}{% end %}{{ show({'name': 'test'}) }}"
         )
         assert tmpl.render() == "test"
 
@@ -615,7 +609,8 @@ class TestTypedDefCompiler:
         # Find the FunctionDef for _def_greet (compiler may emit multiple
         # copies for different render modes — check the first one)
         func_defs = [
-            n for n in pyast.walk(module)
+            n
+            for n in pyast.walk(module)
             if isinstance(n, pyast.FunctionDef) and n.name == "_def_greet"
         ]
         assert len(func_defs) >= 1
@@ -638,7 +633,8 @@ class TestTypedDefCompiler:
         module = self._compile_to_pyast(env, source)
 
         func_defs = [
-            n for n in pyast.walk(module)
+            n
+            for n in pyast.walk(module)
             if isinstance(n, pyast.FunctionDef) and n.name == "_def_show"
         ]
         assert len(func_defs) >= 1
@@ -655,7 +651,8 @@ class TestTypedDefCompiler:
         module = self._compile_to_pyast(env, source)
 
         func_defs = [
-            n for n in pyast.walk(module)
+            n
+            for n in pyast.walk(module)
             if isinstance(n, pyast.FunctionDef) and n.name == "_def_greet"
         ]
         assert len(func_defs) >= 1
@@ -734,18 +731,14 @@ class TestCallSiteValidation:
 
     def test_unknown_param(self):
         """Unknown keyword argument is detected."""
-        issues = self._validate(
-            "{% def card(title) %}{{ title }}{% end %}"
-            "{{ card(titl='oops') }}"
-        )
+        issues = self._validate("{% def card(title) %}{{ title }}{% end %}{{ card(titl='oops') }}")
         assert len(issues) == 1
         assert "titl" in issues[0].unknown_params
 
     def test_missing_required_param(self):
         """Missing required parameter is detected."""
         issues = self._validate(
-            "{% def card(title, items) %}{{ title }}{% end %}"
-            "{{ card(items=[1, 2]) }}"
+            "{% def card(title, items) %}{{ title }}{% end %}{{ card(items=[1, 2]) }}"
         )
         assert len(issues) == 1
         assert "title" in issues[0].missing_required
@@ -757,8 +750,7 @@ class TestCallSiteValidation:
         at the analysis level. The call is valid since 'title' is provided.
         """
         issues = self._validate(
-            "{% def card(title) %}{{ title }}{% end %}"
-            "{{ card(title='a', title='b') }}"
+            "{% def card(title) %}{{ title }}{% end %}{{ card(title='a', title='b') }}"
         )
         # No issues — the dict already deduplicated the kwargs
         assert issues == []
@@ -766,8 +758,7 @@ class TestCallSiteValidation:
     def test_vararg_relaxes_positional(self):
         """*args in def relaxes positional validation."""
         issues = self._validate(
-            "{% def join_all(*args) %}{{ args | join }}{% end %}"
-            "{{ join_all('a', 'b', 'c') }}"
+            "{% def join_all(*args) %}{{ args | join }}{% end %}{{ join_all('a', 'b', 'c') }}"
         )
         assert issues == []
 
@@ -783,8 +774,7 @@ class TestCallSiteValidation:
     def test_default_params_not_required(self):
         """Parameters with defaults are not required."""
         issues = self._validate(
-            "{% def greet(name: str = 'World') %}Hello {{ name }}{% end %}"
-            "{{ greet() }}"
+            "{% def greet(name: str = 'World') %}Hello {{ name }}{% end %}{{ greet() }}"
         )
         assert issues == []
 
@@ -795,10 +785,7 @@ class TestCallSiteValidation:
         env = Environment(validate_calls=True)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            env.from_string(
-                "{% def card(title) %}{{ title }}{% end %}"
-                "{{ card(titl='oops') }}"
-            )
+            env.from_string("{% def card(title) %}{{ title }}{% end %}{{ card(titl='oops') }}")
         assert len(w) == 1
         assert "titl" in str(w[0].message)
 
@@ -809,10 +796,7 @@ class TestCallSiteValidation:
         env = Environment()
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            env.from_string(
-                "{% def card(title) %}{{ title }}{% end %}"
-                "{{ card(titl='oops') }}"
-            )
+            env.from_string("{% def card(title) %}{{ title }}{% end %}{{ card(titl='oops') }}")
         # No validation warnings (there may be other warnings, so filter)
         call_warnings = [x for x in w if "titl" in str(x.message)]
         assert call_warnings == []
@@ -828,35 +812,27 @@ class TestCallSiteValidation:
 
     def test_is_valid_property(self):
         """CallValidation.is_valid returns False when issues exist."""
-        issues = self._validate(
-            "{% def card(title) %}{{ title }}{% end %}"
-            "{{ card(titl='oops') }}"
-        )
+        issues = self._validate("{% def card(title) %}{{ title }}{% end %}{{ card(titl='oops') }}")
         assert len(issues) == 1
         assert not issues[0].is_valid
 
     def test_valid_call_returns_empty(self):
         """Valid calls return empty issues list."""
         issues = self._validate(
-            "{% def greet(name: str) %}Hello {{ name }}{% end %}"
-            "{{ greet('World') }}"
+            "{% def greet(name: str) %}Hello {{ name }}{% end %}{{ greet('World') }}"
         )
         assert issues == []
 
     def test_positional_args_fill_required(self):
         """Positional args satisfy required params left-to-right."""
         issues = self._validate(
-            "{% def card(title, items) %}{{ title }}{% end %}"
-            "{{ card('hello', [1, 2]) }}"
+            "{% def card(title, items) %}{{ title }}{% end %}{{ card('hello', [1, 2]) }}"
         )
         assert issues == []
 
     def test_unknown_function_no_false_positive(self):
         """Calls to functions not from {% def %} are silently skipped."""
-        issues = self._validate(
-            "{% def card(title) %}{{ title }}{% end %}"
-            "{{ other_func('test') }}"
-        )
+        issues = self._validate("{% def card(title) %}{{ title }}{% end %}{{ other_func('test') }}")
         assert issues == []
 
     def test_multiple_defs_validated_independently(self):

@@ -35,7 +35,7 @@ Usage:
 from __future__ import annotations
 
 import html
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from kida.template import Markup
@@ -75,7 +75,7 @@ def hx_request() -> bool:
     ctx = get_render_context()
     if ctx is None:
         return False
-    return ctx.get_meta("hx_request", False)
+    return cast(bool, ctx.get_meta("hx_request", False))
 
 
 def hx_target() -> str | None:
@@ -108,7 +108,7 @@ def hx_target() -> str | None:
     ctx = get_render_context()
     if ctx is None:
         return None
-    return ctx.get_meta("hx_target", None)
+    return cast(str | None, ctx.get_meta("hx_target", None))
 
 
 def hx_trigger() -> str | None:
@@ -136,7 +136,7 @@ def hx_trigger() -> str | None:
     ctx = get_render_context()
     if ctx is None:
         return None
-    return ctx.get_meta("hx_trigger", None)
+    return cast(str | None, ctx.get_meta("hx_trigger", None))
 
 
 def hx_boosted() -> bool:
@@ -169,7 +169,7 @@ def hx_boosted() -> bool:
     ctx = get_render_context()
     if ctx is None:
         return False
-    return ctx.get_meta("hx_boosted", False)
+    return cast(bool, ctx.get_meta("hx_boosted", False))
 
 
 def csrf_token() -> Markup:
@@ -234,8 +234,8 @@ def csrf_token() -> Markup:
         return Markup("")
 
     # Return Markup so it's not double-escaped
-    # HTML-escape the token value for safety
-    escaped_token = html.escape(token, quote=True)
+    # HTML-escape the token value for safety (str() ensures html.escape gets str)
+    escaped_token = html.escape(str(token), quote=True)
     return Markup(f'<input type="hidden" name="csrf_token" value="{escaped_token}">')
 
 

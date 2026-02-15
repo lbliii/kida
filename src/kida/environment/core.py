@@ -427,7 +427,10 @@ class Environment:
         source_hash = hash_source(source)
 
         template = self._compile(
-            source, name, filename, static_context=self.static_context,
+            source,
+            name,
+            filename,
+            static_context=self.static_context,
         )
 
         # Update cache (LRU handles eviction)
@@ -507,10 +510,7 @@ class Environment:
                 "Pass name='my_template' to enable caching.",
                 stacklevel=3,
             )
-        if (
-            self._bytecode_cache is not None
-            and name is not None
-        ):
+        if self._bytecode_cache is not None and name is not None:
             from kida.bytecode_cache import hash_source
 
             source_hash = hash_source(source)
@@ -529,8 +529,12 @@ class Environment:
                     optimized_ast = parser.parse()
 
                 return Template(
-                    self, cached_code, name, filename,
-                    optimized_ast=optimized_ast, source=source,
+                    self,
+                    cached_code,
+                    name,
+                    filename,
+                    optimized_ast=optimized_ast,
+                    source=source,
                 )
 
         # Tokenize
@@ -573,15 +577,11 @@ class Environment:
                 if issue.unknown_params:
                     parts.append(f"unknown params: {', '.join(issue.unknown_params)}")
                 if issue.missing_required:
-                    parts.append(
-                        f"missing required: {', '.join(issue.missing_required)}"
-                    )
+                    parts.append(f"missing required: {', '.join(issue.missing_required)}")
                 if issue.duplicate_params:
                     parts.append(f"duplicate params: {', '.join(issue.duplicate_params)}")
                 loc = f"{name or '<string>'}:{issue.lineno}"
-                msg = (
-                    f"Call to '{issue.def_name}' at {loc} — {'; '.join(parts)}"
-                )
+                msg = f"Call to '{issue.def_name}' at {loc} — {'; '.join(parts)}"
                 warnings.warn(msg, stacklevel=2)
 
         # Preserve AST for introspection if enabled
@@ -592,11 +592,7 @@ class Environment:
         code = compiler.compile(ast, name, filename)
 
         # Cache bytecode for future cold-starts.
-        if (
-            self._bytecode_cache is not None
-            and name is not None
-            and source_hash is not None
-        ):
+        if self._bytecode_cache is not None and name is not None and source_hash is not None:
             self._bytecode_cache.set(name, source_hash, code, context_hash=context_hash)
 
         return Template(self, code, name, filename, optimized_ast=optimized_ast, source=source)

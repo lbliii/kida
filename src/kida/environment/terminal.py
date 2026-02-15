@@ -31,10 +31,22 @@ _COLORS = {
 }
 
 ColorName = Literal[
-    "reset", "bold", "dim",
-    "red", "green", "yellow", "blue", "magenta", "cyan", "white",
-    "bright_red", "bright_green", "bright_yellow", "bright_blue",
-    "bright_magenta", "bright_cyan"
+    "reset",
+    "bold",
+    "dim",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "white",
+    "bright_red",
+    "bright_green",
+    "bright_yellow",
+    "bright_blue",
+    "bright_magenta",
+    "bright_cyan",
 ]
 
 
@@ -115,9 +127,10 @@ def strip_colors(text: str) -> str:
         'Error'
     """
     import re
+
     # Match ANSI escape sequences
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    return ansi_escape.sub('', text)
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    return ansi_escape.sub("", text)
 
 
 # Semantic color helpers for error messages

@@ -191,8 +191,7 @@ class Template(TemplateIntrospectionMixin):
             _env = env_ref()
             if _env is None:
                 raise RuntimeError(
-                    f"Environment has been garbage collected while including "
-                    f"'{template_name}'"
+                    f"Environment has been garbage collected while including '{template_name}'"
                 )
             return _env
 
@@ -208,7 +207,6 @@ class Template(TemplateIntrospectionMixin):
                 TemplateError,
                 TemplateNotFoundError,
                 TemplateRuntimeError,
-                TemplateSyntaxError,
             )
             from kida.render_accumulator import get_accumulator
             from kida.render_context import (
@@ -267,9 +265,7 @@ class Template(TemplateIntrospectionMixin):
                 raise included._enhance_error(e, child_ctx) from e
 
         # Extends helper - renders parent template with child's blocks
-        def _extends(
-            template_name: str, context: dict[str, Any], blocks: dict[str, Any]
-        ) -> str:
+        def _extends(template_name: str, context: dict[str, Any], blocks: dict[str, Any]) -> str:
             from kida.render_context import get_render_context_required
 
             render_ctx = get_render_context_required()
@@ -350,8 +346,7 @@ class Template(TemplateIntrospectionMixin):
             stream_func = parent._namespace.get("render_stream")
             if stream_func is None:
                 raise RuntimeError(
-                    f"Template '{template_name}' not properly compiled: "
-                    f"render_stream is None."
+                    f"Template '{template_name}' not properly compiled: render_stream is None."
                 )
             blocks_to_use = _wrap_blocks_if_cached(blocks, render_ctx)
             yield from stream_func(context, blocks_to_use)
@@ -440,8 +435,7 @@ class Template(TemplateIntrospectionMixin):
                 sync_func = parent._namespace.get("render_stream")
                 if sync_func is None:
                     raise RuntimeError(
-                        f"Template '{template_name}' not properly compiled: "
-                        f"render_stream is None."
+                        f"Template '{template_name}' not properly compiled: render_stream is None."
                     )
                 for chunk in sync_func(context, blocks_to_use):
                     yield chunk
@@ -528,9 +522,7 @@ class Template(TemplateIntrospectionMixin):
         self._render_stream_async_func = namespace.get("render_stream_async")
         self._namespace = namespace  # Keep for render_block()
         self._block_names = tuple(
-            k[7:]
-            for k in namespace
-            if k.startswith("_block_") and callable(namespace[k])
+            k[7:] for k in namespace if k.startswith("_block_") and callable(namespace[k])
         )
 
     @property
@@ -539,8 +531,7 @@ class Template(TemplateIntrospectionMixin):
         env = self._env_ref()
         if env is None:
             raise RuntimeError(
-                f"Environment has been garbage collected"
-                f" (template: {self._name or 'unknown'})"
+                f"Environment has been garbage collected (template: {self._name or 'unknown'})"
             )
         return env
 
@@ -559,8 +550,7 @@ class Template(TemplateIntrospectionMixin):
                 ctx.update(args[0])
             else:
                 raise TypeError(
-                    f"{method_name}() takes at most 1 positional argument (a dict), "
-                    f"got {len(args)}"
+                    f"{method_name}() takes at most 1 positional argument (a dict), got {len(args)}"
                 )
         ctx.update(kwargs)
         return ctx
@@ -614,9 +604,7 @@ class Template(TemplateIntrospectionMixin):
         render_func = self._render_func
 
         if render_func is None:
-            raise RuntimeError(
-                f"Template '{self._name or '(inline)'}' not properly compiled"
-            )
+            raise RuntimeError(f"Template '{self._name or '(inline)'}' not properly compiled")
 
         # Check if we're already inside a RenderContext (e.g., from framework or parent template)
         # If so, inherit its metadata for framework integration (HTMX headers, CSRF tokens, etc.)
@@ -758,9 +746,7 @@ class Template(TemplateIntrospectionMixin):
 
         render_func = self._render_func
         if render_func is None:
-            raise RuntimeError(
-                f"Template '{self._name or '(inline)'}' not properly compiled"
-            )
+            raise RuntimeError(f"Template '{self._name or '(inline)'}' not properly compiled")
 
         # Build _blocks dict with callables matching the compiled signature:
         # block_func(ctx, _blocks) -> str
@@ -1014,9 +1000,7 @@ class Template(TemplateIntrospectionMixin):
                     f"Template '{self._name or '(inline)'}' has no render_stream function"
                 )
 
-    async def render_block_stream_async(
-        self, block_name: str, *args: Any, **kwargs: Any
-    ):
+    async def render_block_stream_async(self, block_name: str, *args: Any, **kwargs: Any):
         """Render a single block as an async stream.
 
         Looks up the async streaming block function first, falls back to

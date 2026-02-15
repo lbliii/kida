@@ -5,6 +5,7 @@ import warnings
 import pytest
 
 from kida import Environment
+from kida.environment.exceptions import UndefinedError
 from kida.render_context import render_context
 
 
@@ -27,7 +28,7 @@ class TestHTMXGlobals:
         env = Environment()
         template = env.from_string("{{ hx_request() }}")
 
-        with render_context() as ctx:
+        with render_context():
             result = template.render()
 
         assert result == "False"
@@ -58,7 +59,7 @@ class TestHTMXGlobals:
         env = Environment()
         template = env.from_string("{{ hx_target() or 'none' }}")
 
-        with render_context() as ctx:
+        with render_context():
             result = template.render()
 
         assert result == "none"
@@ -90,7 +91,7 @@ class TestHTMXGlobals:
         env = Environment()
         template = env.from_string("{{ hx_boosted() }}")
 
-        with render_context() as ctx:
+        with render_context():
             result = template.render()
 
         assert result == "False"
@@ -98,13 +99,15 @@ class TestHTMXGlobals:
     def test_conditional_rendering_with_hx_request(self):
         """Test conditional rendering based on hx_request()."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 {% if hx_request() %}
   <div id="content">Fragment</div>
 {% else %}
   <html><body>Full Page</body></html>
 {% end %}
-        """.strip())
+        """.strip()
+        )
 
         # Full page request
         with render_context() as ctx:
@@ -123,8 +126,8 @@ class TestHTMXGlobals:
         """Test disabling HTMX helpers via enable_htmx_helpers=False."""
         env = Environment(enable_htmx_helpers=False)
 
-        # hx_request should not be available
-        with pytest.raises(Exception):  # UndefinedError or similar
+        # hx_request should not be available (undefined global)
+        with pytest.raises(UndefinedError):
             env.from_string("{{ hx_request() }}").render()
 
 
@@ -152,7 +155,7 @@ class TestCSRFToken:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            with render_context() as ctx:
+            with render_context():
                 result = template.render()
 
             # Should warn about missing token
@@ -178,13 +181,15 @@ class TestCSRFToken:
     def test_csrf_token_in_form(self):
         """Test csrf_token() in realistic form context."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 <form method="POST" action="/submit">
   {{ csrf_token() }}
   <input type="email" name="email" required>
   <button type="submit">Submit</button>
 </form>
-        """.strip())
+        """.strip()
+        )
 
         with render_context() as ctx:
             ctx.set_meta("csrf_token", "token123")
@@ -215,11 +220,13 @@ class TestMetadataPropagation:
         """Test metadata is accessible in included templates."""
         env = Environment()
         # Simulate including a template (would normally use loader)
-        template = env.from_string("""
+        template = env.from_string(
+            """
 Main: {{ hx_request() }}
 {% set included = "Included: " ~ hx_request() %}
 {{ included }}
-        """.strip())
+        """.strip()
+        )
 
         with render_context() as ctx:
             ctx.set_meta("hx_request", True)

@@ -235,12 +235,14 @@ class FunctionBlockParsingMixin(BlockStackMixin):
             # Optional type annotation: name: type
             annotation = self._parse_type_annotation()
 
-            params.append(DefParam(
-                lineno=param_token.lineno,
-                col_offset=param_token.col_offset,
-                name=arg_name,
-                annotation=annotation,
-            ))
+            params.append(
+                DefParam(
+                    lineno=param_token.lineno,
+                    col_offset=param_token.col_offset,
+                    name=arg_name,
+                    annotation=annotation,
+                )
+            )
             has_args = True
 
             # Check for default value

@@ -11,16 +11,15 @@ import contextlib
 import pytest
 
 from kida import DictLoader, Environment
-from tests.conftest import strip_ansi
 from kida.environment.exceptions import (
     ErrorCode,
-    SourceSnippet,
     TemplateNotFoundError,
     TemplateRuntimeError,
     TemplateSyntaxError,
     UndefinedError,
     build_source_snippet,
 )
+from tests.conftest import strip_ansi
 
 
 class TestSyntaxErrors:
@@ -727,9 +726,13 @@ class TestSourceSnippets:
 
     def test_runtime_error_has_source_snippet(self) -> None:
         """TemplateRuntimeError via _enhance_error includes source snippet."""
-        env = Environment(loader=DictLoader({
-            "test.html": "<html>\n<body>\n{% if x %}\n<p>{{ 1/y }}</p>\n{% end %}\n</body>",
-        }))
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "test.html": "<html>\n<body>\n{% if x %}\n<p>{{ 1/y }}</p>\n{% end %}\n</body>",
+                }
+            )
+        )
         with pytest.raises(TemplateRuntimeError) as exc_info:
             env.get_template("test.html").render(x=True, y=0)
         assert exc_info.value.source_snippet is not None
@@ -737,9 +740,13 @@ class TestSourceSnippets:
 
     def test_undefined_error_has_source_snippet(self) -> None:
         """UndefinedError includes source snippet when line tracking is active."""
-        env = Environment(loader=DictLoader({
-            "test.html": "<html>\n{% if x %}\n<p>hi</p>\n{% end %}\n<h1>{{ missin }}</h1>",
-        }))
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "test.html": "<html>\n{% if x %}\n<p>hi</p>\n{% end %}\n<h1>{{ missin }}</h1>",
+                }
+            )
+        )
         with pytest.raises(UndefinedError) as exc_info:
             env.get_template("test.html").render(x=True)
         exc = exc_info.value
@@ -836,7 +843,9 @@ class TestFormatCompact:
         """UndefinedError.format_compact() includes source snippet."""
         snippet = build_source_snippet("<h1>{{ usernme }}</h1>", 1)
         exc = UndefinedError(
-            "usernme", "page.html", 1,
+            "usernme",
+            "page.html",
+            1,
             frozenset({"username"}),
             source_snippet=snippet,
         )

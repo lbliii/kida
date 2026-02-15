@@ -3,7 +3,7 @@
 import pytest
 
 from kida import Environment, FileSystemLoader
-from kida.environment.exceptions import UndefinedError, TemplateRuntimeError
+from kida.environment.exceptions import TemplateRuntimeError, UndefinedError
 
 
 class TestTemplateStackTraces:
@@ -27,17 +27,21 @@ class TestTemplateStackTraces:
         """Test error in nested include shows full stack."""
         # Create base template
         base = tmp_path / "base.html"
-        base.write_text("""
+        base.write_text(
+            """
 <html>
 {% include "nav.html" %}
 </html>
-        """.strip())
+        """.strip()
+        )
 
         # Create nav template with error
         nav = tmp_path / "nav.html"
-        nav.write_text("""
+        nav.write_text(
+            """
 <nav>{{ undefined_var }}</nav>
-        """.strip())
+        """.strip()
+        )
 
         env = Environment(loader=FileSystemLoader(str(tmp_path)))
         template = env.get_template("base.html")
@@ -57,23 +61,29 @@ class TestTemplateStackTraces:
         """Test deeply nested includes show full call chain."""
         # page.html → header.html → nav.html (error here)
         page = tmp_path / "page.html"
-        page.write_text("""
+        page.write_text(
+            """
 <html>
 {% include "header.html" %}
 </html>
-        """.strip())
+        """.strip()
+        )
 
         header = tmp_path / "header.html"
-        header.write_text("""
+        header.write_text(
+            """
 <header>
 {% include "nav.html" %}
 </header>
-        """.strip())
+        """.strip()
+        )
 
         nav = tmp_path / "nav.html"
-        nav.write_text("""
+        nav.write_text(
+            """
 <nav>{{ missing_variable }}</nav>
-        """.strip())
+        """.strip()
+        )
 
         env = Environment(loader=FileSystemLoader(str(tmp_path)))
         template = env.get_template("page.html")
@@ -93,14 +103,18 @@ class TestTemplateStackTraces:
     def test_format_compact_includes_stack(self, tmp_path):
         """Test format_compact() includes stack trace."""
         base = tmp_path / "base.html"
-        base.write_text("""
+        base.write_text(
+            """
 {% include "partial.html" %}
-        """.strip())
+        """.strip()
+        )
 
         partial = tmp_path / "partial.html"
-        partial.write_text("""
+        partial.write_text(
+            """
 {{ undefined_var }}
-        """.strip())
+        """.strip()
+        )
 
         env = Environment(loader=FileSystemLoader(str(tmp_path)))
         template = env.get_template("base.html")
@@ -118,15 +132,19 @@ class TestTemplateStackTraces:
     def test_runtime_error_includes_stack(self, tmp_path):
         """Test error in nested include has stack trace."""
         base = tmp_path / "base.html"
-        base.write_text("""
+        base.write_text(
+            """
 {% include "content.html" %}
-        """.strip())
+        """.strip()
+        )
 
         # Create content with undefined variable
         content = tmp_path / "content.html"
-        content.write_text("""
+        content.write_text(
+            """
 {{ undefined_in_content }}
-        """.strip())
+        """.strip()
+        )
 
         env = Environment(loader=FileSystemLoader(str(tmp_path)))
         template = env.get_template("base.html")
@@ -145,19 +163,23 @@ class TestTemplateStackTraces:
     def test_stack_with_line_numbers(self, tmp_path):
         """Test stack includes line numbers of include calls."""
         base = tmp_path / "base.html"
-        base.write_text("""
+        base.write_text(
+            """
 <html>
 <head><title>Test</title></head>
 <body>
 {% include "content.html" %}
 </body>
 </html>
-        """.strip())
+        """.strip()
+        )
 
         content = tmp_path / "content.html"
-        content.write_text("""
+        content.write_text(
+            """
 {{ undefined_var }}
-        """.strip())
+        """.strip()
+        )
 
         env = Environment(loader=FileSystemLoader(str(tmp_path)))
         template = env.get_template("base.html")
@@ -180,10 +202,12 @@ class TestTemplateStackTraces:
     def test_multiple_includes_same_level(self, tmp_path):
         """Test multiple includes at same level don't accumulate incorrectly."""
         base = tmp_path / "base.html"
-        base.write_text("""
+        base.write_text(
+            """
 {% include "header.html" %}
 {% include "footer.html" %}
-        """.strip())
+        """.strip()
+        )
 
         header = tmp_path / "header.html"
         header.write_text("<header>Header</header>")
@@ -255,7 +279,7 @@ class TestBackwardsCompatibility:
 
     def test_errors_still_work_without_stack(self):
         """Test errors work without template_stack parameter."""
-        from kida.environment.exceptions import UndefinedError, TemplateRuntimeError
+        from kida.environment.exceptions import UndefinedError
 
         # UndefinedError without stack
         error = UndefinedError("undefined_var", template="test.html", lineno=1)

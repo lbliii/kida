@@ -18,9 +18,7 @@ class TestRenderBlock:
     """Basic render_block functionality."""
 
     def test_simple_block(self) -> None:
-        env = _env(
-            page="Header {% block content %}Hello, {{ name }}!{% endblock %} Footer"
-        )
+        env = _env(page="Header {% block content %}Hello, {{ name }}!{% endblock %} Footer")
         template = env.get_template("page")
         result = template.render_block("content", name="World")
         assert result.strip() == "Hello, World!"
@@ -37,9 +35,7 @@ class TestRenderBlock:
 
     def test_block_isolates_output(self) -> None:
         """render_block should only return the block, not surrounding content."""
-        env = _env(
-            page="BEFORE {% block middle %}MIDDLE{% endblock %} AFTER"
-        )
+        env = _env(page="BEFORE {% block middle %}MIDDLE{% endblock %} AFTER")
         template = env.get_template("page")
         result = template.render_block("middle")
         assert "MIDDLE" in result
@@ -137,9 +133,7 @@ class TestFragmentBlocks:
 
     def test_fragment_skipped_during_render(self) -> None:
         """Fragment blocks produce no output during full template render."""
-        env = _env(
-            page="Before {% fragment notification %}<div>{{ title }}</div>{% end %} After"
-        )
+        env = _env(page="Before {% fragment notification %}<div>{{ title }}</div>{% end %} After")
         template = env.get_template("page")
         result = template.render()
         assert result.strip() == "Before  After"
@@ -147,18 +141,14 @@ class TestFragmentBlocks:
 
     def test_fragment_renders_via_render_block(self) -> None:
         """Fragment blocks render normally when called via render_block()."""
-        env = _env(
-            page="Before {% fragment notification %}<div>{{ title }}</div>{% end %} After"
-        )
+        env = _env(page="Before {% fragment notification %}<div>{{ title }}</div>{% end %} After")
         template = env.get_template("page")
         result = template.render_block("notification", title="Hello!")
         assert "<div>Hello!</div>" in result
 
     def test_fragment_with_variables_no_error(self) -> None:
         """Fragment blocks don't raise UndefinedError during full render."""
-        env = _env(
-            page="OK {% fragment card %}{{ undefined_var }}{% end %} Done"
-        )
+        env = _env(page="OK {% fragment card %}{{ undefined_var }}{% end %} Done")
         template = env.get_template("page")
         # This should NOT raise — the fragment body is never evaluated
         result = template.render()
@@ -167,9 +157,7 @@ class TestFragmentBlocks:
 
     def test_fragment_listed_in_blocks(self) -> None:
         """Fragment blocks appear in list_blocks()."""
-        env = _env(
-            page="{% block header %}h{% endblock %}{% fragment sidebar %}s{% end %}"
-        )
+        env = _env(page="{% block header %}h{% endblock %}{% fragment sidebar %}s{% end %}")
         template = env.get_template("page")
         blocks = template.list_blocks()
         assert "header" in blocks
@@ -189,9 +177,7 @@ class TestFragmentBlocks:
 
     def test_fragment_endfragment_closing(self) -> None:
         """Fragment blocks accept {% endfragment %} as closing tag."""
-        env = _env(
-            page="{% fragment sidebar %}<nav>{{ menu }}</nav>{% endfragment %}"
-        )
+        env = _env(page="{% fragment sidebar %}<nav>{{ menu }}</nav>{% endfragment %}")
         template = env.get_template("page")
         result = template.render()
         assert result.strip() == ""
@@ -206,7 +192,7 @@ class TestGlobalsBlock:
         """Macros defined in globals are available during full render."""
         env = _env(
             page=(
-                '{% globals %}{% def greet(name) %}Hello, {{ name }}!{% end %}{% end %}'
+                "{% globals %}{% def greet(name) %}Hello, {{ name }}!{% end %}{% end %}"
                 '{% block content %}{{ greet("World") }}{% endblock %}'
             )
         )
@@ -218,7 +204,7 @@ class TestGlobalsBlock:
         """Macros defined in globals are available during render_block()."""
         env = _env(
             page=(
-                '{% globals %}{% def greet(name) %}Hello, {{ name }}!{% end %}{% end %}'
+                "{% globals %}{% def greet(name) %}Hello, {{ name }}!{% end %}{% end %}"
                 '{% block content %}{{ greet("World") }}{% endblock %}'
             )
         )
@@ -231,7 +217,7 @@ class TestGlobalsBlock:
         env = _env(
             page=(
                 '{% globals %}{% set site_name = "My Site" %}{% end %}'
-                '{% block title %}{{ site_name }}{% endblock %}'
+                "{% block title %}{{ site_name }}{% endblock %}"
             )
         )
         template = env.get_template("page")
@@ -243,12 +229,9 @@ class TestGlobalsBlock:
         env = _env(
             base=(
                 '{% globals %}{% def field(name) %}<input name="{{ name }}">{% end %}{% end %}'
-                '{% block form %}default{% endblock %}'
+                "{% block form %}default{% endblock %}"
             ),
-            child=(
-                '{% extends "base" %}'
-                '{% block form %}{{ field("email") }}{% endblock %}'
-            ),
+            child=('{% extends "base" %}{% block form %}{{ field("email") }}{% endblock %}'),
         )
         template = env.get_template("child")
         # Full render should work
@@ -259,21 +242,22 @@ class TestGlobalsBlock:
         """Globals block produces no output during full render."""
         env = _env(
             page=(
-                'Before{% globals %}{% def f() %}x{% end %}{% end %}After'
-                '{% block content %}{{ f() }}{% endblock %}'
+                "Before{% globals %}{% def f() %}x{% end %}{% end %}After"
+                "{% block content %}{{ f() }}{% endblock %}"
             )
         )
         template = env.get_template("page")
         result = template.render()
-        assert "BeforeAfter" in result.replace("x", "").replace("\n", "").replace(" ", "") or \
-               "Before" in result and "After" in result
+        assert "BeforeAfter" in result.replace("x", "").replace("\n", "").replace(" ", "") or (
+            "Before" in result and "After" in result
+        )
 
     def test_globals_endglobals_closing(self) -> None:
         """Globals blocks accept {% endglobals %} as closing tag."""
         env = _env(
             page=(
-                '{% globals %}{% def f() %}ok{% end %}{% endglobals %}'
-                '{% block content %}{{ f() }}{% endblock %}'
+                "{% globals %}{% def f() %}ok{% end %}{% endglobals %}"
+                "{% block content %}{{ f() }}{% endblock %}"
             )
         )
         template = env.get_template("page")
@@ -283,7 +267,7 @@ class TestGlobalsBlock:
     def test_globals_from_import_in_render_block(self) -> None:
         """{% from...import %} inside globals makes macros available in render_block()."""
         env = _env(
-            macros='{% def greet(name) %}Hello, {{ name }}!{% end %}',
+            macros="{% def greet(name) %}Hello, {{ name }}!{% end %}",
             page=(
                 '{% globals %}{% from "macros" import greet %}{% end %}'
                 '{% block content %}{{ greet("World") }}{% endblock %}'
@@ -300,10 +284,10 @@ class TestGlobalsBlock:
     def test_globals_from_import_in_fragment(self) -> None:
         """{% from...import %} inside globals works with {% fragment %} blocks."""
         env = _env(
-            macros='{% def card(title) %}<div>{{ title }}</div>{% end %}',
+            macros="{% def card(title) %}<div>{{ title }}</div>{% end %}",
             page=(
                 '{% globals %}{% from "macros" import card %}{% end %}'
-                'Page content'
+                "Page content"
                 '{% fragment oob %}{{ card("Task 1") }}{% endfragment %}'
             ),
         )
@@ -319,13 +303,13 @@ class TestGlobalsBlock:
     def test_globals_from_import_multiple(self) -> None:
         """Multiple {% from...import %} in globals all propagate to render_block()."""
         env = _env(
-            helpers='{% def bold(text) %}<b>{{ text }}</b>{% end %}',
-            icons='{% def icon(name) %}<i>{{ name }}</i>{% end %}',
+            helpers="{% def bold(text) %}<b>{{ text }}</b>{% end %}",
+            icons="{% def icon(name) %}<i>{{ name }}</i>{% end %}",
             page=(
-                '{% globals %}'
+                "{% globals %}"
                 '{% from "helpers" import bold %}'
                 '{% from "icons" import icon %}'
-                '{% end %}'
+                "{% end %}"
                 '{% block content %}{{ bold("hi") }} {{ icon("star") }}{% endblock %}'
             ),
         )
@@ -345,7 +329,7 @@ class TestImportsBlock:
     def test_imports_block_makes_macros_available_in_render_block(self) -> None:
         """{% imports %} with {% from %} makes macros available in render_block()."""
         env = _env(
-            macros='{% def greet(name) %}Hello, {{ name }}!{% end %}',
+            macros="{% def greet(name) %}Hello, {{ name }}!{% end %}",
             page=(
                 '{% imports %}{% from "macros" import greet %}{% end %}'
                 '{% block content %}{{ greet("World") }}{% endblock %}'
@@ -358,10 +342,10 @@ class TestImportsBlock:
     def test_imports_block_with_fragment(self) -> None:
         """{% imports %} works with {% fragment %} blocks."""
         env = _env(
-            macros='{% def card(title) %}<div>{{ title }}</div>{% end %}',
+            macros="{% def card(title) %}<div>{{ title }}</div>{% end %}",
             page=(
                 '{% imports %}{% from "macros" import card %}{% end %}'
-                'Page content'
+                "Page content"
                 '{% fragment oob %}{{ card("Task 1") }}{% endfragment %}'
             ),
         )
@@ -372,10 +356,10 @@ class TestImportsBlock:
     def test_imports_endimports_closing(self) -> None:
         """Imports blocks accept {% endimports %} as closing tag."""
         env = _env(
-            macros='{% def f() %}ok{% end %}',
+            macros="{% def f() %}ok{% end %}",
             page=(
                 '{% imports %}{% from "macros" import f %}{% endimports %}'
-                '{% block content %}{{ f() }}{% endblock %}'
+                "{% block content %}{{ f() }}{% endblock %}"
             ),
         )
         template = env.get_template("page")
@@ -385,10 +369,10 @@ class TestImportsBlock:
     def test_imports_unified_end_closing(self) -> None:
         """Imports blocks accept {% end %} as closing tag."""
         env = _env(
-            macros='{% def f() %}ok{% end %}',
+            macros="{% def f() %}ok{% end %}",
             page=(
                 '{% imports %}{% from "macros" import f %}{% end %}'
-                '{% block content %}{{ f() }}{% endblock %}'
+                "{% block content %}{{ f() }}{% endblock %}"
             ),
         )
         template = env.get_template("page")
@@ -402,7 +386,7 @@ class TestTopLevelImportInRenderBlock:
     def test_top_level_import_available_in_render_block(self) -> None:
         """Template with {% from "macros" import greet %} at root, no globals."""
         env = _env(
-            macros='{% def greet(name) %}Hello, {{ name }}!{% end %}',
+            macros="{% def greet(name) %}Hello, {{ name }}!{% end %}",
             page=(
                 '{% from "macros" import greet %}'
                 '{% block content %}{{ greet("World") }}{% endblock %}'
@@ -415,10 +399,10 @@ class TestTopLevelImportInRenderBlock:
     def test_top_level_import_in_fragment(self) -> None:
         """Top-level import works with {% fragment %} blocks."""
         env = _env(
-            macros='{% def card(title) %}<div>{{ title }}</div>{% end %}',
+            macros="{% def card(title) %}<div>{{ title }}</div>{% end %}",
             page=(
                 '{% from "macros" import card %}'
-                'Page content '
+                "Page content "
                 '{% fragment oob %}{{ card("Task 1") }}{% endfragment %}'
             ),
         )
@@ -432,7 +416,7 @@ class TestTopLevelImportInRenderBlock:
     def test_top_level_import_with_globals(self) -> None:
         """Both top-level import and {% globals %} available in block."""
         env = _env(
-            macros='{% def greet(name) %}Hello, {{ name }}!{% end %}',
+            macros="{% def greet(name) %}Hello, {{ name }}!{% end %}",
             page=(
                 '{% from "macros" import greet %}'
                 '{% globals %}{% set site = "Kida" %}{% end %}'

@@ -44,5 +44,4 @@ class BlockParsingMixin(
     """
 
 
-
 __all__ = ["BlockParsingMixin", "BlockStackMixin"]

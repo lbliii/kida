@@ -57,12 +57,12 @@ def env() -> Environment:
 
 @pytest.fixture
 def env_with_loader() -> Environment:
-    loader = DictLoader({
-        "base.html": (
-            "<html><body>{% block content %}{% endblock %}</body></html>"
-        ),
-        "sync_partial.html": "<p>sync partial</p>",
-    })
+    loader = DictLoader(
+        {
+            "base.html": ("<html><body>{% block content %}{% endblock %}</body></html>"),
+            "sync_partial.html": "<p>sync partial</p>",
+        }
+    )
     return Environment(loader=loader)
 
 
@@ -76,30 +76,22 @@ class TestAsyncForParsing:
 
     def test_parse_async_for_basic(self, env: Environment) -> None:
         """Basic async for loop parses without error."""
-        tmpl = env.from_string(
-            "{% async for item in items %}{{ item }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for item in items %}{{ item }}{% end %}")
         assert tmpl.is_async is True
 
     def test_parse_async_for_with_inline_if(self, env: Environment) -> None:
         """Async for with inline if filter parses correctly."""
-        tmpl = env.from_string(
-            "{% async for x in items if x %}{{ x }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items if x %}{{ x }}{% end %}")
         assert tmpl.is_async is True
 
     def test_parse_async_for_with_empty(self, env: Environment) -> None:
         """Async for with {% empty %} clause parses correctly."""
-        tmpl = env.from_string(
-            "{% async for x in items %}{{ x }}{% empty %}none{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items %}{{ x }}{% empty %}none{% end %}")
         assert tmpl.is_async is True
 
     def test_parse_async_for_with_tuple_unpack(self, env: Environment) -> None:
         """Async for with tuple unpacking parses correctly."""
-        tmpl = env.from_string(
-            "{% async for k, v in items %}{{ k }}={{ v }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for k, v in items %}{{ k }}={{ v }}{% end %}")
         assert tmpl.is_async is True
 
     def test_sync_template_not_async(self, env: Environment) -> None:
@@ -195,9 +187,7 @@ class TestRenderStreamAsync:
     @pytest.mark.asyncio
     async def test_basic_async_for(self, env: Environment) -> None:
         """{% async for %} iterates over async iterable and streams output."""
-        tmpl = env.from_string(
-            "{% async for i in items %}{{ i }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for i in items %}{{ i }}{% end %}")
         chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_range(3))]
         result = "".join(chunks)
         assert "0" in result
@@ -207,15 +197,8 @@ class TestRenderStreamAsync:
     @pytest.mark.asyncio
     async def test_async_for_with_surrounding_content(self, env: Environment) -> None:
         """Async for-loop within static content."""
-        tmpl = env.from_string(
-            "<ul>{% async for x in items %}<li>{{ x }}</li>{% end %}</ul>"
-        )
-        chunks = [
-            chunk
-            async for chunk in tmpl.render_stream_async(
-                items=async_items(["a", "b"])
-            )
-        ]
+        tmpl = env.from_string("<ul>{% async for x in items %}<li>{{ x }}</li>{% end %}</ul>")
+        chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_items(["a", "b"]))]
         result = "".join(chunks)
         assert "<ul>" in result
         assert "<li>a</li>" in result
@@ -225,9 +208,7 @@ class TestRenderStreamAsync:
     @pytest.mark.asyncio
     async def test_async_for_empty_clause(self, env: Environment) -> None:
         """{% empty %} renders when async iterable yields nothing."""
-        tmpl = env.from_string(
-            "{% async for x in items %}{{ x }}{% empty %}empty{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items %}{{ x }}{% empty %}empty{% end %}")
         chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_empty())]
         result = "".join(chunks)
         assert result == "empty"
@@ -235,14 +216,9 @@ class TestRenderStreamAsync:
     @pytest.mark.asyncio
     async def test_async_for_inline_if(self, env: Environment) -> None:
         """Inline if filter skips items that don't match."""
-        tmpl = env.from_string(
-            "{% async for x in items if x %}{{ x }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items if x %}{{ x }}{% end %}")
         chunks = [
-            chunk
-            async for chunk in tmpl.render_stream_async(
-                items=async_items(["a", "", "c"])
-            )
+            chunk async for chunk in tmpl.render_stream_async(items=async_items(["a", "", "c"]))
         ]
         result = "".join(chunks)
         assert "a" in result
@@ -260,10 +236,7 @@ class TestRenderStreamAsync:
             "{% end %}"
         )
         chunks = [
-            chunk
-            async for chunk in tmpl.render_stream_async(
-                items=async_items(["a", "b", "c"])
-            )
+            chunk async for chunk in tmpl.render_stream_async(items=async_items(["a", "b", "c"]))
         ]
         result = "".join(chunks)
         assert "1:a!" in result
@@ -291,9 +264,7 @@ class TestRenderBlockStreamAsync:
     async def test_async_block_stream(self, env: Environment) -> None:
         """render_block_stream_async() streams a single async block."""
         tmpl = env.from_string(
-            "{% block content %}"
-            "{% async for x in items %}{{ x }}{% end %}"
-            "{% endblock %}"
+            "{% block content %}{% async for x in items %}{{ x }}{% end %}{% endblock %}"
         )
         chunks = [
             chunk
@@ -308,9 +279,7 @@ class TestRenderBlockStreamAsync:
     @pytest.mark.asyncio
     async def test_block_not_found_raises(self, env: Environment) -> None:
         """Missing block raises KeyError."""
-        tmpl = env.from_string(
-            "{% block content %}hello{% endblock %}"
-        )
+        tmpl = env.from_string("{% block content %}hello{% endblock %}")
         with pytest.raises(KeyError, match="nonexistent"):
             async for _ in tmpl.render_block_stream_async("nonexistent"):
                 pass
@@ -329,10 +298,7 @@ class TestAwaitExpression:
         """{{ await expr }} resolves a coroutine inline."""
         tmpl = env.from_string("Result: {{ await coro }}")
         chunks = [
-            chunk
-            async for chunk in tmpl.render_stream_async(
-                coro=async_coroutine_value("hello")
-            )
+            chunk async for chunk in tmpl.render_stream_async(coro=async_coroutine_value("hello"))
         ]
         result = "".join(chunks)
         assert "Result: hello" in result
@@ -354,7 +320,8 @@ class TestAsyncInheritance:
 
     @pytest.mark.asyncio
     async def test_child_async_block_with_sync_parent(
-        self, env_with_loader: Environment,
+        self,
+        env_with_loader: Environment,
     ) -> None:
         """Child template overrides parent block with async content."""
         env_with_loader.loader._mapping["async_child.html"] = (  # type: ignore[union-attr]
@@ -366,12 +333,7 @@ class TestAsyncInheritance:
         tmpl = env_with_loader.get_template("async_child.html")
         assert tmpl.is_async is True
 
-        chunks = [
-            chunk
-            async for chunk in tmpl.render_stream_async(
-                items=async_items(["hello"])
-            )
-        ]
+        chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_items(["hello"]))]
         result = "".join(chunks)
         assert "hello" in result
         assert "<html>" in result
@@ -388,20 +350,15 @@ class TestAsyncInclude:
 
     @pytest.mark.asyncio
     async def test_async_template_includes_sync(
-        self, env_with_loader: Environment,
+        self,
+        env_with_loader: Environment,
     ) -> None:
         """Async template can include a sync partial."""
         env_with_loader.loader._mapping["async_page.html"] = (  # type: ignore[union-attr]
-            '{% include "sync_partial.html" %}'
-            "{% async for x in items %}{{ x }}{% end %}"
+            '{% include "sync_partial.html" %}{% async for x in items %}{{ x }}{% end %}'
         )
         tmpl = env_with_loader.get_template("async_page.html")
-        chunks = [
-            chunk
-            async for chunk in tmpl.render_stream_async(
-                items=async_items(["x"])
-            )
-        ]
+        chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_items(["x"]))]
         result = "".join(chunks)
         assert "sync partial" in result
         assert "x" in result
@@ -417,22 +374,19 @@ class TestSyncGuard:
 
     def test_render_rejects_async_template(self, env: Environment) -> None:
         """render() on async template raises TemplateRuntimeError."""
-        tmpl = env.from_string(
-            "{% async for x in items %}{{ x }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items %}{{ x }}{% end %}")
         with pytest.raises(TemplateRuntimeError, match="async constructs"):
             tmpl.render(items=[1, 2, 3])
 
     def test_render_stream_rejects_async_template(self, env: Environment) -> None:
         """render_stream() on async template raises TemplateRuntimeError."""
-        tmpl = env.from_string(
-            "{% async for x in items %}{{ x }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items %}{{ x }}{% end %}")
         with pytest.raises(TemplateRuntimeError, match="async constructs"):
             list(tmpl.render_stream(items=[1, 2, 3]))
 
     def test_sync_include_of_async_raises(
-        self, env_with_loader: Environment,
+        self,
+        env_with_loader: Environment,
     ) -> None:
         """Sync template including an async template raises error."""
         env_with_loader.loader._mapping["async_widget.html"] = (  # type: ignore[union-attr]
@@ -464,9 +418,7 @@ class TestCancellation:
                 consumed.append(item)
                 yield item
 
-        tmpl = env.from_string(
-            "{% async for x in items %}{{ x }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items %}{{ x }}{% end %}")
         stream = tmpl.render_stream_async(items=tracked_items())
 
         # Consume only 1-2 chunks then close
@@ -510,18 +462,14 @@ class TestSyncFallbackViaAsyncAPI:
 
     @pytest.mark.asyncio
     async def test_render_block_stream_async_on_sync_template(
-        self, env: Environment,
+        self,
+        env: Environment,
     ) -> None:
         """render_block_stream_async() wraps a sync block correctly."""
-        tmpl = env.from_string(
-            "{% block title %}Hello {{ name }}{% endblock %}"
-        )
+        tmpl = env.from_string("{% block title %}Hello {{ name }}{% endblock %}")
         assert tmpl.is_async is False
 
-        chunks = [
-            chunk
-            async for chunk in tmpl.render_block_stream_async("title", name="World")
-        ]
+        chunks = [chunk async for chunk in tmpl.render_block_stream_async("title", name="World")]
         result = "".join(chunks)
         assert "Hello World" in result
 
@@ -556,16 +504,13 @@ class TestNestedAsyncConstructs:
     @pytest.mark.asyncio
     async def test_async_for_inside_if(self, env: Environment) -> None:
         """{% async for %} inside {% if %} renders conditionally."""
-        tmpl = env.from_string(
-            "{% if show %}"
-            "{% async for x in items %}{{ x }}{% end %}"
-            "{% end %}"
-        )
+        tmpl = env.from_string("{% if show %}{% async for x in items %}{{ x }}{% end %}{% end %}")
         # Condition true
         chunks = [
             chunk
             async for chunk in tmpl.render_stream_async(
-                show=True, items=async_items(["a", "b"]),
+                show=True,
+                items=async_items(["a", "b"]),
             )
         ]
         assert "a" in "".join(chunks)
@@ -574,7 +519,8 @@ class TestNestedAsyncConstructs:
         chunks = [
             chunk
             async for chunk in tmpl.render_stream_async(
-                show=False, items=async_items(["a", "b"]),
+                show=False,
+                items=async_items(["a", "b"]),
             )
         ]
         assert "".join(chunks).strip() == ""
@@ -582,12 +528,11 @@ class TestNestedAsyncConstructs:
     @pytest.mark.asyncio
     async def test_await_inside_async_for(self, env: Environment) -> None:
         """{{ await }} works inside {% async for %} body."""
+
         async def make_coro(val: str) -> str:
             return val.upper()
 
-        tmpl = env.from_string(
-            "{% async for fn in funcs %}{{ await fn }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for fn in funcs %}{{ await fn }}{% end %}")
         chunks = [
             chunk
             async for chunk in tmpl.render_stream_async(
@@ -610,9 +555,7 @@ class TestAsyncEdgeCases:
     @pytest.mark.asyncio
     async def test_empty_iterable_without_empty_clause(self, env: Environment) -> None:
         """Empty async iterable with no {% empty %} produces no loop output."""
-        tmpl = env.from_string(
-            "before{% async for x in items %}{{ x }}{% end %}after"
-        )
+        tmpl = env.from_string("before{% async for x in items %}{{ x }}{% end %}after")
         chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_empty())]
         result = "".join(chunks)
         assert result == "beforeafter"
@@ -620,11 +563,7 @@ class TestAsyncEdgeCases:
     @pytest.mark.asyncio
     async def test_tuple_unpack_with_inline_if(self, env: Environment) -> None:
         """Tuple unpacking combined with inline if filter."""
-        tmpl = env.from_string(
-            "{% async for k, v in pairs if v %}"
-            "{{ k }}={{ v }} "
-            "{% end %}"
-        )
+        tmpl = env.from_string("{% async for k, v in pairs if v %}{{ k }}={{ v }} {% end %}")
         chunks = [
             chunk
             async for chunk in tmpl.render_stream_async(
@@ -638,7 +577,8 @@ class TestAsyncEdgeCases:
 
     @pytest.mark.asyncio
     async def test_loop_cycle_and_previtem_in_rendering(
-        self, env: Environment,
+        self,
+        env: Environment,
     ) -> None:
         """loop.cycle() and loop.previtem work together in async for."""
         tmpl = env.from_string(
@@ -671,13 +611,12 @@ class TestIncludeInsideAsyncFor:
 
     @pytest.mark.asyncio
     async def test_include_inside_async_for(
-        self, env_with_loader: Environment,
+        self,
+        env_with_loader: Environment,
     ) -> None:
         """{% include %} works correctly inside {% async for %} body."""
         env_with_loader.loader._mapping["loop_page.html"] = (  # type: ignore[union-attr]
-            "{% async for x in items %}"
-            '[{% include "sync_partial.html" %}]'
-            "{% end %}"
+            '{% async for x in items %}[{% include "sync_partial.html" %}]{% end %}'
         )
         tmpl = env_with_loader.get_template("loop_page.html")
         chunks = [
@@ -701,7 +640,8 @@ class TestAsyncExceptionPropagation:
 
     @pytest.mark.asyncio
     async def test_error_in_async_iterable_propagates(
-        self, env: Environment,
+        self,
+        env: Environment,
     ) -> None:
         """Exception raised by async iterable surfaces during rendering."""
 
@@ -709,9 +649,7 @@ class TestAsyncExceptionPropagation:
             yield "ok"
             raise ValueError("boom")
 
-        tmpl = env.from_string(
-            "{% async for x in items %}{{ x }}{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items %}{{ x }}{% end %}")
         with pytest.raises(ValueError, match="boom"):
             async for _ in tmpl.render_stream_async(items=exploding_items()):
                 pass
@@ -734,9 +672,7 @@ class TestConcurrentAsyncRendering:
                 await asyncio.sleep(0)  # yield control
                 yield f"{prefix}{i}"
 
-        tmpl = env.from_string(
-            "{% async for x in items %}{{ x }},{% end %}"
-        )
+        tmpl = env.from_string("{% async for x in items %}{{ x }},{% end %}")
 
         async def collect(prefix: str, n: int) -> str:
             chunks = [
@@ -787,7 +723,8 @@ class TestMacroAsyncGuard:
         assert tmpl is not None
 
     def test_def_with_include_in_async_template(
-        self, env_with_loader: Environment,
+        self,
+        env_with_loader: Environment,
     ) -> None:
         """Macro with {% include %} inside an async template compiles correctly.
 

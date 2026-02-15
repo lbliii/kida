@@ -358,10 +358,7 @@ class ExpressionParsingMixin:
             )
 
         # Handle {{ await expr }} as a unary prefix (RFC: rfc-async-rendering)
-        if (
-            self._current.type == TokenType.NAME
-            and self._current.value == "await"
-        ):
+        if self._current.type == TokenType.NAME and self._current.value == "await":
             token = self._advance()  # consume 'await'
             value = self._parse_unary()  # parse the awaitable expression
             return Await(

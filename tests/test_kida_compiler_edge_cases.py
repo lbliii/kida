@@ -220,8 +220,7 @@ class TestFunctionCompilation:
     def test_function_varargs(self, env: Environment) -> None:
         """Function with *args collects extra positional arguments."""
         tmpl = env.from_string(
-            "{% def join_all(*args) %}{{ args|join(',') }}{% end %}"
-            "{{ join_all('a', 'b', 'c') }}"
+            "{% def join_all(*args) %}{{ args|join(',') }}{% end %}{{ join_all('a', 'b', 'c') }}"
         )
         result = tmpl.render()
         assert "a,b,c" in result
@@ -254,7 +253,7 @@ class TestFunctionCompilation:
         tmpl = env.from_string(
             "{% def tag(element, **attrs) %}"
             "<{{ element }}"
-            "{% for k, v in attrs.items() %} {{ k }}=\"{{ v }}\"{% end %}"
+            '{% for k, v in attrs.items() %} {{ k }}="{{ v }}"{% end %}'
             ">"
             "{% end %}"
             '{{ tag("input", type="text", name="q") }}'

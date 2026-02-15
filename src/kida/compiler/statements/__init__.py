@@ -51,4 +51,3 @@ class StatementCompilationMixin(
     TYPE_CHECKING blocks in each individual mixin.
 
     """
-

@@ -278,14 +278,10 @@ class Markup(str):
     def expandtabs(self, tabsize: SupportsIndex = 8) -> Self:
         return self.__class__(super().expandtabs(tabsize))
 
-    def split(
-        self, sep: str | None = None, maxsplit: SupportsIndex = -1
-    ) -> list[Self]:
+    def split(self, sep: str | None = None, maxsplit: SupportsIndex = -1) -> list[Self]:
         return [self.__class__(s) for s in super().split(sep, maxsplit)]
 
-    def rsplit(
-        self, sep: str | None = None, maxsplit: SupportsIndex = -1
-    ) -> list[Self]:
+    def rsplit(self, sep: str | None = None, maxsplit: SupportsIndex = -1) -> list[Self]:
         return [self.__class__(s) for s in super().rsplit(sep, maxsplit)]
 
     def splitlines(self, keepends: bool = False) -> list[Self]:

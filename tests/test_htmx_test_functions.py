@@ -54,13 +54,15 @@ class TestHXRequestTest:
     def test_conditional_rendering(self):
         """Test conditional rendering based on 'is hx_request'."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 {% if request is hx_request %}
   Fragment
 {% else %}
   Full Page
 {% end %}
-        """.strip())
+        """.strip()
+        )
 
         # HTMX request
         request = MockRequest({"HX-Request": "true"})
@@ -77,11 +79,13 @@ class TestHXRequestTest:
     def test_negation(self):
         """Test 'is not hx_request' negation."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 {% if request is not hx_request %}
   Standard HTML
 {% end %}
-        """.strip())
+        """.strip()
+        )
 
         request = MockRequest({})
         result = template.render(request=request)
@@ -151,7 +155,8 @@ class TestHXTargetTest:
     def test_conditional_rendering_by_target(self):
         """Test conditional rendering based on target."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 {% if request is hx_target("sidebar") %}
   Sidebar Content
 {% elif request is hx_target("main") %}
@@ -159,7 +164,8 @@ class TestHXTargetTest:
 {% else %}
   Unknown Target
 {% end %}
-        """.strip())
+        """.strip()
+        )
 
         # Sidebar target
         request = MockRequest({"HX-Target": "sidebar"})
@@ -214,13 +220,15 @@ class TestHXBoostedTest:
     def test_conditional_rendering(self):
         """Test conditional rendering based on boosted status."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 {% if request is hx_boosted %}
   Enhanced Navigation
 {% else %}
   Standard Navigation
 {% end %}
-        """.strip())
+        """.strip()
+        )
 
         # Boosted request
         request = MockRequest({"HX-Boosted": "true"})
@@ -239,7 +247,8 @@ class TestCombinedHTMXTests:
     def test_multiple_conditions(self):
         """Test using multiple HTMX tests together."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 {% if request is hx_request and request is hx_target("sidebar") %}
   HTMX Sidebar Update
 {% elif request is hx_request %}
@@ -247,7 +256,8 @@ class TestCombinedHTMXTests:
 {% else %}
   Full Page
 {% end %}
-        """.strip())
+        """.strip()
+        )
 
         # HTMX request targeting sidebar
         request = MockRequest({"HX-Request": "true", "HX-Target": "sidebar"})
@@ -267,7 +277,8 @@ class TestCombinedHTMXTests:
     def test_boosted_vs_regular_htmx(self):
         """Test distinguishing boosted from regular HTMX requests."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 {% if request is hx_boosted %}
   Boosted Link/Form
 {% elif request is hx_request %}
@@ -275,7 +286,8 @@ class TestCombinedHTMXTests:
 {% else %}
   Full Page Load
 {% end %}
-        """.strip())
+        """.strip()
+        )
 
         # Boosted request
         request = MockRequest({"HX-Request": "true", "HX-Boosted": "true"})
@@ -299,11 +311,13 @@ class TestBackwardsCompatibility:
     def test_existing_tests_still_work(self):
         """Test that existing test functions are unaffected."""
         env = Environment()
-        template = env.from_string("""
+        template = env.from_string(
+            """
 {{ 5 is odd }}
 {{ "hello" is string }}
 {{ items is defined }}
-        """.strip())
+        """.strip()
+        )
 
         result = template.render(items=[1, 2, 3])
         lines = result.strip().split("\n")

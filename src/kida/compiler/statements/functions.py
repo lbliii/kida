@@ -85,9 +85,7 @@ class FunctionCompilationMixin:
         args_list = [
             ast.arg(
                 arg=p.name,
-                annotation=(
-                    self._parse_annotation(p.annotation) if p.annotation else None
-                ),
+                annotation=(self._parse_annotation(p.annotation) if p.annotation else None),
             )
             for p in node.params
         ]
@@ -99,12 +97,8 @@ class FunctionCompilationMixin:
 
         # Build context dict entries: regular args + vararg + kwarg
         param_names = [p.name for p in node.params]
-        ctx_keys: list[ast.expr | None] = [
-            ast.Constant(value=name) for name in param_names
-        ]
-        ctx_values: list[ast.expr] = [
-            ast.Name(id=name, ctx=ast.Load()) for name in param_names
-        ]
+        ctx_keys: list[ast.expr | None] = [ast.Constant(value=name) for name in param_names]
+        ctx_values: list[ast.expr] = [ast.Name(id=name, ctx=ast.Load()) for name in param_names]
 
         if node.vararg:
             ctx_keys.append(ast.Constant(value=node.vararg))

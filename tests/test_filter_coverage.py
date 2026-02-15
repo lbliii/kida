@@ -220,9 +220,7 @@ class TestCollectionFilters:
     def test_groupby(self) -> None:
         env = Environment()
         r = env.from_string(
-            "{% for g in items | groupby('type') %}"
-            "{{ g.grouper }}:{{ g.list | length }};"
-            "{% end %}"
+            "{% for g in items | groupby('type') %}{{ g.grouper }}:{{ g.list | length }};{% end %}"
         ).render(items=[{"type": "a", "v": 1}, {"type": "b", "v": 2}, {"type": "a", "v": 3}])
         assert "a:2" in r
         assert "b:1" in r
@@ -251,26 +249,22 @@ class TestCollectionFilters:
     def test_sort_attribute(self) -> None:
         env = Environment()
         r = env.from_string(
-            "{% for item in items | sort(attribute='name') %}"
-            "{{ item.name }};"
-            "{% end %}"
+            "{% for item in items | sort(attribute='name') %}{{ item.name }};{% end %}"
         ).render(items=[{"name": "c"}, {"name": "a"}, {"name": "b"}])
         assert r == "a;b;c;"
 
     def test_sort_with_none_values(self) -> None:
         """Sort with None values sorts them last."""
         env = Environment()
-        r = env.from_string(
-            "{{ items | sort | join(',') }}"
-        ).render(items=[3, 1, None, 2])
+        r = env.from_string("{{ items | sort | join(',') }}").render(items=[3, 1, None, 2])
         # None sorts last
         assert r.startswith("1,2,3")
 
     def test_batch(self) -> None:
         env = Environment()
-        r = env.from_string(
-            "{% for b in items | batch(2) %}[{{ b | join(',') }}]{% end %}"
-        ).render(items=[1, 2, 3, 4, 5])
+        r = env.from_string("{% for b in items | batch(2) %}[{{ b | join(',') }}]{% end %}").render(
+            items=[1, 2, 3, 4, 5]
+        )
         assert "[1,2]" in r
         assert "[3,4]" in r
 
@@ -413,10 +407,12 @@ class TestLoaderCoverage:
     def test_prefix_loader_basic(self) -> None:
         from kida import PrefixLoader
 
-        loader = PrefixLoader({
-            "app": DictLoader({"index.html": "app-index"}),
-            "admin": DictLoader({"index.html": "admin-index"}),
-        })
+        loader = PrefixLoader(
+            {
+                "app": DictLoader({"index.html": "app-index"}),
+                "admin": DictLoader({"index.html": "admin-index"}),
+            }
+        )
         env = Environment(loader=loader)
         assert env.get_template("app/index.html").render() == "app-index"
         assert env.get_template("admin/index.html").render() == "admin-index"
@@ -435,10 +431,12 @@ class TestLoaderCoverage:
     def test_prefix_loader_list_templates(self) -> None:
         from kida import PrefixLoader
 
-        loader = PrefixLoader({
-            "a": DictLoader({"x.html": ""}),
-            "b": DictLoader({"y.html": ""}),
-        })
+        loader = PrefixLoader(
+            {
+                "a": DictLoader({"x.html": ""}),
+                "b": DictLoader({"y.html": ""}),
+            }
+        )
         templates = loader.list_templates()
         assert "a/x.html" in templates
         assert "b/y.html" in templates
@@ -473,7 +471,7 @@ class TestClassesFilter:
         assert t.render(x=None) == ""
 
     def test_nested_list_flattened(self) -> None:
-        env = Environment()
+        Environment()
         from kida.environment.filters import _filter_classes
 
         assert _filter_classes([["a", "b"], "c"]) == "a b c"

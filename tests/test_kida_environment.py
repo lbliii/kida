@@ -370,6 +370,7 @@ class TestFunctionLoader:
 
     def test_string_return(self):
         """Function returning a string works."""
+
         def load(name):
             if name == "hello.html":
                 return "Hello, {{ name }}!"
@@ -381,6 +382,7 @@ class TestFunctionLoader:
 
     def test_tuple_return(self):
         """Function returning (source, filename) tuple works."""
+
         def load(name):
             if name == "page.html":
                 return "<h1>Page</h1>", "custom://page.html"
@@ -392,6 +394,7 @@ class TestFunctionLoader:
 
     def test_none_return_raises(self):
         """Function returning None raises TemplateNotFoundError."""
+
         def load(name):
             return None
 
@@ -412,6 +415,7 @@ class TestFunctionLoader:
 
     def test_with_variables(self):
         """FunctionLoader templates can use full kida syntax."""
+
         def load(name):
             if name == "loop.html":
                 return "{% for x in items %}{{ x }}{% end %}"
@@ -423,6 +427,7 @@ class TestFunctionLoader:
 
     def test_with_inheritance(self):
         """FunctionLoader supports template inheritance."""
+
         def load(name):
             templates = {
                 "base.html": "<html>{% block content %}{% end %}</html>",
@@ -436,6 +441,7 @@ class TestFunctionLoader:
 
     def test_with_includes(self):
         """FunctionLoader supports includes."""
+
         def load(name):
             templates = {
                 "main.html": "Before {% include 'partial.html' %} After",
@@ -461,9 +467,7 @@ class TestPackageLoader:
         tmpl_dir = pkg_dir / "templates"
         tmpl_dir.mkdir()
         (tmpl_dir / "index.html").write_text("Hello, {{ name }}!")
-        (tmpl_dir / "base.html").write_text(
-            "<html>{% block content %}{% end %}</html>"
-        )
+        (tmpl_dir / "base.html").write_text("<html>{% block content %}{% end %}</html>")
 
         sub_dir = tmpl_dir / "pages"
         sub_dir.mkdir()

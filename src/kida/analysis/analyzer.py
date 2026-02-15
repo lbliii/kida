@@ -163,9 +163,7 @@ class BlockAnalyzer:
         self._collect_blocks_recursive(ast.body, blocks)
         return blocks
 
-    def _collect_blocks_recursive(
-        self, nodes: Sequence[Node], blocks: list[Block]
-    ) -> None:
+    def _collect_blocks_recursive(self, nodes: Sequence[Node], blocks: list[Block]) -> None:
         """Recursively find Block nodes."""
         for node in nodes:
             if isinstance(node, Block):
@@ -442,9 +440,7 @@ class BlockAnalyzer:
 
         # Check for unknown parameter names
         unknown: list[str] = (
-            [kw for kw in call_kwargs if kw not in sig.param_names]
-            if not sig.has_kwarg
-            else []
+            [kw for kw in call_kwargs if kw not in sig.param_names] if not sig.has_kwarg else []
         )
 
         # Check for missing required parameters
@@ -461,14 +457,16 @@ class BlockAnalyzer:
                     missing.append(param_name)
 
         if unknown or missing or duplicates:
-            issues.append(CallValidation(
-                def_name=func_name,
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                unknown_params=tuple(unknown),
-                missing_required=tuple(missing),
-                duplicate_params=tuple(duplicates),
-            ))
+            issues.append(
+                CallValidation(
+                    def_name=func_name,
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    unknown_params=tuple(unknown),
+                    missing_required=tuple(missing),
+                    duplicate_params=tuple(duplicates),
+                )
+            )
 
 
 @dataclass(frozen=True, slots=True)

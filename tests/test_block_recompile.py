@@ -175,7 +175,7 @@ class TestRecompileBlocks:
         source_v1 = "{% block a %}A{% end %}"
         source_v2 = "{% block a %}A{% end %}{% block b %}B{% end %}"
 
-        template = env.from_string(source_v2)  # Need v2 as base so render() works
+        env.from_string(source_v2)  # Need v2 as base so render() works
         # But test the mechanism: parse both, detect changes, recompile
         old_ast = _parse_template(env, source_v1)
         new_ast = _parse_template(env, source_v2)

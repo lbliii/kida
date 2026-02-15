@@ -396,9 +396,7 @@ class TestCompilerEmittedProfiling:
         from kida.render_accumulator import profiled_render
 
         env = Environment()
-        tmpl = env.from_string(
-            "{% block header %}H{% end %}{% block body %}B{% end %}"
-        )
+        tmpl = env.from_string("{% block header %}H{% end %}{% block body %}B{% end %}")
         with profiled_render() as acc:
             result = tmpl.render()
             summary = acc.summary()
@@ -430,8 +428,7 @@ class TestCompilerEmittedProfiling:
 
         env = Environment()
         tmpl = env.from_string(
-            "{% def greet(name) %}Hi {{ name }}{% end %}"
-            "{{ greet('A') }}{{ greet('B') }}"
+            "{% def greet(name) %}Hi {{ name }}{% end %}{{ greet('A') }}{{ greet('B') }}"
         )
         with profiled_render() as acc:
             result = tmpl.render()
@@ -462,10 +459,7 @@ class TestCompilerEmittedProfiling:
         loader = DictLoader(
             {
                 "base.html": "{% block content %}BASE{% end %}",
-                "child.html": (
-                    "{% extends 'base.html' %}"
-                    "{% block content %}CHILD{% end %}"
-                ),
+                "child.html": ("{% extends 'base.html' %}{% block content %}CHILD{% end %}"),
             }
         )
         env = Environment(loader=loader)

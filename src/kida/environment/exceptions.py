@@ -263,7 +263,6 @@ class TemplateNotFoundError(TemplateError):
     code: ErrorCode | None = ErrorCode.TEMPLATE_NOT_FOUND
 
 
-
 class TemplateSyntaxError(TemplateError):
     """Parse-time syntax error in template source.
 
@@ -448,10 +447,9 @@ class TemplateRuntimeError(TemplateError):
         loc = self.template_name or "<template>"
         if self.lineno:
             loc += f":{self.lineno}"
-        parts.append(terminal.format_error_header(
-            self.code.value if self.code else None,
-            self.message
-        ))
+        parts.append(
+            terminal.format_error_header(self.code.value if self.code else None, self.message)
+        )
         parts.append(f"  Location: {terminal.location(loc)}")
 
         # Source snippet
@@ -612,9 +610,7 @@ class UndefinedError(TemplateError):
         if self._available_names:
             from difflib import get_close_matches
 
-            matches = get_close_matches(
-                self.name, self._available_names, n=1, cutoff=0.6
-            )
+            matches = get_close_matches(self.name, self._available_names, n=1, cutoff=0.6)
             if matches:
                 suggested = terminal.suggestion(matches[0])
                 msg += f". Did you mean '{suggested}'?"
@@ -641,16 +637,14 @@ class UndefinedError(TemplateError):
             location += f":{self.lineno}"
         msg = terminal.format_error_header(
             self.code.value if self.code else None,
-            f"Undefined variable '{self.name}' in {terminal.location(location)}"
+            f"Undefined variable '{self.name}' in {terminal.location(location)}",
         )
 
         # "Did you mean?" suggestion
         if self._available_names:
             from difflib import get_close_matches
 
-            matches = get_close_matches(
-                self.name, self._available_names, n=1, cutoff=0.6
-            )
+            matches = get_close_matches(self.name, self._available_names, n=1, cutoff=0.6)
             if matches:
                 suggested = terminal.suggestion(matches[0])
                 msg += f". Did you mean '{suggested}'?"

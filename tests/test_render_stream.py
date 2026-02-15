@@ -16,6 +16,7 @@ from kida.environment.exceptions import UndefinedError
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def env() -> Environment:
     """Plain environment with no loader."""
@@ -31,6 +32,7 @@ def fs_env(tmp_path) -> Environment:
 # ---------------------------------------------------------------------------
 # Basic streaming
 # ---------------------------------------------------------------------------
+
 
 class TestBasicStreaming:
     """render_stream() produces same output as render()."""
@@ -91,6 +93,7 @@ class TestStreamingYieldsChunks:
 # Control flow
 # ---------------------------------------------------------------------------
 
+
 class TestControlFlowStreaming:
     """Control flow produces correct streaming output."""
 
@@ -118,13 +121,12 @@ class TestControlFlowStreaming:
 # Block inheritance
 # ---------------------------------------------------------------------------
 
+
 class TestBlockStreaming:
     """Blocks yield independently in streaming mode."""
 
     def test_simple_block(self, fs_env: Environment, tmp_path) -> None:
-        (tmp_path / "base.html").write_text(
-            "<html>{% block content %}default{% end %}</html>"
-        )
+        (tmp_path / "base.html").write_text("<html>{% block content %}default{% end %}</html>")
         (tmp_path / "child.html").write_text(
             '{% extends "base.html" %}{% block content %}overridden{% end %}'
         )
@@ -148,9 +150,7 @@ class TestBlockStreaming:
         assert result == t.render()
 
     def test_block_with_expressions(self, fs_env: Environment, tmp_path) -> None:
-        (tmp_path / "base.html").write_text(
-            "<title>{% block title %}Default{% end %}</title>"
-        )
+        (tmp_path / "base.html").write_text("<title>{% block title %}Default{% end %}</title>")
         (tmp_path / "page.html").write_text(
             '{% extends "base.html" %}{% block title %}{{ title }}{% end %}'
         )
@@ -164,14 +164,13 @@ class TestBlockStreaming:
 # Include
 # ---------------------------------------------------------------------------
 
+
 class TestIncludeStreaming:
     """Include chains work in streaming mode."""
 
     def test_basic_include(self, fs_env: Environment, tmp_path) -> None:
         (tmp_path / "partial.html").write_text("<b>{{ name }}</b>")
-        (tmp_path / "main.html").write_text(
-            '<div>{% include "partial.html" with context %}</div>'
-        )
+        (tmp_path / "main.html").write_text('<div>{% include "partial.html" with context %}</div>')
         t = fs_env.get_template("main.html")
         result = "".join(t.render_stream(name="World"))
         assert result == t.render(name="World")
@@ -179,12 +178,8 @@ class TestIncludeStreaming:
 
     def test_nested_include(self, fs_env: Environment, tmp_path) -> None:
         (tmp_path / "inner.html").write_text("INNER")
-        (tmp_path / "outer.html").write_text(
-            'OUTER{% include "inner.html" %}END'
-        )
-        (tmp_path / "main.html").write_text(
-            '{% include "outer.html" %}'
-        )
+        (tmp_path / "outer.html").write_text('OUTER{% include "inner.html" %}END')
+        (tmp_path / "main.html").write_text('{% include "outer.html" %}')
         t = fs_env.get_template("main.html")
         result = "".join(t.render_stream())
         assert result == "OUTERINNEREND"
@@ -195,18 +190,17 @@ class TestIncludeStreaming:
 # Extends + Include combined
 # ---------------------------------------------------------------------------
 
+
 class TestExtendsIncludeStreaming:
     """Complex template hierarchies stream correctly."""
 
     def test_extends_with_include(self, fs_env: Environment, tmp_path) -> None:
         (tmp_path / "nav.html").write_text("<nav>{{ sitename }}</nav>")
         (tmp_path / "layout.html").write_text(
-            '{% include "nav.html" with context %}'
-            "{% block content %}{% end %}"
+            '{% include "nav.html" with context %}{% block content %}{% end %}'
         )
         (tmp_path / "page.html").write_text(
-            '{% extends "layout.html" %}'
-            "{% block content %}<main>{{ body }}</main>{% end %}"
+            '{% extends "layout.html" %}{% block content %}<main>{{ body }}</main>{% end %}'
         )
         t = fs_env.get_template("page.html")
         result = "".join(t.render_stream(sitename="MySite", body="Hello"))
@@ -219,14 +213,12 @@ class TestExtendsIncludeStreaming:
 # Capture / Spaceless (buffer-redirect patterns)
 # ---------------------------------------------------------------------------
 
+
 class TestCaptureStreaming:
     """Capture blocks work correctly in streaming mode."""
 
     def test_capture_assigns_variable(self, env: Environment) -> None:
-        t = env.from_string(
-            "{% capture greeting %}Hello {{ name }}{% end %}"
-            "Result: {{ greeting }}"
-        )
+        t = env.from_string("{% capture greeting %}Hello {{ name }}{% end %}Result: {{ greeting }}")
         result = "".join(t.render_stream(name="World"))
         assert result == t.render(name="World")
         assert "Result: Hello World" in result
@@ -235,6 +227,7 @@ class TestCaptureStreaming:
 # ---------------------------------------------------------------------------
 # RenderedTemplate
 # ---------------------------------------------------------------------------
+
 
 class TestRenderedTemplate:
     """RenderedTemplate delegates to render_stream()."""
@@ -261,6 +254,7 @@ class TestRenderedTemplate:
 # Error handling
 # ---------------------------------------------------------------------------
 
+
 class TestStreamingErrors:
     """Errors propagate correctly mid-stream."""
 
@@ -269,15 +263,10 @@ class TestStreamingErrors:
         with pytest.raises(UndefinedError):
             list(t.render_stream())
 
-    def test_error_propagates_from_block(
-        self, fs_env: Environment, tmp_path
-    ) -> None:
-        (tmp_path / "base.html").write_text(
-            "{% block content %}{% end %}"
-        )
+    def test_error_propagates_from_block(self, fs_env: Environment, tmp_path) -> None:
+        (tmp_path / "base.html").write_text("{% block content %}{% end %}")
         (tmp_path / "bad.html").write_text(
-            '{% extends "base.html" %}'
-            "{% block content %}{{ missing }}{% end %}"
+            '{% extends "base.html" %}{% block content %}{{ missing }}{% end %}'
         )
         t = fs_env.get_template("bad.html")
         with pytest.raises(UndefinedError):
