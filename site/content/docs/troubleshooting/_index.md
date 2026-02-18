@@ -39,4 +39,18 @@ Variable not found or None handling.
 Template loading and path issues.
 :::{/card}
 
+:::{card} Circular Imports
+:icon: git-branch
+:link: ./circular-imports
+:description: K-TPL-003 — Circular macro import
+{% from %} must not import self or create cycles.
+:::{/card}
+
+:::{card} render_block and Def Scope
+:icon: layers
+:link: ./render-block-scope
+:description: Blocks don't inherit defs
+Split defs into a separate file when using render_block.
+:::{/card}
+
 :::{/cards}

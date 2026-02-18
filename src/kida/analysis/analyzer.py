@@ -374,7 +374,8 @@ class BlockAnalyzer:
             # Check CallBlock: {% call func(...) %}
             if isinstance(node, CallBlock):
                 self._check_func_call(node.call, signatures, issues)
-                self._validate_call_nodes(node.body, signatures, issues)
+                for slot_body in node.slots.values():
+                    self._validate_call_nodes(slot_body, signatures, issues)
                 continue
 
             # Check Output expressions ({{ func(...) }})

@@ -13,7 +13,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import CallBlock, Def, Node
+    from kida.nodes import CallBlock, Def, Node, Slot
 
 logger = logging.getLogger(__name__)
 
@@ -298,103 +298,157 @@ class FunctionCompilationMixin:
         return [func_def, assign]
 
     def _compile_call_block(self, node: CallBlock) -> list[ast.stmt]:
-        """Compile {% call func(args) %}body{% endcall %.
+        """Compile {% call func(args) %}...{% endcall %.
 
-        Calls a function with the body content as the caller.
-
-        Generates:
-            def _caller():
-                buf = []
-                ... body ...
-                return Markup(''.join(buf))
-            _append(func(args, _caller=_caller))
+        Builds a caller that supports named slots. Passes _caller(slot="default")
+        so both _caller() and _caller("header_actions") work.
         """
         stmts: list[ast.stmt] = []
+        slots = node.slots
 
-        # Create caller function
-        caller_body: list[ast.stmt] = [
-            # _e = _escape
+        # Build one function per slot
+        slot_fns: dict[str, str] = {}
+        for slot_name, slot_body in slots.items():
+            safe_name = slot_name.replace("-", "_")
+            fn_name = f"_caller_{safe_name}"
+
+            caller_body: list[ast.stmt] = [
+                ast.Assign(
+                    targets=[ast.Name(id="_e", ctx=ast.Store())],
+                    value=ast.Name(id="_escape", ctx=ast.Load()),
+                ),
+                ast.Assign(
+                    targets=[ast.Name(id="_s", ctx=ast.Store())],
+                    value=ast.Name(id="_str", ctx=ast.Load()),
+                ),
+                ast.Assign(
+                    targets=[ast.Name(id="buf", ctx=ast.Store())],
+                    value=ast.List(elts=[], ctx=ast.Load()),
+                ),
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Attribute(
+                        value=ast.Name(id="buf", ctx=ast.Load()),
+                        attr="append",
+                        ctx=ast.Load(),
+                    ),
+                ),
+                ast.Assign(
+                    targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                    value=ast.Call(
+                        func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                        args=[],
+                        keywords=[],
+                    ),
+                ),
+            ]
+
+            saved_async_cb = getattr(self, "_async_mode", False)
+            if saved_async_cb:
+                self._async_mode = False
+            for child in slot_body:
+                caller_body.extend(self._compile_node(child))
+            if saved_async_cb:
+                self._async_mode = saved_async_cb
+
+            caller_body.append(
+                ast.Return(
+                    value=ast.Call(
+                        func=ast.Name(id="_Markup", ctx=ast.Load()),
+                        args=[
+                            ast.Call(
+                                func=ast.Attribute(
+                                    value=ast.Constant(value=""),
+                                    attr="join",
+                                    ctx=ast.Load(),
+                                ),
+                                args=[ast.Name(id="buf", ctx=ast.Load())],
+                                keywords=[],
+                            ),
+                        ],
+                        keywords=[],
+                    ),
+                )
+            )
+
+            slot_fns[slot_name] = fn_name
+            stmts.append(
+                ast.FunctionDef(
+                    name=fn_name,
+                    args=ast.arguments(
+                        posonlyargs=[],
+                        args=[],
+                        vararg=None,
+                        kwonlyargs=[],
+                        kw_defaults=[],
+                        kwarg=None,
+                        defaults=[],
+                    ),
+                    body=caller_body,
+                    decorator_list=[],
+                    returns=None,
+                )
+            )
+
+        # Build _caller(slot="default") wrapper
+        # def _caller(slot="default"):
+        #     f = _caller_slots.get(slot)
+        #     return f() if f else _Markup("")
+        wrapper_body = [
             ast.Assign(
-                targets=[ast.Name(id="_e", ctx=ast.Store())],
-                value=ast.Name(id="_escape", ctx=ast.Load()),
-            ),
-            # _s = _str
-            ast.Assign(
-                targets=[ast.Name(id="_s", ctx=ast.Store())],
-                value=ast.Name(id="_str", ctx=ast.Load()),
-            ),
-            # buf = []
-            ast.Assign(
-                targets=[ast.Name(id="buf", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            # _append = buf.append
-            ast.Assign(
-                targets=[ast.Name(id="_append", ctx=ast.Store())],
-                value=ast.Attribute(
-                    value=ast.Name(id="buf", ctx=ast.Load()),
-                    attr="append",
-                    ctx=ast.Load(),
+                targets=[ast.Name(id="_f", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="_caller_slots", ctx=ast.Load()),
+                        attr="get",
+                        ctx=ast.Load(),
+                    ),
+                    args=[ast.Name(id="slot", ctx=ast.Load())],
+                    keywords=[],
                 ),
             ),
-            # Profiling: _acc = _get_accumulator()
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
+            ast.Return(
+                value=ast.IfExp(
+                    test=ast.Name(id="_f", ctx=ast.Load()),
+                    body=ast.Call(
+                        func=ast.Name(id="_f", ctx=ast.Load()),
+                        args=[],
+                        keywords=[],
+                    ),
+                    orelse=ast.Call(
+                        func=ast.Name(id="_Markup", ctx=ast.Load()),
+                        args=[ast.Constant(value="")],
+                        keywords=[],
+                    ),
                 ),
             ),
         ]
-
-        # Compile body — caller is always a sync function
-        saved_async_cb = getattr(self, "_async_mode", False)
-        if saved_async_cb:
-            self._async_mode = False
-        for child in node.body:
-            caller_body.extend(self._compile_node(child))
-        if saved_async_cb:
-            self._async_mode = saved_async_cb
-
-        # return Markup(''.join(buf))
-        caller_body.append(
-            ast.Return(
-                value=ast.Call(
-                    func=ast.Name(id="_Markup", ctx=ast.Load()),
-                    args=[
-                        ast.Call(
-                            func=ast.Attribute(
-                                value=ast.Constant(value=""),
-                                attr="join",
-                                ctx=ast.Load(),
-                            ),
-                            args=[ast.Name(id="buf", ctx=ast.Load())],
-                            keywords=[],
-                        ),
-                    ],
-                    keywords=[],
+        stmts.append(
+            ast.Assign(
+                targets=[ast.Name(id="_caller_slots", ctx=ast.Store())],
+                value=ast.Dict(
+                    keys=[ast.Constant(value=k) for k in slot_fns],
+                    values=[ast.Name(id=v, ctx=ast.Load()) for v in slot_fns.values()],
                 ),
             )
         )
-
-        # def _caller():
-        caller_func = ast.FunctionDef(
-            name="_caller",
-            args=ast.arguments(
-                posonlyargs=[],
-                args=[],
-                vararg=None,
-                kwonlyargs=[],
-                kw_defaults=[],
-                kwarg=None,
-                defaults=[],
-            ),
-            body=caller_body,
-            decorator_list=[],
-            returns=None,
+        stmts.append(
+            ast.FunctionDef(
+                name="_caller",
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=[ast.arg(arg="slot")],
+                    vararg=None,
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    kwarg=None,
+                    defaults=[ast.Constant(value="default")],
+                ),
+                body=wrapper_body,
+                decorator_list=[],
+                returns=None,
+            )
         )
-        stmts.append(caller_func)
 
         # Compile the call expression and add _caller keyword argument
         # Suppress macro instrumentation so we get a raw ast.Call back
@@ -429,15 +483,13 @@ class FunctionCompilationMixin:
 
         return stmts
 
-    def _compile_slot(self, node: Node) -> list[ast.stmt]:
-        """Compile {% slot %.
+    def _compile_slot(self, node: Slot) -> list[ast.stmt]:
+        """Compile {% slot %} or {% slot name %.
 
-        Renders the caller content inside a {% def %}.
-
-        Generates:
-            if ctx.get('caller'):
-                _append(ctx['caller']())
+        Renders the caller content for the given slot name.
+        _caller(slot="default") supports both _caller() and _caller("name").
         """
+        slot_name = node.name
         return [
             ast.If(
                 test=ast.Call(
@@ -460,7 +512,7 @@ class FunctionCompilationMixin:
                                         slice=ast.Constant(value="caller"),
                                         ctx=ast.Load(),
                                     ),
-                                    args=[],
+                                    args=[ast.Constant(value=slot_name)],
                                     keywords=[],
                                 ),
                             ],

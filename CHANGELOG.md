@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Named slots in `{% call %}` blocks** — `{% call %}` now supports per-slot
+  content blocks with `{% slot name %}...{% end %}`, mapped to matching
+  placeholders in `{% def %}`. Default-slot behavior remains backward-compatible.
+
+### Changed
+
+- **`caller()` slot dispatch** — call wrappers now support both `caller()` for the
+  default slot and `caller("slot_name")` for named slot content, enabling
+  multi-region component APIs.
+
+- **Slot-aware analysis and transforms** — static analysis visitors and partial
+  evaluation now traverse slot bodies inside `CallBlock`, so slot-contained calls
+  and expressions are included in validation and optimization passes.
+
+### Fixed
+
+- **Circular macro import detection (`K-TPL-003`)** — `{% from "x" import y %}`
+  now detects direct and transitive self-import cycles and raises
+  `TemplateRuntimeError` with a deterministic error code instead of recursing
+  until failure.
+
 ## [0.2.1] - 2026-02-14
 
 ### Added
@@ -153,7 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   with profiled_render() as metrics:
       html = template.render(page=page)
-  
+
   print(metrics.summary())
   # {"total_ms": 12.5, "blocks": {"content": {"ms": 8.2, "calls": 1}}, ...}
   ```

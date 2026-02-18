@@ -118,3 +118,11 @@ def visit_children(node: Node, visit: Callable[[Node | None], None]) -> None:
         for block in blocks.values():
             if hasattr(block, "lineno"):
                 visit(block)
+
+    # CallBlock slots
+    slots = getattr(node, "slots", None)
+    if slots and isinstance(slots, dict):
+        for slot_body in slots.values():
+            for child in slot_body:
+                if hasattr(child, "lineno"):
+                    visit(child)

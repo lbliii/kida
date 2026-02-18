@@ -134,8 +134,9 @@ class ControlFlowMixin:
         body = self._wrap_with_scope(body) if body else [ast.Pass()]
 
         orelse: list[ast.stmt] = []
+        innermost_elif: ast.If | None = None
 
-        # Handle elif chains
+        # Handle elif chains (first elif is innermost; we track it directly)
         for elif_test, elif_body in node.elif_:
             elif_stmts = []
             for child in elif_body:
@@ -144,13 +145,14 @@ class ControlFlowMixin:
             elif_stmts = self._wrap_with_scope(elif_stmts) if elif_stmts else [ast.Pass()]
             if not elif_stmts:
                 elif_stmts = [ast.Pass()]
-            orelse = [
-                ast.If(
-                    test=self._compile_expr(elif_test),
-                    body=elif_stmts,
-                    orelse=orelse,
-                )
-            ]
+            new_if = ast.If(
+                test=self._compile_expr(elif_test),
+                body=elif_stmts,
+                orelse=orelse,
+            )
+            if innermost_elif is None:
+                innermost_elif = new_if
+            orelse = [new_if]
 
         # Handle else
         if node.else_:
@@ -159,12 +161,8 @@ class ControlFlowMixin:
                 else_stmts.extend(self._compile_node(child))
             # Wrap else body with scope
             else_stmts = self._wrap_with_scope(else_stmts) if else_stmts else [ast.Pass()]
-            if orelse:
-                # Attach to innermost elif's orelse
-                innermost: ast.If = orelse[0]
-                while innermost.orelse and isinstance(innermost.orelse[0], ast.If):
-                    innermost = innermost.orelse[0]
-                innermost.orelse = else_stmts
+            if innermost_elif is not None:
+                innermost_elif.orelse = else_stmts
             else:
                 orelse = else_stmts
 

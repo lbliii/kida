@@ -444,22 +444,51 @@ class Template(TemplateIntrospectionMixin):
         def _import_macros(
             template_name: str, with_context: bool, context: dict[str, Any]
         ) -> dict[str, Any]:
+            from kida.environment.exceptions import (
+                ErrorCode,
+                TemplateRuntimeError,
+            )
+            from kida.render_context import (
+                get_render_context_required,
+                reset_render_context,
+                set_render_context,
+            )
+
             _env = env_ref()
             if _env is None:
                 raise RuntimeError(
                     f"Environment has been garbage collected while importing '{template_name}'"
                 )
-            imported = _env.get_template(template_name)
-            if imported._render_func is None:
-                raise RuntimeError(
-                    f"Template '{template_name}' not properly compiled: "
-                    f"_render_func is None. Check for syntax errors in the template."
+
+            render_ctx = get_render_context_required()
+            if template_name in render_ctx.import_stack:
+                chain = " → ".join([*render_ctx.import_stack, template_name])
+                raise TemplateRuntimeError(
+                    f"Circular import detected: '{template_name}' imports itself (via {chain})",
+                    template_name=render_ctx.template_name,
+                    code=ErrorCode.CIRCULAR_IMPORT,
                 )
-            import_ctx = dict(_env.globals)
-            if with_context:
-                import_ctx.update(context)
-            imported._render_func(import_ctx, None)
-            return import_ctx
+
+            render_ctx.import_stack.append(template_name)
+            try:
+                child_ctx = render_ctx.child_context(template_name)
+                token = set_render_context(child_ctx)
+                try:
+                    imported = _env.get_template(template_name)
+                    if imported._render_func is None:
+                        raise RuntimeError(
+                            f"Template '{template_name}' not properly compiled: "
+                            f"_render_func is None. Check for syntax errors in the template."
+                        )
+                    import_ctx = dict(_env.globals)
+                    if with_context:
+                        import_ctx.update(context)
+                    imported._render_func(import_ctx, None)
+                    return import_ctx
+                finally:
+                    reset_render_context(token)
+            finally:
+                render_ctx.import_stack.pop()
 
         # Cache helpers - use environment's LRU cache
         def _cache_get(key: str) -> str | None:

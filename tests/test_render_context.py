@@ -252,6 +252,50 @@ class TestRenderContextIntegration:
 
         assert "Maximum include depth exceeded" in str(exc_info.value)
 
+    def test_circular_import_detection(self):
+        """Circular macro imports ({% from X import y %} where X imports itself) raise K-TPL-003."""
+        from kida.environment.exceptions import ErrorCode, TemplateRuntimeError
+        from kida.environment.loaders import DictLoader
+
+        # Self-import: _tab_content imports from itself
+        loader = DictLoader(
+            {
+                "showcase/_tab_content.html": (
+                    "{% from 'showcase/_tab_content.html' import tab_section %}"
+                    "{% def tab_section() %}content{% end %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        template = env.get_template("showcase/_tab_content.html")
+
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            template.render()
+
+        assert "Circular import detected" in str(exc_info.value)
+        assert exc_info.value.code == ErrorCode.CIRCULAR_IMPORT
+        assert "showcase/_tab_content.html" in str(exc_info.value)
+
+    def test_transitive_circular_import_detection(self):
+        """Transitive circular imports (A→B→A) raise K-TPL-003."""
+        from kida.environment.exceptions import ErrorCode, TemplateRuntimeError
+        from kida.environment.loaders import DictLoader
+
+        loader = DictLoader(
+            {
+                "a.html": "{% from 'b.html' import x %}{{ x() }}",
+                "b.html": "{% from 'a.html' import y %}{% def x() %}b{% end %}",
+            }
+        )
+        env = Environment(loader=loader)
+        template = env.get_template("a.html")
+
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            template.render()
+
+        assert "Circular import detected" in str(exc_info.value)
+        assert exc_info.value.code == ErrorCode.CIRCULAR_IMPORT
+
 
 class TestRenderAccumulator:
     """Tests for RenderAccumulator profiling."""

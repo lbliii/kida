@@ -26,7 +26,7 @@ cd examples/file_loader && python app.py
 ### `components/` -- Reusable Components
 
 Kida's `{% def %}` / `{% call %}` / `{% slot %}` pattern for building reusable
-UI components. Define a component once, use it everywhere with different content.
+UI components. Supports default and named slots for multi-region composition.
 
 ```bash
 cd examples/components && python app.py
@@ -106,7 +106,7 @@ cd examples/bytecode_cache && python app.py
 
 `{% def %}`, `{% slot %}`, and `{% call %}` composed into a design system with
 reusable cards, buttons, and alerts. Components accept parameters with defaults
-and project content through slots. Demonstrates real-world component composition:
+and project content through default and named slots. Demonstrates real-world component composition:
 buttons inside cards, cards inside pages.
 
 ```bash

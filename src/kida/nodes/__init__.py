@@ -45,7 +45,7 @@ from kida.nodes.expressions import (
     Tuple,
     UnaryOp,
 )
-from kida.nodes.functions import CallBlock, Def, DefParam, Slot
+from kida.nodes.functions import CallBlock, Def, DefParam, Slot, SlotBlock
 from kida.nodes.output import (
     Autoescape,
     Data,
@@ -127,6 +127,7 @@ __all__ = [
     "Set",
     "Slice",
     "Slot",
+    "SlotBlock",
     "Spaceless",
     "Template",
     "TemplateContext",

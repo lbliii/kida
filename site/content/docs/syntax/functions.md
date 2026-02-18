@@ -144,9 +144,9 @@ See [[docs/advanced/analysis|Static Analysis]] for the programmatic API.
 
 ---
 
-## Capturing Content
+## Capturing Content (Default Slot)
 
-Functions can capture block content using `caller()`:
+Functions can capture call-block content using `caller()`:
 
 ```kida
 {% def wrapper(title) %}
@@ -167,9 +167,37 @@ Functions can capture block content using `caller()`:
 {% end %}
 ```
 
+`caller()` without arguments reads the **default slot**.
+
+## Named Slots
+
+Kida also supports named slots for multi-region components:
+
+```kida
+{% def card(title) %}
+    <article>
+        <h2>{{ title }}</h2>
+        <div class="actions">{% slot header_actions %}</div>
+        <div class="body">{% slot %}</div>
+    </article>
+{% end %}
+
+{% call card("Settings") %}
+    {% slot header_actions %}<button>Save</button>{% end %}
+    <p>Body content.</p>
+{% end %}
+```
+
+How it works:
+
+- `{% slot %}` in a `def` is the default placeholder.
+- `{% slot name %}` in a `def` is a named placeholder.
+- Inside `{% call %}`, use `{% slot name %}...{% end %}` to provide named slot content.
+- `caller("name")` retrieves a named slot from inside a `def`.
+
 ## Slot Detection
 
-When a function is called via `{% call %}`, it receives slot content accessible through `caller()`. Use the built-in `has_slot()` function inside a `{% def %}` body to detect whether slot content was provided:
+When a function is called via `{% call %}`, it receives slot content accessible through `caller()`. Use the built-in `has_slot()` helper inside a `{% def %}` body to detect whether any call slot content was provided:
 
 ```kida
 {% def card(title) %}
@@ -201,7 +229,7 @@ When called with `{% call %}`, `has_slot()` returns `true`:
 {# Output includes the card-body wrapper #}
 ```
 
-This pattern is useful for components that should adapt their markup depending on whether slot content is provided — for example, rendering a wrapper `<div>` only when there's something to wrap.
+This pattern is useful for components that should adapt their markup depending on whether slot content is provided, for example rendering a wrapper `<div>` only when there is something to wrap.
 
 ---
 
