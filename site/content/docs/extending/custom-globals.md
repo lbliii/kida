@@ -126,6 +126,38 @@ with render_context() as ctx:
 
 Disable HTMX helpers with `Environment(enable_htmx_helpers=False)`.
 
+## Islands Helper Globals
+
+For server-rendered apps that mount isolated high-state widgets, frameworks can
+register helper globals that generate safe island mount attributes.
+
+```python
+import html
+import json
+from kida import Environment
+
+env = Environment()
+
+def island_attrs(name: str, props: dict, mount_id: str) -> str:
+    payload = html.escape(json.dumps(props, separators=(",", ":")), quote=True)
+    return (
+        f' data-island="{html.escape(name, quote=True)}"'
+        f' data-island-version="1"'
+        f' id="{html.escape(mount_id, quote=True)}"'
+        f' data-island-props="{payload}"'
+    )
+
+env.add_global("island_attrs", island_attrs)
+```
+
+Template usage:
+
+```kida
+<div{{ island_attrs("editor", {"doc_id": doc.id}, "editor-root") }}>
+    <p>Fallback editor UI (SSR) if JS is unavailable.</p>
+</div>
+```
+
 ## Common Patterns
 
 ### Site Configuration

@@ -233,6 +233,32 @@ This pattern is useful for components that should adapt their markup depending o
 
 ---
 
+## Islands Wrapper Pattern
+
+Functions are a good fit for reusable island mount wrappers in server-rendered apps:
+
+```kida
+{% def island_shell(name, attrs="") %}
+<section{{ attrs }}>
+    <div class="island-fallback">
+        {% slot %}
+    </div>
+</section>
+{% end %}
+
+{% call island_shell("editor", attrs=island_attrs("editor", {"doc_id": doc.id}, "editor-root")) %}
+    <p>Server-rendered fallback editor UI.</p>
+{% end %}
+```
+
+Guidelines:
+
+- Keep fallback slot content usable without JavaScript.
+- Pass serialized props via helper globals (avoid manual inline JSON).
+- Prefer stable mount IDs for deterministic remount behavior.
+
+---
+
 ## Macros
 
 Kida also supports the `{% macro %}` syntax:
