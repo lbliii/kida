@@ -256,6 +256,15 @@ Guidelines:
 - Keep fallback slot content usable without JavaScript.
 - Pass serialized props via helper globals (avoid manual inline JSON).
 - Prefer stable mount IDs for deterministic remount behavior.
+- Use explicit wrapper signatures when creating state primitives:
+
+```kida
+{% def grid_state_shell(state_key, columns, attrs="") %}
+<section{{ attrs }}>
+    {% slot %}
+</section>
+{% end %}
+```
 
 ---
 
