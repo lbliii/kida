@@ -355,7 +355,8 @@ class DependencyWalker:
 
         # Add to root scope
         if self._scope_stack:
-            self._scope_stack[0].add(node.name)
+            targets = self._extract_targets(node.name)
+            self._scope_stack[0] |= targets
 
     def _visit_export(self, node: Export) -> None:
         """Handle export statement."""

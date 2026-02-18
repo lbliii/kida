@@ -33,6 +33,7 @@ from kida.nodes import (
     BinOp,
     Block,
     BoolOp,
+    CallBlock,
     Capture,
     Compare,
     Concat,
@@ -52,6 +53,7 @@ from kida.nodes import (
     Output,
     Pipeline,
     Set,
+    SlotBlock,
     Template,
     UnaryOp,
 )
@@ -604,6 +606,29 @@ class PartialEvaluator:
                 required=node.required,
             )
 
+        if isinstance(node, CallBlock):
+            new_slots = {k: self._transform_body(v) for k, v in node.slots.items()}
+            if all(new_slots[k] is node.slots[k] for k in node.slots):
+                return node
+            return CallBlock(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                call=node.call,
+                slots=new_slots,
+                args=node.args,
+            )
+
+        if isinstance(node, SlotBlock):
+            new_body = self._transform_body(node.body)
+            if new_body is node.body:
+                return node
+            return SlotBlock(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                name=node.name,
+                body=new_body,
+            )
+
         # Data, Raw, and other nodes pass through unchanged
         return node
 
@@ -891,6 +916,35 @@ def _flatten_body(body: Sequence[Node]) -> Sequence[Node]:
                         body=new_block_body,
                         scoped=node.scoped,
                         required=node.required,
+                    )
+                )
+            else:
+                result.append(node)
+        elif isinstance(node, CallBlock):
+            new_slots = {k: _flatten_body(v) for k, v in node.slots.items()}
+            if any(new_slots[k] is not node.slots[k] for k in node.slots):
+                changed = True
+                result.append(
+                    CallBlock(
+                        lineno=node.lineno,
+                        col_offset=node.col_offset,
+                        call=node.call,
+                        slots=new_slots,
+                        args=node.args,
+                    )
+                )
+            else:
+                result.append(node)
+        elif isinstance(node, SlotBlock):
+            new_body = _flatten_body(node.body)
+            if new_body is not node.body:
+                changed = True
+                result.append(
+                    SlotBlock(
+                        lineno=node.lineno,
+                        col_offset=node.col_offset,
+                        name=node.name,
+                        body=new_body,
                     )
                 )
             else:

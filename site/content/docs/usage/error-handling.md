@@ -154,8 +154,8 @@ Every Kida exception carries an `ErrorCode` that categorizes the error and links
 | `K-RUN-003` | Runtime | Index out of range |
 | `K-RUN-004` | Runtime | Filter execution error |
 | `K-TPL-001` | Template | Template not found |
-| `K-TPL-002` | Template | Circular template inheritance |
-| `K-TPL-003` | Template | Invalid block override |
+| `K-TPL-002` | Template | Template syntax error |
+| `K-TPL-003` | Template | Circular macro import |
 
 Access the code programmatically:
 

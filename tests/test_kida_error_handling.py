@@ -782,6 +782,7 @@ class TestErrorCodes:
         assert ErrorCode.UNDEFINED_VARIABLE.value == "K-RUN-001"
         assert ErrorCode.TEMPLATE_NOT_FOUND.value == "K-TPL-001"
         assert ErrorCode.SYNTAX_ERROR.value == "K-TPL-002"
+        assert ErrorCode.CIRCULAR_IMPORT.value == "K-TPL-003"
         assert ErrorCode.RUNTIME_ERROR.value == "K-RUN-007"
 
     def test_error_code_docs_url(self) -> None:

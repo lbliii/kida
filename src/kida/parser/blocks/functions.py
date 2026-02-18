@@ -12,10 +12,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
-from kida.nodes import CallBlock, Def, DefParam, Slot
+from kida.nodes import CallBlock, Def, DefParam, Slot, SlotBlock
 
 if TYPE_CHECKING:
-    from kida.nodes import Expr, Node
+    from kida.nodes import Data, Expr, Node, Output
     from kida.parser.errors import ParseError
 
 from kida.parser.blocks.core import BlockStackMixin
@@ -53,6 +53,11 @@ class FunctionBlockParsingMixin(BlockStackMixin):
 
         # From StatementParsingMixin
         def _parse_body(self, stop_on_continuation: bool = False) -> list[Node]: ...
+        def _peek(self, offset: int = 0) -> Token: ...
+        def _parse_block(self) -> Node | list[Node] | None: ...
+        def _parse_data(self) -> Data: ...
+        def _parse_output(self) -> Output: ...
+        def _skip_comment(self) -> None: ...
 
         # From ExpressionParsingMixin
         def _parse_expression(self) -> Expr: ...
@@ -274,10 +279,13 @@ class FunctionBlockParsingMixin(BlockStackMixin):
         """Parse {% call name(args) %}body{% end %} or {% endcall %.
 
         Call a function/def with body content that fills {% slot %}.
+        Supports named slots: {% slot name %}...{% end %} assigns to slot name;
+        content outside slot blocks goes to default.
 
         Example:
             {% call card("My Title") %}
-                <p>This content goes in the slot!</p>
+                {% slot header_actions %}<button>⋯</button>{% end %}
+                <p>Body content.</p>
             {% end %}
         """
         start = self._advance()  # consume 'call'
@@ -287,8 +295,8 @@ class FunctionBlockParsingMixin(BlockStackMixin):
         call_expr = self._parse_expression()
         self._expect(TokenType.BLOCK_END)
 
-        # Parse body using universal end detection
-        body = self._parse_body()
+        # Parse body into slots (named or default)
+        slots = self._parse_call_body()
 
         # Consume end tag
         self._consume_end_tag("call")
@@ -297,21 +305,55 @@ class FunctionBlockParsingMixin(BlockStackMixin):
             lineno=start.lineno,
             col_offset=start.col_offset,
             call=call_expr,
-            body=tuple(body),
+            slots=slots,
         )
 
-    def _parse_slot(self) -> Slot:
-        """Parse {% slot %} or {% slot name %.
+    def _parse_call_body(self) -> dict[str, Sequence[Node]]:
+        """Parse call block body into slots dict.
 
-        Placeholder inside {% def %} where caller content goes.
+        When {% slot name %}...{% end %} appears, content goes to slots[name].
+        Other content goes to slots["default"].
+        """
+        slots: dict[str, list[Node]] = {"default": []}
 
-        Example:
-            {% def card(title) %}
-                <div class="card">
-                    <h3>{{ title }}</h3>
-                    <div class="body">{% slot %}</div>
-                </div>
-            {% enddef %}
+        while self._current.type != TokenType.EOF:
+            if self._current.type == TokenType.BLOCK_BEGIN:
+                next_tok = self._peek(1)
+                if next_tok.type == TokenType.NAME and next_tok.value in self._END_KEYWORDS:
+                    break
+                if (
+                    next_tok.type == TokenType.NAME
+                    and next_tok.value in self._CONTINUATION_KEYWORDS
+                ):
+                    break
+
+                result = self._parse_block()
+                if result is not None:
+                    if isinstance(result, SlotBlock):
+                        name = result.name
+                        if name not in slots:
+                            slots[name] = []
+                        slots[name].extend(result.body)
+                    elif isinstance(result, list):
+                        slots["default"].extend(result)
+                    else:
+                        slots["default"].append(result)
+            elif self._current.type == TokenType.DATA:
+                slots["default"].append(self._parse_data())
+            elif self._current.type == TokenType.VARIABLE_BEGIN:
+                slots["default"].append(self._parse_output())
+            elif self._current.type == TokenType.COMMENT_BEGIN:
+                self._skip_comment()
+            else:
+                self._advance()
+
+        return {k: tuple(v) for k, v in slots.items()}
+
+    def _parse_slot(self) -> Slot | SlotBlock:
+        """Parse {% slot %} or {% slot name %} — context-dependent.
+
+        Inside {% call %}: parse {% slot name %}...{% end %} as SlotBlock.
+        Inside {% def %}: parse self-closing {% slot %} or {% slot name %} as Slot.
         """
         start = self._advance()  # consume 'slot'
 
@@ -322,6 +364,19 @@ class FunctionBlockParsingMixin(BlockStackMixin):
 
         self._expect(TokenType.BLOCK_END)
 
+        # Inside call block: parse as block with body
+        if self._block_stack and self._block_stack[-1][0] == "call":
+            self._push_block("slot", start)
+            body = self._parse_body()
+            self._consume_end_tag("slot")
+            return SlotBlock(
+                lineno=start.lineno,
+                col_offset=start.col_offset,
+                name=name,
+                body=tuple(body),
+            )
+
+        # Inside def: self-closing placeholder
         return Slot(
             lineno=start.lineno,
             col_offset=start.col_offset,

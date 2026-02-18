@@ -82,6 +82,7 @@ class ErrorCode(Enum):
     # Template loading errors (K-TPL-xxx)
     TEMPLATE_NOT_FOUND = "K-TPL-001"
     SYNTAX_ERROR = "K-TPL-002"
+    CIRCULAR_IMPORT = "K-TPL-003"
 
     @property
     def docs_url(self) -> str:
@@ -388,6 +389,7 @@ class TemplateRuntimeError(TemplateError):
         suggestion: str | None = None,
         source_snippet: SourceSnippet | None = None,
         template_stack: list[tuple[str, int]] | None = None,
+        code: ErrorCode | None = None,
     ):
         self.message = message
         self.expression = expression
@@ -397,6 +399,7 @@ class TemplateRuntimeError(TemplateError):
         self.suggestion = suggestion
         self.source_snippet = source_snippet
         self.template_stack = template_stack or []
+        self.code = code if code is not None else ErrorCode.RUNTIME_ERROR
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:

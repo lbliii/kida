@@ -19,3 +19,4 @@ pytest examples/components/ -v
 - `{% def name(params) %}` — define a component
 - `{% call name(args) %}` — invoke with content
 - `{% slot %}` — content projection (default slot)
+- `{% slot name %}` inside `{% call %}` — named slot content blocks

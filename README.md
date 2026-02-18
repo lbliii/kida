@@ -65,6 +65,7 @@ Requires Python 3.14+
 | **Streaming** | Statement-level generator rendering via `render_stream()` | [Streaming →](https://lbliii.github.io/kida/docs/usage/streaming/) |
 | **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
 | **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
+| **Components & Slots** | `{% def %}`, `{% call %}`, default + named `{% slot %}` | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/) |
 | **Partial Evaluation** | Compile-time evaluation of static expressions | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
 | **Block Recompilation** | Recompile only changed blocks in live templates | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
 | **Extensibility** | Custom filters, tests, globals, loaders | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
@@ -133,6 +134,29 @@ print(template.render(title="Hello", content="World"))
     Unknown status
 {% end %}
 ```
+
+</details>
+
+<details>
+<summary><strong>Components & Named Slots</strong> — Reusable UI composition</summary>
+
+```kida
+{% def card(title) %}
+<article class="card">
+  <h2>{{ title }}</h2>
+  <div class="actions">{% slot header_actions %}</div>
+  <div class="body">{% slot %}</div>
+</article>
+{% end %}
+
+{% call card("Settings") %}
+  {% slot header_actions %}<button>Save</button>{% end %}
+  <p>Body content.</p>
+{% end %}
+```
+
+`{% slot %}` is the default slot. Named slot blocks inside `{% call %}` map to
+matching placeholders in `{% def %}`.
 
 </details>
 

@@ -36,15 +36,28 @@ class Def(Node):
 
 @dataclass(frozen=True, slots=True)
 class Slot(Node):
-    """Slot for component content: {% slot %}"""
+    """Slot placeholder inside {% def %}: {% slot %} or {% slot name %}"""
 
     name: str = "default"
 
 
 @dataclass(frozen=True, slots=True)
+class SlotBlock(Node):
+    """Named slot content inside {% call %}: {% slot name %}...{% end %}"""
+
+    name: str
+    body: Sequence[Node]
+
+
+@dataclass(frozen=True, slots=True)
 class CallBlock(Node):
-    """Call function with body content: {% call name(args) %}body{% end %}"""
+    """Call function with slot content: {% call name(args) %}...{% end %}"""
 
     call: Expr
-    body: Sequence[Node]
+    slots: dict[str, Sequence[Node]]
     args: Sequence[Expr] = ()
+
+    @property
+    def body(self) -> Sequence[Node]:
+        """Backward-compat: default slot content."""
+        return self.slots.get("default", ())

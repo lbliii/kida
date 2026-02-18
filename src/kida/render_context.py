@@ -79,6 +79,10 @@ class RenderContext:
     cached_block_names: frozenset[str] = field(default_factory=frozenset)
     cache_stats: dict[str, int] | None = None
 
+    # Macro import stack (circular import detection for {% from X import y %})
+    # Shared across child contexts; mutated during _import_macros
+    import_stack: list[str] = field(default_factory=list)
+
     # Framework metadata (for HTMX, CSRF, etc.)
     _meta: dict[str, object] = field(default_factory=dict)
 
@@ -180,6 +184,7 @@ class RenderContext:
             cached_blocks=self.cached_blocks,
             cached_block_names=self.cached_block_names,
             cache_stats=self.cache_stats,
+            import_stack=self.import_stack,  # Share for circular import detection
             _meta=self._meta,  # Share metadata with child templates
             template_stack=new_stack,  # Pass stack to child
         )

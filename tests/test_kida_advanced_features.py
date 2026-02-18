@@ -185,6 +185,47 @@ class TestCallSlot:
         assert tmpl.render() == "[]"
 
 
+class TestNamedSlots:
+    """Named slots in {% call %} blocks."""
+
+    def test_named_slot_in_call(self, env):
+        """Slot blocks assign content to named slots; other content goes to default."""
+        tmpl = env.from_string(
+            "{% def card() %}"
+            "[header:{% slot header %}][body:{% slot %}]"
+            "{% end %}"
+            "{% call card() %}"
+            "{% slot header %}X{% end %}Y"
+            "{% end %}"
+        )
+        assert tmpl.render() == "[header:X][body:Y]"
+
+    def test_slot_placeholder_by_name(self, env):
+        """Def with {% slot header %} and {% slot %}; call with named slots."""
+        tmpl = env.from_string(
+            "{% def card(title) %}"
+            "<article><h2>{{ title }}</h2>"
+            "<div class='actions'>{% slot header_actions %}</div>"
+            "<div class='body'>{% slot %}</div></article>"
+            "{% end %}"
+            "{% call card('Settings') %}"
+            "{% slot header_actions %}<button>⋯</button>{% end %}"
+            "<p>Body content.</p>"
+            "{% end %}"
+        )
+        result = tmpl.render()
+        assert "<h2>Settings</h2>" in result
+        assert "<button>⋯</button>" in result
+        assert "<p>Body content.</p>" in result
+
+    def test_backward_compat_single_body(self, env):
+        """Existing {% call x() %}body{% end %} still works (no slot blocks)."""
+        tmpl = env.from_string(
+            "{% def box() %}<div>{% slot %}</div>{% end %}{% call box() %}Content{% end %}"
+        )
+        assert tmpl.render() == "<div>Content</div>"
+
+
 # =============================================================================
 # {% capture %} - Capture block to variable
 # =============================================================================
