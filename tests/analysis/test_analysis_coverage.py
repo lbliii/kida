@@ -264,6 +264,30 @@ class TestDependencyWalkerBuildPath:
         assert "data.section" in deps or "data" in deps
 
 
+class TestSlotAwareAnalysis:
+    """Slot-aware analysis: depends_on and validate_context traverse slot bodies in CallBlock."""
+
+    def test_depends_on_includes_slot_body_expressions(self) -> None:
+        """Expressions inside {% slot name %}...{% end %} in call blocks are tracked."""
+        env = Environment()
+        t = env.from_string(
+            "{% def card() %}<div>{% slot header %}</div>{% end %}"
+            "{% call card() %}{% slot header %}{{ page.title }}{% end %}{% end %}"
+        )
+        deps = t.depends_on()
+        assert "page.title" in deps or "page" in deps
+
+    def test_validate_context_detects_missing_in_slot_body(self) -> None:
+        """validate_context reports missing variables used inside slot bodies."""
+        env = Environment()
+        t = env.from_string(
+            "{% def card() %}<div>{% slot header %}</div>{% end %}"
+            "{% call card() %}{% slot header %}{{ user.name }}{% end %}{% end %}"
+        )
+        missing = t.validate_context({})
+        assert "user.name" in missing or "user" in missing
+
+
 # ---------------------------------------------------------------------------
 # PurityAnalyzer — target uncovered handlers
 # ---------------------------------------------------------------------------
