@@ -225,6 +225,24 @@ class TestNamedSlots:
         )
         assert tmpl.render() == "<div>Content</div>"
 
+    def test_caller_with_named_slot(self, env):
+        """caller('slot_name') returns named slot content when invoked from def body."""
+        tmpl = env.from_string(
+            "{% def card() %}"
+            "<div class='header'>{{ caller('header') }}</div>"
+            "<div class='body'>{{ caller() }}</div>"
+            "{% end %}"
+            "{% call card() %}"
+            "{% slot header %}Title{% end %}"
+            "Body content"
+            "{% end %}"
+        )
+        result = tmpl.render()
+        assert "Title" in result
+        assert "Body content" in result
+        assert "<div class='header'>" in result
+        assert "<div class='body'>" in result
+
 
 # =============================================================================
 # {% capture %} - Capture block to variable

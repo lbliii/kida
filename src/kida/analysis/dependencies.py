@@ -580,12 +580,13 @@ class DependencyWalker:
             self._visit(child)
 
     def _visit_callblock(self, node: CallBlock) -> None:
-        """Handle call block: {% call name(args) %}body{% end %}"""
+        """Handle call block: {% call name(args) %}body{% end %} with named slots."""
         self._visit(node.call)
         for arg in node.args:
             self._visit(arg)
-        for child in node.body:
-            self._visit(child)
+        for slot_body in node.slots.values():
+            for child in slot_body:
+                self._visit(child)
 
     def _visit_spaceless(self, node: Spaceless) -> None:
         """Handle spaceless block."""
