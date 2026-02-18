@@ -67,6 +67,8 @@ public/
 .bengal/
 .bengal.pid
 *.log
+*.db-shm
+*.db-wal
 
 # Temporary test output
 .pytest_cache/last_failure.txt
