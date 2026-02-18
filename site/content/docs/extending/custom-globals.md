@@ -158,6 +158,27 @@ Template usage:
 </div>
 ```
 
+## Auth Template Safety
+
+For authentication views, keep template globals minimal and avoid exposing
+raw request/session objects.
+
+```python
+from kida import render_context
+
+with render_context() as ctx:
+    ctx.set_meta("csrf_token", csrf_token_value)
+    # Provide only explicit, safe values to templates.
+    html = template.render(current_user=user, next_url=safe_next_url)
+```
+
+Guidelines:
+
+- Keep `autoescape=True` (default).
+- Prefer explicit values (`current_user`, IDs, flags) over full framework objects.
+- Use CSRF helpers from render metadata (`csrf_token`) instead of hand-rolled fields.
+- Treat `Markup` as trusted-only output.
+
 ## Common Patterns
 
 ### Site Configuration
