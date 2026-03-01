@@ -37,17 +37,20 @@ echo "Python: $(python --version 2>&1)"
 echo "Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo ""
 
-# Check baseline exists (pytest-benchmark saves as 000N_name.json)
-BASELINE_FILE=$(find "$BENCHMARK_DIR" -name "*_${BASELINE}.json" -not -name "*_comparison*" 2>/dev/null | head -1)
+# Check baseline exists for current platform (pytest-benchmark uses platform-specific dirs)
+PLATFORM_DIR=$(python -c "from pytest_benchmark.utils import get_machine_id; print(get_machine_id())")
+BASELINE_FILE=$(find "$BENCHMARK_DIR/$PLATFORM_DIR" -name "*_${BASELINE}.json" -not -name "*_comparison*" 2>/dev/null | head -1)
 if [ -z "$BASELINE_FILE" ]; then
-    echo "ERROR: Baseline '$BASELINE' not found in $BENCHMARK_DIR/"
+    echo "ERROR: Baseline '$BASELINE' not found for platform $PLATFORM_DIR"
+    echo "       (pytest-benchmark stores baselines in benchmarks/<platform>/)"
     echo ""
     echo "Available baselines:"
-    ls "$BENCHMARK_DIR"/*.json 2>/dev/null | while read -r f; do
-        basename "$f" .json | sed 's/^[0-9]*_/  /'
+    find "$BENCHMARK_DIR" -name "*_${BASELINE}.json" 2>/dev/null | while read -r f; do
+        echo "  $f"
     done
     echo ""
-    echo "Run './scripts/benchmark_baseline.sh $BASELINE' first."
+    echo "Run './scripts/benchmark_baseline.sh' on this platform, or use the"
+    echo "'Benchmark baseline' workflow (Actions → Run workflow) for Linux CI."
     exit 2
 fi
 
@@ -55,12 +58,13 @@ echo "Found baseline: $(basename "$BASELINE_FILE")"
 echo ""
 
 # Run current benchmarks and compare (use --benchmark-compare-fail for hard failure)
+# pytest-benchmark saves as 0001_${name}.json; compare pattern must be *_${name} to match
 echo "--- Running benchmarks ---"
 python -m pytest \
     "$PROJECT_DIR/benchmarks/test_benchmark_render.py" \
     "$PROJECT_DIR/benchmarks/test_benchmark_full_comparison.py" \
     --benchmark-only \
-    --benchmark-compare="$BASELINE" \
+    --benchmark-compare="*_${BASELINE}" \
     --benchmark-compare-fail="mean:${THRESHOLD}%" \
     --benchmark-storage="$STORAGE" \
     --benchmark-min-rounds=5 \

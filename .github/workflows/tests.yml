@@ -234,13 +234,20 @@ jobs:
           CI: true
           PYTHON_GIL: "0"
         run: |
-          uv run pytest benchmarks/test_benchmark_render.py benchmarks/test_benchmark_full_comparison.py \
-            --benchmark-only \
-            --benchmark-compare=baseline \
-            --benchmark-compare-fail="mean:10%" \
-            --benchmark-storage=file://$PWD/benchmarks \
-            --benchmark-min-rounds=5 \
-            -q
+          export PATH="$PWD/.venv/bin:$PATH"
+          EXIT=0
+          ./scripts/benchmark_compare.sh || EXIT=$?
+          if [ "$EXIT" -eq 2 ]; then
+            echo "No baseline found for this platform; running benchmarks without compare."
+            echo "To enable regression checks, run './scripts/benchmark_baseline.sh' on Linux and commit."
+            uv run pytest benchmarks/test_benchmark_render.py benchmarks/test_benchmark_full_comparison.py \
+              --benchmark-only \
+              --benchmark-storage=file://$PWD/benchmarks \
+              --benchmark-min-rounds=5 \
+              -q
+          else
+            exit "$EXIT"
+          fi
 
   # Full benchmark suite (weekly/manual only; uploads results)
   benchmarks:
