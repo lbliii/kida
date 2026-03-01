@@ -184,13 +184,14 @@ xmlattr({"invalid name": "value"}, strict=False)  # Markup('')
 
 Kida enforces limits to prevent resource exhaustion from malicious or pathological templates:
 
-| Limit | Default | Description |
-|-------|---------|-------------|
-| `max_extends_depth` | 50 | Maximum `{% extends %}` chain depth. Circular inheritance (A extends B extends A) raises `TemplateRuntimeError`. |
-| `MAX_FILTER_CHAIN_LEN` | 200 | Maximum filters in a `\|` or `\|>` chain. Exceeding raises `TemplateSyntaxError`. |
-| Partial evaluator depth | 100 | Maximum nested attribute lookups in compile-time partial evaluation. Prevents stack overflow. |
+| Limit | Default | Configurable | Description |
+|-------|---------|--------------|-------------|
+| `max_extends_depth` | 50 | Yes (`Environment`) | Maximum `{% extends %}` chain depth. Circular inheritance (A extends B extends A) raises `TemplateRuntimeError`. |
+| `max_include_depth` | 50 | Yes (`Environment`) | Maximum `{% include %}` / `{% embed %}` depth. |
+| `MAX_FILTER_CHAIN_LEN` | 200 | No | Maximum filters in a `\|` or `\|>` chain. Exceeding raises `TemplateSyntaxError`. |
+| Partial evaluator depth | 100 | No | Maximum nested attribute lookups in compile-time partial evaluation. Prevents stack overflow. |
 
-These limits are internal constants. Templates exceeding them raise clear errors rather than hanging or crashing.
+The extends and include limits are configurable via `Environment(max_extends_depth=..., max_include_depth=...)` for deployments with deep template hierarchies. See [[docs/reference/configuration|Configuration]] for details.
 
 ## NUL Byte Stripping
 

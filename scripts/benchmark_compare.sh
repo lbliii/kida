@@ -7,14 +7,15 @@
 #
 # Exit codes:
 #   0 = all benchmarks within threshold
-#   1 = regressions detected (>5% slower than baseline)
+#   1 = regressions detected (>10% slower than baseline)
 #   2 = baseline not found
 #
-# This script is designed for CI integration. It runs the render benchmark
-# suite, compares against a saved baseline, and prints a summary table.
+# This script is designed for CI integration. It runs the render and full
+# comparison benchmark suites, compares against a saved baseline, and fails
+# if any benchmark is >10% slower.
 #
 # Prerequisites:
-#   - A baseline must exist in .benchmarks/ (run benchmark_baseline.sh first)
+#   - A baseline must exist in benchmarks/ (run benchmark_baseline.sh first)
 #   - pytest-benchmark must be installed
 
 set -euo pipefail
@@ -22,20 +23,22 @@ set -euo pipefail
 BASELINE="${1:-baseline}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BENCHMARK_DIR="$PROJECT_DIR/.benchmarks"
+BENCHMARK_DIR="$PROJECT_DIR/benchmarks"
+STORAGE="file://$PROJECT_DIR/benchmarks"
 
-# Regression threshold: 5% slower than baseline triggers failure
-THRESHOLD="5"
+# Regression threshold: 10% slower than baseline triggers failure (matches CI)
+THRESHOLD="10"
 
 echo "=== Kida Benchmark Regression Check ==="
 echo "Baseline: $BASELINE"
 echo "Threshold: ${THRESHOLD}% regression"
+echo "Storage: $STORAGE"
 echo "Python: $(python --version 2>&1)"
 echo "Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo ""
 
 # Check baseline exists (pytest-benchmark saves as 000N_name.json)
-BASELINE_FILE=$(find "$BENCHMARK_DIR" -name "*_${BASELINE}.json" 2>/dev/null | head -1)
+BASELINE_FILE=$(find "$BENCHMARK_DIR" -name "*_${BASELINE}.json" -not -name "*_comparison*" 2>/dev/null | head -1)
 if [ -z "$BASELINE_FILE" ]; then
     echo "ERROR: Baseline '$BASELINE' not found in $BENCHMARK_DIR/"
     echo ""
@@ -51,33 +54,14 @@ fi
 echo "Found baseline: $(basename "$BASELINE_FILE")"
 echo ""
 
-# Run current benchmarks and compare
+# Run current benchmarks and compare (use --benchmark-compare-fail for hard failure)
 echo "--- Running benchmarks ---"
-COMPARE_OUTPUT=$(python -m pytest "$PROJECT_DIR/benchmarks/test_benchmark_render.py" \
+python -m pytest \
+    "$PROJECT_DIR/benchmarks/test_benchmark_render.py" \
+    "$PROJECT_DIR/benchmarks/test_benchmark_full_comparison.py" \
     --benchmark-only \
-    --benchmark-save=current \
     --benchmark-compare="$BASELINE" \
+    --benchmark-compare-fail="mean:${THRESHOLD}%" \
+    --benchmark-storage="$STORAGE" \
     --benchmark-min-rounds=5 \
-    -q 2>&1) || true
-
-echo "$COMPARE_OUTPUT"
-echo ""
-
-# Parse for regressions: look for lines where current is >5% slower
-# pytest-benchmark compare output shows columns with mean times and relative changes
-REGRESSIONS=$(echo "$COMPARE_OUTPUT" | grep -i "slower\|regression" || true)
-
-if [ -n "$REGRESSIONS" ]; then
-    echo ""
-    echo "=== REGRESSIONS DETECTED ==="
-    echo "$REGRESSIONS"
-    echo ""
-    echo "One or more benchmarks regressed beyond the ${THRESHOLD}% threshold."
-    echo "Review the comparison table above for details."
-    exit 1
-else
-    echo ""
-    echo "=== ALL BENCHMARKS WITHIN THRESHOLD ==="
-    echo "No regressions detected (threshold: ${THRESHOLD}%)."
-    exit 0
-fi
+    -q

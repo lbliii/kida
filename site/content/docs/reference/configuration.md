@@ -327,6 +327,25 @@ preserve_ast=True
 preserve_ast=False
 ```
 
+### max_extends_depth / max_include_depth
+
+Resource limits for DoS protection. Configurable for deployments with deep template hierarchies.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `max_extends_depth` | `int` | `50` | Maximum `{% extends %}` chain depth |
+| `max_include_depth` | `int` | `50` | Maximum `{% include %}` / `{% embed %}` depth |
+
+```python
+# Deeper inheritance for complex sites
+env = Environment(
+    max_extends_depth=100,
+    max_include_depth=75,
+)
+```
+
+Exceeding these limits raises `TemplateRuntimeError`. See [[docs/advanced/security|Security Hardening]] for details.
+
 ### enable_htmx_helpers
 
 Register HTMX helper globals (`hx_request`, `hx_target`, `hx_trigger`, `hx_boosted`, `csrf_token`).

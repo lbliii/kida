@@ -207,7 +207,42 @@ jobs:
         run: |
           uv run pytest -v --tb=short --cov=kida --cov-report=term-missing --timeout=300
 
-  # Benchmark suite (weekly/manual only)
+  # Benchmark regression check (runs on PR and main; fails if >10% slower than baseline)
+  benchmark-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.14t"
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run benchmark regression check
+        env:
+          CI: true
+          PYTHON_GIL: "0"
+        run: |
+          uv run pytest benchmarks/test_benchmark_render.py benchmarks/test_benchmark_full_comparison.py \
+            --benchmark-only \
+            --benchmark-compare=baseline \
+            --benchmark-compare-fail="mean:10%" \
+            --benchmark-storage=file://$PWD/benchmarks \
+            --benchmark-min-rounds=5 \
+            -q
+
+  # Full benchmark suite (weekly/manual only; uploads results)
   benchmarks:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

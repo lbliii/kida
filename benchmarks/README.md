@@ -126,9 +126,24 @@ pytest benchmarks/ -v --benchmark-only
 # Save a baseline for regression detection
 ./scripts/benchmark_baseline.sh
 
-# Compare against baseline
+# Compare against baseline (local)
 ./scripts/benchmark_compare.sh
 ```
+
+### Benchmark Regression CI
+
+CI runs a benchmark regression check on every PR and push. It compares against a committed baseline and fails if any benchmark is >10% slower.
+
+**Initial setup**: Run the **Benchmark baseline** workflow (Actions → Benchmark baseline → Run workflow) to generate the baseline on CI (Ubuntu). This creates `benchmarks/Linux-CPython-3.14-64bit/*_baseline.json` and commits it.
+
+**Updating the baseline**: After intentional performance changes (e.g. optimizations that change timings), run the Benchmark baseline workflow again, or locally:
+
+```bash
+./scripts/benchmark_baseline.sh
+# Then commit benchmarks/*.json (machine-specific subdir)
+```
+
+Note: Baselines are machine-specific. CI uses Ubuntu; local baselines (e.g. Darwin) are for development only.
 
 For the formal Kida vs Jinja2 comparison matrix, see [RESULTS.md](RESULTS.md).
 

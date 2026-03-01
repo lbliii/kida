@@ -109,7 +109,7 @@ def test_baseline_kida(benchmark: BenchmarkFixture, kida_env: KidaEnvironment) -
     def run():
         return render_concurrent(template, CONTEXT, workers=1, iterations_per_worker=100)
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 @pytest.mark.benchmark(group="concurrent:baseline")
@@ -120,7 +120,7 @@ def test_baseline_jinja2(benchmark: BenchmarkFixture, jinja2_env: Jinja2Environm
     def run():
         return render_concurrent(template, CONTEXT, workers=1, iterations_per_worker=100)
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 # =============================================================================
@@ -136,7 +136,7 @@ def test_2workers_kida(benchmark: BenchmarkFixture, kida_env: KidaEnvironment) -
     def run():
         return render_concurrent(template, CONTEXT, workers=2, iterations_per_worker=50)
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 @pytest.mark.benchmark(group="concurrent:2-workers")
@@ -147,7 +147,7 @@ def test_2workers_jinja2(benchmark: BenchmarkFixture, jinja2_env: Jinja2Environm
     def run():
         return render_concurrent(template, CONTEXT, workers=2, iterations_per_worker=50)
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 # =============================================================================
@@ -163,7 +163,7 @@ def test_4workers_kida(benchmark: BenchmarkFixture, kida_env: KidaEnvironment) -
     def run():
         return render_concurrent(template, CONTEXT, workers=4, iterations_per_worker=25)
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 @pytest.mark.benchmark(group="concurrent:4-workers")
@@ -174,7 +174,7 @@ def test_4workers_jinja2(benchmark: BenchmarkFixture, jinja2_env: Jinja2Environm
     def run():
         return render_concurrent(template, CONTEXT, workers=4, iterations_per_worker=25)
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 # =============================================================================
@@ -190,7 +190,7 @@ def test_8workers_kida(benchmark: BenchmarkFixture, kida_env: KidaEnvironment) -
     def run():
         return render_concurrent(template, CONTEXT, workers=8, iterations_per_worker=13)
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 @pytest.mark.benchmark(group="concurrent:8-workers")
@@ -201,7 +201,7 @@ def test_8workers_jinja2(benchmark: BenchmarkFixture, jinja2_env: Jinja2Environm
     def run():
         return render_concurrent(template, CONTEXT, workers=8, iterations_per_worker=13)
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 # =============================================================================
@@ -228,7 +228,7 @@ def test_autotuned_kida(benchmark: BenchmarkFixture, kida_env: KidaEnvironment) 
             template, CONTEXT, workers=workers, iterations_per_worker=iterations_per_worker
         )
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 @pytest.mark.benchmark(group="concurrent:auto-tuned")
@@ -250,7 +250,7 @@ def test_autotuned_jinja2(benchmark: BenchmarkFixture, jinja2_env: Jinja2Environ
             template, CONTEXT, workers=workers, iterations_per_worker=iterations_per_worker
         )
 
-    elapsed, count = benchmark.pedantic(run, rounds=5, iterations=1)
+    benchmark.pedantic(run, rounds=5, iterations=1)
 
 
 # =============================================================================

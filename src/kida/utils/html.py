@@ -23,6 +23,12 @@ from typing import Any, Self, SupportsIndex, cast
 
 from kida.utils.constants import EVENT_HANDLER_ATTRS as _EVENT_HANDLER_ATTRS
 
+# Optional MarkupSafe (C extension) for faster escaping when installed
+try:
+    from markupsafe import escape as _ms_escape
+except ImportError:
+    _ms_escape = None  # type: ignore[assignment]
+
 # =============================================================================
 # Core Escaping Infrastructure
 # =============================================================================
@@ -432,6 +438,9 @@ def html_escape(value: Any) -> str:
         return str(value)
 
     s = str(value)
+    s = s.replace("\x00", "")  # Strip NUL (security) — MarkupSafe doesn't do this
+    if _ms_escape is not None:
+        return str(_ms_escape(s))  # MarkupSafe returns Markup; we need str
     return _escape_str(s)
 
 

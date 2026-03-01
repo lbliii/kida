@@ -1,0 +1,58 @@
+# Generate benchmark baseline on CI (Ubuntu). Run this workflow once to create
+# the initial baseline, or after intentional performance changes.
+#
+# Usage: Actions → Benchmark baseline → Run workflow
+# Then commit the pushed changes (benchmarks/*.json).
+name: Benchmark baseline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.14t"
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Generate benchmark baseline
+        env:
+          CI: true
+          PYTHON_GIL: "0"
+        run: |
+          uv run pytest benchmarks/test_benchmark_render.py benchmarks/test_benchmark_full_comparison.py \
+            --benchmark-only \
+            --benchmark-save=baseline \
+            --benchmark-storage=file://$PWD/benchmarks \
+            --benchmark-min-rounds=10 \
+            -q
+
+      - name: Commit and push baseline
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add benchmarks/
+          if git diff --staged --quiet; then
+            echo "No baseline changes to commit."
+          else
+            git commit -m "benchmarks: update baseline from CI (Ubuntu)"
+            git push
+          fi
