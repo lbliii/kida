@@ -57,7 +57,11 @@ echo ""
 
 # Check baseline exists for current platform (pytest-benchmark uses platform-specific dirs)
 PLATFORM_DIR=$(python -c "from pytest_benchmark.utils import get_machine_id; print(get_machine_id())")
-BASELINE_FILE=$(find "$BENCHMARK_DIR/$PLATFORM_DIR" -name "*_${BASELINE}.json" -not -name "*_comparison*" 2>/dev/null | head -1)
+# find exits 1 when path doesn't exist; avoid triggering set -e so we can handle gracefully
+BASELINE_FILE=""
+if [ -d "$BENCHMARK_DIR/$PLATFORM_DIR" ]; then
+    BASELINE_FILE=$(find "$BENCHMARK_DIR/$PLATFORM_DIR" -name "*_${BASELINE}.json" -not -name "*_comparison*" 2>/dev/null | head -1)
+fi
 if [ -z "$BASELINE_FILE" ]; then
     echo "ERROR: Baseline '$BASELINE' not found for platform $PLATFORM_DIR"
     echo "       (pytest-benchmark stores baselines in benchmarks/<platform>/)"
