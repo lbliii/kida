@@ -266,7 +266,7 @@ def test_escape_smart_numbers(benchmark: BenchmarkFixture) -> None:
 class FullLoopContext:
     """Current Kida LoopContext with all features."""
 
-    __slots__ = ("_items", "_index", "_length")
+    __slots__ = ("_index", "_items", "_length")
 
     def __init__(self, items: list) -> None:
         self._items = items

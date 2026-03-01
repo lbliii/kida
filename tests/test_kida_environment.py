@@ -312,7 +312,7 @@ class TestEnvironmentConfiguration:
             env = Environment(block_start_string="<%")
             tmpl = env.from_string("<% if true %>yes<% endif %>")
             assert tmpl.render() == "yes"
-        except (TypeError, AttributeError):
+        except TypeError, AttributeError:
             pytest.skip("Custom delimiters not supported")
 
     def test_variable_start_string(self):
@@ -321,7 +321,7 @@ class TestEnvironmentConfiguration:
             env = Environment(variable_start_string="<<")
             tmpl = env.from_string("<< x >>")
             assert tmpl.render(x=42) == "42"
-        except (TypeError, AttributeError):
+        except TypeError, AttributeError:
             pytest.skip("Custom delimiters not supported")
 
 

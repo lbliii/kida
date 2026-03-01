@@ -543,5 +543,5 @@ class TestSpecialCases:
             tmpl = env.from_string("{{ 名前 }}")
             result = tmpl.render(名前="value")
             assert result == "value"
-        except (TemplateSyntaxError, ParseError, LexerError):
+        except TemplateSyntaxError, ParseError, LexerError:
             pytest.skip("Unicode variable names not supported")

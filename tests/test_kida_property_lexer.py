@@ -73,7 +73,7 @@ class TestLexerProperties:
         """Well-formed fragments produce balanced BEGIN/END delimiter pairs."""
         try:
             tokens = tokenize(source)
-        except (TemplateSyntaxError, LexerError):
+        except TemplateSyntaxError, LexerError:
             return  # Fragment generation can occasionally produce edge cases
 
         types = [t.type for t in tokens]
@@ -89,7 +89,7 @@ class TestLexerProperties:
         """Token stream always ends with EOF."""
         try:
             tokens = tokenize(source)
-        except (TemplateSyntaxError, LexerError):
+        except TemplateSyntaxError, LexerError:
             return
         assert tokens[-1].type == TokenType.EOF
 

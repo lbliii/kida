@@ -141,7 +141,7 @@ def _filter_first(value: Any) -> Any:
         return None
     try:
         return next(iter(value), None)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -186,7 +186,7 @@ def _filter_join(value: Any, separator: str = "") -> str:
         return ""
     try:
         return separator.join(str(x) for x in value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return str(value)
 
 
@@ -202,7 +202,7 @@ def _filter_last(value: Any) -> Any:
         it = iter(value)
         dq = deque(it, maxlen=1)
         return dq[0] if dq else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -212,7 +212,7 @@ def _filter_length(value: Any) -> int:
         return 0
     try:
         return len(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
 
 
@@ -320,7 +320,7 @@ def _filter_sort(
                     if not case_sensitive:
                         val_str = val_str.lower()
                     values.append(_make_sort_key_string(val_str))
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     # Fallback for unstringable values (shouldn't happen, but be defensive)
                     values.append((1, 0, ""))
 
@@ -488,7 +488,7 @@ def _filter_take(value: Any, count: int) -> list[Any]:
         return []
     try:
         return list(islice(value, count))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return []
 
 
@@ -513,7 +513,7 @@ def _filter_skip(value: Any, count: int) -> list[Any]:
         return []
     try:
         return list(islice(value, count, None))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return []
 
 
@@ -555,7 +555,7 @@ def _filter_compact(value: Any, *, truthy: bool = True) -> list[Any]:
             return [v for v in value if v]
         else:
             return [v for v in value if v is not None]
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return []
 
 
@@ -574,7 +574,7 @@ def _filter_map(
             method_name = args[0]
             return [getattr(item, method_name)() for item in value]
         return list(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return []
 
 
@@ -752,7 +752,7 @@ def _filter_attr(value: Any, name: str) -> Any:
     try:
         val = getattr(value, name, None)
         return "" if val is None else val
-    except (AttributeError, TypeError):
+    except AttributeError, TypeError:
         return ""
 
 
@@ -831,7 +831,7 @@ def _filter_format_number(value: Any, decimal_places: int = 0) -> str:
             return f"{num:,.{decimal_places}f}"
         else:
             return f"{int(num):,}"
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return str(value)
 
 
@@ -890,7 +890,7 @@ def _filter_decimal(value: Any, places: int = 2) -> str:
     try:
         num = float(value)
         return f"{num:.{places}f}"
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return str(value)
 
 

@@ -36,6 +36,7 @@ from kida.nodes import (
     Tuple,
     UnaryOp,
 )
+from kida.utils.constants import MAX_FILTER_CHAIN_LEN
 
 if TYPE_CHECKING:
     from kida.nodes import Expr
@@ -510,8 +511,15 @@ class ExpressionParsingMixin:
             return self._parse_pipeline(expr)
 
         # Standard filter chain with |
+        filter_count = 0
         while self._match(TokenType.PIPE):
             self._advance()
+            filter_count += 1
+            if filter_count > MAX_FILTER_CHAIN_LEN:
+                raise self._error(
+                    f"Filter chain exceeds maximum length ({MAX_FILTER_CHAIN_LEN})",
+                    suggestion="Simplify the expression or split into multiple variables",
+                )
 
             # Error if switching from | to |> mid-expression
             if self._match(TokenType.PIPELINE):
@@ -584,6 +592,11 @@ class ExpressionParsingMixin:
                 self._expect(TokenType.RPAREN)
 
             steps.append((filter_name, tuple(args), kwargs))
+            if len(steps) > MAX_FILTER_CHAIN_LEN:
+                raise self._error(
+                    f"Pipeline exceeds maximum length ({MAX_FILTER_CHAIN_LEN})",
+                    suggestion="Simplify the expression or split into multiple variables",
+                )
 
         # Error if switching from |> to | mid-expression
         if self._match(TokenType.PIPE):

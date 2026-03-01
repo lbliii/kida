@@ -297,7 +297,7 @@ class PartialEvaluator:
 
     """
 
-    __slots__ = ("_ctx", "_escape", "_filter_callables", "_pure_filters")
+    __slots__ = ("_ctx", "_escape", "_filter_callables", "_max_depth", "_pure_filters")
 
     def __init__(
         self,
@@ -306,11 +306,13 @@ class PartialEvaluator:
         escape_func: Any | None = None,
         pure_filters: frozenset[str] = frozenset(),
         filter_callables: dict[str, Callable[..., Any]] | None = None,
+        max_eval_depth: int = 100,
     ) -> None:
         self._ctx = static_context
         self._escape = escape_func
         self._pure_filters = pure_filters
         self._filter_callables = filter_callables or {}
+        self._max_depth = max_eval_depth
 
     def evaluate(self, template: Template) -> Template:
         """Transform a template AST by evaluating static expressions.
@@ -334,13 +336,18 @@ class PartialEvaluator:
     # Expression evaluation (try to compute a value)
     # ------------------------------------------------------------------
 
-    def _try_eval(self, expr: Expr) -> Any:
+    def _try_eval(self, expr: Expr, depth: int = 0) -> Any:
         """Try to evaluate an expression against the static context.
 
         Returns the computed value on success, or ``_UNRESOLVED`` if the
         expression depends on runtime values.
 
+        Depth limit prevents stack overflow from deeply nested attribute chains
+        (e.g. a.b.c.d.e... with 500+ levels).
         """
+        if depth >= self._max_depth:
+            return _UNRESOLVED
+
         if isinstance(expr, Const):
             return expr.value
 
@@ -350,7 +357,7 @@ class PartialEvaluator:
             return _UNRESOLVED
 
         if isinstance(expr, Getattr):
-            obj = self._try_eval(expr.obj)
+            obj = self._try_eval(expr.obj, depth + 1)
             if obj is _UNRESOLVED:
                 return _UNRESOLVED
             try:
@@ -358,81 +365,81 @@ class PartialEvaluator:
                 if isinstance(obj, Mapping):
                     return obj[expr.attr]
                 return getattr(obj, expr.attr)
-            except (AttributeError, KeyError, TypeError):
+            except AttributeError, KeyError, TypeError:
                 return _UNRESOLVED
 
         if isinstance(expr, Getitem):
-            obj = self._try_eval(expr.obj)
-            key = self._try_eval(expr.key)
+            obj = self._try_eval(expr.obj, depth + 1)
+            key = self._try_eval(expr.key, depth + 1)
             if obj is _UNRESOLVED or key is _UNRESOLVED:
                 return _UNRESOLVED
             try:
                 return obj[key]
-            except (KeyError, IndexError, TypeError):
+            except KeyError, IndexError, TypeError:
                 return _UNRESOLVED
 
         if isinstance(expr, BinOp):
-            left = self._try_eval(expr.left)
-            right = self._try_eval(expr.right)
+            left = self._try_eval(expr.left, depth + 1)
+            right = self._try_eval(expr.right, depth + 1)
             if left is _UNRESOLVED or right is _UNRESOLVED:
                 return _UNRESOLVED
             return self._eval_binop(expr.op, left, right)
 
         if isinstance(expr, UnaryOp):
-            operand = self._try_eval(expr.operand)
+            operand = self._try_eval(expr.operand, depth + 1)
             if operand is _UNRESOLVED:
                 return _UNRESOLVED
             return self._eval_unaryop(expr.op, operand)
 
         if isinstance(expr, Compare):
-            return self._eval_compare(expr)
+            return self._eval_compare(expr, depth)
 
         if isinstance(expr, BoolOp):
-            return self._eval_boolop(expr)
+            return self._eval_boolop(expr, depth)
 
         if isinstance(expr, CondExpr):
-            test = self._try_eval(expr.test)
+            test = self._try_eval(expr.test, depth + 1)
             if test is _UNRESOLVED:
                 return _UNRESOLVED
-            return self._try_eval(expr.if_true if test else expr.if_false)
+            return self._try_eval(expr.if_true if test else expr.if_false, depth + 1)
 
         if isinstance(expr, Concat):
             parts = []
             for node in expr.nodes:
-                val = self._try_eval(node)
+                val = self._try_eval(node, depth + 1)
                 if val is _UNRESOLVED:
                     return _UNRESOLVED
                 parts.append(str(val))
             return "".join(parts)
 
         if isinstance(expr, Filter):
-            return self._try_eval_filter(expr)
+            return self._try_eval_filter(expr, depth)
 
         if isinstance(expr, Pipeline):
-            return self._try_eval_pipeline(expr)
+            return self._try_eval_pipeline(expr, depth)
 
         # Anything else (FuncCall, etc.) — not resolved
         return _UNRESOLVED
 
-    def _try_eval_filter(self, expr: Filter) -> Any:
+    def _try_eval_filter(self, expr: Filter, depth: int = 0) -> Any:
         """Evaluate a Filter node when value and args are resolvable."""
         if expr.name not in self._pure_filters:
             return _UNRESOLVED
         func = self._filter_callables.get(expr.name)
         if func is None:
             return _UNRESOLVED
-        value = self._try_eval(expr.value)
+        value = self._try_eval(expr.value, depth + 1)
         if value is _UNRESOLVED:
             return _UNRESOLVED
         args_resolved: list[Any] = []
         for arg in expr.args:
-            a = self._try_eval(arg)
+            a = self._try_eval(arg, depth + 1)
             if a is _UNRESOLVED:
                 return _UNRESOLVED
             args_resolved.append(a)
         kwargs_resolved: dict[str, Any] = {}
         for k, v in expr.kwargs.items():
-            kv = self._try_eval(v)
+            kv = self._try_eval(v, depth + 1)
             if kv is _UNRESOLVED:
                 return _UNRESOLVED
             kwargs_resolved[k] = kv
@@ -441,9 +448,9 @@ class PartialEvaluator:
         except Exception:
             return _UNRESOLVED
 
-    def _try_eval_pipeline(self, expr: Pipeline) -> Any:
+    def _try_eval_pipeline(self, expr: Pipeline, depth: int = 0) -> Any:
         """Evaluate a Pipeline node when value and all steps are resolvable."""
-        value = self._try_eval(expr.value)
+        value = self._try_eval(expr.value, depth + 1)
         if value is _UNRESOLVED:
             return _UNRESOLVED
         for name, args, kwargs in expr.steps:
@@ -454,13 +461,13 @@ class PartialEvaluator:
                 return _UNRESOLVED
             args_resolved: list[Any] = []
             for arg in args:
-                a = self._try_eval(arg)
+                a = self._try_eval(arg, depth + 1)
                 if a is _UNRESOLVED:
                     return _UNRESOLVED
                 args_resolved.append(a)
             kwargs_resolved: dict[str, Any] = {}
             for k, v in kwargs.items():
-                kv = self._try_eval(v)
+                kv = self._try_eval(v, depth + 1)
                 if kv is _UNRESOLVED:
                     return _UNRESOLVED
                 kwargs_resolved[k] = kv
@@ -508,14 +515,14 @@ class PartialEvaluator:
             return _UNRESOLVED
         return _UNRESOLVED
 
-    def _eval_compare(self, expr: Compare) -> Any:
+    def _eval_compare(self, expr: Compare, depth: int = 0) -> Any:
         """Evaluate a comparison chain with known operands."""
-        left = self._try_eval(expr.left)
+        left = self._try_eval(expr.left, depth + 1)
         if left is _UNRESOLVED:
             return _UNRESOLVED
 
         for op, comp_node in zip(expr.ops, expr.comparators, strict=True):
-            right = self._try_eval(comp_node)
+            right = self._try_eval(comp_node, depth + 1)
             if right is _UNRESOLVED:
                 return _UNRESOLVED
             try:
@@ -527,11 +534,11 @@ class PartialEvaluator:
             left = right
         return True
 
-    def _eval_boolop(self, expr: BoolOp) -> Any:
+    def _eval_boolop(self, expr: BoolOp, depth: int = 0) -> Any:
         """Evaluate a boolean operation with short-circuit semantics."""
         if expr.op == "and":
             for val_node in expr.values:
-                val = self._try_eval(val_node)
+                val = self._try_eval(val_node, depth + 1)
                 if val is _UNRESOLVED:
                     return _UNRESOLVED
                 if not val:
@@ -539,7 +546,7 @@ class PartialEvaluator:
             return val
         # "or"
         for val_node in expr.values:
-            val = self._try_eval(val_node)
+            val = self._try_eval(val_node, depth + 1)
             if val is _UNRESOLVED:
                 return _UNRESOLVED
             if val:
@@ -863,6 +870,7 @@ def partial_evaluate(
         return template
 
     from kida.compiler.coalescing import _BUILTIN_PURE_FILTERS
+    from kida.utils.constants import MAX_PARTIAL_EVAL_DEPTH
 
     all_pure = _BUILTIN_PURE_FILTERS | pure_filters
 
@@ -871,6 +879,7 @@ def partial_evaluate(
         escape_func=escape_func,
         pure_filters=all_pure,
         filter_callables=filter_callables or {},
+        max_eval_depth=MAX_PARTIAL_EVAL_DEPTH,
     )
     result = evaluator.evaluate(template)
 

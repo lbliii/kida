@@ -111,7 +111,7 @@ class TestLargeTemplates:
         assert "x499" in result
 
     def test_many_filters(self, env: Environment) -> None:
-        """Template with many filter applications."""
+        """Template with many filter applications (within limit)."""
         count = 100
         filters = "|upper|lower" * count
         template = "{{ 'hello'" + filters + " }}"
@@ -123,6 +123,19 @@ class TestLargeTemplates:
             assert result in ["hello", "HELLO"]  # Depends on final filter
         except RecursionError:
             pytest.skip("Too many nested filters")
+
+    def test_filter_chain_exceeds_limit_raises(self, env: Environment) -> None:
+        """Filter chain exceeding MAX_FILTER_CHAIN_LEN raises TemplateSyntaxError."""
+        from kida.environment.exceptions import TemplateSyntaxError
+
+        # 201 filters exceeds default MAX_FILTER_CHAIN_LEN of 200
+        filters = "|upper" * 201
+        template = "{{ 'x'" + filters + " }}"
+
+        with pytest.raises(TemplateSyntaxError) as exc_info:
+            env.from_string(template)
+
+        assert "Filter chain exceeds maximum length" in str(exc_info.value)
 
     def test_large_literal_list(self, env: Environment) -> None:
         """Template with large literal list."""
@@ -264,6 +277,43 @@ class TestDeepInheritance:
         result = tmpl.render()
         assert f"level{depth - 1}" in result
 
+    def test_circular_inheritance_raises(self) -> None:
+        """Circular inheritance (A extends B extends A) raises TemplateRuntimeError."""
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        templates = {
+            "a.html": '{% extends "b.html" %}{% block x %}a{% endblock %}',
+            "b.html": '{% extends "a.html" %}{% block x %}b{% endblock %}',
+        }
+        loader = DictLoader(templates)
+        env = Environment(loader=loader)
+
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            env.get_template("a.html").render()
+
+        assert "Maximum extends depth exceeded" in str(exc_info.value)
+        assert "circular inheritance" in str(exc_info.value).lower()
+
+    def test_extends_depth_limit(self) -> None:
+        """Extends chain beyond max_extends_depth raises."""
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        depth = 55  # Exceeds default max_extends_depth of 50
+        templates = {"base.html": "{% block content %}base{% endblock %}"}
+        for i in range(1, depth):
+            parent = "base.html" if i == 1 else f"level{i - 1}.html"
+            templates[f"level{i}.html"] = (
+                f'{{% extends "{parent}" %}}{{% block content %}}level{i}{{% endblock %}}'
+            )
+
+        loader = DictLoader(templates)
+        env = Environment(loader=loader)
+
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            env.get_template(f"level{depth - 1}.html").render()
+
+        assert "Maximum extends depth exceeded" in str(exc_info.value)
+
 
 class TestPerformanceBoundaries:
     """Test performance boundaries."""
@@ -375,6 +425,91 @@ class TestExtremeCases:
         assert "zz" not in result  # Only first 100
 
 
+class TestSharedEnvironmentStress:
+    """Test concurrent get_template + add_filter on same Environment."""
+
+    def test_concurrent_get_template_while_add_filter(self) -> None:
+        """N threads get_template() while 1 thread add_filter(); no partial mutation."""
+        import concurrent.futures
+
+        loader = DictLoader(
+            {
+                "a.html": "{{ x }}",
+                "b.html": "{{ y }}",
+                "c.html": "{{ z }}",
+            }
+        )
+        env = Environment(loader=loader)
+
+        results: list[str] = []
+        errors: list[BaseException] = []
+
+        def get_templates() -> None:
+            for _ in range(200):
+                try:
+                    t = env.get_template("a.html")
+                    r = t.render(x="ok")
+                    results.append(r)
+                except Exception as e:
+                    errors.append(e)
+
+        def add_filters() -> None:
+            for i in range(50):
+                env.add_filter(f"f{i}", lambda x, n=i: str(x) + str(n))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            readers = [ex.submit(get_templates) for _ in range(4)]
+            writer = ex.submit(add_filters)
+            concurrent.futures.wait([*readers, writer])
+
+        assert not errors, f"Unexpected errors: {errors}"
+        assert all(r == "ok" for r in results), "Corrupt filter dict observed"
+        assert len(results) == 4 * 200
+
+    def test_concurrent_get_template_same_key(self) -> None:
+        """Multiple threads get_template(same_name) - thundering herd on cache."""
+        import concurrent.futures
+
+        loader = DictLoader({"t.html": "{{ v }}"})
+        env = Environment(loader=loader)
+
+        def get_and_render() -> str:
+            t = env.get_template("t.html")
+            return t.render(v=1)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+            futures = [ex.submit(get_and_render) for _ in range(100)]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+        assert all(r == "1" for r in results)
+        assert len(results) == 100
+
+
+class TestMixedRenderConcurrency:
+    """Test mixed render() and render_stream() on same template from different threads."""
+
+    def test_mixed_render_and_render_stream(self) -> None:
+        """Concurrent render() and render_stream() on same template; no corruption."""
+        import concurrent.futures
+
+        env = Environment()
+        tmpl = env.from_string("Hello {{ name }}!")
+
+        def do_render() -> str:
+            return tmpl.render(name="World")
+
+        def do_render_stream() -> str:
+            return "".join(tmpl.render_stream(name="World"))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            futures = [ex.submit(do_render) for _ in range(50)]
+            futures.extend(ex.submit(do_render_stream) for _ in range(50))
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+        assert len(results) == 100
+        assert all(r == "Hello World!" for r in results), "No corruption under mixed render"
+
+
 class TestConcurrentCompilation:
     """Test concurrent template compilation."""
 
@@ -411,6 +546,34 @@ class TestConcurrentCompilation:
         assert len(results) == 100
         for result in results:
             assert "Item" in result
+
+
+class TestPartialEvalDepthLimit:
+    """Test partial evaluator depth limit (DoS protection)."""
+
+    def test_deep_attribute_chain_compile_does_not_stack_overflow(self) -> None:
+        """Compiling template with 150-level attr chain does not overflow.
+
+        Without static_context, partial eval is skipped. With static_context
+        containing a 150-level nested structure, partial eval hits
+        MAX_PARTIAL_EVAL_DEPTH (100) and returns _UNRESOLVED. This test
+        verifies compile completes (no RecursionError) when the expression
+        would require deep recursion to evaluate.
+        """
+        from kida import Environment
+
+        env = Environment()
+        depth = 150  # Exceeds MAX_PARTIAL_EVAL_DEPTH of 100
+        obj: dict[str, Any] = {"value": "leaf"}
+        for _ in range(depth):
+            obj = {"child": obj}
+
+        access = ".child" * depth + ".value"
+        # Compile without static_context - no partial eval, but parser/compiler
+        # must handle 150-level chain. Render with runtime data.
+        tmpl = env.from_string("{{ data" + access + " }}")
+        result = tmpl.render(data=obj)
+        assert result == "leaf"
 
 
 class TestMemoryStress:

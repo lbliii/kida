@@ -266,20 +266,29 @@ class Template(TemplateIntrospectionMixin):
 
         # Extends helper - renders parent template with child's blocks
         def _extends(template_name: str, context: dict[str, Any], blocks: dict[str, Any]) -> str:
-            from kida.render_context import get_render_context_required
+            from kida.render_context import (
+                get_render_context_required,
+                reset_render_context,
+                set_render_context,
+            )
 
             render_ctx = get_render_context_required()
-            _env = _resolve_env(template_name)
-            parent = _env.get_template(template_name)
-            # Guard against templates that failed to compile properly
-            if parent._render_func is None:
-                raise RuntimeError(
-                    f"Template '{template_name}' not properly compiled: "
-                    f"_render_func is None. Check for syntax errors in the template."
-                )
-            blocks_to_use = _wrap_blocks_if_cached(blocks, render_ctx)
-            result: str = parent._render_func(context, blocks_to_use)
-            return result
+            render_ctx.check_extends_depth(template_name)
+            child_ctx = render_ctx.child_context_for_extends(template_name)
+            token = set_render_context(child_ctx)
+            try:
+                _env = _resolve_env(template_name)
+                parent = _env.get_template(template_name)
+                if parent._render_func is None:
+                    raise RuntimeError(
+                        f"Template '{template_name}' not properly compiled: "
+                        f"_render_func is None. Check for syntax errors in the template."
+                    )
+                blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
+                result: str = parent._render_func(context, blocks_to_use)
+                return result
+            finally:
+                reset_render_context(token)
 
         # Streaming include helper - yields chunks from included template
         def _include_stream(
@@ -329,7 +338,7 @@ class Template(TemplateIntrospectionMixin):
                         yield included.render(**context)
                 finally:
                     reset_render_context(token)
-            except (TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError):
+            except TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError:
                 if ignore_missing:
                     return
                 raise
@@ -338,18 +347,28 @@ class Template(TemplateIntrospectionMixin):
         def _extends_stream(
             template_name: str, context: dict[str, Any], blocks: dict[str, Any]
         ):  # -> Iterator[str]
-            from kida.render_context import get_render_context_required
+            from kida.render_context import (
+                get_render_context_required,
+                reset_render_context,
+                set_render_context,
+            )
 
             render_ctx = get_render_context_required()
-            _env = _resolve_env(template_name)
-            parent = _env.get_template(template_name)
-            stream_func = parent._namespace.get("render_stream")
-            if stream_func is None:
-                raise RuntimeError(
-                    f"Template '{template_name}' not properly compiled: render_stream is None."
-                )
-            blocks_to_use = _wrap_blocks_if_cached(blocks, render_ctx)
-            yield from stream_func(context, blocks_to_use)
+            render_ctx.check_extends_depth(template_name)
+            child_ctx = render_ctx.child_context_for_extends(template_name)
+            token = set_render_context(child_ctx)
+            try:
+                _env = _resolve_env(template_name)
+                parent = _env.get_template(template_name)
+                stream_func = parent._namespace.get("render_stream")
+                if stream_func is None:
+                    raise RuntimeError(
+                        f"Template '{template_name}' not properly compiled: render_stream is None."
+                    )
+                blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
+                yield from stream_func(context, blocks_to_use)
+            finally:
+                reset_render_context(token)
 
         # Async streaming include helper — yields chunks from included template
         # RFC: rfc-async-rendering
@@ -408,7 +427,7 @@ class Template(TemplateIntrospectionMixin):
                             yield included.render(**context)
                 finally:
                     reset_render_context(token)
-            except (TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError):
+            except TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError:
                 if ignore_missing:
                     return
                 raise
@@ -418,27 +437,38 @@ class Template(TemplateIntrospectionMixin):
         async def _extends_stream_async(
             template_name: str, context: dict[str, Any], blocks: dict[str, Any]
         ):  # -> AsyncIterator[str]
-            from kida.render_context import get_render_context_required
+            from kida.render_context import (
+                get_render_context_required,
+                reset_render_context,
+                set_render_context,
+            )
 
             render_ctx = get_render_context_required()
-            _env = _resolve_env(template_name)
-            parent = _env.get_template(template_name)
-            blocks_to_use = _wrap_blocks_if_cached(blocks, render_ctx)
+            render_ctx.check_extends_depth(template_name)
+            child_ctx = render_ctx.child_context_for_extends(template_name)
+            token = set_render_context(child_ctx)
+            try:
+                _env = _resolve_env(template_name)
+                parent = _env.get_template(template_name)
+                blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
 
-            # Always use async streaming — all templates generate render_stream_async
-            async_func = parent._namespace.get("render_stream_async")
-            if async_func is not None:
-                async for chunk in async_func(context, blocks_to_use):
-                    yield chunk
-            else:
-                # Fallback for templates compiled before async support
-                sync_func = parent._namespace.get("render_stream")
-                if sync_func is None:
-                    raise RuntimeError(
-                        f"Template '{template_name}' not properly compiled: render_stream is None."
-                    )
-                for chunk in sync_func(context, blocks_to_use):
-                    yield chunk
+                # Always use async streaming — all templates generate render_stream_async
+                async_func = parent._namespace.get("render_stream_async")
+                if async_func is not None:
+                    async for chunk in async_func(context, blocks_to_use):
+                        yield chunk
+                else:
+                    # Fallback for templates compiled before async support
+                    sync_func = parent._namespace.get("render_stream")
+                    if sync_func is None:
+                        raise RuntimeError(
+                            f"Template '{template_name}' not properly compiled: "
+                            "render_stream is None."
+                        )
+                    for chunk in sync_func(context, blocks_to_use):
+                        yield chunk
+            finally:
+                reset_render_context(token)
 
         # Import macros from another template
         def _import_macros(
@@ -1131,7 +1161,7 @@ class Template(TemplateIntrospectionMixin):
             try:
                 val = obj[name]
                 return "" if val is None else val
-            except (KeyError, TypeError):
+            except KeyError, TypeError:
                 return UNDEFINED
 
     @staticmethod
@@ -1159,7 +1189,7 @@ class Template(TemplateIntrospectionMixin):
         except AttributeError:
             try:
                 return obj[name]
-            except (KeyError, TypeError):
+            except KeyError, TypeError:
                 return None
 
     def __repr__(self) -> str:

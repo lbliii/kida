@@ -384,7 +384,7 @@ class PackageLoader:
 
         try:
             source = resource.read_text(self._encoding)
-        except (FileNotFoundError, TypeError, IsADirectoryError):
+        except FileNotFoundError, TypeError, IsADirectoryError:
             raise TemplateNotFoundError(
                 f"Template '{name}' not found in package "
                 f"'{self._package_name}/{self._package_path}'"
@@ -409,7 +409,7 @@ class PackageLoader:
                     templates.append(name if prefix else item.name)
                 elif item.is_dir() and not item.name.startswith((".", "__")):
                     templates.extend(self._walk(item, name if prefix else item.name))
-        except (FileNotFoundError, TypeError):
+        except FileNotFoundError, TypeError:
             pass
         return templates
 

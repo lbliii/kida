@@ -98,6 +98,10 @@ Kida builds a full AST (lexer → parser → AST → compiler → Python code �
 - Cold-start: lazy analysis imports cut import time from 60ms to 31ms (48% improvement)
 - Compilation: amortized by bytecode cache
 
+See `benchmarks/RESULTS.md` in the repo for the Kida vs Jinja2 comparison matrix. Scaling benchmarks (inheritance depth, filter chains, `add_filter` vs `update_filters`) are in `benchmarks/test_benchmark_scaling_depth.py`.
+
+**Batch filter registration**: Use `update_filters()` instead of repeated `add_filter()` when registering many filters — `add_filter` is O(n²) (each call copies the dict); `update_filters` is O(n).
+
 Run locally:
 
 ```bash
