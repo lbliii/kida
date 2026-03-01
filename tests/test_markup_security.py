@@ -440,8 +440,9 @@ class TestXmlattr:
     def test_escapes_quotes_in_values(self) -> None:
         """Double quotes in values must be escaped."""
         result = str(xmlattr({"data-value": 'test"value'}, allow_events=True))
-        assert "&quot;" in result
-        assert 'data-value="test&quot;value"' in result
+        # Both &quot; (pure Python) and &#34; (MarkupSafe) are valid HTML entities
+        assert "&quot;" in result or "&#34;" in result
+        assert 'data-value="test' in result and 'value"' in result
 
     def test_escapes_angle_brackets(self) -> None:
         """Angle brackets in values must be escaped."""

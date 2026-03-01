@@ -284,6 +284,8 @@ def render_context(
     cached_blocks: dict[str, str] | None = None,
     cache_stats: dict[str, int] | None = None,
     parent_meta: dict[str, object] | None = None,
+    max_extends_depth: int = 50,
+    max_include_depth: int = 50,
 ) -> Iterator[RenderContext]:
     """Context manager for render-scoped state.
 
@@ -320,6 +322,8 @@ def render_context(
         cached_blocks=cached_blocks or {},
         cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
         cache_stats=cache_stats,
+        max_extends_depth=max_extends_depth,
+        max_include_depth=max_include_depth,
         _meta=parent_meta.copy() if parent_meta else {},  # Inherit parent metadata
     )
     token: Token[RenderContext | None] = _render_context.set(ctx)
@@ -337,6 +341,8 @@ async def async_render_context(
     cached_blocks: dict[str, str] | None = None,
     cache_stats: dict[str, int] | None = None,
     parent_meta: dict[str, object] | None = None,
+    max_extends_depth: int = 50,
+    max_include_depth: int = 50,
 ) -> AsyncIterator[RenderContext]:
     """Async context manager for render-scoped state.
 
@@ -363,6 +369,8 @@ async def async_render_context(
         cached_blocks=cached_blocks or {},
         cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
         cache_stats=cache_stats,
+        max_extends_depth=max_extends_depth,
+        max_include_depth=max_include_depth,
         _meta=parent_meta.copy() if parent_meta else {},  # Inherit parent metadata
     )
     token: Token[RenderContext | None] = _render_context.set(ctx)

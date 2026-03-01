@@ -22,6 +22,7 @@ from kida import Markup
 from kida.utils.html import (
     _ESCAPE_CHARS,
     _ESCAPE_TABLE,
+    _escape_str,
     css_escape,
     html_escape,
     js_escape,
@@ -260,6 +261,26 @@ def test_xmlattr_with_none(benchmark: pytest.BenchmarkFixture) -> None:
     """Attributes with None values (skipped)."""
     attrs = {"class": "btn", "disabled": None, "id": "test", "hidden": None}
     benchmark(xmlattr, attrs, allow_events=True)
+
+
+# =============================================================================
+# MarkupSafe comparison (when perf extra installed: pip install kida[perf])
+# =============================================================================
+
+
+def test_escape_pure_python(benchmark: pytest.BenchmarkFixture) -> None:
+    """Pure-Python escape (always used when markupsafe not installed)."""
+    content = "<script>alert('test & \"xss\"')</script>" * 10
+    benchmark(_escape_str, content)
+
+
+def test_escape_with_optional_markupsafe(benchmark: pytest.BenchmarkFixture) -> None:
+    """html_escape: uses MarkupSafe (C) when installed, else pure Python.
+
+    Install with: pip install kida[perf] or uv sync --optional perf
+    """
+    content = "<script>alert('test & \"xss\"')</script>" * 10
+    benchmark(html_escape, content)
 
 
 # =============================================================================

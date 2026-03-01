@@ -594,6 +594,13 @@ class Template(TemplateIntrospectionMixin):
             )
         return env
 
+    def _get_env_limits(self) -> tuple[int, int]:
+        """Get max_extends_depth and max_include_depth from Environment (or defaults)."""
+        env = self._env_ref()
+        if env is None:
+            return (50, 50)
+        return (env.max_extends_depth, env.max_include_depth)
+
     def _build_context(
         self, args: tuple[Any, ...], kwargs: dict[str, Any], method_name: str
     ) -> dict[str, Any]:
@@ -671,6 +678,7 @@ class Template(TemplateIntrospectionMixin):
 
         parent_ctx = get_render_context()
         parent_meta = parent_ctx._meta if parent_ctx else None
+        max_extends, max_include = self._get_env_limits()
 
         with render_context(
             template_name=self._name,
@@ -679,6 +687,8 @@ class Template(TemplateIntrospectionMixin):
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
             parent_meta=parent_meta,  # Inherit metadata from parent context
+            max_extends_depth=max_extends,
+            max_include_depth=max_include,
         ) as render_ctx:
             # Prepare blocks dictionary (inject cache wrapper if site-scoped blocks exist)
             blocks_arg = None
@@ -743,12 +753,15 @@ class Template(TemplateIntrospectionMixin):
 
         parent_ctx = get_render_context()
         parent_meta = parent_ctx._meta if parent_ctx else None
+        max_extends, max_include = self._get_env_limits()
 
         with render_context(
             template_name=self._name,
             filename=self._filename,
             source=self._source,
             parent_meta=parent_meta,
+            max_extends_depth=max_extends,
+            max_include_depth=max_include,
         ) as render_ctx:
             try:
                 # Run {% globals %} setup if present — injects macros/variables into ctx
@@ -819,12 +832,15 @@ class Template(TemplateIntrospectionMixin):
 
         parent_ctx = get_render_context()
         parent_meta = parent_ctx._meta if parent_ctx else None
+        max_extends, max_include = self._get_env_limits()
 
         with render_context(
             template_name=self._name,
             filename=self._filename,
             source=self._source,
             parent_meta=parent_meta,
+            max_extends_depth=max_extends,
+            max_include_depth=max_include,
         ) as render_ctx:
             try:
                 # Run {% globals %} setup if present
@@ -887,6 +903,7 @@ class Template(TemplateIntrospectionMixin):
 
         parent_ctx = get_render_context()
         parent_meta = parent_ctx._meta if parent_ctx else None
+        max_extends, max_include = self._get_env_limits()
 
         with render_context(
             template_name=self._name,
@@ -895,6 +912,8 @@ class Template(TemplateIntrospectionMixin):
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
             parent_meta=parent_meta,
+            max_extends_depth=max_extends,
+            max_include_depth=max_include,
         ) as render_ctx:
             blocks_arg = None
             if render_ctx.cached_blocks:
@@ -1026,6 +1045,7 @@ class Template(TemplateIntrospectionMixin):
         # Use native async stream if available, else wrap sync stream
         async_func = self._render_stream_async_func
         sync_func = self._render_stream_func
+        max_extends, max_include = self._get_env_limits()
 
         async with async_render_context(
             template_name=self._name,
@@ -1033,6 +1053,8 @@ class Template(TemplateIntrospectionMixin):
             source=self._source,
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
+            max_extends_depth=max_extends,
+            max_include_depth=max_include,
         ) as render_ctx:
             blocks_arg = None
             if render_ctx.cached_blocks:
@@ -1091,11 +1113,14 @@ class Template(TemplateIntrospectionMixin):
             )
 
         ctx = self._build_context(args, kwargs, "render_block_stream_async")
+        max_extends, max_include = self._get_env_limits()
 
         async with async_render_context(
             template_name=self._name,
             filename=self._filename,
             source=self._source,
+            max_extends_depth=max_extends,
+            max_include_depth=max_include,
         ):
             if async_func is not None:
                 async for chunk in async_func(ctx, {}):

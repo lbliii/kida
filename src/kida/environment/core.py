@@ -172,6 +172,11 @@ class Environment:
     trim_blocks: bool = False
     lstrip_blocks: bool = False
 
+    # Resource limits (DoS protection)
+    # Configurable for deployments with deep template hierarchies
+    max_extends_depth: int = 50  # Maximum {% extends %} chain depth
+    max_include_depth: int = 50  # Maximum {% include %}/{% embed %} depth
+
     # Call-site validation (RFC: typed-def-parameters)
     # When True, validate {% call %} and {{ func() }} sites against {% def %}
     # signatures at compile time. Reports warnings for unknown params, missing
