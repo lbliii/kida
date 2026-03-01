@@ -105,6 +105,9 @@ pytest benchmarks/test_benchmark_compile_pipeline.py -v --benchmark-only
 # Scaling: variables, loops, filters, inheritance, include depth
 pytest benchmarks/test_benchmark_scaling.py -v --benchmark-only
 
+# Scaling depth: inheritance, filter chains, add_filter, partial eval, cache contention
+pytest benchmarks/test_benchmark_scaling_depth.py -v --benchmark-only
+
 # Cold-start (subprocess, Kida vs Jinja2)
 pytest benchmarks/test_benchmark_cold_start.py -v --benchmark-only
 
@@ -126,6 +129,8 @@ pytest benchmarks/ -v --benchmark-only
 # Compare against baseline
 ./scripts/benchmark_compare.sh
 ```
+
+For the formal Kida vs Jinja2 comparison matrix, see [RESULTS.md](RESULTS.md).
 
 ---
 
