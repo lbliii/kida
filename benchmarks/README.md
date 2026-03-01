@@ -132,18 +132,29 @@ pytest benchmarks/ -v --benchmark-only
 
 ### Benchmark Regression CI
 
-CI runs a benchmark regression check on every PR and push. It compares against a committed baseline and fails if any benchmark is >10% slower.
+CI runs a benchmark regression check on every PR and push. It compares against a committed baseline and fails if benchmarks exceed the regression threshold.
 
-**Initial setup**: Run the **Benchmark baseline** workflow (Actions → Benchmark baseline → Run workflow) to generate the baseline on CI (Ubuntu). This creates `benchmarks/Linux-CPython-3.14-64bit/*_baseline.json` and commits it.
+**Thresholds**: CI uses 20% (shared runners, 4 cores); local uses 15%. Override with `BENCHMARK_REGRESSION_THRESHOLD=25`.
 
-**Updating the baseline**: After intentional performance changes (e.g. optimizations that change timings), run the Benchmark baseline workflow again, or locally:
+**Excluded from regression** (high variance on shared runners): `test_render_async_medium_kida`, `test_render_async_large_kida`, `test_render_complex_kida`. Include with `BENCHMARK_INCLUDE_ALL=1`.
+
+**Initial setup** (required for CI to pass):
+
+1. Run **Benchmark baseline** workflow (Actions → Benchmark baseline → Run workflow)
+2. Download the `benchmark-baseline-linux` artifact
+3. Extract to `benchmarks/` (creates `Linux-CPython-3.14-64bit/0001_baseline.json`)
+4. Commit and push
+
+Without a Linux baseline, CI runs benchmarks without compare (informational only).
+
+**Updating the baseline**: After intentional performance changes, run the Benchmark baseline workflow again, or locally:
 
 ```bash
 ./scripts/benchmark_baseline.sh
-# Then commit benchmarks/*.json (machine-specific subdir)
+# Then commit benchmarks/<platform>/*.json
 ```
 
-Note: Baselines are machine-specific. CI uses Ubuntu; local baselines (e.g. Darwin) are for development only.
+Note: Baselines are machine-specific. CI uses Ubuntu (Linux); local baselines (e.g. Darwin) are for development only.
 
 For the formal Kida vs Jinja2 comparison matrix, see [RESULTS.md](RESULTS.md).
 
