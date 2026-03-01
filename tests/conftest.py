@@ -1,10 +1,18 @@
 """Pytest configuration and fixtures for Kida tests."""
 
+import os
 import re
 
 import pytest
 
 from kida import DictLoader, Environment
+
+# Hypothesis CI profile: more examples when CI=true (slow-tests job, weekly)
+if os.environ.get("CI"):
+    from hypothesis import settings
+
+    settings.register_profile("ci", max_examples=200, deadline=None)
+    settings.load_profile("ci")
 
 # Strip ANSI escape sequences so tests can assert on plain text regardless of TTY
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")

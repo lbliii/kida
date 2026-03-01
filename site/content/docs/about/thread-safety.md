@@ -135,10 +135,13 @@ async def render_many(env):
 | `get_template()` | ✅ Yes |
 | `from_string()` | ✅ Yes |
 | `template.render()` | ✅ Yes |
+| `template.render_stream()` | ✅ Yes |
 | `add_filter()` | ✅ Yes (copy-on-write) |
 | `add_test()` | ✅ Yes (copy-on-write) |
 | `add_global()` | ✅ Yes (copy-on-write) |
 | `clear_cache()` | ✅ Yes |
+
+Concurrent `render()` and `render_stream()` on the same template from different threads is safe. BytecodeCache and Environment copy-on-write are tested under concurrent get/set.
 
 ## Best Practices
 

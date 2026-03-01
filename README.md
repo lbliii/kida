@@ -289,6 +289,8 @@ Module declares itself GIL-independent via `_Py_mod_gil = 0` (PEP 703).
 - **Complex template** — ~2.1ms
 - **Concurrent (8 threads)** — ~0.15ms avg under Python 3.14t free-threading
 
+See [benchmarks/README.md](benchmarks/README.md) and [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for full Kida vs Jinja2 comparison.
+
 ---
 
 ## Documentation

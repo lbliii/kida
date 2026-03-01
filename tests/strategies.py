@@ -134,3 +134,27 @@ sortable_int_list = st.lists(
     min_size=0,
     max_size=30,
 )
+
+# ---------------------------------------------------------------------------
+# Parser-level strategies (for parse(tokenize(source)) property tests)
+# ---------------------------------------------------------------------------
+
+# Arbitrary source that may produce valid or invalid token streams.
+# Parser must either produce valid AST or raise ParseError/TemplateSyntaxError.
+parser_fuzz_source = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs",)),
+    min_size=0,
+    max_size=500,
+)
+
+# ---------------------------------------------------------------------------
+# E2E fuzz strategies (source -> compile -> render)
+# ---------------------------------------------------------------------------
+
+# Extended arbitrary source for E2E: may include filter chains, blocks, includes.
+# Kept within limits to avoid resource exhaustion (filter chain cap, etc.).
+e2e_fuzz_source = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs",)),
+    min_size=0,
+    max_size=400,
+)

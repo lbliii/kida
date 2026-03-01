@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Resource exhaustion guards** — `max_extends_depth` (50) limits inheritance chains; partial evaluator depth limit (100) prevents stack overflow on deep attribute chains; `MAX_FILTER_CHAIN_LEN` (200) caps filter/pipeline length. Circular inheritance detection raises `TemplateRuntimeError`.
+- **Encoding edge case tests** — BOM, NUL bytes, surrogates, invalid UTF-8, Latin-1 in template source and `FileSystemLoader`.
+- **Concurrency tests** — BytecodeCache get/set, mixed `render()`/`render_stream()` on same template.
+- **Property tests** — Parser and E2E Hypothesis fuzz; never crashes on arbitrary input.
+- **Scaling benchmarks** — Inheritance depth, filter chains, `add_filter` vs `update_filters`, partial eval, template cache contention. See `benchmarks/RESULTS.md` for Kida vs Jinja2 matrix.
+- **Coverage threshold** — `fail_under=80` in pyproject.toml.
+- **Hypothesis CI profile** — `max_examples=200` when `CI=true`.
+
+### Changed
+
+- **Thread-safety CI** — Now runs `test_bytecode_cache_concurrency.py` in addition to stress and LRU tests.
+
 ## [0.2.2] - 2026-02-18
 
 ### Added

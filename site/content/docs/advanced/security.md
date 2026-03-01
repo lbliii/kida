@@ -180,6 +180,18 @@ xmlattr({"invalid name": "value"})  # ValueError
 xmlattr({"invalid name": "value"}, strict=False)  # Markup('')
 ```
 
+## Resource Limits (DoS Protection)
+
+Kida enforces limits to prevent resource exhaustion from malicious or pathological templates:
+
+| Limit | Default | Description |
+|-------|---------|-------------|
+| `max_extends_depth` | 50 | Maximum `{% extends %}` chain depth. Circular inheritance (A extends B extends A) raises `TemplateRuntimeError`. |
+| `MAX_FILTER_CHAIN_LEN` | 200 | Maximum filters in a `\|` or `\|>` chain. Exceeding raises `TemplateSyntaxError`. |
+| Partial evaluator depth | 100 | Maximum nested attribute lookups in compile-time partial evaluation. Prevents stack overflow. |
+
+These limits are internal constants. Templates exceeding them raise clear errors rather than hanging or crashing.
+
 ## NUL Byte Stripping
 
 All escaping functions strip `\x00` (NUL) bytes. NUL bytes can be used to bypass filters in some contexts:

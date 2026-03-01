@@ -40,9 +40,7 @@ def _build_inheritance_env(depth: int) -> tuple[Environment, str]:
 
 @pytest.mark.benchmark(group="scaling-depth:inheritance")
 @pytest.mark.parametrize("depth", [1, 5, 10, 25, 50])
-def test_inheritance_depth_scaling(
-    benchmark: BenchmarkFixture, depth: int
-) -> None:
+def test_inheritance_depth_scaling(benchmark: BenchmarkFixture, depth: int) -> None:
     """Compile + render time for 1, 5, 10, 25, 50 levels of extends."""
     env, template_name = _build_inheritance_env(depth)
     template = env.get_template(template_name)
@@ -56,9 +54,7 @@ def test_inheritance_depth_scaling(
 
 @pytest.mark.benchmark(group="scaling-depth:filters")
 @pytest.mark.parametrize("count", [1, 10, 50, 100, 200])
-def test_filter_chain_scaling(
-    benchmark: BenchmarkFixture, count: int
-) -> None:
+def test_filter_chain_scaling(benchmark: BenchmarkFixture, count: int) -> None:
     """Render time for 1, 10, 50, 100, 200 filters in a chain (max allowed)."""
     filters = " | ".join(["escape" for _ in range(count)])
     env = Environment()
@@ -103,9 +99,7 @@ def test_update_filters_scaling(benchmark: BenchmarkFixture, count: int) -> None
 
 @pytest.mark.benchmark(group="scaling-depth:partial-eval")
 @pytest.mark.parametrize("depth", [10, 50, 100])
-def test_partial_eval_attribute_chain(
-    benchmark: BenchmarkFixture, depth: int
-) -> None:
+def test_partial_eval_attribute_chain(benchmark: BenchmarkFixture, depth: int) -> None:
     """Compile time for expressions with N nested attribute lookups."""
     chain = ".".join(f"a{i}" for i in range(depth))
     env = Environment()
@@ -155,9 +149,7 @@ def _get_template_throughput(
 
 @pytest.mark.benchmark(group="scaling-depth:cache-contention")
 @pytest.mark.parametrize("workers", [1, 4, 8, 16])
-def test_get_template_cache_contention(
-    benchmark: BenchmarkFixture, workers: int
-) -> None:
+def test_get_template_cache_contention(benchmark: BenchmarkFixture, workers: int) -> None:
     """get_template throughput under 1, 4, 8, 16 threads (RLock serialization)."""
     env = Environment(loader=DictLoader({"t.html": "{{ x }}"}))
     iterations = max(1, 100 // workers)

@@ -70,6 +70,11 @@ class RenderContext:
     include_depth: int = 0
     max_include_depth: int = 50
 
+    # Extends chain depth (DoS protection).
+    # 50 matches include depth; catches circular inheritance (A→B→A).
+    extends_depth: int = 0
+    max_extends_depth: int = 50
+
     # Template call stack for error traces (Feature 2.1: Rich Error Messages)
     # List of (template_name, line_number) showing the full include/extend chain
     template_stack: list[tuple[str, int]] = field(default_factory=list)
@@ -156,6 +161,25 @@ class RenderContext:
                 suggestion="Check for circular includes: A → B → A",
             )
 
+    def check_extends_depth(self, template_name: str) -> None:
+        """Check if extends chain depth limit exceeded.
+
+        Args:
+            template_name: Name of parent template being extended
+
+        Raises:
+            TemplateRuntimeError: If depth >= max_extends_depth
+        """
+        if self.extends_depth >= self.max_extends_depth:
+            from kida.environment.exceptions import TemplateRuntimeError
+
+            raise TemplateRuntimeError(
+                f"Maximum extends depth exceeded ({self.max_extends_depth}) "
+                f"when extending '{template_name}'",
+                template_name=self.template_name,
+                suggestion="Check for circular inheritance: A extends B extends A",
+            )
+
     def child_context(self, template_name: str | None = None) -> RenderContext:
         """Create child context for include/embed with incremented depth.
 
@@ -181,12 +205,41 @@ class RenderContext:
             line=0,
             include_depth=self.include_depth + 1,
             max_include_depth=self.max_include_depth,
+            extends_depth=self.extends_depth,
+            max_extends_depth=self.max_extends_depth,
             cached_blocks=self.cached_blocks,
             cached_block_names=self.cached_block_names,
             cache_stats=self.cache_stats,
             import_stack=self.import_stack,  # Share for circular import detection
             _meta=self._meta,  # Share metadata with child templates
             template_stack=new_stack,  # Pass stack to child
+        )
+
+    def child_context_for_extends(self, parent_name: str) -> RenderContext:
+        """Create child context for extends with incremented extends_depth.
+
+        Used when rendering a parent template from {% extends %}.
+        Shares cached_blocks, cache_stats, etc. Does not increment include_depth.
+        """
+        new_stack = self.template_stack.copy()
+        if self.template_name and self.line > 0:
+            new_stack.append((self.template_name, self.line))
+
+        return RenderContext(
+            template_name=parent_name,
+            filename=self.filename,
+            source=None,
+            line=0,
+            include_depth=self.include_depth,
+            max_include_depth=self.max_include_depth,
+            extends_depth=self.extends_depth + 1,
+            max_extends_depth=self.max_extends_depth,
+            cached_blocks=self.cached_blocks,
+            cached_block_names=self.cached_block_names,
+            cache_stats=self.cache_stats,
+            import_stack=self.import_stack,
+            _meta=self._meta,
+            template_stack=new_stack,
         )
 
 

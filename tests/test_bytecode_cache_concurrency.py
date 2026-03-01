@@ -9,8 +9,6 @@ import threading
 from pathlib import Path
 from types import CodeType
 
-import pytest
-
 from kida.bytecode_cache import BytecodeCache, hash_source
 
 
