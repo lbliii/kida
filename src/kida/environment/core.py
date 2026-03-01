@@ -626,7 +626,7 @@ class Environment:
 
             # Stale if hashes differ
             return current_hash != cached_hash
-        except (TemplateNotFoundError, OSError, UnicodeDecodeError):
+        except TemplateNotFoundError, OSError, UnicodeDecodeError:
             # File deleted, permission error, encoding issue, etc. → treat as stale
             return True
 
@@ -853,6 +853,6 @@ def _hash_static_context(static_context: dict[str, Any] | None) -> str | None:
             separators=(",", ":"),
             default=repr,
         )
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         canonical = repr(static_context)
     return sha256(canonical.encode("utf-8")).hexdigest()[:16]

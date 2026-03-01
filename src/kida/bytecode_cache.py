@@ -127,7 +127,7 @@ class BytecodeCache:
         try:
             with open(path, "rb") as f:
                 return cast(CodeType, marshal.load(f))
-        except (OSError, ValueError, EOFError):
+        except OSError, ValueError, EOFError:
             # Corrupted or incompatible cache file
             import contextlib
 

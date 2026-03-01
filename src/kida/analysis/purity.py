@@ -657,7 +657,7 @@ class PurityAnalyzer:
             finally:
                 self._visited_templates.remove(template_name)
 
-        except (TemplateNotFoundError, TemplateSyntaxError):
+        except TemplateNotFoundError, TemplateSyntaxError:
             # Template missing or unparseable → conservatively unknown
             return "unknown"
 

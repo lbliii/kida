@@ -133,7 +133,7 @@ class TestRuntimeErrors:
             result = tmpl.render(obj=None)
             # If it doesn't raise, it should be empty (resilient handling)
             assert result == ""
-        except (AttributeError, TemplateRuntimeError, UndefinedError, Exception):
+        except AttributeError, TemplateRuntimeError, UndefinedError, Exception:
             # Expected - strict mode raises error
             pass
 
