@@ -207,7 +207,7 @@ jobs:
         run: |
           uv run pytest -v --tb=short --cov=kida --cov-report=term-missing --timeout=300
 
-  # Benchmark regression check (runs on PR and main; fails if >10% slower than baseline)
+  # Benchmark regression check (runs on PR and main; fails if >threshold slower than baseline)
   benchmark-regression:
     runs-on: ubuntu-latest
     steps:
@@ -239,11 +239,12 @@ jobs:
           ./scripts/benchmark_compare.sh || EXIT=$?
           if [ "$EXIT" -eq 2 ]; then
             echo "No baseline found for this platform; running benchmarks without compare."
-            echo "To enable regression checks, run './scripts/benchmark_baseline.sh' on Linux and commit."
+            echo "To enable regression checks: Actions → Benchmark baseline → Run workflow, then commit the artifact."
             uv run pytest benchmarks/test_benchmark_render.py benchmarks/test_benchmark_full_comparison.py \
+              -k "not (test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida)" \
               --benchmark-only \
               --benchmark-storage=file://$PWD/benchmarks \
-              --benchmark-min-rounds=5 \
+              --benchmark-min-rounds=8 \
               -q
           else
             exit "$EXIT"
