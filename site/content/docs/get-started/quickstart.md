@@ -117,21 +117,21 @@ Output:
 
 :::{card} First Project
 :icon: package
-:link: ./first-project
+:link: /docs/get-started/first-project/
 :description: Build something real
 Template inheritance, filters, and multi-page rendering.
 :::{/card}
 
 :::{card} Syntax Guide
 :icon: code
-:link: ../syntax/
+:link: /docs/syntax/
 :description: Variables, control flow, filters
 Learn the template language from basics to advanced.
 :::{/card}
 
 :::{card} Streaming
 :icon: zap
-:link: ../usage/streaming
+:link: /docs/usage/streaming/
 :description: Chunked rendering for HTMX and SSE
 Yield HTML chunks as they render for progressive delivery.
 :::{/card}

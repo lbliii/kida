@@ -149,5 +149,5 @@ Fix: Fix the syntax error at the reported line. See parser and lexer errors abov
 ## See Also
 
 - [[docs/usage/error-handling|Error Handling]] — Exception types, format_compact(), SourceSnippet
-- [[docs/troubleshooting/undefined-variable|Undefined Variable]] — Debugging K-RUN-001
-- [[docs/troubleshooting/template-not-found|Template Not Found]] — Debugging K-TPL-001
+- [[/docs/troubleshooting/undefined-variable/|Undefined Variable]] — Debugging K-RUN-001
+- [[/docs/troubleshooting/template-not-found/|Template Not Found]] — Debugging K-TPL-001

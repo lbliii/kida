@@ -316,6 +316,6 @@ def render_safely(template, **context):
 
 ## See Also
 
-- [[docs/troubleshooting/undefined-variable|Undefined Variable]] — Debug undefined errors
-- [[docs/troubleshooting/template-not-found|Template Not Found]] — Fix loading issues
+- [[/docs/troubleshooting/undefined-variable/|Undefined Variable]] — Debug undefined errors
+- [[/docs/troubleshooting/template-not-found/|Template Not Found]] — Fix loading issues
 - [[docs/reference/api|API Reference]] — Exception classes

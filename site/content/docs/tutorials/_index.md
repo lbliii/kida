@@ -27,7 +27,7 @@ Step-by-step guides for common Kida usage scenarios.
 
 :::{card} Migrate from Jinja2
 :icon: arrow-right
-:link: ./migrate-from-jinja2
+:link: /docs/tutorials/migrate-from-jinja2/
 :description: Switch from Jinja2 to Kida
 :badge: Popular
 Step-by-step migration with before/after examples, API mapping table, and verification steps.
@@ -35,14 +35,14 @@ Step-by-step migration with before/after examples, API mapping table, and verifi
 
 :::{card} Flask Integration
 :icon: globe
-:link: ./flask-integration
+:link: /docs/tutorials/flask-integration/
 :description: Use Kida with Flask/FastAPI
 Integrate Kida templates into your web application framework.
 :::{/card}
 
 :::{card} Build Custom Filters
 :icon: filter
-:link: ./custom-filters
+:link: /docs/tutorials/custom-filters/
 :description: Create your own template filters
 Build custom filters from scratch with examples for common use cases.
 :::{/card}

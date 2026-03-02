@@ -28,35 +28,35 @@ Technical reference documentation for Kida.
 
 :::{card} API Reference
 :icon: code
-:link: ./api
+:link: /docs/reference/api/
 :description: Environment, Template, Loaders
 Core classes and methods.
 :::{/card}
 
 :::{card} Filters
 :icon: filter
-:link: ./filters
+:link: /docs/reference/filters/
 :description: All built-in filters
 Complete filter reference with examples.
 :::{/card}
 
 :::{card} Tests
 :icon: check-circle
-:link: ./tests
+:link: /docs/reference/tests/
 :description: All built-in tests
 Boolean predicates for conditionals.
 :::{/card}
 
 :::{card} Configuration
 :icon: settings
-:link: ./configuration
+:link: /docs/reference/configuration/
 :description: Environment options
 All configuration options explained.
 :::{/card}
 
 :::{card} Error Codes
 :icon: alert-triangle
-:link: ../errors
+:link: /docs/errors/
 :description: K-LEX, K-PAR, K-RUN, K-TPL
 Reference for all error codes and fixes.
 :::{/card}

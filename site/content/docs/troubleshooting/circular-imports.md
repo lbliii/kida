@@ -60,5 +60,5 @@ Split macros into a separate file and import from there:
 
 ## See Also
 
-- [Functions and macros](../syntax/functions.md) — `{% def %}` and `{% from %}`
+- [Functions and macros](/docs/syntax/functions/) — `{% def %}` and `{% from %}`
 - [render_block and def scope](./render-block-scope.md) — Blocks do not inherit defs from the same template

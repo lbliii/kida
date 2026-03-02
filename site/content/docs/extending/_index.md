@@ -29,28 +29,28 @@ Extend Kida with custom functionality.
 
 :::{card} Custom Filters
 :icon: filter
-:link: ./custom-filters
+:link: /docs/extending/custom-filters/
 :description: Transform values with `| filter`
 Add domain-specific value transformations.
 :::{/card}
 
 :::{card} Custom Tests
 :icon: check-circle
-:link: ./custom-tests
+:link: /docs/extending/custom-tests/
 :description: Create `is test` predicates
 Build boolean tests for conditionals.
 :::{/card}
 
 :::{card} Custom Globals
 :icon: globe
-:link: ./custom-globals
+:link: /docs/extending/custom-globals/
 :description: Add global functions and variables
 Make utilities available everywhere.
 :::{/card}
 
 :::{card} Custom Loaders
 :icon: folder
-:link: ./custom-loaders
+:link: /docs/extending/custom-loaders/
 :description: Load from databases, APIs, etc.
 Build custom template sources.
 :::{/card}
