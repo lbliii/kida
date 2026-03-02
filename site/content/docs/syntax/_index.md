@@ -42,56 +42,56 @@ Kida's template syntax for expressions, control flow, and composition.
 
 :::{card} Variables
 :icon: variable
-:link: ./variables
+:link: /docs/syntax/variables/
 :description: Output expressions and access patterns
 `{{ name }}`, `{{ user.email }}`, `{{ items[0] }}`
 :::{/card}
 
 :::{card} Control Flow
 :icon: git-branch
-:link: ./control-flow
+:link: /docs/syntax/control-flow/
 :description: Conditionals, loops, and pattern matching
 `{% if %}`, `{% for %}`, `{% match %}`
 :::{/card}
 
 :::{card} Filters
 :icon: filter
-:link: ./filters
+:link: /docs/syntax/filters/
 :description: Transform values in expressions
 `{{ name | upper }}`, `{{ items | join(', ') }}`
 :::{/card}
 
 :::{card} Functions
 :icon: function
-:link: ./functions
+:link: /docs/syntax/functions/
 :description: Define reusable template functions
 `{% def greet(name) %}`, `{% macro %}`
 :::{/card}
 
 :::{card} Inheritance
 :icon: layers
-:link: ./inheritance
+:link: /docs/syntax/inheritance/
 :description: Extend and override base templates
 `{% extends %}`, `{% block %}`
 :::{/card}
 
 :::{card} Includes
 :icon: file-plus
-:link: ./includes
+:link: /docs/syntax/includes/
 :description: Include partials and components
 `{% include %}`, context passing
 :::{/card}
 
 :::{card} Caching
 :icon: database
-:link: ./caching
+:link: /docs/syntax/caching/
 :description: Block-level output caching
 `{% cache key %}...{% end %}`
 :::{/card}
 
 :::{card} Async
 :icon: refresh-cw
-:link: ./async
+:link: /docs/syntax/async/
 :description: Async iteration and await
 `async for`, `await`, async templates
 :::{/card}

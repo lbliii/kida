@@ -27,28 +27,28 @@ Common errors and solutions.
 
 :::{card} Undefined Variable
 :icon: alert-circle
-:link: ./undefined-variable
+:link: /docs/troubleshooting/undefined-variable/
 :description: UndefinedError debugging
 Variable not found or None handling.
 :::{/card}
 
 :::{card} Template Not Found
 :icon: file-x
-:link: ./template-not-found
+:link: /docs/troubleshooting/template-not-found/
 :description: TemplateNotFoundError debugging
 Template loading and path issues.
 :::{/card}
 
 :::{card} Circular Imports
 :icon: git-branch
-:link: ./circular-imports
+:link: /docs/troubleshooting/circular-imports/
 :description: K-TPL-003 — Circular macro import
 {% from %} must not import self or create cycles.
 :::{/card}
 
 :::{card} render_block and Def Scope
 :icon: layers
-:link: ./render-block-scope
+:link: /docs/troubleshooting/render-block-scope/
 :description: Blocks don't inherit defs
 Split defs into a separate file when using render_block.
 :::{/card}

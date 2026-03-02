@@ -222,5 +222,5 @@ See CONTRIBUTING.md in the repository.
 
 ## See Also
 
-- [[docs/about/comparison|Comparison]] — Kida vs Jinja2
-- [[docs/troubleshooting/|Troubleshooting]] — Common issues
+- [[/docs/about/comparison/|Comparison]] — Kida vs Jinja2
+- [[/docs/troubleshooting/|Troubleshooting]] — Common issues

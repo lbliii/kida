@@ -28,31 +28,31 @@ Practical patterns for using Kida in your applications.
 
 :::{card} Loading Templates
 :icon: folder
-:link: ./loading-templates
+:link: /docs/usage/loading-templates/
 :description: FileSystemLoader, DictLoader, search paths
 :::{/card}
 
 :::{card} Rendering Contexts
 :icon: settings
-:link: ./rendering-contexts
+:link: /docs/usage/rendering-contexts/
 :description: Passing variables, globals, nested contexts
 :::{/card}
 
 :::{card} Streaming
 :icon: zap
-:link: ./streaming
+:link: /docs/usage/streaming/
 :description: Chunked rendering, async streaming, framework integration
 :::{/card}
 
 :::{card} Escaping
 :icon: shield
-:link: ./escaping
+:link: /docs/usage/escaping/
 :description: HTML escaping, Markup class, safe filter
 :::{/card}
 
 :::{card} Error Handling
 :icon: alert-triangle
-:link: ./error-handling
+:link: /docs/usage/error-handling/
 :description: Template errors, debugging, stack traces
 :::{/card}
 

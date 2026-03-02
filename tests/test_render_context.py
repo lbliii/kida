@@ -75,6 +75,19 @@ class TestRenderContext:
         child = parent.child_context()
         assert child.template_name == "parent.html"
 
+    def test_child_context_copy_import_stack(self):
+        """copy_import_stack=True gives child its own import_stack copy."""
+        parent = RenderContext(
+            template_name="parent.html",
+            import_stack=["a.html", "b.html"],
+        )
+        child_shared = parent.child_context("child.html")
+        child_copy = parent.child_context("child.html", copy_import_stack=True)
+
+        assert child_shared.import_stack is parent.import_stack
+        assert child_copy.import_stack is not parent.import_stack
+        assert child_copy.import_stack == parent.import_stack
+
 
 class TestRenderContextContextVar:
     """Tests for ContextVar-based render context management."""

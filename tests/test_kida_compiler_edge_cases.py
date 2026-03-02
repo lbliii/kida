@@ -5,6 +5,8 @@ Tests the compilation from Kida AST to Python AST and edge cases.
 
 from __future__ import annotations
 
+import concurrent.futures
+
 import pytest
 
 from kida import DictLoader, Environment
@@ -535,3 +537,30 @@ class TestImportCompilation:
 """)
         result = tmpl.render()
         assert "Hello World" in result
+
+    def test_import_macros_parallel_rendering(self) -> None:
+        """Import macros work correctly under concurrent rendering (ThreadPoolExecutor).
+
+        Regression test for K-RUN-007: '_Undefined' object is not callable
+        that can occur when multiple threads render templates with {% from X import y %}
+        simultaneously.
+        """
+        loader = DictLoader(
+            {
+                "partials/cta.html": "{% def cta() %}<div class='cta'>Sign up</div>{% end %}",
+            }
+        )
+        env = Environment(loader=loader)
+        page_tmpl = env.from_string("""
+{% from "partials/cta.html" import cta %}
+{{ cta() }}
+""")
+
+        def render_once(_: int) -> str:
+            return page_tmpl.render()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(render_once, range(32)))
+
+        for i, result in enumerate(results):
+            assert "Sign up" in result, f"Render {i} failed: {result!r}"

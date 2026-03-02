@@ -5,7 +5,9 @@ Colors are automatically enabled when running in a TTY and respect NO_COLOR.
 """
 
 import os
+import shutil
 from pathlib import Path
+
 from kida import Environment, FileSystemLoader
 
 # Force colors for this demo (override TTY detection)
@@ -13,7 +15,9 @@ os.environ["FORCE_COLOR"] = "1"
 
 # Re-import after setting env var to pick up the change
 import importlib
+
 from kida.environment import terminal
+
 importlib.reload(terminal)
 
 # Create temp directory with templates
@@ -21,7 +25,8 @@ demo_dir = Path("demo_colored_templates")
 demo_dir.mkdir(exist_ok=True)
 
 # Create a chain: page.html → layout.html → nav.html (error here)
-(demo_dir / "page.html").write_text("""
+(demo_dir / "page.html").write_text(
+    """
 <!DOCTYPE html>
 <html>
 <head>
@@ -29,25 +34,30 @@ demo_dir.mkdir(exist_ok=True)
 </head>
 {% include "layout.html" %}
 </html>
-""".strip())
+""".strip()
+)
 
-(demo_dir / "layout.html").write_text("""
+(demo_dir / "layout.html").write_text(
+    """
 <body>
     <div class="container">
         {% include "nav.html" %}
         <main>{{ content }}</main>
     </div>
 </body>
-""".strip())
+""".strip()
+)
 
-(demo_dir / "nav.html").write_text("""
+(demo_dir / "nav.html").write_text(
+    """
 <nav>
     <a href="/">Home</a>
     <a href="/about">About</a>
     <!-- Typo: should be 'username' not 'usernme' -->
     <span>Welcome, {{ usernme }}</span>
 </nav>
-""".strip())
+""".strip()
+)
 
 # Set up environment
 env = Environment(loader=FileSystemLoader(str(demo_dir)))
@@ -81,5 +91,4 @@ print("To disable colors, set NO_COLOR=1 environment variable")
 print("=" * 80)
 
 # Cleanup
-import shutil
 shutil.rmtree(demo_dir)

@@ -47,7 +47,7 @@ print(template.render(name="World"))
 
 :::{card} Quickstart
 :icon: zap
-:link: ./quickstart
+:link: /docs/get-started/quickstart/
 :description: Complete walkthrough in 2 minutes
 :badge: Start Here
 Build and render your first file-based template.
@@ -55,35 +55,35 @@ Build and render your first file-based template.
 
 :::{card} First Project
 :icon: package
-:link: ./first-project
+:link: /docs/get-started/first-project/
 :description: Inheritance, filters, and multi-page rendering
 Build a mini email template system with shared layouts.
 :::{/card}
 
 :::{card} Coming from Jinja2
 :icon: arrow-right
-:link: ./coming-from-jinja2
+:link: /docs/get-started/coming-from-jinja2/
 :description: Quick syntax cheat sheet
 See what's the same, what's different, and what's new.
 :::{/card}
 
 :::{card} T-String Templates
 :icon: type
-:link: ./tstring-templates
+:link: /docs/get-started/tstring-templates/
 :description: PEP 750 inline templates
 Use Python 3.14 t-strings for auto-escaped HTML snippets.
 :::{/card}
 
 :::{card} Syntax Guide
 :icon: code
-:link: ../syntax/
+:link: /docs/syntax/
 :description: Variables, control flow, filters
 Learn the template language from basics to advanced.
 :::{/card}
 
 :::{card} Streaming
 :icon: zap
-:link: ../usage/streaming
+:link: /docs/usage/streaming/
 :description: Chunked rendering for HTMX and SSE
 Yield HTML chunks as they render for progressive delivery.
 :::{/card}

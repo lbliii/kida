@@ -148,6 +148,9 @@ def _filter_first(value: Any) -> Any:
 def _filter_int(value: Any, default: int = 0, strict: bool = False) -> int:
     """Convert to integer.
 
+    Use for values from YAML/config that may arrive as strings (e.g. excerpt_words,
+    per_page). Apply before arithmetic (//, /, %) to avoid TypeError.
+
     Args:
         value: Value to convert to integer.
         default: Default value to return if conversion fails (default: 0).

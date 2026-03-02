@@ -33,7 +33,7 @@ def main() -> None:
     if k is None:
         print("t-strings require Python 3.14+ (PEP 750)")
         return
-    print("=== k(t\"...\") ===")
+    print('=== k(t"...") ===')
     print(output)
     print()
     print("=== Auto-escaping ===")

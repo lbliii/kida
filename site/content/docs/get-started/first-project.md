@@ -178,7 +178,7 @@ Both templates share the same base layout, but each fills in its own title and c
 
 :::{card} Template Inheritance
 :icon: layers
-:link: ../syntax/inheritance
+:link: /docs/syntax/inheritance/
 :description: Extends, blocks, super()
 Deep dive into Kida's inheritance model.
 :::{/card}

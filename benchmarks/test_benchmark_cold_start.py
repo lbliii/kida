@@ -117,9 +117,7 @@ def _setup_bench_template_jinja2(tmp_path: Path) -> Path:
 
 
 @pytest.mark.benchmark(group="cold-start:kida")
-def test_cold_start_kida_no_cache(
-    benchmark: BenchmarkFixture, tmp_path: Path
-) -> None:
+def test_cold_start_kida_no_cache(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
     """Kida: Cold-start without bytecode cache."""
     template_dir = _setup_bench_template(tmp_path)
     cache_dir = tmp_path / "cache"
@@ -135,9 +133,7 @@ def test_cold_start_kida_no_cache(
 
 
 @pytest.mark.benchmark(group="cold-start:kida")
-def test_cold_start_kida_with_cache(
-    benchmark: BenchmarkFixture, tmp_path: Path
-) -> None:
+def test_cold_start_kida_with_cache(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
     """Kida: Cold-start with bytecode cache (warm cache)."""
     template_dir = _setup_bench_template(tmp_path)
     cache_dir = tmp_path / "cache"
@@ -157,9 +153,7 @@ def test_cold_start_kida_with_cache(
 
 
 @pytest.mark.benchmark(group="cold-start:jinja2")
-def test_cold_start_jinja2_no_cache(
-    benchmark: BenchmarkFixture, tmp_path: Path
-) -> None:
+def test_cold_start_jinja2_no_cache(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
     """Jinja2: Cold-start without bytecode cache."""
     template_dir = _setup_bench_template_jinja2(tmp_path)
     cache_dir = tmp_path / "cache"

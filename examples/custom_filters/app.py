@@ -14,6 +14,7 @@ from kida import Environment, FileSystemLoader
 templates_dir = Path(__file__).parent / "templates"
 env = Environment(loader=FileSystemLoader(str(templates_dir)))
 
+
 # Custom filter: add_filter()
 def money(amount: float, currency: str = "$") -> str:
     """Format amount as currency."""

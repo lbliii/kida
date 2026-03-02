@@ -27,49 +27,49 @@ Features for framework authors, SSG/SSR builders, and power users who need to go
 
 :::{card} Static Analysis
 :icon: magnifying-glass
-:link: ./analysis
+:link: /docs/advanced/analysis/
 :description: Analyze templates for dependencies, purity, and caching potential
 Extract dependency paths, validate contexts, and plan caching strategies.
 :::{/card}
 
 :::{card} T-Strings (PEP 750)
 :icon: shield
-:link: ./t-strings
+:link: /docs/advanced/t-strings/
 :description: Auto-escaping HTML and composable regex via Python 3.14 t-strings
 Use the `k()` and `r()` tag functions for safe interpolation.
 :::{/card}
 
 :::{card} Compiler Internals
 :icon: cpu
-:link: ./compiler
+:link: /docs/advanced/compiler/
 :description: F-string coalescing, AST preservation, and render modes
 Understand and tune the compilation pipeline.
 :::{/card}
 
 :::{card} Worker Auto-Tuning
 :icon: zap
-:link: ./workers
+:link: /docs/advanced/workers/
 :description: Workload-aware parallelization for free-threaded Python
 Optimal worker counts, template scheduling, and environment detection.
 :::{/card}
 
 :::{card} Security Hardening
 :icon: shield
-:link: ./security
+:link: /docs/advanced/security/
 :description: Context-specific escaping, URL validation, and attribute safety
 Protect against XSS in JavaScript, CSS, and URL contexts.
 :::{/card}
 
 :::{card} Profiling
 :icon: activity
-:link: ./profiling
+:link: /docs/advanced/profiling/
 :description: Opt-in render instrumentation with zero overhead when disabled
 Track block timings, macro calls, includes, and filter usage.
 :::{/card}
 
 :::{card} Block Caching
 :icon: database
-:link: ./block-caching
+:link: /docs/advanced/block-caching/
 :description: Connect analysis results to runtime block caching
 Cache site-scoped blocks for 40-60% faster builds.
 :::{/card}
