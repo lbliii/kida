@@ -210,6 +210,55 @@ class TestExtendsIncludeStreaming:
 
 
 # ---------------------------------------------------------------------------
+# Flush directive
+# ---------------------------------------------------------------------------
+
+
+class TestFlushDirective:
+    """{% flush %} creates yield boundary in streaming mode."""
+
+    def test_flush_noop_in_render(self, env: Environment) -> None:
+        """render() ignores flush — same output with or without."""
+        t_with = env.from_string("a{% flush %}b")
+        t_without = env.from_string("ab")
+        assert t_with.render() == t_without.render() == "ab"
+
+    def test_flush_yields_in_stream(self, env: Environment) -> None:
+        """render_stream() yields extra chunk at flush position."""
+        t = env.from_string("a{% flush %}b")
+        chunks = list(t.render_stream())
+        assert "".join(chunks) == "ab"
+        assert "" in chunks  # flush yields empty string
+
+    def test_flush_yields_in_stream_async(self, env: Environment) -> None:
+        """render_stream_async() yields at flush position."""
+        import asyncio
+
+        async def run() -> list[str]:
+            t = env.from_string("x{% flush %}y")
+            return [c async for c in t.render_stream_async()]
+
+        chunks = asyncio.run(run())
+        assert "".join(chunks) == "xy"
+        assert "" in chunks
+
+    def test_flush_inside_capture_is_noop(self, env: Environment) -> None:
+        """Flush inside {% capture %} is no-op (body compiled non-streaming)."""
+        t = env.from_string("{% capture x %}a{% flush %}b{% end %}{{ x }}")
+        assert t.render() == "ab"
+        assert "".join(t.render_stream()) == "ab"
+
+    def test_flush_shell_first_chunk_order(self, env: Environment) -> None:
+        """Flush creates boundary: header before loop content."""
+        t = env.from_string("<header>H</header>{% flush %}{% for x in items %}{{ x }}{% end %}")
+        chunks = list(t.render_stream(items=["a", "b"]))
+        assert "".join(chunks) == "<header>H</header>ab"
+        # Flush yields "" — should appear between header and loop output
+        assert chunks[0] == "<header>H</header>"
+        assert "" in chunks
+
+
+# ---------------------------------------------------------------------------
 # Capture / Spaceless (buffer-redirect patterns)
 # ---------------------------------------------------------------------------
 

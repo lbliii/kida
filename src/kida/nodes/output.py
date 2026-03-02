@@ -59,3 +59,8 @@ class Spaceless(Node):
     """Remove whitespace between HTML tags: {% spaceless %}...{% end %}"""
 
     body: Sequence[Node]
+
+
+@dataclass(frozen=True, slots=True)
+class Flush(Node):
+    """Streaming flush boundary: {% flush %}"""

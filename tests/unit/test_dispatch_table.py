@@ -89,6 +89,7 @@ class TestDispatchTableKeywords:
             "capture",
             "cache",
             "filter",
+            "flush",
             # Advanced features
             "slot",
             "match",

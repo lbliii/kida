@@ -45,6 +45,29 @@ for chunk in template.render_stream(items=["a", "b", "c"]):
 
 Each statement-level boundary produces a chunk. Static content, variable output, and control flow transitions all yield independently.
 
+## Flush Boundaries
+
+Use `{% flush %}` to create an explicit yield boundary. This enables shell-first streaming: send header and nav immediately, then stream main content as it becomes available.
+
+```kida
+<html>
+<head><title>{{ title }}</title></head>
+<body>
+  <header>...</header>
+  <nav>...</nav>
+  {% flush %}
+  <main>
+    {% for item in expensive_query() %}
+      <div>{{ item }}</div>
+    {% end %}
+  </main>
+</body>
+</html>
+```
+
+- In **streaming mode** (`render_stream`, `render_stream_async`): `{% flush %}` yields an empty chunk, creating a boundary so the client receives header + nav before the loop starts.
+- In **non-streaming mode** (`render()`): `{% flush %}` is a no-op.
+
 ## RenderedTemplate
 
 `RenderedTemplate` is a lazy iterable wrapper around `render_stream()`:
@@ -139,6 +162,7 @@ All template constructs work in streaming mode:
 | `{% include %}` | Included template streams inline |
 | `{% capture %}` / `{% spaceless %}` | Buffers internally, yields processed result |
 | `{% cache %}` | Buffers internally, yields cached result |
+| `{% flush %}` | Yields empty chunk — explicit boundary for shell-first streaming |
 
 ## Choosing a Rendering Method
 

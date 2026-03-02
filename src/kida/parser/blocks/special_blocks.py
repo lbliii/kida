@@ -20,6 +20,7 @@ from kida.nodes import (
     Embed,
     Filter,
     FilterBlock,
+    Flush,
     Raw,
     Spaceless,
     With,
@@ -202,6 +203,19 @@ class SpecialBlockParsingMixin(BlockStackMixin):
             target=target,
             body=tuple(body),
             empty=tuple(empty),
+        )
+
+    def _parse_flush(self) -> Flush:
+        """Parse {% flush %} — streaming flush boundary.
+
+        Creates an explicit yield boundary in streaming mode.
+        No-op in non-streaming (render) mode.
+        """
+        start = self._advance()  # consume 'flush'
+        self._expect(TokenType.BLOCK_END)
+        return Flush(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
         )
 
     def _parse_raw(self) -> Raw:

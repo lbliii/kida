@@ -896,6 +896,7 @@ class Compiler(
                 "Break": self._compile_break,
                 "Continue": self._compile_continue,
                 "Spaceless": self._compile_spaceless,
+                "Flush": self._compile_flush,
                 "Embed": self._compile_embed,
             }
         return self._node_dispatch

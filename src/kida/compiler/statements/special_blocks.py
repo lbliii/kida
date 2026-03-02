@@ -13,7 +13,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Capture, Embed, Node, Raw, Spaceless
+    from kida.nodes import Capture, Embed, Flush, Node, Raw, Spaceless
 
 
 class SpecialBlockMixin:
@@ -38,6 +38,16 @@ class SpecialBlockMixin:
         # From Compiler core
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
+
+    def _compile_flush(self, node: Flush) -> list[ast.stmt]:
+        """Compile {% flush %} — streaming flush boundary.
+
+        In streaming mode: yield "" to create a chunk boundary.
+        In non-streaming mode: no-op.
+        """
+        if self._streaming:
+            return [ast.Expr(value=ast.Yield(value=ast.Constant(value="")))]
+        return []
 
     def _compile_raw(self, node: Raw) -> list[ast.stmt]:
         """Compile {% raw %}...{% endraw %.
