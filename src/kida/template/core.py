@@ -990,12 +990,23 @@ class Template(TemplateIntrospectionMixin):
                 source_snippet=snippet,
             )
 
+        # TypeError from arithmetic (e.g. str // int) - YAML/config may pass strings
+        suggestion = None
+        if isinstance(error, TypeError) and (
+            "unsupported operand" in error_str or "'str'" in error_str
+        ):
+            suggestion = (
+                "Values from YAML/config may be strings. Use the coerce_int filter "
+                "or ensure numeric types at the data source."
+            )
+
         return TemplateRuntimeError(
             error_str,
             template_name=template_name,
             lineno=lineno,
             source_snippet=snippet,
             template_stack=render_ctx.template_stack,
+            suggestion=suggestion,
         )
 
     async def render_async(self, *args: Any, **kwargs: Any) -> str:
