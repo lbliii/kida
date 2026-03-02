@@ -72,9 +72,7 @@ MEDIUM_CONTEXT = {
     "user": {
         "name": "alice",
         "bio": "Software engineer",
-        "posts": [
-            {"title": f"Post {i}", "content": f"Content {i}"} for i in range(5)
-        ],
+        "posts": [{"title": f"Post {i}", "content": f"Content {i}"} for i in range(5)],
     }
 }
 

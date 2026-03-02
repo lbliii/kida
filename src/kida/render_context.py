@@ -180,7 +180,12 @@ class RenderContext:
                 suggestion="Check for circular inheritance: A extends B extends A",
             )
 
-    def child_context(self, template_name: str | None = None) -> RenderContext:
+    def child_context(
+        self,
+        template_name: str | None = None,
+        *,
+        copy_import_stack: bool = False,
+    ) -> RenderContext:
         """Create child context for include/embed with incremented depth.
 
         Shares cached_blocks, cache_stats, and _meta with parent
@@ -189,6 +194,8 @@ class RenderContext:
 
         Args:
             template_name: Optional override for child template name
+            copy_import_stack: If True, child gets a copy of import_stack
+                (used by _import_macros to avoid shared mutable state)
 
         Returns:
             New RenderContext with incremented include_depth and updated stack
@@ -197,6 +204,8 @@ class RenderContext:
         new_stack = self.template_stack.copy()
         if self.template_name and self.line > 0:
             new_stack.append((self.template_name, self.line))
+
+        import_stack = list(self.import_stack) if copy_import_stack else self.import_stack
 
         return RenderContext(
             template_name=template_name or self.template_name,
@@ -210,7 +219,7 @@ class RenderContext:
             cached_blocks=self.cached_blocks,
             cached_block_names=self.cached_block_names,
             cache_stats=self.cache_stats,
-            import_stack=self.import_stack,  # Share for circular import detection
+            import_stack=import_stack,
             _meta=self._meta,  # Share metadata with child templates
             template_stack=new_stack,  # Pass stack to child
         )

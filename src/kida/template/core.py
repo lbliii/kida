@@ -501,7 +501,7 @@ class Template(TemplateIntrospectionMixin):
 
             render_ctx.import_stack.append(template_name)
             try:
-                child_ctx = render_ctx.child_context(template_name)
+                child_ctx = render_ctx.child_context(template_name, copy_import_stack=True)
                 token = set_render_context(child_ctx)
                 try:
                     imported = _env.get_template(template_name)
@@ -998,6 +998,16 @@ class Template(TemplateIntrospectionMixin):
             suggestion = (
                 "Values from YAML/config may be strings. Use the coerce_int filter "
                 "or ensure numeric types at the data source."
+            )
+
+        # TypeError: '_Undefined' object is not callable — imported macro not found
+        if isinstance(error, TypeError) and (
+            "_undefined" in error_str.lower() and "not callable" in error_str.lower()
+        ):
+            suggestion = (
+                "A macro from {% from X import y %} resolved to Undefined. "
+                "Check that the imported template defines the macro. "
+                "If this occurs during parallel builds, try --no-parallel."
             )
 
         return TemplateRuntimeError(
