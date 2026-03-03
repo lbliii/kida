@@ -187,12 +187,12 @@ Allow an optional label for debugging. Adds complexity; not needed for MVP. Can 
 
 ## Checklist
 
-- [ ] Add `Flush` node
-- [ ] Parser: `_parse_flush`, dispatch entry
-- [ ] Compiler: `_compile_flush`, dispatch entry
-- [ ] Tests: render no-op, stream yield, async yield, inside capture
-- [ ] Docs: streaming.md, syntax reference
-- [ ] Example: shell-first or extend streaming example
+- [x] Add `Flush` node
+- [x] Parser: `_parse_flush`, dispatch entry
+- [x] Compiler: `_compile_flush`, dispatch entry
+- [x] Tests: render no-op, stream yield, async yield, inside capture
+- [x] Docs: streaming.md
+- [x] Example: extend streaming example
 
 ---
 
