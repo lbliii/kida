@@ -246,7 +246,7 @@ class RenderContext:
             cached_blocks=self.cached_blocks,
             cached_block_names=self.cached_block_names,
             cache_stats=self.cache_stats,
-            import_stack=self.import_stack,
+            import_stack=list(self.import_stack),
             _meta=self._meta,
             template_stack=new_stack,
         )

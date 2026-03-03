@@ -510,7 +510,7 @@ class Template(TemplateIntrospectionMixin):
                             f"Template '{template_name}' not properly compiled: "
                             f"_render_func is None. Check for syntax errors in the template."
                         )
-                    import_ctx = dict(_env.globals)
+                    import_ctx = {k: v for k, v in _env.globals.items() if v is not UNDEFINED}
                     if with_context:
                         import_ctx.update(context)
                     imported._render_func(import_ctx, None)
