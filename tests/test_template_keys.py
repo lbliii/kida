@@ -55,6 +55,17 @@ def test_filesystem_loader_rejects_path_traversal() -> None:
         assert "path traversal" in str(exc_info.value).lower()
 
 
+def test_package_loader_rejects_path_traversal() -> None:
+    """PackageLoader rejects path traversal via normalize_template_name."""
+    from kida.environment.loaders import PackageLoader
+
+    loader = PackageLoader("kida")
+    with pytest.raises(TemplateNotFoundError):
+        loader.get_source("../../etc/passwd")
+    with pytest.raises(TemplateNotFoundError):
+        loader.get_source("layouts/../secret.html")
+
+
 def test_invalid_block_name_raises() -> None:
     """Invalid block names raise TemplateSyntaxError at compile time."""
     from kida import DictLoader, Environment

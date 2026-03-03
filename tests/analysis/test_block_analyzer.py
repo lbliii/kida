@@ -12,6 +12,8 @@ Tests for:
 
 from __future__ import annotations
 
+import pytest
+
 from kida import Environment
 from kida.analysis import (
     AnalysisConfig,
@@ -893,6 +895,37 @@ class TestPreserveAstConfig:
         """Default preserve_ast is True."""
         env = Environment()
         assert env.preserve_ast is True
+
+
+class TestAnalyzerExceptionPropagation:
+    """Unexpected exceptions in analysis propagate (no broad except Exception)."""
+
+    def test_unexpected_exception_propagates(self) -> None:
+        """RuntimeError from unknown node type propagates, not swallowed."""
+        from kida.analysis.analyzer import BlockAnalyzer
+        from kida.nodes.structure import Template
+
+        class BadNode:
+            """Node that raises RuntimeError when DependencyWalker visits it."""
+
+            lineno = 1
+            col_offset = 0
+
+            @property
+            def body(self) -> None:
+                raise RuntimeError("custom analysis error")
+
+        bad = BadNode()
+        root = Template(
+            lineno=1,
+            col_offset=0,
+            body=(bad,),
+            extends=None,
+            context_type=None,
+        )
+        analyzer = BlockAnalyzer()
+        with pytest.raises(RuntimeError, match="custom analysis error"):
+            analyzer.analyze(root)
 
 
 class TestBlockMetadataHelpers:

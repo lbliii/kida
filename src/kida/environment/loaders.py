@@ -41,6 +41,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from kida.environment.exceptions import TemplateNotFoundError
+from kida.utils.template_keys import normalize_template_name
 
 
 class FileSystemLoader:
@@ -102,7 +103,7 @@ class FileSystemLoader:
             except ValueError:
                 raise TemplateNotFoundError(
                     f"Template '{name}' attempts path traversal outside search path"
-                )
+                ) from None
             if path.is_file():
                 return path.read_text(self._encoding), str(path)
 
@@ -387,6 +388,7 @@ class PackageLoader:
 
     def get_source(self, name: str) -> tuple[str, str | None]:
         """Load template source from package resources."""
+        name = normalize_template_name(name)
         root = self._get_root()
         resource = root.joinpath(name)
 

@@ -264,12 +264,6 @@ class BlockAnalyzer:
                 except (AttributeError, TypeError) as e:
                     # Expected for some node types that don't support dependency analysis
                     logger.debug(f"Skipping node analysis: {type(node).__name__}: {e}")
-                except Exception as e:
-                    # Unexpected - log for debugging but don't fail
-                    logger.warning(
-                        f"Unexpected error analyzing {type(node).__name__}: {e}",
-                        exc_info=False,  # Don't include full traceback for warnings
-                    )
 
     def _check_emits_html(self, node: Node) -> bool:
         """Check if a node produces any output."""
