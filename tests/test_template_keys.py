@@ -95,3 +95,62 @@ def test_invalid_block_name_raises() -> None:
         compiler.compile(root, name="test.html")
     assert "Invalid block name" in str(exc_info.value)
     assert "invalid-name" in str(exc_info.value)
+
+
+def test_invalid_def_name_raises() -> None:
+    """Invalid def names raise TemplateSyntaxError at compile time."""
+    from kida import DictLoader, Environment
+    from kida.compiler import Compiler
+    from kida.environment.exceptions import TemplateSyntaxError
+    from kida.nodes import Data, Def, DefParam
+    from kida.nodes.structure import Template
+
+    bad_def = Def(
+        lineno=1,
+        col_offset=0,
+        name="invalid-def",
+        params=(),
+        body=(Data(lineno=2, col_offset=0, value="x"),),
+    )
+    root = Template(
+        lineno=1,
+        col_offset=0,
+        body=(bad_def,),
+        extends=None,
+        context_type=None,
+    )
+    env = Environment(loader=DictLoader({}))
+    compiler = Compiler(env)
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        compiler.compile(root, name="test.html")
+    assert "Invalid def name" in str(exc_info.value)
+    assert "invalid-def" in str(exc_info.value)
+
+
+def test_invalid_slot_name_raises() -> None:
+    """Invalid slot names raise TemplateSyntaxError at compile time."""
+    from kida import DictLoader, Environment
+    from kida.compiler import Compiler
+    from kida.environment.exceptions import TemplateSyntaxError
+    from kida.nodes import Data, SlotBlock
+    from kida.nodes.structure import Template
+
+    bad_slot = SlotBlock(
+        lineno=1,
+        col_offset=0,
+        name="bad-slot",
+        body=(Data(lineno=2, col_offset=0, value="x"),),
+    )
+    root = Template(
+        lineno=1,
+        col_offset=0,
+        body=(bad_slot,),
+        extends=None,
+        context_type=None,
+    )
+    env = Environment(loader=DictLoader({}))
+    compiler = Compiler(env)
+    with pytest.raises(TemplateSyntaxError) as exc_info:
+        compiler.compile(root, name="test.html")
+    assert "Invalid slot name" in str(exc_info.value)
+    assert "bad-slot" in str(exc_info.value)

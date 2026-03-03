@@ -159,13 +159,12 @@ class Compiler(
         This ensures nested blocks (blocks inside blocks, blocks inside
         conditionals, etc.) are all registered for compilation.
         """
-        from kida.nodes import Block
+        from kida.environment.exceptions import TemplateSyntaxError
+        from kida.nodes import Block, CallBlock, Def, Slot, SlotBlock
 
         for node in nodes:
             if isinstance(node, Block):
                 if not _BLOCK_NAME_RE.match(node.name):
-                    from kida.environment.exceptions import TemplateSyntaxError
-
                     raise TemplateSyntaxError(
                         f"Invalid block name '{node.name}': must be identifier-like "
                         "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
@@ -176,6 +175,47 @@ class Compiler(
                 self._blocks[node.name] = node
                 # Recurse into block body to find nested blocks
                 self._collect_blocks(node.body)
+            elif isinstance(node, Def):
+                if not _BLOCK_NAME_RE.match(node.name):
+                    raise TemplateSyntaxError(
+                        f"Invalid def name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
+                self._collect_blocks(node.body)
+            elif isinstance(node, CallBlock):
+                for slot_name in node.slots:
+                    if slot_name != "default" and not _BLOCK_NAME_RE.match(slot_name):
+                        raise TemplateSyntaxError(
+                            f"Invalid slot name '{slot_name}': must be identifier-like "
+                            "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                            lineno=node.lineno,
+                            name=self._name,
+                            filename=self._filename,
+                        )
+                for slot_body in node.slots.values():
+                    self._collect_blocks(slot_body)
+            elif isinstance(node, SlotBlock):
+                if node.name != "default" and not _BLOCK_NAME_RE.match(node.name):
+                    raise TemplateSyntaxError(
+                        f"Invalid slot name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
+                self._collect_blocks(node.body)
+            elif isinstance(node, Slot):
+                if node.name != "default" and not _BLOCK_NAME_RE.match(node.name):
+                    raise TemplateSyntaxError(
+                        f"Invalid slot name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
             elif hasattr(node, "body"):
                 # Node has a body (If, For, With, Def, etc.)
                 body = node.body
