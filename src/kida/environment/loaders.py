@@ -95,6 +95,14 @@ class FileSystemLoader:
         """Load template source from filesystem."""
         for base in self._paths:
             path = base / name
+            try:
+                resolved = path.resolve()
+                base_resolved = base.resolve()
+                resolved.relative_to(base_resolved)
+            except ValueError:
+                raise TemplateNotFoundError(
+                    f"Template '{name}' attempts path traversal outside search path"
+                )
             if path.is_file():
                 return path.read_text(self._encoding), str(path)
 

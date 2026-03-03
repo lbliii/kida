@@ -6,8 +6,9 @@ and caching. It manages loaders, filters, tests, and global variables.
 Thread-Safety:
 - Immutable configuration after construction
 - Copy-on-write for filters/tests/globals (no locking)
-- LRU caches use atomic pointer swaps
-- Safe for concurrent `get_template()` and `render()` calls
+- LRU caches use RLock; _template_hashes, _analysis_cache, _structure_manifest_cache
+  are protected by _cache_lock for concurrent get_template/get_template_structure
+- Safe for concurrent get_template(), render(), and get_template_structure() calls
 
 Example:
     >>> from kida import Environment, FileSystemLoader
@@ -22,12 +23,17 @@ Example:
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any
 
-from kida.environment.exceptions import TemplateNotFoundError
+from kida.environment.exceptions import (
+    TemplateNotFoundError,
+    TemplateSyntaxError,
+)
+from kida.utils.template_keys import normalize_template_name
 from kida.environment.filters import DEFAULT_FILTERS
 from kida.environment.protocols import Loader
 from kida.environment.registry import FilterRegistry
@@ -241,6 +247,7 @@ class Environment:
         init=False,
         default_factory=dict,
     )
+    _cache_lock: threading.RLock = field(init=False, default_factory=threading.RLock)
 
     def __post_init__(self) -> None:
         """Initialize derived configuration."""
@@ -404,45 +411,47 @@ class Environment:
         if self.loader is None:
             raise RuntimeError("No loader configured")
 
-        # Check cache (thread-safe LRU)
-        cached: Template | None = self._cache.get(name)
-        if cached is not None:
-            # With auto_reload=True, verify source hasn't changed
-            if self.auto_reload:
-                if self._is_template_stale(name):
-                    # Source changed - invalidate cache and reload
-                    self._cache.delete(name)
-                    self._template_hashes.pop(name, None)
-                    self._analysis_cache.pop(name, None)  # Invalidate analysis cache
+        name = normalize_template_name(name)
+        with self._cache_lock:
+            # Check cache (thread-safe LRU)
+            cached: Template | None = self._cache.get(name)
+            if cached is not None:
+                # With auto_reload=True, verify source hasn't changed
+                if self.auto_reload:
+                    if self._is_template_stale(name):
+                        # Source changed - invalidate cache and reload
+                        self._cache.delete(name)
+                        self._template_hashes.pop(name, None)
+                        self._analysis_cache.pop(name, None)  # Invalidate analysis cache
+                    else:
+                        # Source unchanged - return cached template
+                        template: Template = cached
+                        return template
                 else:
-                    # Source unchanged - return cached template
-                    template: Template = cached
+                    # auto_reload=False - return cached without checking
+                    template = cached
                     return template
-            else:
-                # auto_reload=False - return cached without checking
-                template = cached
-                return template
 
-        # Load and compile
-        source, filename = self.loader.get_source(name)
+            # Load and compile
+            source, filename = self.loader.get_source(name)
 
-        # Compute source hash for cache invalidation
-        from kida.bytecode_cache import hash_source
+            # Compute source hash for cache invalidation
+            from kida.bytecode_cache import hash_source
 
-        source_hash = hash_source(source)
+            source_hash = hash_source(source)
 
-        template = self._compile(
-            source,
-            name,
-            filename,
-            static_context=self.static_context,
-        )
+            template = self._compile(
+                source,
+                name,
+                filename,
+                static_context=self.static_context,
+            )
 
-        # Update cache (LRU handles eviction)
-        self._cache.set(name, template)
-        self._template_hashes[name] = source_hash
+            # Update cache (LRU handles eviction)
+            self._cache.set(name, template)
+            self._template_hashes[name] = source_hash
 
-        return template
+            return template
 
     def from_string(
         self,
@@ -648,47 +657,55 @@ class Environment:
             >>> env.clear_template_cache()  # Clear all
             >>> env.clear_template_cache(["base.html", "page.html"])  # Clear specific
         """
-        if names is None:
-            # Clear all templates
-            self._cache.clear()
-            self._template_hashes.clear()
-            self._analysis_cache.clear()
-            self._structure_manifest_cache.clear()
-        else:
-            # Clear specific templates
-            for name in names:
-                self._cache.delete(name)
-                self._template_hashes.pop(name, None)
-                self._analysis_cache.pop(name, None)  # Invalidate analysis cache
-                self._structure_manifest_cache.pop(name, None)
+        with self._cache_lock:
+            if names is None:
+                # Clear all templates
+                self._cache.clear()
+                self._template_hashes.clear()
+                self._analysis_cache.clear()
+                self._structure_manifest_cache.clear()
+            else:
+                # Clear specific templates
+                for name in names:
+                    self._cache.delete(name)
+                    self._template_hashes.pop(name, None)
+                    self._analysis_cache.pop(name, None)  # Invalidate analysis cache
+                    self._structure_manifest_cache.pop(name, None)
 
     def get_template_structure(self, name: str) -> TemplateStructureManifest | None:
         """Return lightweight manifest with extends/blocks/dependencies."""
         from kida.analysis.metadata import TemplateStructureManifest
 
-        cached = self._structure_manifest_cache.get(name)
-        if cached is not None:
-            return cached
-
         try:
-            template = self.get_template(name)
-            meta = template.template_metadata()
-            if meta is None:
-                return None
-        except Exception:
+            name = normalize_template_name(name)
+        except TemplateNotFoundError:
             return None
 
-        manifest = TemplateStructureManifest(
-            name=meta.name,
-            extends=meta.extends,
-            block_names=tuple(meta.blocks.keys()),
-            block_hashes={
-                block_name: block_meta.block_hash for block_name, block_meta in meta.blocks.items()
-            },
-            dependencies=meta.all_dependencies(),
-        )
-        self._structure_manifest_cache[name] = manifest
-        return manifest
+        with self._cache_lock:
+            cached = self._structure_manifest_cache.get(name)
+            if cached is not None:
+                return cached
+
+            try:
+                template = self.get_template(name)
+                meta = template.template_metadata()
+                if meta is None:
+                    return None
+            except (TemplateNotFoundError, TemplateSyntaxError):
+                return None
+
+            manifest = TemplateStructureManifest(
+                name=meta.name,
+                extends=meta.extends,
+                block_names=tuple(meta.blocks.keys()),
+                block_hashes={
+                    block_name: block_meta.block_hash
+                    for block_name, block_meta in meta.blocks.items()
+                },
+                dependencies=meta.all_dependencies(),
+            )
+            self._structure_manifest_cache[name] = manifest
+            return manifest
 
     def render(self, template_name: str, *args: Any, **kwargs: Any) -> str:
         """Render a template by name with context.

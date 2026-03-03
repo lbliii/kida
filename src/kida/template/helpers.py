@@ -15,7 +15,7 @@ from collections.abc import Callable
 from time import perf_counter as _perf_counter
 from typing import Any
 
-from kida.render_accumulator import get_accumulator as _get_accumulator
+from kida.render_accumulator import RenderAccumulator, get_accumulator as _get_accumulator
 from kida.utils.html import _SPACELESS_RE, Markup
 
 # =============================================================================
@@ -95,7 +95,9 @@ STATIC_NAMESPACE: dict[str, Any] = {
 }
 
 
-def record_filter_usage(acc: Any, name: str, result: Any) -> Any:
+def record_filter_usage(
+    acc: RenderAccumulator | None, name: str, result: Any
+) -> Any:
     """Record filter usage for profiling, returning the result unchanged.
 
     Called by compiled code for every filter invocation. When profiling
@@ -114,7 +116,9 @@ def record_filter_usage(acc: Any, name: str, result: Any) -> Any:
     return result
 
 
-def record_macro_usage(acc: Any, name: str, result: Any) -> Any:
+def record_macro_usage(
+    acc: RenderAccumulator | None, name: str, result: Any
+) -> Any:
     """Record macro ({% def %}) call for profiling, returning the result unchanged.
 
     Called by compiled code for every macro invocation. When profiling

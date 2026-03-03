@@ -42,10 +42,12 @@ Complexity:
 from __future__ import annotations
 
 import weakref
+from collections.abc import AsyncIterator, Iterator
 from typing import TYPE_CHECKING, Any
 
 from kida.render_context import RenderContext
 from kida.template.cached_blocks import CachedBlocksDict
+from kida.template.types import BlocksDict
 from kida.template.helpers import (
     STATIC_NAMESPACE,
     UNDEFINED,
@@ -67,12 +69,13 @@ if TYPE_CHECKING:
 
     from kida.analysis import TemplateMetadata
     from kida.environment import Environment
+    from kida.environment.exceptions import TemplateRuntimeError
     from kida.nodes import Template as TemplateNode
     from kida.render_context import RenderContext
 
 
 def _wrap_blocks_if_cached(
-    blocks: dict[str, Any],
+    blocks: BlocksDict | dict[str, Any],
     render_ctx: RenderContext,
 ) -> dict[str, Any] | CachedBlocksDict:
     """Wrap blocks with CachedBlocksDict if render context has cached blocks."""
@@ -265,7 +268,9 @@ class Template(TemplateIntrospectionMixin):
                 raise included._enhance_error(e, child_ctx) from e
 
         # Extends helper - renders parent template with child's blocks
-        def _extends(template_name: str, context: dict[str, Any], blocks: dict[str, Any]) -> str:
+        def _extends(
+            template_name: str, context: dict[str, Any], blocks: BlocksDict
+        ) -> str:
             from kida.render_context import (
                 get_render_context_required,
                 reset_render_context,
@@ -297,7 +302,7 @@ class Template(TemplateIntrospectionMixin):
             ignore_missing: bool = False,
             *,
             blocks: dict[str, Any] | None = None,
-        ):  # -> Iterator[str]
+        ) -> Iterator[str]:
             from kida.environment.exceptions import (
                 TemplateNotFoundError,
                 TemplateRuntimeError,
@@ -346,7 +351,7 @@ class Template(TemplateIntrospectionMixin):
         # Streaming extends helper - yields chunks from parent template
         def _extends_stream(
             template_name: str, context: dict[str, Any], blocks: dict[str, Any]
-        ):  # -> Iterator[str]
+        ) -> Iterator[str]:
             from kida.render_context import (
                 get_render_context_required,
                 reset_render_context,
@@ -378,7 +383,7 @@ class Template(TemplateIntrospectionMixin):
             ignore_missing: bool = False,
             *,
             blocks: dict[str, Any] | None = None,
-        ):  # -> AsyncIterator[str]
+        ) -> AsyncIterator[str]:
             from kida.environment.exceptions import (
                 TemplateNotFoundError,
                 TemplateRuntimeError,
@@ -436,7 +441,7 @@ class Template(TemplateIntrospectionMixin):
         # RFC: rfc-async-rendering
         async def _extends_stream_async(
             template_name: str, context: dict[str, Any], blocks: dict[str, Any]
-        ):  # -> AsyncIterator[str]
+        ) -> AsyncIterator[str]:
             from kida.render_context import (
                 get_render_context_required,
                 reset_render_context,
@@ -483,7 +488,9 @@ class Template(TemplateIntrospectionMixin):
                 reset_render_context,
                 set_render_context,
             )
+            from kida.utils.template_keys import normalize_template_name
 
+            template_name = normalize_template_name(template_name)
             _env = env_ref()
             if _env is None:
                 raise RuntimeError(
@@ -501,7 +508,7 @@ class Template(TemplateIntrospectionMixin):
 
             render_ctx.import_stack.append(template_name)
             try:
-                child_ctx = render_ctx.child_context(template_name, copy_import_stack=True)
+                child_ctx = render_ctx.child_context(template_name)
                 token = set_render_context(child_ctx)
                 try:
                     imported = _env.get_template(template_name)
@@ -859,7 +866,7 @@ class Template(TemplateIntrospectionMixin):
                     raise
                 raise self._enhance_error(e, render_ctx) from e
 
-    def render_stream(self, *args: Any, **kwargs: Any):
+    def render_stream(self, *args: Any, **kwargs: Any) -> Iterator[str]:
         """Render template as a generator of HTML chunks.
 
         Yields chunks at every statement boundary, enabling progressive
@@ -943,7 +950,7 @@ class Template(TemplateIntrospectionMixin):
         self,
         error: Exception,
         render_ctx: RenderContext,
-    ) -> Exception:
+    ) -> TemplateRuntimeError:
         """Enhance a generic exception with template context from RenderContext.
 
         Converts generic Python exceptions into TemplateRuntimeError with
@@ -1037,7 +1044,7 @@ class Template(TemplateIntrospectionMixin):
         """
         return self._namespace.get("_is_async", False)
 
-    async def render_stream_async(self, *args: Any, **kwargs: Any):
+    async def render_stream_async(self, *args: Any, **kwargs: Any) -> AsyncIterator[str]:
         """Render template as an async generator of HTML chunks.
 
         For templates with async constructs ({% async for %}, {{ await }}),
@@ -1102,7 +1109,9 @@ class Template(TemplateIntrospectionMixin):
                     f"Template '{self._name or '(inline)'}' has no render_stream function"
                 )
 
-    async def render_block_stream_async(self, block_name: str, *args: Any, **kwargs: Any):
+    async def render_block_stream_async(
+        self, block_name: str, *args: Any, **kwargs: Any
+    ) -> AsyncIterator[str]:
         """Render a single block as an async stream.
 
         Looks up the async streaming block function first, falls back to

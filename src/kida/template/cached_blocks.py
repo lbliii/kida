@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import threading
 from typing import Any
+
+from kida.template.types import BlockCallable
 
 
 class CachedBlocksDict:
@@ -17,7 +19,7 @@ class CachedBlocksDict:
 
     """
 
-    __slots__ = ("_cached", "_cached_names", "_original", "_stats")
+    __slots__ = ("_cached", "_cached_names", "_original", "_stats", "_stats_lock")
 
     def __init__(
         self,
@@ -31,16 +33,25 @@ class CachedBlocksDict:
         self._cached = cached
         self._cached_names = cached_names
         self._stats = stats
+        self._stats_lock = threading.Lock() if stats is not None else None
+
+    def _record_hit(self) -> None:
+        """Record cache hit (thread-safe when stats shared)."""
+        if self._stats is not None and self._stats_lock is not None:
+            with self._stats_lock:
+                self._stats["hits"] = self._stats.get("hits", 0) + 1
+
+    def _record_miss(self) -> None:
+        """Record cache miss (thread-safe when stats shared)."""
+        if self._stats is not None and self._stats_lock is not None:
+            with self._stats_lock:
+                self._stats["misses"] = self._stats.get("misses", 0) + 1
 
     def get(self, key: str, default: Any = None) -> Any:
         """Intercept .get() calls to return cached HTML when available."""
         if key in self._cached_names:
             cached_html = self._cached[key]
-
-            # Record hit in shared stats if available
-            if self._stats is not None:
-                self._stats["hits"] = self._stats.get("hits", 0) + 1
-
+            self._record_hit()
             # Return a wrapper function that matches the block function signature:
             # _block_name(ctx, _blocks)
             def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
@@ -48,11 +59,7 @@ class CachedBlocksDict:
 
             return cached_block_func
 
-        # Record miss in shared stats if available (block exists but not cached)
-        if self._stats is not None:
-            self._stats["misses"] = self._stats.get("misses", 0) + 1
-
-        # Fall back to original dict behavior
+        self._record_miss()
         return self._original.get(key, default)
 
     def setdefault(self, key: str, default: Any = None) -> Any:
@@ -62,13 +69,8 @@ class CachedBlocksDict:
         if not already overridden by a child template.
         """
         if key in self._cached_names:
-            # Cached blocks take precedence - return cached wrapper
             cached_html = self._cached[key]
-
-            # Record hit in shared stats if available
-            if self._stats is not None:
-                self._stats["hits"] = self._stats.get("hits", 0) + 1
-
+            self._record_hit()
             def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
                 return cached_html
 
@@ -81,11 +83,7 @@ class CachedBlocksDict:
         """Support dict[key] access."""
         if key in self._cached_names:
             cached_html = self._cached[key]
-
-            # Record hit in shared stats if available
-            if self._stats is not None:
-                self._stats["hits"] = self._stats.get("hits", 0) + 1
-
+            self._record_hit()
             def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
                 return cached_html
 
@@ -111,16 +109,19 @@ class CachedBlocksDict:
         for name in self._cached_names:
             cached_html = self._cached[name]
 
-            # Create wrapper with proper closure capture
+            # Create wrapper with proper closure capture (thread-safe stats)
             def make_wrapper(
-                html: str, stats: dict[str, int] | None
-            ) -> Callable[[dict[str, Any], dict[str, Any]], str]:
+                html: str,
+                stats: dict[str, int] | None,
+                lock: threading.Lock | None,
+            ) -> BlockCallable:
                 def wrapper(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
-                    if stats is not None:
-                        stats["hits"] = stats.get("hits", 0) + 1
+                    if stats is not None and lock is not None:
+                        with lock:
+                            stats["hits"] = stats.get("hits", 0) + 1
                     return html
 
                 return wrapper
 
-            result[name] = make_wrapper(cached_html, self._stats)
+            result[name] = make_wrapper(cached_html, self._stats, self._stats_lock)
         return result

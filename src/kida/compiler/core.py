@@ -37,8 +37,11 @@ Templates with `{% extends %}` generate:
 from __future__ import annotations
 
 import ast
+import re
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, cast
+
+_BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
@@ -160,6 +163,16 @@ class Compiler(
 
         for node in nodes:
             if isinstance(node, Block):
+                if not _BLOCK_NAME_RE.match(node.name):
+                    from kida.environment.exceptions import TemplateSyntaxError
+
+                    raise TemplateSyntaxError(
+                        f"Invalid block name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
                 self._blocks[node.name] = node
                 # Recurse into block body to find nested blocks
                 self._collect_blocks(node.body)

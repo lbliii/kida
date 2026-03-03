@@ -52,6 +52,11 @@ class RenderContext:
         cached_block_names: Frozenset of cached block names for O(1) lookup
         cache_stats: Optional dict for cache hit/miss tracking
         template_stack: Stack of (template_name, line) for error traces
+
+    Context Contracts:
+        - ``ctx`` (render context): User-provided dict passed to ``render(**ctx)``.
+          Framework keys (e.g. ``site``, ``page``) are documented by the framework.
+        - ``_meta``: Framework metadata (HTMX, CSRF, etc.). See ``get_meta()``.
     """
 
     # Template identification (for error messages)
@@ -89,6 +94,8 @@ class RenderContext:
     import_stack: list[str] = field(default_factory=list)
 
     # Framework metadata (for HTMX, CSRF, etc.)
+    # Well-known keys: hx_request, hx_target, hx_trigger, hx_boosted, csrf_token.
+    # Frameworks (e.g. Chirp) populate _meta; templates access via get_meta().
     _meta: dict[str, object] = field(default_factory=dict)
 
     def get_meta(self, key: str, default: object = None) -> object:
@@ -180,22 +187,15 @@ class RenderContext:
                 suggestion="Check for circular inheritance: A extends B extends A",
             )
 
-    def child_context(
-        self,
-        template_name: str | None = None,
-        *,
-        copy_import_stack: bool = False,
-    ) -> RenderContext:
+    def child_context(self, template_name: str | None = None) -> RenderContext:
         """Create child context for include/embed with incremented depth.
 
         Shares cached_blocks, cache_stats, and _meta with parent
-        (they're document-wide). Appends current location to template_stack
-        for error traces.
+        (they're document-wide). Child gets a copy of import_stack to avoid
+        shared mutable state under parallel rendering.
 
         Args:
             template_name: Optional override for child template name
-            copy_import_stack: If True, child gets a copy of import_stack
-                (used by _import_macros to avoid shared mutable state)
 
         Returns:
             New RenderContext with incremented include_depth and updated stack
@@ -205,7 +205,7 @@ class RenderContext:
         if self.template_name and self.line > 0:
             new_stack.append((self.template_name, self.line))
 
-        import_stack = list(self.import_stack) if copy_import_stack else self.import_stack
+        import_stack = list(self.import_stack)
 
         return RenderContext(
             template_name=template_name or self.template_name,

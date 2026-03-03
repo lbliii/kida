@@ -143,6 +143,15 @@ async def render_many(env):
 
 Concurrent `render()` and `render_stream()` on the same template from different threads is safe. BytecodeCache and Environment copy-on-write are tested under concurrent get/set.
 
+## Component Concurrency Matrix
+
+| Component | Concurrent Reads | Concurrent Writes | Notes |
+|-----------|------------------|------------------|-------|
+| `Environment.get_template` | Yes | Yes (LRU locked) | Cache dicts protected by `_cache_lock` |
+| `Template.render` | Yes | N/A | Per-call state via ContextVar |
+| `CachedBlocksDict` | Yes | Stats safe | Stats updates use lock when shared |
+| `Compiler.compile` | No | No | One compile at a time per Compiler instance |
+
 ## Best Practices
 
 ### Create Environment Once
