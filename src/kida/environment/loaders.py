@@ -166,11 +166,11 @@ class DictLoader:
 
     def get_source(self, name: str) -> tuple[str, None]:
         if name not in self._mapping:
-            from difflib import get_close_matches
+            from kida.utils.typo_suggestions import suggest_closest
 
-            available = sorted(self._mapping.keys())
+            available = list(self._mapping.keys())
             msg = f"Template '{name}' not found"
-            matches = get_close_matches(name, available, n=1, cutoff=0.6)
+            matches = suggest_closest(name, available, limit=1)
             if matches:
                 msg += f". Did you mean '{matches[0]}'?"
             elif available:

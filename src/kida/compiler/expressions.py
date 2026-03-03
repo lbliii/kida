@@ -9,10 +9,11 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from difflib import get_close_matches
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 from kida.environment.exceptions import TemplateSyntaxError
+from kida.utils.typo_suggestions import suggest_closest
 
 if TYPE_CHECKING:
     from kida.environment import Environment
@@ -57,21 +58,13 @@ class ExpressionCompilationMixin:
         def _get_cmpop(self, op: str) -> ast.cmpop: ...
 
     def _get_filter_suggestion(self, name: str) -> str | None:
-        """Find closest matching filter name for typo suggestions.
-
-        Uses difflib.get_close_matches with 0.6 cutoff for reasonable typo detection.
-        Returns None if no close match found.
-        """
-        matches = get_close_matches(name, self._env._filters.keys(), n=1, cutoff=0.6)
+        """Find closest matching filter name for typo suggestions."""
+        matches = suggest_closest(name, self._env._filters.keys(), limit=1)
         return matches[0] if matches else None
 
     def _get_test_suggestion(self, name: str) -> str | None:
-        """Find closest matching test name for typo suggestions.
-
-        Uses difflib.get_close_matches with 0.6 cutoff for reasonable typo detection.
-        Returns None if no close match found.
-        """
-        matches = get_close_matches(name, self._env._tests.keys(), n=1, cutoff=0.6)
+        """Find closest matching test name for typo suggestions."""
+        matches = suggest_closest(name, self._env._tests.keys(), limit=1)
         return matches[0] if matches else None
 
     def _make_deferred_lambda(self, expr: ast.expr) -> ast.Lambda:
@@ -294,6 +287,10 @@ class ExpressionCompilationMixin:
             return test_call
 
         if isinstance(node, FuncCall):
+            # obj?.method() — short-circuit call when obj is None or attr is UNDEFINED
+            if isinstance(node.func, OptionalGetattr):
+                return self._compile_optional_method_call(node.func, node.args, node.kwargs)
+
             call_node = ast.Call(
                 func=self._compile_expr(node.func),
                 args=[self._compile_expr(a) for a in node.args],
@@ -582,6 +579,46 @@ class ExpressionCompilationMixin:
                 slice=key,
                 ctx=ast.Load(),
             ),
+        )
+
+    def _compile_optional_method_call(
+        self,
+        opt_getattr: OptionalGetattr,
+        args: Sequence[Any],
+        kwargs: dict[str, Any],
+    ) -> ast.expr:
+        """Compile obj?.method(*args, **kwargs) with short-circuit.
+
+        When obj is None or obj.method is UNDEFINED, return None without calling.
+        Uses _optional_call(callee, *args, **kwargs) helper.
+        """
+        self._block_counter += 1
+        tmp_name = f"_oc_{self._block_counter}"
+
+        obj = self._compile_expr(opt_getattr.obj)
+        attr_val = ast.IfExp(
+            test=ast.Compare(
+                left=ast.NamedExpr(
+                    target=ast.Name(id=tmp_name, ctx=ast.Store()),
+                    value=obj,
+                ),
+                ops=[ast.Is()],
+                comparators=[ast.Constant(value=None)],
+            ),
+            body=ast.Constant(value=None),
+            orelse=ast.Call(
+                func=ast.Name(id="_getattr_none", ctx=ast.Load()),
+                args=[
+                    ast.Name(id=tmp_name, ctx=ast.Load()),
+                    ast.Constant(value=opt_getattr.attr),
+                ],
+                keywords=[],
+            ),
+        )
+        return ast.Call(
+            func=ast.Name(id="_optional_call", ctx=ast.Load()),
+            args=[attr_val] + [self._compile_expr(a) for a in args],
+            keywords=[ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in kwargs.items()],
         )
 
     def _compile_range(self, node: Range) -> ast.expr:

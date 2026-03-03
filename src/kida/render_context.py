@@ -187,7 +187,12 @@ class RenderContext:
                 suggestion="Check for circular inheritance: A extends B extends A",
             )
 
-    def child_context(self, template_name: str | None = None) -> RenderContext:
+    def child_context(
+        self,
+        template_name: str | None = None,
+        *,
+        source: str | None = None,
+    ) -> RenderContext:
         """Create child context for include/embed with incremented depth.
 
         Shares cached_blocks, cache_stats, and _meta with parent
@@ -196,6 +201,7 @@ class RenderContext:
 
         Args:
             template_name: Optional override for child template name
+            source: Optional template source for error snippets in child
 
         Returns:
             New RenderContext with incremented include_depth and updated stack
@@ -211,7 +217,7 @@ class RenderContext:
         return RenderContext(
             template_name=template_name or self.template_name,
             filename=self.filename,
-            source=None,  # Child templates load their own source
+            source=source,
             line=0,
             include_depth=self.include_depth + 1,
             max_include_depth=self.max_include_depth,
@@ -225,11 +231,20 @@ class RenderContext:
             template_stack=new_stack,  # Pass stack to child
         )
 
-    def child_context_for_extends(self, parent_name: str) -> RenderContext:
+    def child_context_for_extends(
+        self,
+        parent_name: str,
+        *,
+        source: str | None = None,
+    ) -> RenderContext:
         """Create child context for extends with incremented extends_depth.
 
         Used when rendering a parent template from {% extends %}.
         Shares cached_blocks, cache_stats, etc. Does not increment include_depth.
+
+        Args:
+            parent_name: Name of parent template being extended
+            source: Optional template source for error snippets in parent
         """
         new_stack = self.template_stack.copy()
         if self.template_name and self.line > 0:
@@ -239,7 +254,7 @@ class RenderContext:
         return RenderContext(
             template_name=parent_name,
             filename=self.filename,
-            source=None,
+            source=source,
             line=0,
             include_depth=self.include_depth,
             max_include_depth=self.max_include_depth,

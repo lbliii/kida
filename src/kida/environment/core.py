@@ -33,7 +33,6 @@ from kida.environment.exceptions import (
     TemplateNotFoundError,
     TemplateSyntaxError,
 )
-from kida.utils.template_keys import normalize_template_name
 from kida.environment.filters import DEFAULT_FILTERS
 from kida.environment.protocols import Loader
 from kida.environment.registry import FilterRegistry
@@ -41,6 +40,7 @@ from kida.environment.tests import DEFAULT_TESTS
 from kida.lexer import Lexer, LexerConfig
 from kida.template import Template
 from kida.utils.lru_cache import LRUCache
+from kida.utils.template_keys import normalize_template_name
 
 if TYPE_CHECKING:
     from kida.analysis.metadata import TemplateMetadata, TemplateStructureManifest
@@ -691,7 +691,7 @@ class Environment:
                 meta = template.template_metadata()
                 if meta is None:
                     return None
-            except (TemplateNotFoundError, TemplateSyntaxError):
+            except TemplateNotFoundError, TemplateSyntaxError:
                 return None
 
             manifest = TemplateStructureManifest(

@@ -412,12 +412,22 @@ class TestUndefinedMethodCalls:
         assert result == ""
 
     def test_undefined_method_call_items(self, env: Environment) -> None:
-        """{% for k, v in obj.missing.items() %} raises TemplateRuntimeError."""
+        """{% for k, v in obj.missing.items() %} yields nothing (no error)."""
         tmpl = env.from_string("{% for k, v in obj.missing.items() %}x{% end %}")
-        with pytest.raises(TemplateRuntimeError) as exc_info:
-            tmpl.render(obj={"present": "value"})
-        # Error is enhanced, not raw Python exception
-        assert "template" in str(exc_info.value).lower() or "Location" in str(exc_info.value)
+        result = tmpl.render(obj={"present": "value"})
+        assert result == ""
+
+    def test_undefined_keys_returns_empty(self, env: Environment) -> None:
+        """obj.missing.keys() returns empty list; for loop yields nothing."""
+        tmpl = env.from_string("{% for k in obj.missing.keys() %}{{ k }}{% end %}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == ""
+
+    def test_undefined_values_returns_empty(self, env: Environment) -> None:
+        """obj.missing.values() returns empty list; for loop yields nothing."""
+        tmpl = env.from_string("{% for v in obj.missing.values() %}{{ v }}{% end %}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == ""
 
     def test_undefined_method_call_upper(self, env: Environment) -> None:
         """obj.missing | upper produces '' or clear error."""
@@ -430,6 +440,24 @@ class TestUndefinedMethodCalls:
         tmpl = env.from_string("{{ obj.missing | default('x') | upper }}")
         result = tmpl.render(obj={"present": "value"})
         assert result == "X"
+
+    def test_optional_method_call_none_short_circuits(self, env: Environment) -> None:
+        """obj?.missing() when obj is None yields '' (short-circuits)."""
+        tmpl = env.from_string("{{ obj?.missing() }}")
+        result = tmpl.render(obj=None)
+        assert result == ""
+
+    def test_optional_method_call_undefined_short_circuits(self, env: Environment) -> None:
+        """obj?.missing() when obj.missing is _Undefined yields '' (short-circuits)."""
+        tmpl = env.from_string("{{ obj?.missing() }}")
+        result = tmpl.render(obj={"x": 1})
+        assert result == ""
+
+    def test_optional_method_call_valid_works(self, env: Environment) -> None:
+        """obj?.upper() when obj exists calls the method."""
+        tmpl = env.from_string("{{ obj?.upper() }}")
+        result = tmpl.render(obj="hello")
+        assert result == "HELLO"
 
 
 class TestPerformanceCharacteristics:

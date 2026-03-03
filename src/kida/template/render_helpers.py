@@ -1,0 +1,399 @@
+"""Render helper factories for Template namespace.
+
+Extracted from core.py to reduce Template.__init__ size and improve
+testability. Each factory takes env_ref and returns a closure used by
+compiled template code.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator, Callable, Iterator
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+from kida.render_context import RenderContext
+from kida.template.cached_blocks import CachedBlocksDict
+from kida.template.helpers import UNDEFINED
+from kida.template.types import BlocksDict
+
+if TYPE_CHECKING:
+    from kida.environment import Environment
+
+
+def _wrap_blocks_if_cached(
+    blocks: BlocksDict | dict[str, Any],
+    render_ctx: RenderContext,
+) -> dict[str, Any] | CachedBlocksDict:
+    """Wrap blocks with CachedBlocksDict if render context has cached blocks."""
+    if (
+        not render_ctx.cached_blocks
+        or isinstance(blocks, CachedBlocksDict)
+        or not render_ctx.cached_block_names
+    ):
+        return blocks
+    return CachedBlocksDict(
+        blocks,
+        render_ctx.cached_blocks,
+        render_ctx.cached_block_names,
+        stats=render_ctx.cache_stats,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class MacroWrapper:
+    """Callable wrapper for imported macros with source attribution metadata.
+
+    Used for error attribution: template_stack, template_name, and source
+    are set on render_ctx before calling the macro. The _kida_source_*
+    attributes are available for future error enhancement (e.g. source snippets).
+    """
+
+    _fn: Callable[..., Any]
+    _kida_source_template: str
+    _kida_source_file: str | None
+    _source: str | None
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        from kida.render_context import get_render_context_required
+
+        render_ctx = get_render_context_required()
+        caller_name = render_ctx.template_name
+        caller_line = render_ctx.line
+        render_ctx.template_stack.append((caller_name or "<template>", caller_line))
+        prev_name = render_ctx.template_name
+        prev_line = render_ctx.line
+        prev_source = render_ctx.source
+        render_ctx.template_name = self._kida_source_template
+        render_ctx.line = 0
+        render_ctx.source = self._source
+        try:
+            return self._fn(*args, **kwargs)
+        finally:
+            render_ctx.template_stack.pop()
+            render_ctx.template_name = prev_name
+            render_ctx.line = prev_line
+            render_ctx.source = prev_source
+
+
+def _make_macro_wrapper(
+    macro_fn: Any,
+    source_template: str,
+    source_file: str | None,
+    source: str | None = None,
+) -> MacroWrapper:
+    """Wrap imported macro to push/pop template_stack for error attribution."""
+    return MacroWrapper(
+        _fn=macro_fn,
+        _kida_source_template=source_template,
+        _kida_source_file=source_file,
+        _source=source,
+    )
+
+
+def make_render_helpers(env_ref: Any) -> dict[str, Any]:
+    """Create all render helpers for a Template namespace.
+
+    Args:
+        env_ref: WeakRef to Environment (callable returning Environment or None)
+
+    Returns:
+        Dict with _include, _extends, _include_stream, _extends_stream,
+        _include_stream_async, _extends_stream_async, _import_macros,
+        _cache_get, _cache_set.
+    """
+    from kida.environment.exceptions import (
+        ErrorCode,
+        TemplateError,
+        TemplateNotFoundError,
+        TemplateRuntimeError,
+        TemplateSyntaxError,
+    )
+    from kida.render_accumulator import get_accumulator
+    from kida.render_context import (
+        get_render_context_required,
+        reset_render_context,
+        set_render_context,
+    )
+    from kida.utils.template_keys import normalize_template_name
+
+    def _resolve_env(template_name: str) -> Environment:
+        _env = env_ref()
+        if _env is None:
+            raise RuntimeError(
+                f"Environment has been garbage collected while including '{template_name}'"
+            )
+        return _env
+
+    def _include(
+        template_name: str,
+        context: dict[str, Any],
+        ignore_missing: bool = False,
+        *,
+        blocks: dict[str, Any] | None = None,
+    ) -> str:
+        render_ctx = get_render_context_required()
+        render_ctx.check_include_depth(template_name)
+        acc = get_accumulator()
+        if acc is not None:
+            acc.record_include(template_name)
+        _env = _resolve_env(template_name)
+        try:
+            included = _env.get_template(template_name)
+            if included.is_async:
+                raise TemplateRuntimeError(
+                    f"Sync template '{render_ctx.template_name}' cannot include "
+                    f"async template '{template_name}'. Use render_stream_async() "
+                    f"to render templates with async includes.",
+                    template_name=render_ctx.template_name,
+                )
+            child_ctx = render_ctx.child_context(template_name, source=included._source)
+            token = set_render_context(child_ctx)
+            try:
+                if blocks is not None and included._render_func is not None:
+                    result: str = included._render_func(context, blocks)
+                    return result
+                if included._render_func is not None:
+                    result = included._render_func(context, None)
+                    return str(result) if result is not None else ""
+                return str(included.render(**context))
+            except TemplateError:
+                raise
+            except Exception as e:
+                raise included._enhance_error(e, child_ctx) from e
+            finally:
+                reset_render_context(token)
+        except TemplateError as e:
+            if ignore_missing and isinstance(e, TemplateNotFoundError):
+                return ""
+            raise
+
+    def _extends(template_name: str, context: dict[str, Any], blocks: BlocksDict) -> str:
+        render_ctx = get_render_context_required()
+        render_ctx.check_extends_depth(template_name)
+        _env = _resolve_env(template_name)
+        parent = _env.get_template(template_name)
+        child_ctx = render_ctx.child_context_for_extends(template_name, source=parent._source)
+        token = set_render_context(child_ctx)
+        try:
+            if parent._render_func is None:
+                raise RuntimeError(
+                    f"Template '{template_name}' not properly compiled: "
+                    f"_render_func is None. Check for syntax errors in the template."
+                )
+            blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
+            result: str = parent._render_func(context, blocks_to_use)
+            return result
+        finally:
+            reset_render_context(token)
+
+    def _include_stream(
+        template_name: str,
+        context: dict[str, Any],
+        ignore_missing: bool = False,
+        *,
+        blocks: dict[str, Any] | None = None,
+    ) -> Iterator[str]:
+        render_ctx = get_render_context_required()
+        render_ctx.check_include_depth(template_name)
+        acc = get_accumulator()
+        if acc is not None:
+            acc.record_include(template_name)
+        _env = env_ref()
+        if _env is None:
+            raise RuntimeError(
+                f"Environment has been garbage collected while including '{template_name}'"
+            )
+        try:
+            included = _env.get_template(template_name)
+            child_ctx = render_ctx.child_context(template_name, source=included._source)
+            token = set_render_context(child_ctx)
+            try:
+                stream_func = included._namespace.get("render_stream")
+                if stream_func is not None:
+                    if blocks is not None:
+                        yield from stream_func(context, blocks)
+                    else:
+                        yield from stream_func(context, None)
+                else:
+                    yield included.render(**context)
+            finally:
+                reset_render_context(token)
+        except TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError:
+            if ignore_missing:
+                return
+            raise
+
+    def _extends_stream(
+        template_name: str, context: dict[str, Any], blocks: dict[str, Any]
+    ) -> Iterator[str]:
+        render_ctx = get_render_context_required()
+        render_ctx.check_extends_depth(template_name)
+        _env = _resolve_env(template_name)
+        parent = _env.get_template(template_name)
+        child_ctx = render_ctx.child_context_for_extends(template_name, source=parent._source)
+        token = set_render_context(child_ctx)
+        try:
+            stream_func = parent._namespace.get("render_stream")
+            if stream_func is None:
+                raise RuntimeError(
+                    f"Template '{template_name}' not properly compiled: render_stream is None."
+                )
+            blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
+            yield from stream_func(context, blocks_to_use)
+        finally:
+            reset_render_context(token)
+
+    async def _include_stream_async(
+        template_name: str,
+        context: dict[str, Any],
+        ignore_missing: bool = False,
+        *,
+        blocks: dict[str, Any] | None = None,
+    ) -> AsyncIterator[str]:
+        render_ctx = get_render_context_required()
+        render_ctx.check_include_depth(template_name)
+        acc = get_accumulator()
+        if acc is not None:
+            acc.record_include(template_name)
+        _env = _resolve_env(template_name)
+        try:
+            included = _env.get_template(template_name)
+            child_ctx = render_ctx.child_context(template_name, source=included._source)
+            token = set_render_context(child_ctx)
+            try:
+                async_func = included._namespace.get("render_stream_async")
+                if async_func is not None:
+                    if blocks is not None:
+                        async for chunk in async_func(context, blocks):
+                            yield chunk
+                    else:
+                        async for chunk in async_func(context, None):
+                            yield chunk
+                else:
+                    sync_func = included._namespace.get("render_stream")
+                    if sync_func is not None:
+                        if blocks is not None:
+                            for chunk in sync_func(context, blocks):
+                                yield chunk
+                        else:
+                            for chunk in sync_func(context, None):
+                                yield chunk
+                    else:
+                        yield included.render(**context)
+            finally:
+                reset_render_context(token)
+        except TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError:
+            if ignore_missing:
+                return
+            raise
+
+    async def _extends_stream_async(
+        template_name: str, context: dict[str, Any], blocks: dict[str, Any]
+    ) -> AsyncIterator[str]:
+        render_ctx = get_render_context_required()
+        render_ctx.check_extends_depth(template_name)
+        _env = _resolve_env(template_name)
+        parent = _env.get_template(template_name)
+        child_ctx = render_ctx.child_context_for_extends(template_name, source=parent._source)
+        token = set_render_context(child_ctx)
+        try:
+            blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
+            async_func = parent._namespace.get("render_stream_async")
+            if async_func is not None:
+                async for chunk in async_func(context, blocks_to_use):
+                    yield chunk
+            else:
+                sync_func = parent._namespace.get("render_stream")
+                if sync_func is None:
+                    raise RuntimeError(
+                        f"Template '{template_name}' not properly compiled: render_stream is None."
+                    )
+                for chunk in sync_func(context, blocks_to_use):
+                    yield chunk
+        finally:
+            reset_render_context(token)
+
+    def _import_macros(
+        template_name: str,
+        with_context: bool,
+        context: dict[str, Any],
+        names: list[str] | None = None,
+    ) -> dict[str, Any]:
+        template_name = normalize_template_name(template_name)
+        _env = env_ref()
+        if _env is None:
+            raise RuntimeError(
+                f"Environment has been garbage collected while importing '{template_name}'"
+            )
+        render_ctx = get_render_context_required()
+        if template_name in render_ctx.import_stack:
+            chain = " → ".join([*render_ctx.import_stack, template_name])
+            raise TemplateRuntimeError(
+                f"Circular import detected: '{template_name}' imports itself (via {chain})",
+                template_name=render_ctx.template_name,
+                code=ErrorCode.CIRCULAR_IMPORT,
+            )
+        render_ctx.import_stack.append(template_name)
+        try:
+            imported = _env.get_template(template_name)
+            child_ctx = render_ctx.child_context(template_name, source=imported._source)
+            token = set_render_context(child_ctx)
+            try:
+                if imported._render_func is None:
+                    raise RuntimeError(
+                        f"Template '{template_name}' not properly compiled: "
+                        f"_render_func is None. Check for syntax errors in the template."
+                    )
+                import_ctx = {k: v for k, v in _env.globals.items() if v is not UNDEFINED}
+                if with_context:
+                    import_ctx.update(context)
+                imported._render_func(import_ctx, None)
+                if names is not None:
+                    for name in names:
+                        val = import_ctx.get(name, UNDEFINED)
+                        if val is UNDEFINED or not callable(val):
+                            raise TemplateRuntimeError(
+                                f"Macro '{name}' not found in template '{template_name}'",
+                                template_name=render_ctx.template_name,
+                                code=ErrorCode.MACRO_NOT_FOUND,
+                                suggestion=(
+                                    "Check the imported template defines this macro. "
+                                    "Verify name and import path."
+                                ),
+                            )
+                source_file = imported._filename if imported else None
+                macro_source = imported._source if imported else None
+                for key, val in list(import_ctx.items()):
+                    if callable(val) and not isinstance(val, type):
+                        import_ctx[key] = _make_macro_wrapper(
+                            val, template_name, source_file, macro_source
+                        )
+                return import_ctx
+            finally:
+                reset_render_context(token)
+        finally:
+            render_ctx.import_stack.pop()
+
+    def _cache_get(key: str) -> str | None:
+        _env = env_ref()
+        if _env is None:
+            return None
+        return _env._fragment_cache.get(key)
+
+    def _cache_set(key: str, value: str, ttl: str | None = None) -> str:
+        _env = env_ref()
+        if _env is None:
+            return value
+        return _env._fragment_cache.get_or_set(key, lambda: value)
+
+    return {
+        "_include": _include,
+        "_extends": _extends,
+        "_include_stream": _include_stream,
+        "_extends_stream": _extends_stream,
+        "_include_stream_async": _include_stream_async,
+        "_extends_stream_async": _extends_stream_async,
+        "_import_macros": _import_macros,
+        "_cache_get": _cache_get,
+        "_cache_set": _cache_set,
+    }

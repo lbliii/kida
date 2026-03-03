@@ -982,6 +982,22 @@ class TestBlockMetadataHelpers:
         assert blocks["content"].depends_on_site() is False
         assert blocks["nav"].depends_on_site() is True
 
+    def test_dependencies_extends_includes(self) -> None:
+        """dependencies() returns extends, includes, embeds, imports."""
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "page.html": '{% extends "base.html" %}{% block c %}{% include "nav.html" %}{% end %}',
+                    "base.html": "{% block c %}{% end %}",
+                    "nav.html": "<nav></nav>",
+                }
+            )
+        )
+        t = env.get_template("page.html")
+        deps = t.dependencies()
+        assert deps["extends"] == ["base.html"]
+        assert deps["includes"] == ["nav.html"]
+
 
 class TestTemplateMetadataHelpers:
     """Test TemplateMetadata helper methods."""

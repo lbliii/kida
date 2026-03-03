@@ -91,6 +91,69 @@ cached = self._cache.get(name)
 self._cache.set(name, template)
 ```
 
+## Concurrency Model
+
+```mermaid
+flowchart TB
+    subgraph Thread1 [Thread 1]
+        T1Env[Environment]
+        T1Template[Template]
+        T1Ctx1[RenderContext via ContextVar]
+        T1Buf1[Local buf list]
+    end
+    subgraph Thread2 [Thread 2]
+        T2Env[Environment]
+        T2Template[Template]
+        T2Ctx2[RenderContext via ContextVar]
+        T2Buf2[Local buf list]
+    end
+    Cache[(LRU Cache RLock)]
+    T1Env --> Cache
+    T2Env --> Cache
+    T1Env --> T1Template
+    T2Env --> T2Template
+    T1Template --> T1Ctx1
+    T2Template --> T2Ctx2
+    T1Ctx1 --> T1Buf1
+    T2Ctx2 --> T2Buf2
+```
+
+- **Template**: Immutable after construction; safe to share across threads.
+- **RenderContext**: Isolated per render via ContextVar; no cross-thread leakage.
+- **Cache**: Protected by internal RLock; concurrent get/set is safe.
+
+## When to Use Locks
+
+If you add **custom filters** or **globals** that touch shared mutable state, you must protect that state:
+
+```python
+import threading
+
+_shared_counter_lock = threading.Lock()
+_shared_counter = 0
+
+def counting_filter(value):
+    global _shared_counter
+    with _shared_counter_lock:
+        _shared_counter += 1
+    return str(value)
+
+env.add_filter("counted", counting_filter)
+```
+
+**Guidance**:
+- Prefer **stateless** filters: same inputs always produce same output.
+- If state is needed, use `threading.Lock` or `contextvars` for isolation.
+- Avoid module-level mutable dicts/lists that filters modify without protection.
+
+## Macro and Import Isolation
+
+When using `{% extends %}` or `{% from X import y %}`, each child template gets an **isolated copy** of `import_stack` and `template_stack`. No shared mutable state flows across the extends/import chain. This ensures:
+
+- Parallel renders of different pages do not interfere.
+- Nested macro calls have correct attribution in error traces.
+- Circular import detection works per-render without cross-thread races.
+
 ## Free-Threading Design Principles
 
 Kida's concurrency model follows these principles. When extending or modifying Kida, preserve them:
@@ -174,6 +237,12 @@ def handle_request(request):
     template = env.get_template(request.path)
     return template.render(**request.context)
 ```
+
+### Macro Import Patterns
+
+- **Use `{% from "partials/x.html" import macro_name %}`** — Ensure the imported template defines the requested macro. If the macro is missing, Kida raises `TemplateRuntimeError` with `ErrorCode.MACRO_NOT_FOUND` at import time.
+- **Extends + import** — When using `{% extends %}` and `{% from %}`, each child gets an isolated `import_stack`; no shared mutable state. See "Copy on fork" in Free-Threading Design Principles.
+- **Import macros only** — `{% from "x" import y %}` expects `y` to be a macro (callable). Do not import filters or other globals this way.
 
 ### Don't Mutate During Rendering
 

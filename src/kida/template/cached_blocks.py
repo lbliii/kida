@@ -55,9 +55,7 @@ class CachedBlocksDict:
 
             # Return a wrapper function that matches the block function signature:
             # _block_name(ctx, _blocks)
-            def cached_block_func(
-                _ctx: dict[str, Any], _blocks: dict[str, Any] | None
-            ) -> str:
+            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
                 return cached_html
 
             return cached_block_func
@@ -75,9 +73,7 @@ class CachedBlocksDict:
             cached_html = self._cached[key]
             self._record_hit()
 
-            def cached_block_func(
-                _ctx: dict[str, Any], _blocks: dict[str, Any] | None
-            ) -> str:
+            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
                 return cached_html
 
             return cached_block_func
@@ -91,9 +87,7 @@ class CachedBlocksDict:
             cached_html = self._cached[key]
             self._record_hit()
 
-            def cached_block_func(
-                _ctx: dict[str, Any], _blocks: dict[str, Any] | None
-            ) -> str:
+            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
                 return cached_html
 
             return cached_block_func
@@ -124,9 +118,7 @@ class CachedBlocksDict:
                 stats: dict[str, int] | None,
                 lock: threading.Lock | None,
             ) -> BlockCallable:
-                def wrapper(
-                    _ctx: dict[str, Any], _blocks: dict[str, Any] | None
-                ) -> str:
+                def wrapper(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
                     if stats is not None and lock is not None:
                         with lock:
                             stats["hits"] = stats.get("hits", 0) + 1

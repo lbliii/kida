@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 
+import pytest
 from hypothesis import given, settings
 
 from kida.environment.exceptions import TemplateSyntaxError
@@ -43,3 +44,19 @@ class TestParserProperties:
             parser = Parser(tokens, name="<fuzz>", source=source)
             with contextlib.suppress(ParseError):
                 parser.parse()
+
+    @given(source=parser_fuzz_source)
+    @settings(max_examples=100)
+    def test_parser_raises_only_expected_errors(self, source: str) -> None:
+        """Random strings either parse or raise TemplateSyntaxError/LexerError/ParseError.
+
+        No generic exceptions (TypeError, ValueError, IndexError, etc.).
+        """
+        try:
+            tokens = tokenize(source)
+            parser = Parser(tokens, name="<fuzz>", source=source)
+            parser.parse()
+        except TemplateSyntaxError, LexerError, ParseError:
+            pass  # Expected
+        except Exception as e:
+            pytest.fail(f"Unexpected exception {type(e).__name__}: {e} for source: {source!r}")

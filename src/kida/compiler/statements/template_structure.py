@@ -333,7 +333,12 @@ class TemplateStructureMixin:
 
         stmts: list[ast.stmt] = []
 
-        # _imported = _import_macros(template_name, with_context, ctx)
+        # _imported = _import_macros(template_name, with_context, ctx, [names])
+        requested_names = [n for n, _ in node.names]
+        names_arg = ast.List(
+            elts=[ast.Constant(value=n) for n in requested_names],
+            ctx=ast.Load(),
+        )
         stmts.append(
             ast.Assign(
                 targets=[ast.Name(id="_imported", ctx=ast.Store())],
@@ -343,6 +348,7 @@ class TemplateStructureMixin:
                         template_expr,
                         ast.Constant(value=node.with_context),
                         ast.Name(id="ctx", ctx=ast.Load()),
+                        names_arg,
                     ],
                     keywords=[],
                 ),

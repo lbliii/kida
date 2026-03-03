@@ -70,6 +70,18 @@ class _Undefined:
         """
         return "" if default is None else default
 
+    def keys(self) -> list[Any]:
+        """Empty keys; enables {% for k in missing.keys() %} without error."""
+        return []
+
+    def values(self) -> list[Any]:
+        """Empty values; enables {% for v in missing.values() %} without error."""
+        return []
+
+    def items(self) -> list[tuple[Any, Any]]:
+        """Empty items; enables {% for k, v in missing.items() %} without error."""
+        return []
+
 
 UNDEFINED = _Undefined()
 
@@ -378,3 +390,14 @@ def str_safe(value: Any) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def optional_call(callee: Any, *args: object, **kwargs: object) -> Any:
+    """Call callee only if it is not None or UNDEFINED.
+
+    Used for obj?.method() so that when obj is None or obj.attr is UNDEFINED,
+    the call short-circuits and returns UNDEFINED (outputs as "").
+    """
+    if callee is None or callee is UNDEFINED:
+        return UNDEFINED
+    return callee(*args, **kwargs)

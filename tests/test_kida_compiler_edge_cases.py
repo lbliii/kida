@@ -589,3 +589,22 @@ class TestImportCompilation:
 
         for i, r in enumerate(results):
             assert "<cta/>" in r, f"Render {i}: {r!r}"
+
+    def test_import_macros_missing_raises(self) -> None:
+        """Importing a non-existent macro raises TemplateRuntimeError at render time."""
+        from kida.environment.exceptions import ErrorCode, TemplateRuntimeError
+
+        loader = DictLoader(
+            {
+                "macros.html": "{% def greet(name) %}Hello {{ name }}{% end %}",
+            }
+        )
+        env = Environment(loader=loader)
+        tmpl = env.from_string('{% from "macros.html" import missing %}')
+
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            tmpl.render()
+
+        assert exc_info.value.code == ErrorCode.MACRO_NOT_FOUND
+        assert "missing" in str(exc_info.value)
+        assert "macros.html" in str(exc_info.value)

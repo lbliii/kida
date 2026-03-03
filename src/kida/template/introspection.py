@@ -111,6 +111,61 @@ class TemplateIntrospectionMixin:
         result: frozenset[str] = meta.all_dependencies()
         return result
 
+    def dependencies(self) -> dict[str, list[str]]:
+        """Get template dependency graph: extends, includes, embeds, imports.
+
+        Returns a dict with keys "extends", "includes", "embeds", "imports",
+        each mapping to a list of template names (string literals only).
+        Dynamic template names (e.g. {{ var }}) are not included.
+
+        Returns empty dict if AST was not preserved.
+
+        Example:
+            >>> deps = template.dependencies()
+            >>> deps["extends"]
+            ['base.html']
+            >>> deps["includes"]
+            ['nav.html', 'footer.html']
+        """
+        if self._optimized_ast is None:
+            return {}
+
+        from kida.nodes import Const, Embed, Extends, FromImport, Import, Include
+
+        def _str_from_expr(expr: Any) -> str | None:
+            if isinstance(expr, Const) and isinstance(expr.value, str):
+                return expr.value
+            return None
+
+        def _walk(node: Any, out: dict[str, list[str]]) -> None:
+            if isinstance(node, Extends):
+                name = _str_from_expr(node.template)
+                if name:
+                    out.setdefault("extends", []).append(name)
+            elif isinstance(node, Include):
+                name = _str_from_expr(node.template)
+                if name:
+                    out.setdefault("includes", []).append(name)
+            elif isinstance(node, Embed):
+                name = _str_from_expr(node.template)
+                if name:
+                    out.setdefault("embeds", []).append(name)
+                for block in getattr(node, "blocks", {}).values():
+                    _walk(block, out)
+            elif isinstance(node, (FromImport, Import)):
+                name = _str_from_expr(node.template)
+                if name:
+                    out.setdefault("imports", []).append(name)
+
+            for child in getattr(node, "body", []) or []:
+                _walk(child, out)
+            if hasattr(node, "extends") and node.extends is not None:
+                _walk(node.extends, out)
+
+        result: dict[str, list[str]] = {}
+        _walk(self._optimized_ast, result)
+        return result
+
     def required_context(self) -> frozenset[str]:
         """Get the set of context variable names this template requires.
 
