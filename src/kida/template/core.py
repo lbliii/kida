@@ -93,6 +93,45 @@ def _wrap_blocks_if_cached(
     )
 
 
+def _make_macro_wrapper(
+    macro_fn: Any,
+    source_template: str,
+    source_file: str | None,
+    source: str | None = None,
+) -> Any:
+    """Wrap imported macro to push/pop template_stack for error attribution.
+
+    When the macro is invoked, pushes caller's (template_name, line) onto
+    template_stack, sets render_ctx to macro's source, then restores on return.
+    """
+
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        from kida.render_context import get_render_context_required
+
+        render_ctx = get_render_context_required()
+        caller_name = render_ctx.template_name
+        caller_line = render_ctx.line
+        render_ctx.template_stack.append((caller_name or "<template>", caller_line))
+        prev_name = render_ctx.template_name
+        prev_line = render_ctx.line
+        prev_source = render_ctx.source
+        render_ctx.template_name = source_template
+        render_ctx.line = 0
+        render_ctx.source = source
+        try:
+            return macro_fn(*args, **kwargs)
+        finally:
+            render_ctx.template_stack.pop()
+            render_ctx.template_name = prev_name
+            render_ctx.line = prev_line
+            render_ctx.source = prev_source
+
+    # Preserve provenance for introspection
+    wrapper._kida_source_template = source_template
+    wrapper._kida_source_file = source_file
+    return wrapper
+
+
 class Template(TemplateIntrospectionMixin):
     """Compiled template ready for rendering.
 
@@ -475,7 +514,10 @@ class Template(TemplateIntrospectionMixin):
 
         # Import macros from another template
         def _import_macros(
-            template_name: str, with_context: bool, context: dict[str, Any]
+            template_name: str,
+            with_context: bool,
+            context: dict[str, Any],
+            names: list[str] | None = None,
         ) -> dict[str, Any]:
             from kida.environment.exceptions import (
                 ErrorCode,
@@ -519,6 +561,29 @@ class Template(TemplateIntrospectionMixin):
                     if with_context:
                         import_ctx.update(context)
                     imported._render_func(import_ctx, None)
+                    if names is not None:
+                        for name in names:
+                            val = import_ctx.get(name, UNDEFINED)
+                            if val is UNDEFINED or not callable(val):
+                                raise TemplateRuntimeError(
+                                    f"Macro '{name}' not found in template '{template_name}'",
+                                    template_name=render_ctx.template_name,
+                                    code=ErrorCode.MACRO_NOT_FOUND,
+                                    suggestion=(
+                                        "Check the imported template defines this macro. "
+                                        "Verify name and import path."
+                                    ),
+                                )
+
+                    # Wrap callable macros with provenance + template_stack push/pop
+                    source_file = imported._filename if imported else None
+                    macro_source = imported._source if imported else None
+                    for key, val in list(import_ctx.items()):
+                        if callable(val) and not isinstance(val, type):
+                            import_ctx[key] = _make_macro_wrapper(
+                                val, template_name, source_file, macro_source
+                            )
+
                     return import_ctx
                 finally:
                     reset_render_context(token)
@@ -1005,14 +1070,27 @@ class Template(TemplateIntrospectionMixin):
                 "or ensure numeric types at the data source."
             )
 
-        # TypeError: '_Undefined' object is not callable — imported macro not found
-        if isinstance(error, TypeError) and (
-            "_undefined" in error_str.lower() and "not callable" in error_str.lower()
+        # AttributeError/TypeError: '_Undefined' — attribute access on missing value
+        if (isinstance(error, (AttributeError, TypeError))) and (
+            "_undefined" in error_str.lower()
+            and ("not callable" in error_str.lower() or "has no attribute" in error_str.lower())
         ):
             suggestion = (
-                "A macro from {% from X import y %} resolved to Undefined. "
-                "Check that the imported template defines the macro. "
-                "If this occurs during parallel builds, try --no-parallel."
+                "Attribute access on a missing value. Use optional chaining (`?.`) "
+                "or check with `is defined`."
+            )
+
+        # KeyError — safe key access
+        if isinstance(error, KeyError) and error.args:
+            key = error.args[0]
+            suggestion = (
+                f"Key {key!r} not found. Use `.get({key!r})` or `?[{key}]` for safe access."
+            )
+
+        # ZeroDivisionError
+        if isinstance(error, ZeroDivisionError):
+            suggestion = (
+                "Division by zero. Guard with `{% if divisor %}` or use `| default(1)`."
             )
 
         return TemplateRuntimeError(

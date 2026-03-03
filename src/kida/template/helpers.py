@@ -15,7 +15,8 @@ from collections.abc import Callable
 from time import perf_counter as _perf_counter
 from typing import Any
 
-from kida.render_accumulator import RenderAccumulator, get_accumulator as _get_accumulator
+from kida.render_accumulator import RenderAccumulator
+from kida.render_accumulator import get_accumulator as _get_accumulator
 from kida.utils.html import _SPACELESS_RE, Markup
 
 # =============================================================================
@@ -62,6 +63,13 @@ class _Undefined:
     def __len__(self) -> int:
         return 0
 
+    def get(self, key: str, default: Any = None) -> Any:
+        """Return default for any key; enables obj.missing.get('x', 'fb') pattern.
+
+        When default is None, returns "" to match template output normalization.
+        """
+        return "" if default is None else default
+
 
 UNDEFINED = _Undefined()
 
@@ -95,9 +103,7 @@ STATIC_NAMESPACE: dict[str, Any] = {
 }
 
 
-def record_filter_usage(
-    acc: RenderAccumulator | None, name: str, result: Any
-) -> Any:
+def record_filter_usage(acc: RenderAccumulator | None, name: str, result: Any) -> Any:
     """Record filter usage for profiling, returning the result unchanged.
 
     Called by compiled code for every filter invocation. When profiling
@@ -116,9 +122,7 @@ def record_filter_usage(
     return result
 
 
-def record_macro_usage(
-    acc: RenderAccumulator | None, name: str, result: Any
-) -> Any:
+def record_macro_usage(acc: RenderAccumulator | None, name: str, result: Any) -> Any:
     """Record macro ({% def %}) call for profiling, returning the result unchanged.
 
     Called by compiled code for every macro invocation. When profiling
@@ -165,7 +169,7 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
         lineno = render_ctx.line if render_ctx else None
         source = render_ctx.source if render_ctx else None
         snippet = build_source_snippet(source, lineno) if source and lineno else None
-        template_stack = render_ctx.template_stack if render_ctx else []
+        template_stack = list(render_ctx.template_stack) if render_ctx else []
         raise UndefinedError(
             var_name,
             template_name,
@@ -200,7 +204,7 @@ def lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_nam
     lineno = render_ctx.line if render_ctx else None
     source = render_ctx.source if render_ctx else None
     snippet = build_source_snippet(source, lineno) if source and lineno else None
-    template_stack = render_ctx.template_stack if render_ctx else []
+    template_stack = list(render_ctx.template_stack) if render_ctx else []
 
     all_names: set[str] = set(ctx.keys())
     for scope in scope_stack:
@@ -243,11 +247,11 @@ def default_safe(
 
     # Apply default filter logic
     if boolean:
-        # Return default if value is falsy
+        # Return default if value is falsy (bool(_Undefined) is False)
         return value if value else default_value
     else:
-        # Return default only if value is None
-        return value if value is not None else default_value
+        # Return default only if value is None or _Undefined
+        return value if (value is not None and not isinstance(value, _Undefined)) else default_value
 
 
 def is_defined(value_fn: Callable[[], Any]) -> bool:
@@ -304,8 +308,8 @@ def null_coalesce(left_fn: Callable[[], Any], right_fn: Callable[[], Any]) -> An
     except UndefinedError:
         return right_fn()
 
-    # Return right only if left is None
-    return value if value is not None else right_fn()
+    # Return right only if left is None or _Undefined (failed attribute access)
+    return value if (value is not None and not isinstance(value, _Undefined)) else right_fn()
 
 
 def spaceless(html: str) -> str:
