@@ -39,6 +39,8 @@ from pathlib import Path
 from types import CodeType
 from typing import cast
 
+from kida.utils.template_keys import normalize_template_name
+
 # Python version tag for cache invalidation across Python upgrades
 _PY_VERSION_TAG = f"py{sys.version_info.major}{sys.version_info.minor}"
 
@@ -91,6 +93,7 @@ class BytecodeCache:
         Includes Python version in filename to prevent cross-version
         bytecode incompatibility (marshal format is version-specific).
         """
+        name = normalize_template_name(name)
         # Sanitize name for filesystem
         safe_name = name.replace("/", "_").replace("\\", "_").replace(":", "_")
         hash_key = source_hash[:16]

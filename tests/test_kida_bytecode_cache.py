@@ -8,6 +8,7 @@ import time
 import pytest
 
 from kida.bytecode_cache import BytecodeCache, hash_source
+from kida.environment.exceptions import TemplateNotFoundError
 
 
 class TestBytecodeCache:
@@ -181,6 +182,17 @@ class TestBytecodeCache:
         removed2 = cache.cleanup(max_age_days=20)
         assert removed2 == 0
         assert old_path2.exists()
+
+    def test_path_traversal_rejected(self, cache):
+        """Path traversal in template names raises TemplateNotFoundError."""
+        code = compile("x = 1", "<test>", "exec")
+        source_hash = hash_source("test")
+
+        with pytest.raises(TemplateNotFoundError):
+            cache.get("../../x", source_hash)
+
+        with pytest.raises(TemplateNotFoundError):
+            cache.set("../../x", source_hash, code)
 
     def test_sanitize_filename(self, cache):
         """Template names with special chars are sanitized."""
