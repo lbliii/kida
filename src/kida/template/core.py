@@ -47,7 +47,6 @@ from typing import TYPE_CHECKING, Any
 
 from kida.render_context import RenderContext
 from kida.template.cached_blocks import CachedBlocksDict
-from kida.template.types import BlocksDict
 from kida.template.helpers import (
     STATIC_NAMESPACE,
     UNDEFINED,
@@ -62,6 +61,7 @@ from kida.template.helpers import (
 )
 from kida.template.introspection import TemplateIntrospectionMixin
 from kida.template.loop_context import AsyncLoopContext, LoopContext
+from kida.template.types import BlocksDict
 from kida.utils.html import html_escape
 
 if TYPE_CHECKING:
@@ -268,9 +268,7 @@ class Template(TemplateIntrospectionMixin):
                 raise included._enhance_error(e, child_ctx) from e
 
         # Extends helper - renders parent template with child's blocks
-        def _extends(
-            template_name: str, context: dict[str, Any], blocks: BlocksDict
-        ) -> str:
+        def _extends(template_name: str, context: dict[str, Any], blocks: BlocksDict) -> str:
             from kida.render_context import (
                 get_render_context_required,
                 reset_render_context,
@@ -617,7 +615,7 @@ class Template(TemplateIntrospectionMixin):
         render_stream_async, render_block_stream_async.
         """
         ctx: dict[str, Any] = {}
-        ctx.update(self._env.globals)
+        ctx.update({k: v for k, v in self._env.globals.items() if v is not UNDEFINED})
         if args:
             if len(args) == 1 and isinstance(args[0], dict):
                 ctx.update(args[0])

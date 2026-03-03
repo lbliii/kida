@@ -294,6 +294,16 @@ class TestEnvironmentGlobals:
         tmpl = env.from_string("{{ greet('World') }}")
         assert tmpl.render() == "Hello World"
 
+    def test_undefined_in_globals_filtered_from_render_context(self):
+        """UNDEFINED in env.globals is filtered out; variable behaves as absent."""
+        from kida.template.helpers import UNDEFINED
+
+        env = Environment()
+        env.add_global("x", UNDEFINED)
+        tmpl = env.from_string("{{ x | default('absent') }}")
+        # x is filtered from ctx, so it's undefined and default applies
+        assert tmpl.render() == "absent"
+
 
 class TestEnvironmentConfiguration:
     """Environment configuration tests."""
