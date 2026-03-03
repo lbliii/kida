@@ -205,6 +205,7 @@ class RenderContext:
         if self.template_name and self.line > 0:
             new_stack.append((self.template_name, self.line))
 
+        # Copy required for free-threading: each child has isolated import_stack
         import_stack = list(self.import_stack)
 
         return RenderContext(
@@ -234,6 +235,7 @@ class RenderContext:
         if self.template_name and self.line > 0:
             new_stack.append((self.template_name, self.line))
 
+        # Copy required for free-threading: each extends level has isolated import_stack
         return RenderContext(
             template_name=parent_name,
             filename=self.filename,
