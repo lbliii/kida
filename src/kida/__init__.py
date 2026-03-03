@@ -69,6 +69,7 @@ empty string. Use `| default(fallback)` for optional variables:
 """
 
 from collections.abc import Callable
+from importlib.metadata import version
 
 from kida._types import Token, TokenType
 from kida.environment import (
@@ -123,7 +124,7 @@ except ImportError:
     # Pre-3.14 Python - t-strings not available
     k = None  # type: ignore[assignment]
 
-__version__ = "0.2.2"
+__version__ = version("kida-templates")
 
 __all__ = [
     "AnalysisConfig",
