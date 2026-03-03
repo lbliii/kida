@@ -91,6 +91,16 @@ cached = self._cache.get(name)
 self._cache.set(name, template)
 ```
 
+## Free-Threading Design Principles
+
+Kida's concurrency model follows these principles. When extending or modifying Kida, preserve them:
+
+- **Copy on fork:** When creating child contexts (includes, extends, imports), copy mutable state (e.g. `import_stack`) instead of sharing. Each level of the extends/import chain must have isolated state. Sharing mutable state across parallel renders can cause cross-thread interference.
+
+- **No shared mutable state in hot paths:** Caches use locks or per-call isolation. Render state lives in ContextVar, not globals. Avoid unprotected shared dicts in render paths.
+
+- **ContextVar for per-call state:** All render-scoped state (template name, line, blocks, import stack) lives in `RenderContext` via ContextVar. This ensures each render call has isolated state regardless of thread or async context.
+
 ## Concurrent Rendering
 
 ### With ThreadPoolExecutor
