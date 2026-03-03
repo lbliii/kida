@@ -61,6 +61,18 @@ from kida.nodes import (
 # Sentinel for "evaluation failed" — distinct from None (which is a valid result)
 _UNRESOLVED = object()
 
+# Expected errors when constant folding fails — fall back to runtime evaluation.
+# Narrowing avoids silently swallowing KeyboardInterrupt, SystemExit, etc.
+_PARTIAL_EVAL_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    TypeError,
+    KeyError,
+    IndexError,
+    AttributeError,
+    ValueError,
+    OverflowError,
+    ZeroDivisionError,
+)
+
 
 # ---------------------------------------------------------------------------
 # Dead code elimination (const-only, no static_context)
@@ -98,7 +110,7 @@ def _try_eval_const_only(expr: Expr) -> Any:
                 return left**right
             if expr.op == "~":
                 return str(left) + str(right)
-        except Exception:
+        except _PARTIAL_EVAL_EXCEPTIONS:
             return _UNRESOLVED
         return _UNRESOLVED
 
@@ -113,7 +125,7 @@ def _try_eval_const_only(expr: Expr) -> Any:
                 return +operand
             if expr.op == "not":
                 return not operand
-        except Exception:
+        except _PARTIAL_EVAL_EXCEPTIONS:
             return _UNRESOLVED
         return _UNRESOLVED
 
@@ -127,7 +139,7 @@ def _try_eval_const_only(expr: Expr) -> Any:
                 return _UNRESOLVED
             try:
                 result = _compare_op(op, left, right)
-            except Exception:
+            except _PARTIAL_EVAL_EXCEPTIONS:
                 return _UNRESOLVED
             if not result:
                 return False
@@ -445,7 +457,7 @@ class PartialEvaluator:
             kwargs_resolved[k] = kv
         try:
             return func(value, *args_resolved, **kwargs_resolved)
-        except Exception:
+        except _PARTIAL_EVAL_EXCEPTIONS:
             return _UNRESOLVED
 
     def _try_eval_pipeline(self, expr: Pipeline, depth: int = 0) -> Any:
@@ -473,7 +485,7 @@ class PartialEvaluator:
                 kwargs_resolved[k] = kv
             try:
                 value = func(value, *args_resolved, **kwargs_resolved)
-            except Exception:
+            except _PARTIAL_EVAL_EXCEPTIONS:
                 return _UNRESOLVED
         return value
 
@@ -497,7 +509,7 @@ class PartialEvaluator:
                 return left**right
             if op == "~":
                 return str(left) + str(right)
-        except Exception:
+        except _PARTIAL_EVAL_EXCEPTIONS:
             return _UNRESOLVED
         return _UNRESOLVED
 
@@ -511,7 +523,7 @@ class PartialEvaluator:
                 return +operand
             if op == "not":
                 return not operand
-        except Exception:
+        except _PARTIAL_EVAL_EXCEPTIONS:
             return _UNRESOLVED
         return _UNRESOLVED
 
@@ -527,7 +539,7 @@ class PartialEvaluator:
                 return _UNRESOLVED
             try:
                 result = _compare_op(op, left, right)
-            except Exception:
+            except _PARTIAL_EVAL_EXCEPTIONS:
                 return _UNRESOLVED
             if not result:
                 return False

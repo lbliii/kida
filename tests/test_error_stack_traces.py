@@ -274,6 +274,148 @@ class TestStackFormatting:
         assert any("nav.html:3" in line for line in lines)
 
 
+class TestImportedMacroErrorAttribution:
+    """Test error attribution for imported macros ({% from X import y %})."""
+
+    def test_error_in_imported_macro_reports_source_template(self, tmp_path):
+        """Error in macro from {% from "lib.html" import my_macro %} reports lib.html."""
+        caller = tmp_path / "caller.html"
+        caller.write_text(
+            """
+{% from "lib.html" import my_macro %}
+{{ my_macro() }}
+        """.strip()
+        )
+
+        lib = tmp_path / "lib.html"
+        lib.write_text(
+            """
+{% def my_macro() %}
+{{ undefined_in_macro }}
+{% end %}
+        """.strip()
+        )
+
+        env = Environment(loader=FileSystemLoader(str(tmp_path)))
+        template = env.get_template("caller.html")
+
+        with pytest.raises(UndefinedError) as exc_info:
+            template.render()
+
+        error = exc_info.value
+        # Error should report lib.html (macro source), not caller.html
+        assert "lib.html" in str(error)
+
+    def test_error_in_imported_macro_shows_call_stack(self, tmp_path):
+        """template_stack or error message includes caller's location when error is in macro."""
+        caller = tmp_path / "caller.html"
+        caller.write_text(
+            """
+{% from "lib.html" import my_macro %}
+{{ my_macro() }}
+        """.strip()
+        )
+
+        lib = tmp_path / "lib.html"
+        lib.write_text(
+            """
+{% def my_macro() %}
+{{ undefined_in_macro }}
+{% end %}
+        """.strip()
+        )
+
+        env = Environment(loader=FileSystemLoader(str(tmp_path)))
+        template = env.get_template("caller.html")
+
+        with pytest.raises(UndefinedError) as exc_info:
+            template.render()
+
+        error = exc_info.value
+        # Stack should show caller called the macro (programmatic access works)
+        assert len(error.template_stack) > 0
+        assert any("caller" in str(entry) for entry in error.template_stack)
+
+    def test_error_in_nested_include_from_macro(self, tmp_path):
+        """Macro that includes another template; error shows full chain."""
+        caller = tmp_path / "caller.html"
+        caller.write_text(
+            """
+{% from "lib.html" import my_macro %}
+{{ my_macro() }}
+        """.strip()
+        )
+
+        lib = tmp_path / "lib.html"
+        lib.write_text(
+            """
+{% def my_macro() %}
+{% include "partial.html" %}
+{% end %}
+        """.strip()
+        )
+
+        partial = tmp_path / "partial.html"
+        partial.write_text("{{ undefined_in_partial }}")
+
+        env = Environment(loader=FileSystemLoader(str(tmp_path)))
+        template = env.get_template("caller.html")
+
+        with pytest.raises(UndefinedError) as exc_info:
+            template.render()
+
+        error = exc_info.value
+        error_str = str(error)
+        # Should show partial.html (where error occurred)
+        assert "partial.html" in error_str
+        # Stack should include lib.html and caller.html
+        assert "lib.html" in error_str or "caller.html" in error_str
+
+
+class TestErrorSuggestions:
+    """Test _enhance_error suggestion hints for common error types."""
+
+    def test_undefined_method_call_suggestion(self):
+        """TypeError from obj.missing() suggests optional chaining or is defined."""
+        env = Environment()
+        tmpl = env.from_string("{{ obj.missing() }}", name="test.html")
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            tmpl.render(obj={"present": "value"})
+        err_str = str(exc_info.value)
+        assert "optional chaining" in err_str or "is defined" in err_str
+
+    def test_keyerror_suggestion(self):
+        """KeyError suggests .get() or ?[key] for safe access."""
+        env = Environment()
+        tmpl = env.from_string("{{ d['missing_key'] }}", name="test.html")
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            tmpl.render(d={})
+        err_str = str(exc_info.value)
+        assert ".get(" in err_str or "?[" in err_str
+
+    def test_zero_division_suggestion(self):
+        """ZeroDivisionError suggests guard or default."""
+        env = Environment()
+        tmpl = env.from_string("{{ 1 / 0 }}", name="test.html")
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            tmpl.render()
+        err_str = str(exc_info.value)
+        assert "Division by zero" in err_str or "Guard" in err_str
+
+    def test_macro_not_found_suggestion(self, tmp_path):
+        """MACRO_NOT_FOUND suggests checking imported template."""
+        lib = tmp_path / "lib.html"
+        lib.write_text("{% def other_macro() %}x{% end %}")
+        caller = tmp_path / "caller.html"
+        caller.write_text('{% from "lib.html" import missing_macro %}{{ missing_macro() }}')
+        env = Environment(loader=FileSystemLoader(str(tmp_path)))
+        tmpl = env.get_template("caller.html")
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            tmpl.render()
+        err_str = str(exc_info.value)
+        assert "Check the imported template" in err_str
+
+
 class TestBackwardsCompatibility:
     """Test that stack traces don't break existing error handling."""
 

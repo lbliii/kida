@@ -41,6 +41,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from kida.environment.exceptions import TemplateNotFoundError
+from kida.utils.template_keys import normalize_template_name
 
 
 class FileSystemLoader:
@@ -95,6 +96,14 @@ class FileSystemLoader:
         """Load template source from filesystem."""
         for base in self._paths:
             path = base / name
+            try:
+                resolved = path.resolve()
+                base_resolved = base.resolve()
+                resolved.relative_to(base_resolved)
+            except ValueError:
+                raise TemplateNotFoundError(
+                    f"Template '{name}' attempts path traversal outside search path"
+                ) from None
             if path.is_file():
                 return path.read_text(self._encoding), str(path)
 
@@ -157,11 +166,11 @@ class DictLoader:
 
     def get_source(self, name: str) -> tuple[str, None]:
         if name not in self._mapping:
-            from difflib import get_close_matches
+            from kida.utils.typo_suggestions import suggest_closest
 
-            available = sorted(self._mapping.keys())
+            available = list(self._mapping.keys())
             msg = f"Template '{name}' not found"
-            matches = get_close_matches(name, available, n=1, cutoff=0.6)
+            matches = suggest_closest(name, available, limit=1)
             if matches:
                 msg += f". Did you mean '{matches[0]}'?"
             elif available:
@@ -379,6 +388,7 @@ class PackageLoader:
 
     def get_source(self, name: str) -> tuple[str, str | None]:
         """Load template source from package resources."""
+        name = normalize_template_name(name)
         root = self._get_root()
         resource = root.joinpath(name)
 

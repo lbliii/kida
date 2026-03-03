@@ -768,6 +768,24 @@ class TestSourceSnippets:
         t = env.get_template("page.html")
         assert t._source == source
 
+    def test_error_in_included_template_has_source_snippet(self) -> None:
+        """Error in included template shows source snippet from included file."""
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "base.html": '{% include "partial.html" %}',
+                    "partial.html": "Line1\nLine2\n{{ 1 / 0 }}\nLine4",
+                }
+            )
+        )
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            env.get_template("base.html").render()
+        exc = exc_info.value
+        assert exc.source_snippet is not None
+        assert exc.source_snippet.error_line == 3
+        # Snippet should show the offending line from partial.html
+        assert "1 / 0" in exc.source_snippet.format() or "1/0" in exc.source_snippet.format()
+
 
 # ---------------------------------------------------------------------------
 # Error DX: Error Codes

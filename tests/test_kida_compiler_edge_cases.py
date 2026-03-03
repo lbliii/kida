@@ -564,3 +564,47 @@ class TestImportCompilation:
 
         for i, result in enumerate(results):
             assert "Sign up" in result, f"Render {i} failed: {result!r}"
+
+    def test_import_macros_extends_parallel_rendering(self) -> None:
+        """Extends + import macros under concurrent rendering (K-RUN-007)."""
+        loader = DictLoader(
+            {
+                "base.html": "{% block content %}{% end %}",
+                "child.html": (
+                    "{% extends 'base.html' %}"
+                    "{% from 'macros.html' import cta %}"
+                    "{% block content %}{{ cta() }}{% end %}"
+                ),
+                "macros.html": "{% def cta() %}<cta/>{% end %}",
+            }
+        )
+        env = Environment(loader=loader)
+        tmpl = env.get_template("child.html")
+
+        def render_once(_: int) -> str:
+            return tmpl.render()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(render_once, range(32)))
+
+        for i, r in enumerate(results):
+            assert "<cta/>" in r, f"Render {i}: {r!r}"
+
+    def test_import_macros_missing_raises(self) -> None:
+        """Importing a non-existent macro raises TemplateRuntimeError at render time."""
+        from kida.environment.exceptions import ErrorCode, TemplateRuntimeError
+
+        loader = DictLoader(
+            {
+                "macros.html": "{% def greet(name) %}Hello {{ name }}{% end %}",
+            }
+        )
+        env = Environment(loader=loader)
+        tmpl = env.from_string('{% from "macros.html" import missing %}')
+
+        with pytest.raises(TemplateRuntimeError) as exc_info:
+            tmpl.render()
+
+        assert exc_info.value.code == ErrorCode.MACRO_NOT_FOUND
+        assert "missing" in str(exc_info.value)
+        assert "macros.html" in str(exc_info.value)

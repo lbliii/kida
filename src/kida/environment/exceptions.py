@@ -78,6 +78,11 @@ class ErrorCode(Enum):
     NONE_COMPARISON = "K-RUN-005"
     INCLUDE_DEPTH = "K-RUN-006"
     RUNTIME_ERROR = "K-RUN-007"
+    MACRO_NOT_FOUND = "K-RUN-008"
+    KEY_ERROR = "K-RUN-009"
+    ATTRIBUTE_ERROR = "K-RUN-010"
+    ZERO_DIVISION = "K-RUN-011"
+    TYPE_ERROR = "K-RUN-012"
 
     # Template loading errors (K-TPL-xxx)
     TEMPLATE_NOT_FOUND = "K-TPL-001"
@@ -611,9 +616,9 @@ class UndefinedError(TemplateError):
 
         # "Did you mean?" suggestion via fuzzy matching
         if self._available_names:
-            from difflib import get_close_matches
+            from kida.utils.typo_suggestions import suggest_closest
 
-            matches = get_close_matches(self.name, self._available_names, n=1, cutoff=0.6)
+            matches = suggest_closest(self.name, self._available_names, limit=1)
             if matches:
                 suggested = terminal.suggestion(matches[0])
                 msg += f". Did you mean '{suggested}'?"
@@ -645,9 +650,9 @@ class UndefinedError(TemplateError):
 
         # "Did you mean?" suggestion
         if self._available_names:
-            from difflib import get_close_matches
+            from kida.utils.typo_suggestions import suggest_closest
 
-            matches = get_close_matches(self.name, self._available_names, n=1, cutoff=0.6)
+            matches = suggest_closest(self.name, self._available_names, limit=1)
             if matches:
                 suggested = terminal.suggestion(matches[0])
                 msg += f". Did you mean '{suggested}'?"

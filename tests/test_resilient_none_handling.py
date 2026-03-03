@@ -362,6 +362,104 @@ class TestDictSafeAttributeResolution:
         assert result == "nested-value"
 
 
+class TestNullCoalesceAndDefaultWithUndefined:
+    """Test ?? and | default() handle _Undefined from failed attribute access."""
+
+    def test_null_coalesce_on_missing_attribute(self, env: Environment) -> None:
+        """obj.missing ?? 'fb' returns 'fb' when attribute is missing."""
+        tmpl = env.from_string("{{ obj.missing ?? 'fb' }}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == "fb"
+
+    def test_default_filter_on_missing_attribute(self, env: Environment) -> None:
+        """obj.missing | default('fb') returns 'fb' when attribute is missing."""
+        tmpl = env.from_string("{{ obj.missing | default('fb') }}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == "fb"
+
+    def test_null_coalesce_preserves_falsy(self, env: Environment) -> None:
+        """obj.zero ?? 'fb' returns 0 (not the fallback)."""
+        tmpl = env.from_string("{{ obj.zero ?? 'fb' }}")
+        result = tmpl.render(obj={"zero": 0})
+        assert result == "0"
+
+    def test_default_preserves_falsy_without_boolean(self, env: Environment) -> None:
+        """obj.empty_str | default('fb') returns '' when value is empty string."""
+        tmpl = env.from_string("{{ obj.empty_str | default('fb') }}")
+        result = tmpl.render(obj={"empty_str": ""})
+        assert result == ""
+
+    def test_chained_optional_with_coalesce(self, env: Environment) -> None:
+        """obj?.a?.b ?? 'fb' returns 'fb' when chain fails."""
+        tmpl = env.from_string("{{ obj?.a?.b ?? 'fb' }}")
+        result = tmpl.render(obj={"a": None})
+        assert result == "fb"
+
+
+class TestUndefinedMethodCalls:
+    """Test _Undefined in method calls and filter chains."""
+
+    def test_undefined_get_returns_default(self, env: Environment) -> None:
+        """obj.missing.get('key', 'default') returns 'default' when attribute is missing."""
+        tmpl = env.from_string("{{ obj.missing.get('key', 'default') }}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == "default"
+
+    def test_undefined_method_call_get(self, env: Environment) -> None:
+        """obj.missing.get('key') returns '' when no default given (_Undefined.get returns None)."""
+        tmpl = env.from_string("{{ obj.missing.get('key') }}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == ""
+
+    def test_undefined_method_call_items(self, env: Environment) -> None:
+        """{% for k, v in obj.missing.items() %} yields nothing (no error)."""
+        tmpl = env.from_string("{% for k, v in obj.missing.items() %}x{% end %}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == ""
+
+    def test_undefined_keys_returns_empty(self, env: Environment) -> None:
+        """obj.missing.keys() returns empty list; for loop yields nothing."""
+        tmpl = env.from_string("{% for k in obj.missing.keys() %}{{ k }}{% end %}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == ""
+
+    def test_undefined_values_returns_empty(self, env: Environment) -> None:
+        """obj.missing.values() returns empty list; for loop yields nothing."""
+        tmpl = env.from_string("{% for v in obj.missing.values() %}{{ v }}{% end %}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == ""
+
+    def test_undefined_method_call_upper(self, env: Environment) -> None:
+        """obj.missing | upper produces '' or clear error."""
+        tmpl = env.from_string("{{ obj.missing | upper }}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == ""
+
+    def test_undefined_in_filter_chain(self, env: Environment) -> None:
+        """obj.missing | default('x') | upper returns 'X'."""
+        tmpl = env.from_string("{{ obj.missing | default('x') | upper }}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == "X"
+
+    def test_optional_method_call_none_short_circuits(self, env: Environment) -> None:
+        """obj?.missing() when obj is None yields '' (short-circuits)."""
+        tmpl = env.from_string("{{ obj?.missing() }}")
+        result = tmpl.render(obj=None)
+        assert result == ""
+
+    def test_optional_method_call_undefined_short_circuits(self, env: Environment) -> None:
+        """obj?.missing() when obj.missing is _Undefined yields '' (short-circuits)."""
+        tmpl = env.from_string("{{ obj?.missing() }}")
+        result = tmpl.render(obj={"x": 1})
+        assert result == ""
+
+    def test_optional_method_call_valid_works(self, env: Environment) -> None:
+        """obj?.upper() when obj exists calls the method."""
+        tmpl = env.from_string("{{ obj?.upper() }}")
+        result = tmpl.render(obj="hello")
+        assert result == "HELLO"
+
+
 class TestPerformanceCharacteristics:
     """Test that performance characteristics are maintained."""
 

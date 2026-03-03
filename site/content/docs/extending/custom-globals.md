@@ -305,6 +305,10 @@ env.add_global("helpers", Helpers)
 
 ## Best Practices
 
+### Do Not Store UNDEFINED in Globals
+
+`env.globals` should not contain the `UNDEFINED` sentinel. Values equal to `UNDEFINED` are filtered out when building the render context, so they will not appear in templates. Use `UNDEFINED` only as a lookup result (e.g. from `_safe_getattr` when an attribute is missing), not as a stored global. If you need a placeholder for "not yet defined," use `None` or a custom sentinel that is not `UNDEFINED`.
+
 ### Immutable Configuration
 
 ```python

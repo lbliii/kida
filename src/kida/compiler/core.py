@@ -37,6 +37,7 @@ Templates with `{% extends %}` generate:
 from __future__ import annotations
 
 import ast
+import re
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, cast
 
@@ -44,6 +45,8 @@ from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
 from kida.compiler.statements import StatementCompilationMixin
 from kida.compiler.utils import OperatorUtilsMixin
+
+_BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 if TYPE_CHECKING:
     import types
@@ -156,13 +159,63 @@ class Compiler(
         This ensures nested blocks (blocks inside blocks, blocks inside
         conditionals, etc.) are all registered for compilation.
         """
-        from kida.nodes import Block
+        from kida.environment.exceptions import TemplateSyntaxError
+        from kida.nodes import Block, CallBlock, Def, Slot, SlotBlock
 
         for node in nodes:
             if isinstance(node, Block):
+                if not _BLOCK_NAME_RE.match(node.name):
+                    raise TemplateSyntaxError(
+                        f"Invalid block name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
                 self._blocks[node.name] = node
                 # Recurse into block body to find nested blocks
                 self._collect_blocks(node.body)
+            elif isinstance(node, Def):
+                if not _BLOCK_NAME_RE.match(node.name):
+                    raise TemplateSyntaxError(
+                        f"Invalid def name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
+                self._collect_blocks(node.body)
+            elif isinstance(node, CallBlock):
+                for slot_name in node.slots:
+                    if slot_name != "default" and not _BLOCK_NAME_RE.match(slot_name):
+                        raise TemplateSyntaxError(
+                            f"Invalid slot name '{slot_name}': must be identifier-like "
+                            "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                            lineno=node.lineno,
+                            name=self._name,
+                            filename=self._filename,
+                        )
+                for slot_body in node.slots.values():
+                    self._collect_blocks(slot_body)
+            elif isinstance(node, SlotBlock):
+                if node.name != "default" and not _BLOCK_NAME_RE.match(node.name):
+                    raise TemplateSyntaxError(
+                        f"Invalid slot name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
+                self._collect_blocks(node.body)
+            elif isinstance(node, Slot):
+                if node.name != "default" and not _BLOCK_NAME_RE.match(node.name):
+                    raise TemplateSyntaxError(
+                        f"Invalid slot name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
             elif hasattr(node, "body"):
                 # Node has a body (If, For, With, Def, etc.)
                 body = node.body
@@ -896,6 +949,7 @@ class Compiler(
                 "Break": self._compile_break,
                 "Continue": self._compile_continue,
                 "Spaceless": self._compile_spaceless,
+                "Flush": self._compile_flush,
                 "Embed": self._compile_embed,
             }
         return self._node_dispatch

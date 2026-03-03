@@ -19,3 +19,4 @@ pytest examples/streaming/ -v
 - `template.render_stream(**ctx)` — generator yielding chunks
 - Ideal for chunked HTTP responses and Server-Sent Events
 - Chunks align with statement boundaries
+- `{% flush %}` creates explicit yield boundary (header sent before table)

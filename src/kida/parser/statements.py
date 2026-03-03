@@ -57,6 +57,7 @@ _BLOCK_PARSERS: dict[str, str] = {
     "capture": "_parse_capture",
     "cache": "_parse_cache",
     "filter": "_parse_filter_block",
+    "flush": "_parse_flush",
     # Advanced features
     "slot": "_parse_slot",
     "match": "_parse_match",
