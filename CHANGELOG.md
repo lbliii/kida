@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-03-03
+
 ### Added
 
+- **`{% flush %}` directive** — Emits a streaming boundary so buffered output is yielded immediately. Use for chunked HTTP and SSE to control when data reaches the client.
 - **Resource exhaustion guards** — `max_extends_depth` (50) limits inheritance chains; partial evaluator depth limit (100) prevents stack overflow on deep attribute chains; `MAX_FILTER_CHAIN_LEN` (200) caps filter/pipeline length. Circular inheritance detection raises `TemplateRuntimeError`.
 - **Encoding edge case tests** — BOM, NUL bytes, surrogates, invalid UTF-8, Latin-1 in template source and `FileSystemLoader`.
 - **Concurrency tests** — BytecodeCache get/set, mixed `render()`/`render_stream()` on same template.
@@ -16,10 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scaling benchmarks** — Inheritance depth, filter chains, `add_filter` vs `update_filters`, partial eval, template cache contention. See `benchmarks/RESULTS.md` for Kida vs Jinja2 matrix.
 - **Coverage threshold** — `fail_under=80` in pyproject.toml.
 - **Hypothesis CI profile** — `max_examples=200` when `CI=true`.
+- **Def/slot name validation** — Compiler validates `{% def %}` and `{% slot %}` names with identifier regex; rejects invalid names at compile time.
 
 ### Changed
 
 - **Thread-safety CI** — Now runs `test_bytecode_cache_concurrency.py` in addition to stress and LRU tests.
+- **UNDEFINED in globals** — Render context filters `UNDEFINED` from `env.globals` before macro imports; prevents accidental exposure to templates. Documented in `custom-globals.md`.
+- **Error attribution** — Improved source mapping and DX for template errors.
+
+### Fixed
+
+- **K-RUN-007** — Isolate `import_stack` and exclude `UNDEFINED` in macro imports; fixes shared mutable state in concurrent rendering.
+
+### Security
+
+- **Path traversal** — `BytecodeCache` rejects template names containing path traversal (`..`, path separators). `PackageLoader.get_source` rejects path traversal in template names.
 
 ## [0.2.2] - 2026-02-18
 
@@ -237,6 +251,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.3]: https://github.com/lbliii/kida/releases/tag/v0.2.3
 [0.2.2]: https://github.com/lbliii/kida/releases/tag/v0.2.2
 [0.2.1]: https://github.com/lbliii/kida/releases/tag/v0.2.1
 [0.2.0]: https://github.com/lbliii/kida/releases/tag/v0.2.0
