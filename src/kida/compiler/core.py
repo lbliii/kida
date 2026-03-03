@@ -41,12 +41,12 @@ import re
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, cast
 
-_BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
-
 from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
 from kida.compiler.statements import StatementCompilationMixin
 from kida.compiler.utils import OperatorUtilsMixin
+
+_BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 if TYPE_CHECKING:
     import types

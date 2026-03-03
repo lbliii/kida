@@ -102,7 +102,7 @@ def test_invalid_def_name_raises() -> None:
     from kida import DictLoader, Environment
     from kida.compiler import Compiler
     from kida.environment.exceptions import TemplateSyntaxError
-    from kida.nodes import Data, Def, DefParam
+    from kida.nodes import Data, Def
     from kida.nodes.structure import Template
 
     bad_def = Def(
