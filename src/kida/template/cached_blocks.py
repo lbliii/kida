@@ -47,14 +47,17 @@ class CachedBlocksDict:
             with self._stats_lock:
                 self._stats["misses"] = self._stats.get("misses", 0) + 1
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Any = None) -> BlockCallable | Any:
         """Intercept .get() calls to return cached HTML when available."""
         if key in self._cached_names:
             cached_html = self._cached[key]
             self._record_hit()
+
             # Return a wrapper function that matches the block function signature:
             # _block_name(ctx, _blocks)
-            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
+            def cached_block_func(
+                _ctx: dict[str, Any], _blocks: dict[str, Any] | None
+            ) -> str:
                 return cached_html
 
             return cached_block_func
@@ -62,7 +65,7 @@ class CachedBlocksDict:
         self._record_miss()
         return self._original.get(key, default)
 
-    def setdefault(self, key: str, default: Any = None) -> Any:
+    def setdefault(self, key: str, default: Any = None) -> BlockCallable | Any:
         """Preserve setdefault() behavior for block registration.
 
         Kida templates use .setdefault() to register their own block functions
@@ -71,7 +74,10 @@ class CachedBlocksDict:
         if key in self._cached_names:
             cached_html = self._cached[key]
             self._record_hit()
-            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
+
+            def cached_block_func(
+                _ctx: dict[str, Any], _blocks: dict[str, Any] | None
+            ) -> str:
                 return cached_html
 
             return cached_block_func
@@ -79,12 +85,15 @@ class CachedBlocksDict:
         # For non-cached blocks, use normal setdefault
         return self._original.setdefault(key, default)
 
-    def __getitem__(self, key: str) -> Any:
+    def __getitem__(self, key: str) -> BlockCallable | Any:
         """Support dict[key] access."""
         if key in self._cached_names:
             cached_html = self._cached[key]
             self._record_hit()
-            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
+
+            def cached_block_func(
+                _ctx: dict[str, Any], _blocks: dict[str, Any] | None
+            ) -> str:
                 return cached_html
 
             return cached_block_func
@@ -115,7 +124,9 @@ class CachedBlocksDict:
                 stats: dict[str, int] | None,
                 lock: threading.Lock | None,
             ) -> BlockCallable:
-                def wrapper(_ctx: dict[str, Any], _blocks: dict[str, Any]) -> str:
+                def wrapper(
+                    _ctx: dict[str, Any], _blocks: dict[str, Any] | None
+                ) -> str:
                     if stats is not None and lock is not None:
                         with lock:
                             stats["hits"] = stats.get("hits", 0) + 1
