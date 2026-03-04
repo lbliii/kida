@@ -580,7 +580,7 @@ class Lexer:
         )
 
     def _scan_string(self) -> Token:
-        """Scan a string literal."""
+        """Scan a string literal with Python-style escape decoding."""
         start_lineno = self._lineno
         start_col = self._col_offset
         quote_char = self._source[self._pos]
@@ -589,12 +589,13 @@ class Lexer:
         while pos < len(self._source):
             char = self._source[pos]
             if char == quote_char:
-                # End of string
-                value = self._source[self._pos + 1 : pos]
+                # End of string — decode escape sequences
+                raw = self._source[self._pos + 1 : pos]
                 self._advance(pos - self._pos + 1)
+                value = self._decode_string_escapes(raw, quote_char, start_lineno, start_col)
                 return Token(TokenType.STRING, value, start_lineno, start_col)
             elif char == "\\":
-                # Escape sequence
+                # Escape sequence — skip (decoded when we have full raw string)
                 pos += 2
             else:
                 pos += 1
@@ -606,6 +607,82 @@ class Lexer:
             start_col,
             f"Add closing {quote_char} to end the string",
         )
+
+    def _decode_string_escapes(
+        self, raw: str, quote_char: str, lineno: int, col_offset: int
+    ) -> str:
+        """Decode Python-style escape sequences in string literal content."""
+        result: list[str] = []
+        i = 0
+        while i < len(raw):
+            if raw[i] != "\\":
+                result.append(raw[i])
+                i += 1
+                continue
+            if i + 1 >= len(raw):
+                raise LexerError(
+                    "Unterminated escape sequence at end of string",
+                    self._source,
+                    lineno,
+                    col_offset,
+                )
+            i += 1
+            c = raw[i]
+            if c == "n":
+                result.append("\n")
+            elif c == "r":
+                result.append("\r")
+            elif c == "t":
+                result.append("\t")
+            elif c == "\\":
+                result.append("\\")
+            elif c in ('"', "'"):
+                result.append(c)
+            elif c == "u":
+                if i + 4 >= len(raw):
+                    raise LexerError(
+                        "Invalid \\uXXXX escape: need 4 hex digits",
+                        self._source,
+                        lineno,
+                        col_offset,
+                    )
+                hex_str = raw[i + 1 : i + 5]
+                if not all(h in "0123456789abcdefABCDEF" for h in hex_str):
+                    raise LexerError(
+                        f"Invalid \\uXXXX escape: {hex_str!r} is not valid hex",
+                        self._source,
+                        lineno,
+                        col_offset,
+                    )
+                result.append(chr(int(hex_str, 16)))
+                i += 4
+            elif c == "U":
+                if i + 8 >= len(raw):
+                    raise LexerError(
+                        "Invalid \\UXXXXXXXX escape: need 8 hex digits",
+                        self._source,
+                        lineno,
+                        col_offset,
+                    )
+                hex_str = raw[i + 1 : i + 9]
+                if not all(h in "0123456789abcdefABCDEF" for h in hex_str):
+                    raise LexerError(
+                        f"Invalid \\UXXXXXXXX escape: {hex_str!r} is not valid hex",
+                        self._source,
+                        lineno,
+                        col_offset,
+                    )
+                result.append(chr(int(hex_str, 16)))
+                i += 8
+            else:
+                raise LexerError(
+                    f"Invalid escape sequence: \\{c!r}",
+                    self._source,
+                    lineno,
+                    col_offset,
+                )
+            i += 1
+        return "".join(result)
 
     def _scan_number(self) -> Token:
         """Scan a number literal (integer or float).
