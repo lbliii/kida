@@ -167,7 +167,6 @@ class SourceSnippet:
             is_error = lineno == self.error_line
             parts.append(terminal.format_source_line(lineno, content, is_error=is_error))
         if self.column is not None:
-            # Caret pointer in bright red
             caret = " " * self.column + "^"
             parts.append(f"{terminal.dim_text('   |')} {terminal.error_line(caret)}")
         parts.append(terminal.dim_text("   |"))

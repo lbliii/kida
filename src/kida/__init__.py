@@ -89,6 +89,7 @@ from kida.environment import (
     UndefinedError,
     build_source_snippet,
 )
+from kida.environment.terminal import strip_colors
 from kida.render_accumulator import (
     RenderAccumulator,
     get_accumulator,
@@ -170,6 +171,7 @@ __all__ = [
     "profiled_render",
     "render_context",
     "should_parallelize",
+    "strip_colors",
     "timed_block",
 ]
 
