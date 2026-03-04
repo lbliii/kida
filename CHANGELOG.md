@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Async API contract clarified** — `Template.render_async()` is now explicitly a thread-pool wrapper for synchronous templates. Async templates should use `render_stream_async()`.
+- **Fragment cache TTL semantics** — `{% cache key, ttl=... %}` now enforces per-fragment TTL overrides (supports numeric seconds and `s/m/h/d` duration suffixes).
+
+### Fixed
+
+- **Bytecode cache write race** — `BytecodeCache.set()` now uses unique temp files plus atomic replace, preventing concurrent writer collisions on shared `.tmp` paths.
+
 ## [0.2.3] - 2026-03-03
 
 ### Added

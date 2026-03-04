@@ -171,7 +171,7 @@ All template constructs work in streaming mode:
 | `render()` | Fastest — builds full string in memory |
 | `render_stream()` | Sync streaming — chunked HTTP, large pages |
 | `render_stream_async()` | Async streaming — async iterables, `await` in templates |
-| `render_async()` | Async buffered — `await` support, full string output |
+| `render_async()` | Async buffered wrapper for sync templates (`to_thread`) |
 
 For most pages, `render()` is the best choice. Use streaming when the output is large or you want to start sending bytes before the template finishes rendering.
 

@@ -33,9 +33,11 @@ from __future__ import annotations
 
 import hashlib
 import marshal
+import os
 import sys
 import time
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from types import CodeType
 from typing import cast
 
@@ -154,21 +156,30 @@ class BytecodeCache:
             code: Compiled code object
         """
         path = self._make_path(name, source_hash, context_hash)
-        tmp_path = path.with_suffix(".tmp")
+        tmp_path: Path | None = None
 
         try:
-            # Write to temp file first (atomic pattern)
-            with open(tmp_path, "wb") as f:
+            # Write to a unique temp file in the same directory, then atomically
+            # replace the target path. Unique temp naming prevents producer races.
+            with NamedTemporaryFile(
+                mode="wb",
+                dir=self._dir,
+                prefix=f"{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as f:
+                tmp_path = Path(f.name)
                 marshal.dump(code, f)
 
-            # Atomic rename
-            tmp_path.rename(path)
+            # Atomic replacement
+            os.replace(tmp_path, path)
         except OSError:
             # Best effort - caching failure shouldn't break compilation
             import contextlib
 
             with contextlib.suppress(OSError):
-                tmp_path.unlink(missing_ok=True)
+                if tmp_path is not None:
+                    tmp_path.unlink(missing_ok=True)
 
     def clear(self, current_version_only: bool = False) -> int:
         """Remove cached bytecode.

@@ -4,6 +4,7 @@ Tests persistent template caching for fast cold-start.
 """
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -48,6 +49,40 @@ class TestBytecodeCache:
         result = cache.get("test.html", source_hash)
         assert result is not None
         assert result.co_code == code.co_code
+
+    def test_concurrent_set_same_key_is_safe(self, cache):
+        """Concurrent writers for same key do not corrupt cache file."""
+        source_hash = hash_source("shared source")
+
+        def writer(i: int) -> None:
+            code = compile(f"x = {i}", f"<test-{i}>", "exec")
+            cache.set("shared.html", source_hash, code)
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(writer, i) for i in range(128)]
+            for future in futures:
+                future.result()
+
+        # Cache must remain loadable (winner may be any writer).
+        cached = cache.get("shared.html", source_hash)
+        assert cached is not None
+
+    def test_set_does_not_leave_tmp_artifacts_under_contention(self, cache_dir):
+        """Concurrent writes should not leave stale temporary files behind."""
+        cache = BytecodeCache(cache_dir)
+        source_hash = hash_source("same-template")
+
+        def writer(i: int) -> None:
+            code = compile(f"x = {i}", f"<w-{i}>", "exec")
+            cache.set("collision.html", source_hash, code)
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [executor.submit(writer, i) for i in range(64)]
+            for future in futures:
+                future.result()
+
+        temp_files = list(cache_dir.glob("*.tmp"))
+        assert temp_files == []
 
     def test_hash_invalidation(self, cache):
         """Changed source hash returns miss."""

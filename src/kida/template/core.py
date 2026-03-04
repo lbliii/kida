@@ -130,7 +130,6 @@ class Template(TemplateIntrospectionMixin):
         "_name",
         "_namespace",  # Compiled namespace with block functions
         "_optimized_ast",  # Preserved AST for introspection (or None)
-        "_render_async_func",
         "_render_func",
         "_render_stream_async_func",  # RFC: rfc-async-rendering
         "_render_stream_func",
@@ -214,7 +213,6 @@ class Template(TemplateIntrospectionMixin):
         )
         exec(code, namespace)
         self._render_func = namespace.get("render")
-        self._render_async_func = namespace.get("render_async")
         self._render_stream_func = namespace.get("render_stream")
         self._render_stream_async_func = namespace.get("render_stream_async")
         self._namespace = namespace  # Keep for render_block()
@@ -693,13 +691,24 @@ class Template(TemplateIntrospectionMixin):
         )
 
     async def render_async(self, *args: Any, **kwargs: Any) -> str:
-        """Async wrapper for synchronous render.
+        """Async wrapper for synchronous templates.
 
-        Runs the synchronous ``render()`` method in a thread pool to avoid
-        blocking the event loop.
+        Runs ``render()`` in a thread pool to avoid blocking the event loop.
+        Async templates (those with ``{% async for %}`` or ``{{ await ... }}``)
+        are not supported by this method. Use ``render_stream_async()`` for
+        native async template rendering.
         """
         import asyncio
 
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        if self.is_async:
+            raise TemplateRuntimeError(
+                f"Template '{self._name or '(inline)'}' uses async constructs "
+                f"(async for / await). Use render_stream_async() instead of "
+                f"render_async().",
+                template_name=self._name,
+            )
         return await asyncio.to_thread(self.render, *args, **kwargs)
 
     @property

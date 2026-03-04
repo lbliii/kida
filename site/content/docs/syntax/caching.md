@@ -50,6 +50,22 @@ Multiple components:
 {% end %}
 ```
 
+## Per-Block TTL
+
+Override cache lifetime for a specific fragment:
+
+```kida
+{% cache "weather-" + city.id, ttl="5m" %}
+    {{ fetch_weather(city) }}
+{% end %}
+```
+
+Supported `ttl` values:
+- Seconds as number: `ttl=30`, `ttl=0.5`
+- Duration string: `"30s"`, `"5m"`, `"2h"`, `"1d"`
+
+If `ttl` is omitted, Kida uses `Environment(fragment_ttl=...)`.
+
 ## Cache Configuration
 
 Configure caching in the Environment:

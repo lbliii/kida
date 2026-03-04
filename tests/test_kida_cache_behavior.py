@@ -103,6 +103,20 @@ class TestLRUCache:
         # Should still be valid (reset at 0.05, now at 0.13)
         assert cache.get("key") == "new_value"
 
+    def test_set_ttl_override_expires_earlier_than_default(self) -> None:
+        """Per-entry TTL override takes precedence over cache default."""
+        cache = LRUCache(maxsize=10, ttl=1.0)
+        cache.set("key", "value", ttl=0.05)
+        time.sleep(0.08)
+        assert cache.get("key") is None
+
+    def test_get_or_set_ttl_override_is_applied(self) -> None:
+        """get_or_set() supports per-entry TTL override."""
+        cache = LRUCache(maxsize=10, ttl=1.0)
+        cache.get_or_set("key", lambda: "value", ttl=0.05)
+        time.sleep(0.08)
+        assert cache.get("key") is None
+
     def test_clear(self) -> None:
         """Clear removes all entries."""
         cache = LRUCache(maxsize=10)
