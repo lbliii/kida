@@ -153,8 +153,10 @@ class TestStringLiterals:
 
     def test_string_invalid_escape_raises(self) -> None:
         """Invalid escape sequence raises LexerError."""
-        with pytest.raises(LexerError):
+        with pytest.raises(LexerError) as exc_info:
             tokenize('{{ "\\z" }}')
+        assert "Invalid escape sequence: \\z" in str(exc_info.value)
+        assert exc_info.value.col_offset == 4
 
     def test_string_invalid_unicode_escape_raises(self) -> None:
         """Invalid \\uXXXX (too short) raises LexerError."""
@@ -165,6 +167,12 @@ class TestStringLiterals:
         """Invalid \\uXXXX (non-hex) raises LexerError."""
         with pytest.raises(LexerError):
             tokenize('{{ "\\uXYZZ" }}')
+
+    def test_string_invalid_upper_unicode_code_point_raises(self) -> None:
+        """Invalid \\UXXXXXXXX code point raises LexerError."""
+        with pytest.raises(LexerError) as exc_info:
+            tokenize('{{ "\\UFFFFFFFF" }}')
+        assert "is not a valid Unicode code point" in str(exc_info.value)
 
 
 class TestNumericLiterals:

@@ -161,7 +161,7 @@ Use the `~` operator to concatenate strings (idiomatic for dynamic URLs in attri
 
 ```kida
 {{ "/path/" ~ id ~ "/action" }}
-attrs='hx-post="/chains/' ~ chain_id ~ '/add-step"'
+hx-post="{{ '/chains/' ~ chain_id ~ '/add-step' }}"
 ```
 
 Both `~` and `{{ var }}` produce identical output at render time. Static analysis tools (e.g. Chirp's contract checker) treat both as dynamic and skip route validation for such URLs.

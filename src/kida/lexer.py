@@ -612,6 +612,7 @@ class Lexer:
         self, raw: str, quote_char: str, lineno: int, col_offset: int
     ) -> str:
         """Decode Python-style escape sequences in string literal content."""
+        del quote_char  # Escape decoding does not depend on quote style.
         result: list[str] = []
         i = 0
         while i < len(raw):
@@ -624,8 +625,10 @@ class Lexer:
                     "Unterminated escape sequence at end of string",
                     self._source,
                     lineno,
-                    col_offset,
+                    col_offset + i + 1,
                 )
+            escape_start = i
+            escape_col = col_offset + escape_start + 1
             i += 1
             c = raw[i]
             if c == "n":
@@ -644,7 +647,7 @@ class Lexer:
                         "Invalid \\uXXXX escape: need 4 hex digits",
                         self._source,
                         lineno,
-                        col_offset,
+                        escape_col,
                     )
                 hex_str = raw[i + 1 : i + 5]
                 if not all(h in "0123456789abcdefABCDEF" for h in hex_str):
@@ -652,9 +655,18 @@ class Lexer:
                         f"Invalid \\uXXXX escape: {hex_str!r} is not valid hex",
                         self._source,
                         lineno,
-                        col_offset,
+                        escape_col,
                     )
-                result.append(chr(int(hex_str, 16)))
+                try:
+                    code_point = int(hex_str, 16)
+                    result.append(chr(code_point))
+                except ValueError as exc:
+                    raise LexerError(
+                        f"Invalid \\uXXXX escape: {hex_str!r} is not a valid Unicode code point",
+                        self._source,
+                        lineno,
+                        escape_col,
+                    ) from exc
                 i += 4
             elif c == "U":
                 if i + 8 >= len(raw):
@@ -662,7 +674,7 @@ class Lexer:
                         "Invalid \\UXXXXXXXX escape: need 8 hex digits",
                         self._source,
                         lineno,
-                        col_offset,
+                        escape_col,
                     )
                 hex_str = raw[i + 1 : i + 9]
                 if not all(h in "0123456789abcdefABCDEF" for h in hex_str):
@@ -670,16 +682,25 @@ class Lexer:
                         f"Invalid \\UXXXXXXXX escape: {hex_str!r} is not valid hex",
                         self._source,
                         lineno,
-                        col_offset,
+                        escape_col,
                     )
-                result.append(chr(int(hex_str, 16)))
+                try:
+                    code_point = int(hex_str, 16)
+                    result.append(chr(code_point))
+                except ValueError as exc:
+                    raise LexerError(
+                        f"Invalid \\UXXXXXXXX escape: {hex_str!r} is not a valid Unicode code point",
+                        self._source,
+                        lineno,
+                        escape_col,
+                    ) from exc
                 i += 8
             else:
                 raise LexerError(
-                    f"Invalid escape sequence: \\{c!r}",
+                    f"Invalid escape sequence: \\{c}",
                     self._source,
                     lineno,
-                    col_offset,
+                    escape_col,
                 )
             i += 1
         return "".join(result)

@@ -89,7 +89,6 @@ from kida.environment import (
     UndefinedError,
     build_source_snippet,
 )
-from kida.environment.terminal import strip_colors
 from kida.render_accumulator import (
     RenderAccumulator,
     get_accumulator,
@@ -179,6 +178,7 @@ __all__ = [
 # Lazy-loaded analysis symbols (avoids eagerly importing kida.nodes — 974 lines
 # of frozen dataclass AST definitions — on every `from kida import Environment`).
 _LAZY_ANALYSIS = frozenset({"AnalysisConfig", "BlockMetadata", "TemplateMetadata"})
+_LAZY_EXPORTS = frozenset({"strip_colors"})
 
 
 # Free-threading declaration (PEP 703) + lazy analysis imports
@@ -198,4 +198,9 @@ def __getattr__(name: str) -> object:
             TemplateMetadata=TemplateMetadata,
         )
         return globals()[name]
+    if name in _LAZY_EXPORTS:
+        from kida.environment.terminal import strip_colors
+
+        globals()["strip_colors"] = strip_colors
+        return strip_colors
     raise AttributeError(f"module 'kida' has no attribute {name!r}")
