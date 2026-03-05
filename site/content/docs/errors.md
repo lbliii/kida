@@ -84,6 +84,12 @@ Fix: Use a valid built-in or registered filter name. Check filter argument types
 
 Fix: Use a valid built-in or registered test name. Check test argument types.
 
+### k-par-006
+
+**Invalid identifier** — A block name, fragment name, or other identifier contains a hyphen.
+
+Fix: Use underscores instead of hyphens. For example, `{% block settings-status %}` should be `{% block settings_status %}`.
+
 ## Runtime Errors (K-RUN-xxx)
 
 Runtime errors occur during template rendering.

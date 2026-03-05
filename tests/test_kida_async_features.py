@@ -15,6 +15,7 @@ import asyncio
 import pytest
 
 from kida import Environment
+from kida.environment.exceptions import TemplateRuntimeError
 
 
 class TestAsyncRenderWrapper:
@@ -68,6 +69,13 @@ class TestAsyncRenderWrapper:
 
         result = await tmpl.render_async(show=False)
         assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_async_render_rejects_async_templates(self, env: Environment) -> None:
+        """render_async() rejects templates with native async constructs."""
+        tmpl = env.from_string("{% async for x in items %}{{ x }}{% end %}")
+        with pytest.raises(TemplateRuntimeError, match="Use render_stream_async"):
+            await tmpl.render_async(items=[1, 2, 3])
 
 
 class TestAsyncConcurrency:

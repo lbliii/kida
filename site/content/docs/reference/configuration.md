@@ -141,6 +141,18 @@ fragment_ttl=1.0
 fragment_ttl=3600.0  # 1 hour
 ```
 
+`fragment_ttl` is the default for `{% cache %}` blocks. You can override TTL per block:
+
+```kida
+{% cache "user-" + user.id, ttl="5m" %}
+    {{ render_profile(user) }}
+{% end %}
+```
+
+Supported `ttl` formats in templates:
+- Numeric seconds (`ttl=30`, `ttl=0.5`)
+- Duration strings (`"30s"`, `"5m"`, `"2h"`, `"1d"`)
+
 ### bytecode_cache
 
 Persistent bytecode cache for cold-start performance.

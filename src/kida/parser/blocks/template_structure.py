@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
+from kida.environment.exceptions import ErrorCode
 from kida.nodes import Block, Extends, FromImport, Globals, Import, Imports, Include
 
 if TYPE_CHECKING:
@@ -50,6 +51,7 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
             message: str,
             token: Token | None = None,
             suggestion: str | None = None,
+            code: ErrorCode | None = None,
         ) -> ParseError: ...
 
         # From StatementParsingMixin
@@ -70,6 +72,19 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
         if self._current.type != TokenType.NAME:
             raise self._error("Expected block name")
         name = self._advance().value
+
+        # Detect hyphen in block name (e.g. {% block settings-status %})
+        if self._current.type == TokenType.SUB:
+            self._advance()  # consume '-'
+            suffix = self._current.value if self._current.type == TokenType.NAME else "..."
+            raise self._error(
+                f"Invalid block name: '{name}-{suffix}' contains a hyphen",
+                suggestion=(
+                    f"Block names must be valid identifiers (no hyphens). "
+                    f"Use underscores: {{% block {name}_{suffix} %}}"
+                ),
+                code=ErrorCode.INVALID_IDENTIFIER,
+            )
 
         # Optional condition: {% block detail if show_detail %}
         condition: Expr | None = None
@@ -150,6 +165,19 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
         if self._current.type != TokenType.NAME:
             raise self._error("Expected fragment block name")
         name = self._advance().value
+
+        # Detect hyphen in fragment name
+        if self._current.type == TokenType.SUB:
+            self._advance()  # consume '-'
+            suffix = self._current.value if self._current.type == TokenType.NAME else "..."
+            raise self._error(
+                f"Invalid fragment name: '{name}-{suffix}' contains a hyphen",
+                suggestion=(
+                    f"Fragment names must be valid identifiers (no hyphens). "
+                    f"Use underscores: {{% fragment {name}_{suffix} %}}"
+                ),
+                code=ErrorCode.INVALID_IDENTIFIER,
+            )
 
         self._expect(TokenType.BLOCK_END)
         body = self._parse_body()

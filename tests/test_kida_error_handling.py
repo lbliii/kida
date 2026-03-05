@@ -106,6 +106,30 @@ class TestSyntaxErrors:
         with pytest.raises((TemplateSyntaxError, Exception)):
             env.from_string("{{ x | }}")
 
+    def test_hyphen_in_block_name(self) -> None:
+        """Block names cannot contain hyphens — use underscores."""
+        from kida.parser.errors import ParseError
+
+        env = Environment()
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% block settings-status %}x{% end %}").render()
+        err = exc_info.value
+        assert err.code == ErrorCode.INVALID_IDENTIFIER
+        assert "hyphen" in str(err).lower()
+        assert "underscores" in str(err).lower()
+        assert "settings_status" in str(err)
+
+    def test_hyphen_in_fragment_name(self) -> None:
+        """Fragment names cannot contain hyphens."""
+        from kida.parser.errors import ParseError
+
+        env = Environment()
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% fragment nav-bar %}x{% end %}").render()
+        err = exc_info.value
+        assert err.code == ErrorCode.INVALID_IDENTIFIER
+        assert "hyphen" in str(err).lower()
+
 
 class TestRuntimeErrors:
     """Test runtime error handling."""
@@ -121,10 +145,9 @@ class TestRuntimeErrors:
             tmpl.render()
 
     def test_type_error_concatenation(self, env: Environment) -> None:
-        """Type error in concatenation."""
+        """Polymorphic + concatenates string + int as strings (no TypeError)."""
         tmpl = env.from_string("{{ 'hello' + 5 }}")
-        with pytest.raises((TypeError, TemplateRuntimeError)):
-            tmpl.render()
+        assert tmpl.render() == "hello5"
 
     def test_index_out_of_range(self, env: Environment) -> None:
         """Index out of range."""
@@ -836,6 +859,34 @@ class TestErrorCodes:
         """TemplateSyntaxError instances have the correct error code."""
         exc = TemplateSyntaxError("bad syntax")
         assert exc.code == ErrorCode.SYNTAX_ERROR
+
+    def test_parse_error_invalid_identifier_has_code(self) -> None:
+        """ParseError from hyphen-in-block-name has K-PAR-006."""
+        from kida.parser.errors import ParseError
+
+        env = Environment()
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% block x-y %}z{% end %}").render()
+        assert exc_info.value.code == ErrorCode.INVALID_IDENTIFIER
+
+    def test_parse_error_format_has_kida_branding_and_docs(self) -> None:
+        """ParseError str() includes Kida branding and docs URL."""
+        from kida.parser.errors import ParseError
+
+        env = Environment()
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% block x-y %}z{% end %}").render()
+        msg = str(exc_info.value)
+        assert "Kida Parse Error" in msg
+        assert "K-PAR-006" in msg
+        assert "lbliii.github.io/kida/docs/errors" in msg
+
+    def test_template_syntax_error_not_wrapped_on_render(self) -> None:
+        """ParseError/TemplateSyntaxError are re-raised, not wrapped in TemplateRuntimeError."""
+        env = Environment()
+        with pytest.raises(TemplateSyntaxError):
+            env.from_string("{% block bad-name %}x{% end %}").render()
+        # Should NOT be TemplateRuntimeError wrapping ParseError
 
 
 # ---------------------------------------------------------------------------

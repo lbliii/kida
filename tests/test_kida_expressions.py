@@ -266,6 +266,40 @@ class TestTupleLiterals:
         assert "1" in result and "2" in result and "3" in result
 
 
+class TestPolymorphicAddition:
+    """Polymorphic + operator: add if both numeric, else string concatenation."""
+
+    def test_numeric_addition(self, env):
+        """Both numeric: arithmetic addition."""
+        tmpl = env.from_string("{{ 2 + 3 }}")
+        assert tmpl.render() == "5"
+
+    def test_int_plus_string(self, env):
+        """Int + string: string concatenation (Jinja-style)."""
+        tmpl = env.from_string('{{ count + " items" }}')
+        assert tmpl.render(count=5) == "5 items"
+
+    def test_string_plus_int(self, env):
+        """String + int: string concatenation."""
+        tmpl = env.from_string('{{ "Count: " + count }}')
+        assert tmpl.render(count=42) == "Count: 42"
+
+    def test_str_func_plus_string(self, env):
+        """str(x) + ' suffix' — the pattern that previously failed with int+str."""
+        tmpl = env.from_string('{{ str(count) + " entries" }}')
+        assert tmpl.render(count=3) == "3 entries"
+
+    def test_filter_plus_string(self, env):
+        """Filter result + string: e.g. (x|int) + ' entries'."""
+        tmpl = env.from_string('{{ (count|int) + " entries" }}')
+        assert tmpl.render(count=7) == "7 entries"
+
+    def test_string_plus_string_var(self, env):
+        """'Hello ' + name — common Jinja pattern."""
+        tmpl = env.from_string("{{ 'Hello ' + name }}")
+        assert tmpl.render(name="World") == "Hello World"
+
+
 class TestStringConcatenation:
     """String concatenation tests."""
 

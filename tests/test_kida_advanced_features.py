@@ -8,6 +8,8 @@ Tests for Kida-native features:
 - {% filter %} - apply filter to block content
 """
 
+import time
+
 import pytest
 
 from kida import DictLoader, Environment
@@ -331,9 +333,22 @@ class TestCache:
         assert tmpl2.render() == "B"
 
     def test_cache_with_ttl(self, env):
-        """Cache with TTL parameter (not enforced, just parsed)."""
+        """Cache with TTL parameter expires per-fragment entry."""
         tmpl = env.from_string('{% cache "key", ttl="5m" %}Expires{% endcache %}')
         assert tmpl.render() == "Expires"
+
+    def test_cache_with_short_ttl_expires(self, env):
+        """Per-fragment ttl= overrides default cache ttl."""
+        tmpl = env.from_string('{% cache "ttl-key", ttl=0.05 %}{{ value }}{% endcache %}')
+
+        first = tmpl.render(value="A")
+        second = tmpl.render(value="B")
+        assert first == "A"
+        assert second == "A"  # Cached before TTL expiry
+
+        time.sleep(0.08)
+        third = tmpl.render(value="C")
+        assert third == "C"
 
 
 # =============================================================================

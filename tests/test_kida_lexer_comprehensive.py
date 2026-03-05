@@ -101,14 +101,13 @@ class TestStringLiterals:
         """Escaped quotes in single-quoted string."""
         tokens = tokenize("{{ 'he\\'llo' }}")
         string_token = next(t for t in tokens if t.type == TokenType.STRING)
-        assert "'" in string_token.value or "\\'" in string_token.value
+        assert string_token.value == "he'llo"
 
     def test_escaped_quotes_double(self) -> None:
         """Escaped quotes in double-quoted string."""
         tokens = tokenize('{{ "he\\"llo" }}')
         string_token = next(t for t in tokens if t.type == TokenType.STRING)
-        # May contain escaped or unescaped quote
-        assert '"' in string_token.value or '\\"' in string_token.value
+        assert string_token.value == 'he"llo'
 
     def test_empty_string(self) -> None:
         """Empty string literal."""
@@ -120,14 +119,60 @@ class TestStringLiterals:
         """String containing newline escape."""
         tokens = tokenize('{{ "line1\\nline2" }}')
         string_token = next(t for t in tokens if t.type == TokenType.STRING)
-        assert "n" in string_token.value  # Contains escaped or literal newline
+        assert string_token.value == "line1\nline2"
 
     def test_string_with_unicode_escape(self) -> None:
         """String with unicode escape sequence."""
         tokens = tokenize('{{ "\\u0041" }}')
         string_token = next(t for t in tokens if t.type == TokenType.STRING)
-        # May be escaped or converted
-        assert string_token.value is not None
+        assert string_token.value == "A"
+
+    def test_string_with_star_unicode_escape(self) -> None:
+        """String with star unicode escape (U+2605)."""
+        tokens = tokenize('{{ "\\u2605\\u2605\\u2605" }}')
+        string_token = next(t for t in tokens if t.type == TokenType.STRING)
+        assert string_token.value == "★★★"
+
+    def test_string_escape_tab(self) -> None:
+        """String with tab escape."""
+        tokens = tokenize('{{ "a\\tb" }}')
+        string_token = next(t for t in tokens if t.type == TokenType.STRING)
+        assert string_token.value == "a\tb"
+
+    def test_string_escape_backslash(self) -> None:
+        """String with backslash escape."""
+        tokens = tokenize('{{ "a\\\\b" }}')
+        string_token = next(t for t in tokens if t.type == TokenType.STRING)
+        assert string_token.value == "a\\b"
+
+    def test_string_escape_u_uppercase(self) -> None:
+        """String with \\UXXXXXXXX (8-digit) escape."""
+        tokens = tokenize('{{ "\\U00002605" }}')
+        string_token = next(t for t in tokens if t.type == TokenType.STRING)
+        assert string_token.value == "★"
+
+    def test_string_invalid_escape_raises(self) -> None:
+        """Invalid escape sequence raises LexerError."""
+        with pytest.raises(LexerError) as exc_info:
+            tokenize('{{ "\\z" }}')
+        assert "Invalid escape sequence: \\z" in str(exc_info.value)
+        assert exc_info.value.col_offset == 4
+
+    def test_string_invalid_unicode_escape_raises(self) -> None:
+        """Invalid \\uXXXX (too short) raises LexerError."""
+        with pytest.raises(LexerError):
+            tokenize('{{ "\\u26" }}')
+
+    def test_string_invalid_unicode_hex_raises(self) -> None:
+        """Invalid \\uXXXX (non-hex) raises LexerError."""
+        with pytest.raises(LexerError):
+            tokenize('{{ "\\uXYZZ" }}')
+
+    def test_string_invalid_upper_unicode_code_point_raises(self) -> None:
+        """Invalid \\UXXXXXXXX code point raises LexerError."""
+        with pytest.raises(LexerError) as exc_info:
+            tokenize('{{ "\\UFFFFFFFF" }}')
+        assert "is not a valid Unicode code point" in str(exc_info.value)
 
 
 class TestNumericLiterals:

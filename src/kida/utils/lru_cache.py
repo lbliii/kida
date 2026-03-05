@@ -66,6 +66,7 @@ class LRUCache[K, V]:
         "_name",
         "_timestamps",
         "_ttl",
+        "_ttls",
     )
 
     def __init__(
@@ -84,6 +85,7 @@ class LRUCache[K, V]:
         """
         self._cache: OrderedDict[K, V] = OrderedDict()
         self._timestamps: dict[K, float] = {}
+        self._ttls: dict[K, float] = {}
         self._maxsize = maxsize
         self._ttl = ttl
         self._lock = threading.RLock()
@@ -91,6 +93,10 @@ class LRUCache[K, V]:
         self._misses = 0
         self._enabled = True
         self._name = name
+
+    def _entry_ttl(self, key: K) -> float | None:
+        """Return effective TTL for key (override or cache default)."""
+        return self._ttls.get(key, self._ttl)
 
     def get(self, key: K) -> V | None:
         """Get value by key, returning None if not found or expired.
@@ -107,11 +113,13 @@ class LRUCache[K, V]:
                 return None
 
             # Check TTL expiry
-            if self._ttl is not None:
+            ttl = self._entry_ttl(key)
+            if ttl is not None:
                 ts = self._timestamps.get(key, 0)
-                if time.monotonic() - ts > self._ttl:
+                if time.monotonic() - ts > ttl:
                     del self._cache[key]
                     del self._timestamps[key]
+                    self._ttls.pop(key, None)
                     self._misses += 1
                     return None
 
@@ -121,9 +129,16 @@ class LRUCache[K, V]:
             return self._cache[key]
 
     @overload
-    def get_or_set(self, key: K, factory: Callable[[], V]) -> V: ...
+    def get_or_set(self, key: K, factory: Callable[[], V], *, ttl: float | None = None) -> V: ...
     @overload
-    def get_or_set(self, key: K, factory: Callable[[K], V], *, pass_key: bool) -> V: ...
+    def get_or_set(
+        self,
+        key: K,
+        factory: Callable[[K], V],
+        *,
+        pass_key: bool,
+        ttl: float | None = None,
+    ) -> V: ...
 
     def get_or_set(
         self,
@@ -131,6 +146,7 @@ class LRUCache[K, V]:
         factory: Callable[[], V] | Callable[[K], V],
         *,
         pass_key: bool = False,
+        ttl: float | None = None,
     ) -> V:
         """Get value or compute and cache it.
 
@@ -160,11 +176,13 @@ class LRUCache[K, V]:
 
             if key in self._cache:
                 # Check TTL
-                if self._ttl is not None:
+                key_ttl = self._entry_ttl(key)
+                if key_ttl is not None:
                     ts = self._timestamps.get(key, 0)
-                    if time.monotonic() - ts > self._ttl:
+                    if time.monotonic() - ts > key_ttl:
                         del self._cache[key]
                         del self._timestamps[key]
+                        self._ttls.pop(key, None)
                         # Fall through to compute
                     else:
                         self._cache.move_to_end(key)
@@ -193,16 +211,21 @@ class LRUCache[K, V]:
 
             self._cache[key] = value
             self._timestamps[key] = time.monotonic()
+            if ttl is not None:
+                self._ttls[key] = ttl
+            else:
+                self._ttls.pop(key, None)
 
             # Evict if over capacity
             if self._maxsize > 0:
                 while len(self._cache) > self._maxsize:
                     oldest_key, _ = self._cache.popitem(last=False)
                     self._timestamps.pop(oldest_key, None)
+                    self._ttls.pop(oldest_key, None)
 
             return value
 
-    def set(self, key: K, value: V) -> None:
+    def set(self, key: K, value: V, *, ttl: float | None = None) -> None:
         """Set value, evicting LRU entries if at capacity."""
         with self._lock:
             if not self._enabled:
@@ -212,16 +235,25 @@ class LRUCache[K, V]:
                 self._cache.move_to_end(key)
                 self._cache[key] = value
                 self._timestamps[key] = time.monotonic()
+                if ttl is not None:
+                    self._ttls[key] = ttl
+                else:
+                    self._ttls.pop(key, None)
                 return
 
             self._cache[key] = value
             self._timestamps[key] = time.monotonic()
+            if ttl is not None:
+                self._ttls[key] = ttl
+            else:
+                self._ttls.pop(key, None)
 
             # Evict if over capacity
             if self._maxsize > 0:
                 while len(self._cache) > self._maxsize:
                     oldest_key, _ = self._cache.popitem(last=False)
                     self._timestamps.pop(oldest_key, None)
+                    self._ttls.pop(oldest_key, None)
 
     def delete(self, key: K) -> bool:
         """Delete a key from the cache.
@@ -233,6 +265,7 @@ class LRUCache[K, V]:
             if key in self._cache:
                 del self._cache[key]
                 self._timestamps.pop(key, None)
+                self._ttls.pop(key, None)
                 return True
             return False
 
@@ -241,6 +274,7 @@ class LRUCache[K, V]:
         with self._lock:
             self._cache.clear()
             self._timestamps.clear()
+            self._ttls.clear()
             self._hits = 0
             self._misses = 0
 
@@ -300,9 +334,10 @@ class LRUCache[K, V]:
         with self._lock:
             if key not in self._cache:
                 return False
-            if self._ttl is not None:
+            ttl = self._entry_ttl(key)
+            if ttl is not None:
                 ts = self._timestamps.get(key, 0)
-                if time.monotonic() - ts > self._ttl:
+                if time.monotonic() - ts > ttl:
                     return False
             return True
 

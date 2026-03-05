@@ -340,6 +340,30 @@ def spaceless(html: str) -> str:
     return _SPACELESS_RE.sub("><", html).strip()
 
 
+def add_polymorphic(left: Any, right: Any) -> int | float | str:
+    """Polymorphic + operator: add if both numeric, else concatenate as strings.
+
+    Enables Jinja-style patterns like {{ count + " items" }} and {{ "Hello " + name }}
+    without requiring ~ for string concatenation. Arithmetic (5 + 3) still works.
+
+    Args:
+        left: Left operand
+        right: Right operand
+
+    Returns:
+        left + right (numeric) if both are int/float; else str(left) + str(right)
+    """
+    # Both numeric (exclude bool, which is a subclass of int)
+    if (
+        isinstance(left, (int, float))
+        and isinstance(right, (int, float))
+        and not isinstance(left, bool)
+        and not isinstance(right, bool)
+    ):
+        return left + right
+    return str(left) + str(right)
+
+
 def coerce_numeric(value: Any) -> int | float:
     """Coerce value to numeric type for arithmetic operations.
 

@@ -7,6 +7,7 @@ compiled template code.
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -18,6 +19,51 @@ from kida.template.types import BlocksDict
 
 if TYPE_CHECKING:
     from kida.environment import Environment
+
+
+_TTL_DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhdSMHD]?)\s*$")
+
+
+def _coerce_ttl_seconds(ttl: object) -> float | None:
+    """Convert template ttl argument to seconds.
+
+    Supports numeric values (seconds) and compact duration strings:
+    - "30" / "30s" -> 30
+    - "5m" -> 300
+    - "2h" -> 7200
+    - "1d" -> 86400
+
+    Returns None for invalid values, negative values, or when ttl is None.
+    """
+    if ttl is None:
+        return None
+
+    if isinstance(ttl, bool):
+        return None
+
+    if isinstance(ttl, int | float):
+        ttl_seconds = float(ttl)
+        return ttl_seconds if ttl_seconds >= 0 else None
+
+    text = str(ttl)
+    match = _TTL_DURATION_RE.match(text)
+    if match is None:
+        return None
+
+    value = float(match.group(1))
+    if value < 0:
+        return None
+
+    unit = match.group(2).lower()
+    multiplier = 1.0
+    if unit == "m":
+        multiplier = 60.0
+    elif unit == "h":
+        multiplier = 3600.0
+    elif unit == "d":
+        multiplier = 86400.0
+
+    return value * multiplier
 
 
 def _wrap_blocks_if_cached(
@@ -380,11 +426,12 @@ def make_render_helpers(env_ref: Any) -> dict[str, Any]:
             return None
         return _env._fragment_cache.get(key)
 
-    def _cache_set(key: str, value: str, ttl: str | None = None) -> str:
+    def _cache_set(key: str, value: str, ttl: object = None) -> str:
         _env = env_ref()
         if _env is None:
             return value
-        return _env._fragment_cache.get_or_set(key, lambda: value)
+        ttl_seconds = _coerce_ttl_seconds(ttl)
+        return _env._fragment_cache.get_or_set(key, lambda: value, ttl=ttl_seconds)
 
     return {
         "_include": _include,

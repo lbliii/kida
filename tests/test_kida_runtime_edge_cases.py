@@ -105,10 +105,9 @@ class TestRuntimeErrors:
         return Environment()
 
     def test_type_error_in_filter(self, env: Environment) -> None:
-        """Type error in filter raises appropriate error."""
+        """Polymorphic + concatenates int + string (5 + 'world' -> '5world')."""
         tmpl = env.from_string("{{ 'hello'|length + 'world' }}")
-        with pytest.raises((TypeError, TemplateRuntimeError)):
-            tmpl.render()
+        assert tmpl.render() == "5world"
 
     def test_zero_division(self, env: Environment) -> None:
         """Zero division raises error."""

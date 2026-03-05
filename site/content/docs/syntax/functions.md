@@ -195,6 +195,29 @@ How it works:
 - Inside `{% call %}`, use `{% slot name %}...{% end %}` to provide named slot content.
 - `caller("name")` retrieves a named slot from inside a `def`.
 
+### Slot Context Inheritance
+
+Slot content is rendered in the **caller's context**. Variables from the page or render context are available in slot content without `| default()`:
+
+```kida
+{% def form(action, method="get") %}
+<form action="{{ action }}" method="{{ method }}">
+    {% slot %}
+</form>
+{% end %}
+
+{% block page_content %}
+{% call form("/search") %}
+    {{ search_field("q", value=q) }}
+    {% if selected_tags %}
+        {{ hidden_field("tags", value=selected_tags | join(",")) }}
+    {% end %}
+{% end %}
+{% end %}
+```
+
+When `render_block("page_content", q="...", selected_tags=["a","b"])` is called, `q` and `selected_tags` are available inside the form slot because the slot body inherits the caller's render context. This works for both `render()` and `render_block()`.
+
 ## Slot Detection
 
 When a function is called via `{% call %}`, it receives slot content accessible through `caller()`. Use the built-in `has_slot()` helper inside a `{% def %}` body to detect whether any call slot content was provided:

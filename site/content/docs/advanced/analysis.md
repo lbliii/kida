@@ -380,3 +380,7 @@ and footer blocks.
 | `site_prefixes` | `frozenset[str]` | `{"site.", "site", ...}` | Site-scope variable prefixes |
 | `extra_pure_functions` | `frozenset[str]` | `frozenset()` | Additional pure function names |
 | `extra_impure_filters` | `frozenset[str]` | `frozenset()` | Additional impure filter names |
+
+## Integration with Frameworks
+
+Frameworks like [Chirp](https://github.com/lbliii/chirp) use Kida templates and run contract validation (`chirp check`) to verify that `hx-post`, `hx-get`, and `action` URLs in templates match registered routes. Dynamic URLs built with `~` or `{{ var }}` are correctly skipped — only literal URLs are validated.

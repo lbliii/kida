@@ -149,6 +149,7 @@ Every Kida exception carries an `ErrorCode` that categorizes the error and links
 | `K-PAR-001` | Parser | Unexpected token |
 | `K-PAR-002` | Parser | Unclosed block tag |
 | `K-PAR-003` | Parser | Invalid expression |
+| `K-PAR-006` | Parser | Invalid identifier (hyphen in block/fragment name) |
 | `K-RUN-001` | Runtime | Undefined variable |
 | `K-RUN-002` | Runtime | Type error in expression |
 | `K-RUN-003` | Runtime | Index out of range |
@@ -266,6 +267,14 @@ TemplateNotFoundError: Template 'bsae.html' not found
 ```
 
 Fix: Check file path, verify loader configuration.
+
+### Hyphen in Block or Fragment Name
+
+```
+Kida Parse Error [K-PAR-006]: Invalid block name: 'settings-status' contains a hyphen
+```
+
+Fix: Use underscores instead of hyphens. Change `{% block settings-status %}` to `{% block settings_status %}`.
 
 ## Error Handling in Production
 
