@@ -125,6 +125,61 @@ class TokenType(Enum):
     NEWLINE = "newline"
     WHITESPACE = "whitespace"
 
+    @property
+    def display_name(self) -> str:
+        """Human-readable token name for error messages."""
+        return _TOKEN_DISPLAY.get(self.value, self.value)
+
+
+# Human-readable names for error messages (avoids parser jargon like "got sub")
+_TOKEN_DISPLAY: dict[str, str] = {
+    "block_begin": "'{%'",
+    "block_end": "'%}'",
+    "variable_begin": "'{{'",
+    "variable_end": "'}}'",
+    "comment_begin": "'{#'",
+    "comment_end": "'#}'",
+    "data": "data",
+    "string": "string",
+    "integer": "integer",
+    "float": "float",
+    "name": "identifier",
+    "add": "'+' (plus)",
+    "sub": "'-' (minus)",
+    "mul": "'*'",
+    "div": "'/'",
+    "floordiv": "'//'",
+    "mod": "'%'",
+    "pow": "'**'",
+    "eq": "'=='",
+    "ne": "'!='",
+    "lt": "'<'",
+    "le": "'<='",
+    "gt": "'>'",
+    "ge": "'>='",
+    "assign": "'='",
+    "dot": "'.'",
+    "comma": "','",
+    "colon": "':'",
+    "pipe": "'|'",
+    "pipeline": "'|>'",
+    "tilde": "'~'",
+    "lparen": "'('",
+    "rparen": "')'",
+    "lbracket": "'['",
+    "rbracket": "']'",
+    "lbrace": "'{'",
+    "rbrace": "'}'",
+    "optional_dot": "'?.'",
+    "optional_bracket": "'?['",
+    "nullish_coalesce": "'??'",
+    "range_inclusive": "'..'",
+    "range_exclusive": "'...'",
+    "eof": "end of template",
+    "newline": "newline",
+    "whitespace": "whitespace",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class Token:

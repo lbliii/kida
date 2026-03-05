@@ -69,6 +69,7 @@ class ErrorCode(Enum):
     INVALID_EXPRESSION = "K-PAR-003"
     INVALID_FILTER = "K-PAR-004"
     INVALID_TEST = "K-PAR-005"
+    INVALID_IDENTIFIER = "K-PAR-006"
 
     # Runtime errors (K-RUN-xxx)
     UNDEFINED_VARIABLE = "K-RUN-001"
@@ -305,7 +306,8 @@ class TemplateSyntaxError(TemplateError):
             if self.col_offset is not None:
                 location += f":{self.col_offset}"
 
-        header = f"Syntax Error: {self.message}\n  --> {location}"
+        code_str = f" [{self.code.value}]" if self.code else ""
+        header = f"Kida Syntax Error{code_str}: {self.message}\n  --> {location}"
 
         # Show source snippet when available
         if self.source and self.lineno:
@@ -323,12 +325,13 @@ class TemplateSyntaxError(TemplateError):
         """Format syntax error as structured terminal diagnostic."""
         parts: list[str] = []
 
-        # Header: code + message
+        # Header: Kida prefix + code + message
         code_prefix = f"{self.code.value}: " if self.code else ""
+        kida_prefix = "Kida " if self.code else ""
         location = self.filename or self.name or "<template>"
         if self.lineno:
             location += f":{self.lineno}"
-        parts.append(f"{code_prefix}{self.message}")
+        parts.append(f"{kida_prefix}{code_prefix}{self.message}")
         parts.append(f"  --> {location}")
 
         # Source snippet

@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
+from kida.environment.exceptions import ErrorCode
 from kida.nodes import AsyncFor, Break, Continue, For, If, Match, UnaryOp, While
 
 if TYPE_CHECKING:
@@ -49,6 +50,7 @@ class ControlFlowBlockParsingMixin(BlockStackMixin):
             message: str,
             token: Token | None = None,
             suggestion: str | None = None,
+            code: ErrorCode | None = None,
         ) -> ParseError: ...
 
         # From StatementParsingMixin

@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
+from kida.environment.exceptions import ErrorCode
 
 if TYPE_CHECKING:
     from kida.parser.errors import ParseError
@@ -62,12 +63,22 @@ class TokenNavigationMixin:
             # Provide helpful suggestions for common mistakes
             suggestion = None
             if token_type == TokenType.BLOCK_END:
-                suggestion = "Add '%}' to close the block tag"
+                actual = self._current
+                if actual.type == TokenType.SUB:
+                    suggestion = (
+                        "Unexpected '-' after identifier. "
+                        "Identifiers cannot contain hyphens -- use underscores instead."
+                    )
+                else:
+                    suggestion = (
+                        f"Expected '%}}' to close the block tag, got {actual.type.display_name}"
+                    )
             elif token_type == TokenType.VARIABLE_END:
                 suggestion = "Add '}}' to close the variable tag"
             raise self._error(
-                f"Expected {token_type.value}, got {self._current.type.value}",
+                f"Expected {token_type.display_name}, got {self._current.type.display_name}",
                 suggestion=suggestion,
+                code=ErrorCode.UNEXPECTED_TOKEN,
             )
         return self._advance()
 
@@ -80,6 +91,7 @@ class TokenNavigationMixin:
         message: str,
         token: Token | None = None,
         suggestion: str | None = None,
+        code: ErrorCode | None = None,
     ) -> ParseError:
         """Create a ParseError with source context and block stack info."""
         from kida.parser.errors import ParseError
@@ -95,4 +107,5 @@ class TokenNavigationMixin:
             source=self._source,
             filename=self._filename,
             suggestion=suggestion,
+            code=code,
         )

@@ -347,9 +347,13 @@ class Template(TemplateIntrospectionMixin):
             except TemplateRuntimeError:
                 raise
             except Exception as e:
-                from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
+                from kida.environment.exceptions import (
+                    TemplateNotFoundError,
+                    TemplateSyntaxError,
+                    UndefinedError,
+                )
 
-                if isinstance(e, (UndefinedError, TemplateNotFoundError)):
+                if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
                     raise
                 raise self._enhance_error(e, render_ctx) from e
 
@@ -412,9 +416,13 @@ class Template(TemplateIntrospectionMixin):
             except TemplateRuntimeError:
                 raise
             except Exception as e:
-                from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
+                from kida.environment.exceptions import (
+                    TemplateNotFoundError,
+                    TemplateSyntaxError,
+                    UndefinedError,
+                )
 
-                if isinstance(e, (UndefinedError, TemplateNotFoundError)):
+                if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
                     raise
                 raise self._enhance_error(e, render_ctx) from e
 
@@ -491,9 +499,13 @@ class Template(TemplateIntrospectionMixin):
             except TemplateRuntimeError:
                 raise
             except Exception as e:
-                from kida.environment.exceptions import TemplateNotFoundError, UndefinedError
+                from kida.environment.exceptions import (
+                    TemplateNotFoundError,
+                    TemplateSyntaxError,
+                    UndefinedError,
+                )
 
-                if isinstance(e, (UndefinedError, TemplateNotFoundError)):
+                if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
                     raise
                 raise self._enhance_error(e, render_ctx) from e
 

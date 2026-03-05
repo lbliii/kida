@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
+from kida.environment.exceptions import ErrorCode
 from kida.nodes import Export, Let, Set, Tuple
 
 if TYPE_CHECKING:
@@ -50,6 +51,7 @@ class VariableBlockParsingMixin(BlockStackMixin):
             message: str,
             token: Token | None = None,
             suggestion: str | None = None,
+            code: ErrorCode | None = None,
         ) -> ParseError: ...
 
         # From StatementParsingMixin

@@ -6,7 +6,7 @@ Provides ParseError class with rich source context and suggestions.
 from __future__ import annotations
 
 from kida._types import Token
-from kida.environment.exceptions import TemplateSyntaxError
+from kida.environment.exceptions import ErrorCode, TemplateSyntaxError
 
 
 class ParseError(TemplateSyntaxError):
@@ -25,11 +25,13 @@ class ParseError(TemplateSyntaxError):
         source: str | None = None,
         filename: str | None = None,
         suggestion: str | None = None,
+        code: ErrorCode | None = None,
     ):
         self.token = token
         self.source = source
         self.suggestion = suggestion
         self._col_offset = token.col_offset
+        self.code = code if code is not None else ErrorCode.UNEXPECTED_TOKEN
         # Initialize parent with TemplateSyntaxError signature
         # Note: we override _format_message so the formatted output comes from there
         super().__init__(message, token.lineno, filename, filename)
@@ -51,9 +53,13 @@ class ParseError(TemplateSyntaxError):
 
     def _format(self) -> str:
         """Format error with source context like Rust/modern compilers."""
-        # Header with location
+        # Header with Kida branding and error code
         location = self.filename or "<template>"
-        header = f"Parse Error: {self.message}\n  --> {location}:{self.token.lineno}:{self.token.col_offset}"
+        code_str = self.code.value if self.code else "K-PAR-001"
+        header = (
+            f"Kida Parse Error [{code_str}]: {self.message}\n"
+            f"  --> {location}:{self.token.lineno}:{self.token.col_offset}"
+        )
 
         # Source context (if available)
         if self.source:
@@ -79,5 +85,9 @@ class ParseError(TemplateSyntaxError):
         # Add suggestion if available
         if self.suggestion:
             msg += f"\n\nSuggestion: {self.suggestion}"
+
+        # Add docs URL
+        if self.code:
+            msg += f"\n\nDocs: {self.code.docs_url}"
 
         return msg

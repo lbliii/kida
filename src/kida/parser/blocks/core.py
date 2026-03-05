@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
+from kida.environment.exceptions import ErrorCode
 
 if TYPE_CHECKING:
     from kida.parser.errors import ParseError
@@ -46,6 +47,7 @@ class BlockStackMixin:
             message: str,
             token: Token | None = None,
             suggestion: str | None = None,
+            code: ErrorCode | None = None,
         ) -> ParseError: ...
 
         # From StatementParsingMixin
@@ -168,6 +170,7 @@ class BlockStackMixin:
             raise self._error(
                 f"Unexpected end of template - unclosed {block_type} block",
                 suggestion=suggestion,
+                code=ErrorCode.UNCLOSED_BLOCK,
             )
 
         if self._current.type != TokenType.BLOCK_BEGIN:
