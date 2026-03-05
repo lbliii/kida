@@ -50,6 +50,7 @@ from kida.template.cached_blocks import CachedBlocksDict
 from kida.template.helpers import (
     STATIC_NAMESPACE,
     UNDEFINED,
+    add_polymorphic,
     coerce_numeric,
     default_safe,
     is_defined,
@@ -193,6 +194,7 @@ class Template(TemplateIntrospectionMixin):
                 "_is_defined": is_defined,
                 "_null_coalesce": null_coalesce,
                 "_optional_call": optional_call,
+                "_add_polymorphic": add_polymorphic,
                 "_coerce_numeric": coerce_numeric,
                 "_spaceless": spaceless,
                 "_str_safe": str_safe,

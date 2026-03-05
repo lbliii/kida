@@ -121,10 +121,9 @@ class TestRuntimeErrors:
             tmpl.render()
 
     def test_type_error_concatenation(self, env: Environment) -> None:
-        """Type error in concatenation."""
+        """Polymorphic + concatenates string + int as strings (no TypeError)."""
         tmpl = env.from_string("{{ 'hello' + 5 }}")
-        with pytest.raises((TypeError, TemplateRuntimeError)):
-            tmpl.render()
+        assert tmpl.render() == "hello5"
 
     def test_index_out_of_range(self, env: Environment) -> None:
         """Index out of range."""

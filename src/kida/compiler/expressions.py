@@ -27,8 +27,8 @@ if TYPE_CHECKING:
         Range,
     )
 
-# Arithmetic operators that require numeric operands
-_ARITHMETIC_OPS = frozenset({"*", "/", "-", "+", "**", "//", "%"})
+# Arithmetic operators that require numeric operands (excludes +, which is polymorphic)
+_ARITHMETIC_OPS = frozenset({"*", "/", "-", "**", "//", "%"})
 
 # Node types that may produce string values (like Markup from macros)
 _POTENTIALLY_STRING_NODES = frozenset({"FuncCall", "Filter"})
@@ -391,6 +391,16 @@ class ExpressionCompilationMixin:
                         args=[self._compile_expr(node.right)],
                         keywords=[],
                     ),
+                )
+
+            # Polymorphic +: add if both numeric, else string concatenation
+            if node.op == "+":
+                left = self._compile_expr(node.left)
+                right = self._compile_expr(node.right)
+                return ast.Call(
+                    func=ast.Name(id="_add_polymorphic", ctx=ast.Load()),
+                    args=[left, right],
+                    keywords=[],
                 )
 
             # For arithmetic ops, coerce potential string operands (from macros) to numeric

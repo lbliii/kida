@@ -241,10 +241,10 @@ Line 4"""
 
     def test_type_error_enhanced_with_context(self, env: Environment) -> None:
         """Generic TypeError is enhanced with template context."""
-        # Force a TypeError that can't be avoided by None normalization
-        tmpl = env.from_string("{{ 'hello' + 5 }}", name="type_error.html")
+        # Force a TypeError: range() requires int, not str
+        tmpl = env.from_string("{{ range(x)|list }}", name="type_error.html")
         with pytest.raises(TemplateRuntimeError) as exc:
-            tmpl.render()
+            tmpl.render(x="not_an_int")
         error_str = str(exc.value)
         assert "type_error.html" in error_str
 
