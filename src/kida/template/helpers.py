@@ -353,13 +353,8 @@ def add_polymorphic(left: Any, right: Any) -> int | float | str:
     Returns:
         left + right (numeric) if both are int/float; else str(left) + str(right)
     """
-    # Both numeric (exclude bool, which is a subclass of int)
-    if (
-        isinstance(left, (int, float))
-        and isinstance(right, (int, float))
-        and not isinstance(left, bool)
-        and not isinstance(right, bool)
-    ):
+    # Treat bool like Python does: it participates in numeric addition.
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
         return left + right
     return str(left) + str(right)
 

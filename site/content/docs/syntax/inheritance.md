@@ -152,7 +152,7 @@ Since Kida doesn't support `super()`, use explicit extension blocks to add conte
 </head>
 <body>
     {% block content %}{% end %}
-    
+
     <script src="/js/main.js"></script>
     {% block extra_scripts %}{% end %}  {# Extension point #}
 </body>
@@ -299,6 +299,32 @@ Conditional blocks work with template inheritance. A child template can override
 The following values cause the block to be skipped: `false`, `none`, `0`, `""` (empty string), `[]` (empty list).
 
 ---
+
+## render_block and Inherited Blocks
+
+When using `template.render_block("block_name", ...)` on a descendant template, you can render blocks inherited from parents. Child overrides still win; parent-only blocks (e.g. `sidebar` in a base that the child does not override) are now reachable by name.
+
+```kida
+{# base.html #}
+{% block sidebar %}Default Sidebar{% end %}
+{% block content %}{% end %}
+```
+
+```kida
+{# page.html #}
+{% extends "base.html" %}
+{% block content %}Page Content{% end %}
+```
+
+```python
+template = env.get_template("page")
+template.render_block("content")   # "Page Content" (child override)
+template.render_block("sidebar")  # "Default Sidebar" (inherited from base)
+```
+
+This enables layout-based apps to target natural top-level block names like `"content"` without leaf-only workarounds. Literal-string `{% extends "base.html" %}` is the supported path; dynamic `{% extends parent_var %}` may not resolve inherited blocks for `render_block()`.
+
+> **Note:** `super()` remains unsupported. Child blocks fully replace parent content.
 
 ## Block Scoping
 

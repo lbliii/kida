@@ -21,6 +21,8 @@ category: troubleshooting
 
 When you call `template.render_block("block_name", context)`, the block is rendered in isolation. It does **not** have access to `{% def %}` macros defined in the same template.
 
+**Inherited blocks**: `render_block()` resolves blocks through the inheritance chain. You can render parent-only blocks (e.g. `sidebar` from a base template) on a descendant template. Child overrides still win. See [Inheritance — render_block](/docs/syntax/inheritance/#render_block-and-inherited-blocks).
+
 ## The Problem
 
 ```kida

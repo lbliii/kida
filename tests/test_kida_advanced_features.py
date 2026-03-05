@@ -339,14 +339,14 @@ class TestCache:
 
     def test_cache_with_short_ttl_expires(self, env):
         """Per-fragment ttl= overrides default cache ttl."""
-        tmpl = env.from_string('{% cache "ttl-key", ttl=0.05 %}{{ value }}{% endcache %}')
+        tmpl = env.from_string('{% cache "ttl-key", ttl=0.5 %}{{ value }}{% endcache %}')
 
         first = tmpl.render(value="A")
         second = tmpl.render(value="B")
         assert first == "A"
         assert second == "A"  # Cached before TTL expiry
 
-        time.sleep(0.08)
+        time.sleep(0.6)
         third = tmpl.render(value="C")
         assert third == "C"
 

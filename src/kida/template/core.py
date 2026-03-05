@@ -126,6 +126,7 @@ class Template(TemplateIntrospectionMixin):
         "_block_names",  # Cached block names for O(1) list_blocks
         "_code",
         "_env_ref",
+        "_extends_target",  # Literal parent name for inherited block lookup (or None)
         "_filename",
         "_metadata_cache",  # Cached analysis results
         "_name",
@@ -218,6 +219,7 @@ class Template(TemplateIntrospectionMixin):
         self._render_stream_func = namespace.get("render_stream")
         self._render_stream_async_func = namespace.get("render_stream_async")
         self._namespace = namespace  # Keep for render_block()
+        self._extends_target = namespace.get("_extends_target")
         self._block_names = tuple(
             k[7:] for k in namespace if k.startswith("_block_") and callable(namespace[k])
         )
@@ -238,6 +240,53 @@ class Template(TemplateIntrospectionMixin):
         if env is None:
             return (50, 50)
         return (env.max_extends_depth, env.max_include_depth)
+
+    def _inheritance_chain(self) -> list[Template]:
+        """Return [self, parent, grandparent, ...] for inherited block resolution."""
+        chain: list[Template] = [self]
+        current: Template = self
+        max_depth, _ = self._get_env_limits()
+        depth = 0
+        while current._extends_target is not None and depth < max_depth:
+            parent = current._env.get_template(current._extends_target)
+            chain.append(parent)
+            current = parent
+            depth += 1
+        return chain
+
+    def _effective_block_map(self, kind: str) -> dict[str, Any]:
+        """Build nearest-child-wins block map for render_block inheritance.
+
+        kind: "sync" | "stream" | "async_stream"
+        Returns dict of block_name -> callable for that kind.
+        """
+        effective: dict[str, Any] = {}
+        for t in self._inheritance_chain():
+            ns = t._namespace
+            for key in ns:
+                if not key.startswith("_block_") or not callable(ns[key]):
+                    continue
+                if key.endswith("_stream_async"):
+                    name = key[7:-14]
+                elif key.endswith("_stream"):
+                    name = key[7:-7]
+                else:
+                    name = key[7:]
+                if name in effective:
+                    continue
+                if kind == "sync":
+                    fn = ns.get(f"_block_{name}")
+                elif kind == "stream":
+                    fn = ns.get(f"_block_{name}_stream") or ns.get(f"_block_{name}")
+                else:
+                    fn = (
+                        ns.get(f"_block_{name}_stream_async")
+                        or ns.get(f"_block_{name}_stream")
+                        or ns.get(f"_block_{name}")
+                    )
+                if fn is not None:
+                    effective.setdefault(name, fn)
+        return effective
 
     def _build_context(
         self, args: tuple[Any, ...], kwargs: dict[str, Any], method_name: str
@@ -362,6 +411,9 @@ class Template(TemplateIntrospectionMixin):
 
         Renders just the named block, useful for caching blocks that
         only depend on site-wide context (e.g., navigation, footer).
+        Supports inherited blocks: descendant templates can render
+        parent-only blocks by name (e.g. render_block("content") on
+        a child that extends a base defining content).
 
         Args:
             block_name: Name of the block to render (e.g., "nav", "footer")
@@ -378,14 +430,13 @@ class Template(TemplateIntrospectionMixin):
         from kida.environment.exceptions import TemplateRuntimeError
         from kida.render_context import render_context
 
-        # Look up block function
-        func_name = f"_block_{block_name}"
-        block_func = self._namespace.get(func_name)
+        effective = self._effective_block_map("sync")
+        block_func = effective.get(block_name)
 
         if block_func is None:
             raise KeyError(
                 f"Block '{block_name}' not found in template '{self._name}'. "
-                f"Available blocks: {list(self._block_names)}"
+                f"Available blocks: {list(effective.keys())}"
             )
 
         ctx = self._build_context(args, kwargs, "render_block")
@@ -411,7 +462,7 @@ class Template(TemplateIntrospectionMixin):
                 if globals_setup is not None:
                     globals_setup(ctx)
 
-                result: str = block_func(ctx, {})
+                result: str = block_func(ctx, effective)
                 return result
             except TemplateRuntimeError:
                 raise
@@ -805,6 +856,7 @@ class Template(TemplateIntrospectionMixin):
 
         Looks up the async streaming block function first, falls back to
         the sync streaming block function wrapped in an async generator.
+        Supports inherited blocks like render_block().
 
         Args:
             block_name: Name of the block to render
@@ -816,19 +868,17 @@ class Template(TemplateIntrospectionMixin):
 
         Part of RFC: rfc-async-rendering.
         """
+        import inspect
+
         from kida.render_context import async_render_context
 
-        # Try async variant first, fall back to sync
-        async_func_name = f"_block_{block_name}_stream_async"
-        sync_func_name = f"_block_{block_name}_stream"
+        effective = self._effective_block_map("async_stream")
+        block_func = effective.get(block_name)
 
-        async_func = self._namespace.get(async_func_name)
-        sync_func = self._namespace.get(sync_func_name)
-
-        if async_func is None and sync_func is None:
+        if block_func is None:
             raise KeyError(
                 f"Block '{block_name}' not found in template '{self._name}'. "
-                f"Available blocks: {list(self._block_names)}"
+                f"Available blocks: {list(effective.keys())}"
             )
 
         ctx = self._build_context(args, kwargs, "render_block_stream_async")
@@ -841,14 +891,12 @@ class Template(TemplateIntrospectionMixin):
             max_extends_depth=max_extends,
             max_include_depth=max_include,
         ):
-            if async_func is not None:
-                async for chunk in async_func(ctx, {}):
+            if inspect.isasyncgenfunction(block_func):
+                async for chunk in block_func(ctx, effective):
                     if chunk is not None:
                         yield chunk
             else:
-                # Wrap sync block stream (sync_func guaranteed non-None by check above)
-                assert sync_func is not None
-                for chunk in sync_func(ctx, {}):
+                for chunk in block_func(ctx, effective):
                     if chunk is not None:
                         yield chunk
 

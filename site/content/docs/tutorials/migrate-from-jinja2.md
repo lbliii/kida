@@ -211,7 +211,7 @@ After migrating, explore Kida-only features:
 ### Block Caching
 
 ```kida
-{% cache "sidebar-" + user.id %}
+{% cache "sidebar-" ~ user.id %}
     {{ render_sidebar(user) }}
 {% end %}
 ```

@@ -122,8 +122,9 @@ Include based on a variable:
 ```kida
 {% include component_name %}
 
-{# Or with string concatenation #}
+{# Or with string concatenation (+ is supported; ~ is the explicit coercing form) #}
 {% include "components/" + widget_type + ".html" %}
+{% include "components/" ~ widget_type ~ ".html" %}
 ```
 
 ## Include vs Extends

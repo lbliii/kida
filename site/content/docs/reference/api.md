@@ -176,9 +176,19 @@ async for chunk in template.render_stream_async(items=async_iterable):
 
 **Raises**: `RuntimeError` if no render function is available.
 
+#### render_block(block_name, **context)
+
+Render a single block from the template. Supports inherited blocks: when the template extends a parent, you can render parent-only blocks by name (e.g. `render_block("content")` on a child that extends a base defining `content`). Child overrides still win; `super()` is not supported.
+
+```python
+html = template.render_block("content", title="Hello")
+```
+
+**Raises**: `KeyError` if the block does not exist in the template or any parent.
+
 #### render_block_stream_async(block_name, **context)
 
-Render a single block as an async stream. Falls back to wrapping the sync block stream if no async variant exists.
+Render a single block as an async stream. Supports inherited blocks like `render_block()`. Falls back to wrapping the sync block stream if no async variant exists.
 
 ```python
 async for chunk in template.render_block_stream_async("content", items=data):

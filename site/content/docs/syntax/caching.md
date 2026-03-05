@@ -37,7 +37,7 @@ Cache expensive template fragments:
 Include variables in the cache key:
 
 ```kida
-{% cache "user-profile-" + user.id %}
+{% cache "user-profile-" ~ user.id %}
     {{ render_user_profile(user) }}
 {% end %}
 ```
@@ -45,7 +45,7 @@ Include variables in the cache key:
 Multiple components:
 
 ```kida
-{% cache "page-" + page.id + "-" + page.updated_at %}
+{% cache "page-" ~ page.id ~ "-" ~ page.updated_at %}
     {{ page.content | markdown }}
 {% end %}
 ```
@@ -55,7 +55,7 @@ Multiple components:
 Override cache lifetime for a specific fragment:
 
 ```kida
-{% cache "weather-" + city.id, ttl="5m" %}
+{% cache "weather-" ~ city.id, ttl="5m" %}
     {{ fetch_weather(city) }}
 {% end %}
 ```
@@ -107,13 +107,13 @@ env.clear_cache()
 
 ```kida
 {# ✅ Includes version for invalidation #}
-{% cache "post-" + post.id + "-v" + post.version %}
+{% cache "post-" ~ post.id ~ "-v" ~ post.version %}
 
 {# ✅ Includes user for personalization #}
-{% cache "dashboard-" + user.id %}
+{% cache "dashboard-" ~ user.id %}
 
 {# ✅ Includes locale for i18n #}
-{% cache "nav-" + locale %}
+{% cache "nav-" ~ locale %}
 ```
 
 ### Avoid Overcaching
@@ -125,7 +125,7 @@ env.clear_cache()
 {% end %}
 
 {# ✅ Scoped to specific content #}
-{% cache "page-content-" + page.id + "-" + page.updated %}
+{% cache "page-content-" ~ page.id ~ "-" ~ page.updated %}
     {{ page.content }}
 {% end %}
 ```

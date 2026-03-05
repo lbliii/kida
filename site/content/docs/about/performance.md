@@ -243,7 +243,7 @@ Cold-start improvement: bytecode cache saves ~7-8% on first render. Lazy analysi
 Cache expensive template sections:
 
 ```kida
-{% cache "sidebar-" + user.id %}
+{% cache "sidebar-" ~ user.id %}
     {{ render_expensive_sidebar(user) }}
 {% end %}
 ```
