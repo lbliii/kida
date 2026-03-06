@@ -121,6 +121,7 @@ class Compiler(
         "_async_mode",
         "_block_counter",
         "_blocks",
+        "_def_caller_stack",
         "_def_names",
         "_env",
         "_filename",
@@ -129,6 +130,7 @@ class Compiler(
         "_loop_vars",
         "_name",
         "_node_dispatch",
+        "_outer_caller_expr",
         "_streaming",
     )
 
@@ -152,6 +154,9 @@ class Compiler(
         self._def_names: set[str] = set()
         # Track loop variables for include scope propagation
         self._loop_vars: set[str] = set()
+        # Lexical caller scoping: def → call → caller() (reset in compile())
+        self._def_caller_stack: list[ast.expr] = []
+        self._outer_caller_expr: ast.expr | None = None
 
     def _get_literal_extends_target(self, node: TemplateNode) -> str | None:
         """Return literal extends target if template uses {% extends "literal" %}, else None."""
