@@ -149,6 +149,7 @@ __all__ = [
     "TemplateMetadata",
     "TemplateNotFoundError",
     "TemplateRuntimeError",
+    "TemplateStructureManifest",
     "TemplateSyntaxError",
     "Token",
     "TokenType",
@@ -177,7 +178,9 @@ __all__ = [
 
 # Lazy-loaded analysis symbols (avoids eagerly importing kida.nodes — 974 lines
 # of frozen dataclass AST definitions — on every `from kida import Environment`).
-_LAZY_ANALYSIS = frozenset({"AnalysisConfig", "BlockMetadata", "TemplateMetadata"})
+_LAZY_ANALYSIS = frozenset(
+    {"AnalysisConfig", "BlockMetadata", "TemplateMetadata", "TemplateStructureManifest"}
+)
 _LAZY_EXPORTS = frozenset({"strip_colors"})
 
 
@@ -189,13 +192,19 @@ def __getattr__(name: str) -> object:
         # 0 = Py_MOD_GIL_NOT_USED
         return 0
     if name in _LAZY_ANALYSIS:
-        from kida.analysis import AnalysisConfig, BlockMetadata, TemplateMetadata
+        from kida.analysis import (
+            AnalysisConfig,
+            BlockMetadata,
+            TemplateMetadata,
+            TemplateStructureManifest,
+        )
 
         # Populate globals so subsequent access is direct (no __getattr__)
         globals().update(
             AnalysisConfig=AnalysisConfig,
             BlockMetadata=BlockMetadata,
             TemplateMetadata=TemplateMetadata,
+            TemplateStructureManifest=TemplateStructureManifest,
         )
         return globals()[name]
     if name in _LAZY_EXPORTS:

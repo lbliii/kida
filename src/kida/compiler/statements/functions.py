@@ -211,11 +211,23 @@ class FunctionCompilationMixin:
         # Compile function body
         # Macros (def) are always sync functions — disable async mode
         # to prevent async for/await inside the def body.
+        # Lexical caller scoping: capture _caller to _def_caller so slot functions
+        # can reference it without shadowing by the inner _caller wrapper.
         saved_async = getattr(self, "_async_mode", False)
         if saved_async:
             self._async_mode = False
-        for child in node.body:
-            func_body.extend(self._compile_node(child))
+        func_body.append(
+            ast.Assign(
+                targets=[ast.Name(id="_def_caller", ctx=ast.Store())],
+                value=ast.Name(id="_caller", ctx=ast.Load()),
+            )
+        )
+        self._def_caller_stack.append(ast.Name(id="_def_caller", ctx=ast.Load()))
+        try:
+            for child in node.body:
+                func_body.extend(self._compile_node(child))
+        finally:
+            self._def_caller_stack.pop()
         if saved_async:
             self._async_mode = saved_async
 
@@ -346,8 +358,16 @@ class FunctionCompilationMixin:
             saved_async_cb = getattr(self, "_async_mode", False)
             if saved_async_cb:
                 self._async_mode = False
-            for child in slot_body:
-                caller_body.extend(self._compile_node(child))
+            outer = self._def_caller_stack[-1] if self._def_caller_stack else None
+            # Use _outer_caller param to avoid shadowing by inner _caller wrapper
+            if outer is not None:
+                self._outer_caller_expr = ast.Name(id="_outer_caller", ctx=ast.Load())
+            try:
+                for child in slot_body:
+                    caller_body.extend(self._compile_node(child))
+            finally:
+                if outer is not None:
+                    self._outer_caller_expr = None
             if saved_async_cb:
                 self._async_mode = saved_async_cb
 
@@ -372,17 +392,23 @@ class FunctionCompilationMixin:
             )
 
             slot_fns[slot_name] = fn_name
+            # Add _outer_caller param when inside def, so caller() resolves to def's caller
+            slot_args: list[ast.arg] = []
+            slot_defaults: list[ast.expr] = []
+            if outer is not None:
+                slot_args = [ast.arg(arg="_outer_caller")]
+                slot_defaults = [outer]
             stmts.append(
                 ast.FunctionDef(
                     name=fn_name,
                     args=ast.arguments(
                         posonlyargs=[],
-                        args=[],
+                        args=slot_args,
                         vararg=None,
                         kwonlyargs=[],
                         kw_defaults=[],
                         kwarg=None,
-                        defaults=[],
+                        defaults=slot_defaults,
                     ),
                     body=caller_body,
                     decorator_list=[],
@@ -432,9 +458,11 @@ class FunctionCompilationMixin:
                 ),
             )
         )
+        # Use _caller_wrapper to avoid shadowing the def's _caller parameter
+        # (which would cause UnboundLocalError when _def_caller = _caller runs)
         stmts.append(
             ast.FunctionDef(
-                name="_caller",
+                name="_caller_wrapper",
                 args=ast.arguments(
                     posonlyargs=[],
                     args=[ast.arg(arg="slot")],
@@ -460,14 +488,16 @@ class FunctionCompilationMixin:
         # If it's a function call, add _caller keyword
         if isinstance(call_expr, ast.Call):
             call_expr.keywords.append(
-                ast.keyword(arg="_caller", value=ast.Name(id="_caller", ctx=ast.Load()))
+                ast.keyword(arg="_caller", value=ast.Name(id="_caller_wrapper", ctx=ast.Load()))
             )
         else:
             # Wrap in a call with _caller
             call_expr = ast.Call(
                 func=call_expr,
                 args=[],
-                keywords=[ast.keyword(arg="_caller", value=ast.Name(id="_caller", ctx=ast.Load()))],
+                keywords=[
+                    ast.keyword(arg="_caller", value=ast.Name(id="_caller_wrapper", ctx=ast.Load()))
+                ],
             )
 
         # _append(result)

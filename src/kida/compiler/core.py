@@ -265,6 +265,8 @@ class Compiler(
         self._locals = set()  # Reset locals for each compilation
         self._block_counter = 0  # Reset counter for each compilation
         self._has_async = False  # Reset async flag for each compilation
+        self._def_caller_stack = []  # Lexical caller scoping: def → call → caller()
+        self._outer_caller_expr = None  # Set when compiling call body inside def
 
         # Generate Python AST
         module = self._compile_template(node)
