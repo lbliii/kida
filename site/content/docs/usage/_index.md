@@ -44,6 +44,12 @@ Practical patterns for using Kida in your applications.
 :description: Chunked rendering, async streaming, framework integration
 :::{/card}
 
+:::{card} Framework Integration
+:icon: puzzle
+:link: /docs/usage/framework-integration/
+:description: Block rendering, introspection, composition — for Chirp, Bengal, custom adapters
+:::{/card}
+
 :::{card} Escaping
 :icon: shield
 :link: /docs/usage/escaping/

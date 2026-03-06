@@ -72,3 +72,11 @@ flowchart TB
 | **⌾⌾⌾** | [Rosettes](https://github.com/lbliii/rosettes) | Syntax highlighter | [Docs](https://lbliii.github.io/rosettes/) |
 
 Python-native. Free-threading ready. No npm required.
+
+## How Each Project Uses Kida
+
+| Project | Kida usage |
+|---------|------------|
+| **Bengal** | Full render, bytecode cache, fragment cache, analysis for incremental builds |
+| **Chirp** | Full render, `render_block`, `render_with_blocks`, streaming, `template_metadata` |
+| **Standalone** | `render`, `render_stream`, custom loaders |

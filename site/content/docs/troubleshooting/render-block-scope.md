@@ -63,5 +63,6 @@ Now both full-page `render()` and `render_block("content", ...)` work, because t
 
 ## See Also
 
+- [Framework Integration](/docs/usage/framework-integration/) — Block rendering, introspection, adapters
 - [Functions and macros](/docs/syntax/functions/) — `{% def %}` and `{% from %}`
 - [Block caching](../advanced/block-caching.md) — Caching individual blocks

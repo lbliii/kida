@@ -20,7 +20,7 @@ print(template.render(name="World"))
 
 ## What is Kida?
 
-Kida is a modern template engine for Python 3.14t. It compiles templates to Python AST directly (no string generation), supports streaming and fragment rendering, and is built for free-threading.
+Kida is a modern template engine for Python 3.14t. It works for static site generation (Bengal), dynamic web apps (Chirp), and anywhere you need templates — same syntax, same engine. It compiles templates to Python AST directly (no string generation), supports streaming and block rendering, and is built for free-threading.
 
 **What's good about it:**
 
@@ -49,8 +49,10 @@ Requires Python 3.14+
 | `Environment()` | Create a template environment |
 | `env.from_string(src)` | Compile template from string |
 | `env.get_template(name)` | Load template from filesystem |
-| `template.render(**ctx)` | Render to string (StringBuilder, fastest) |
-| `template.render_stream(**ctx)` | Render as generator (yields chunks) |
+| `template.render(**ctx)` | Full page (StringBuilder, fastest) |
+| `template.render_block(name, **ctx)` | Single block (fragments, HTMX) |
+| `template.render_stream(**ctx)` | Generator (chunked HTTP, SSE) |
+| `template.list_blocks()` | Block names for validation |
 | `RenderedTemplate(template, ctx)` | Lazy iterable wrapper for streaming |
 
 ---
@@ -66,6 +68,8 @@ Requires Python 3.14+
 | **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
 | **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
 | **Components & Slots** | `{% def %}`, `{% call %}`, default + named `{% slot %}` | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/) |
+| **Block Rendering** | `render_block()`, `render_with_blocks()` for fragments and layout composition | [Framework Integration →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
+| **Introspection** | `template_metadata()`, `block_metadata()`, `validate_context()` for frameworks | [Analysis →](https://lbliii.github.io/kida/docs/advanced/analysis/) |
 | **Partial Evaluation** | Compile-time evaluation of static expressions | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
 | **Block Recompilation** | Recompile only changed blocks in live templates | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
 | **Extensibility** | Custom filters, tests, globals, loaders | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
@@ -232,6 +236,31 @@ Works with inheritance (`{% extends %}`), includes, and all control flow. Blocks
 
 </details>
 
+<details>
+<summary><strong>Block Rendering</strong> — Fragments and layout composition</summary>
+
+```python
+# Render a single block (HTMX partials, cached nav)
+html = template.render_block("content", title="Hello")
+
+# Compose layout with pre-rendered blocks
+layout = env.get_template("_layout.html")
+html = layout.render_with_blocks({"content": inner_html}, title="Page")
+```
+
+</details>
+
+---
+
+## Use Cases
+
+| Use case | Key APIs | Example |
+|----------|----------|---------|
+| **Static sites** | `render()`, fragment cache, bytecode cache | [Bengal](https://github.com/lbliii/bengal) |
+| **Dynamic web** | `render_block()`, `render_stream()`, `render_with_blocks()` | [Chirp](https://github.com/lbliii/chirp) |
+| **Streaming / SSE** | `render_stream()`, `render_stream_async()` | Chunked HTTP, LLM streaming |
+| **Framework integration** | `template_metadata()`, `validate_block_exists()`, `get_structure()` | Build adapters, validate routes |
+
 ---
 
 ## Architecture
@@ -302,6 +331,7 @@ See [benchmarks/README.md](benchmarks/README.md) and [benchmarks/RESULTS.md](ben
 | [Get Started](https://lbliii.github.io/kida/docs/get-started/) | Installation and quickstart |
 | [Syntax](https://lbliii.github.io/kida/docs/syntax/) | Template language reference |
 | [Usage](https://lbliii.github.io/kida/docs/usage/) | Loading, rendering, escaping |
+| [Framework Integration](https://lbliii.github.io/kida/docs/usage/framework-integration/) | Block rendering, introspection, adapters |
 | [Extending](https://lbliii.github.io/kida/docs/extending/) | Custom filters, tests, loaders |
 | [Reference](https://lbliii.github.io/kida/docs/reference/) | Complete API documentation |
 | [Tutorials](https://lbliii.github.io/kida/docs/tutorials/) | Jinja2 migration, Flask integration |

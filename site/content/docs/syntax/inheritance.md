@@ -72,6 +72,10 @@ Extend the base and override blocks:
 
 Result: The child template inherits all of `base.html`, with the `title` and `content` blocks replaced.
 
+## Block Rendering
+
+Use `template.render_block("block_name", **ctx)` to render a single block in isolation — useful for HTMX partials, cached nav, or fragment responses. Blocks resolve through the inheritance chain: you can render parent-only blocks (e.g. `sidebar` from base) on a descendant template. See [Framework Integration](/docs/usage/framework-integration/) for full usage.
+
 ## Real-World Examples
 
 ### Documentation Site
