@@ -65,6 +65,12 @@ Master template syntax and usage patterns.
 :description: Loading templates, contexts, escaping, errors
 :::{/card}
 
+:::{card} Framework Integration
+:icon: puzzle
+:link: ./usage/framework-integration/
+:description: Block rendering, introspection, adapters for Chirp and Bengal
+:::{/card}
+
 :::{card} Extending
 :icon: starburst
 :link: ./extending/

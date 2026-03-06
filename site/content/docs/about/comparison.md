@@ -62,7 +62,7 @@ Kida uses `|>` for pipelines (Jinja2 uses `|`):
 ### Block Caching
 
 ```kida
-{% cache "sidebar-" + user.id %}
+{% cache "sidebar-" ~ user.id %}
     {{ render_sidebar(user) }}
 {% end %}
 ```

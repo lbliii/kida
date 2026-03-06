@@ -67,7 +67,7 @@ uv sync
 
 ```python
 import kida
-print(kida.__version__)  # 0.2.3
+print(kida.__version__)  # 0.2.4
 ```
 
 Or from the command line:

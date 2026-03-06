@@ -147,7 +147,7 @@ env.clear_cache()
 
 Compiled template with render interface.
 
-### Methods
+### Rendering (all users)
 
 #### render(**context)
 
@@ -159,10 +159,19 @@ html = template.render(name="World", items=[1, 2, 3])
 
 #### render_async(**context)
 
-Render template asynchronously.
+Render template asynchronously (thread-pool wrapper for sync templates).
 
 ```python
 html = await template.render_async(items=async_generator())
+```
+
+#### render_stream(**context)
+
+Render template as a sync generator of string chunks. Yields at statement boundaries for chunked HTTP and streaming.
+
+```python
+for chunk in template.render_stream(items=data):
+    send_to_client(chunk)
 ```
 
 #### render_stream_async(**context)
@@ -176,9 +185,32 @@ async for chunk in template.render_stream_async(items=async_iterable):
 
 **Raises**: `RuntimeError` if no render function is available.
 
+### Block rendering (fragments, frameworks)
+
+#### render_block(block_name, **context)
+
+Render a single block from the template. Supports inherited blocks: when the template extends a parent, you can render parent-only blocks by name (e.g. `render_block("content")` on a child that extends a base defining `content`). Child overrides still win; `super()` is not supported.
+
+```python
+html = template.render_block("content", title="Hello")
+```
+
+**Raises**: `KeyError` if the block does not exist in the template or any parent.
+
+#### render_with_blocks(block_overrides, **context)
+
+Render template with pre-rendered HTML injected into blocks. Enables programmatic layout composition without `{% extends %}` in the template source.
+
+```python
+layout = env.get_template("_layout.html")
+html = layout.render_with_blocks({"content": inner_html}, title="Page")
+```
+
+Each key in `block_overrides` names a block; the value is a pre-rendered HTML string.
+
 #### render_block_stream_async(block_name, **context)
 
-Render a single block as an async stream. Falls back to wrapping the sync block stream if no async variant exists.
+Render a single block as an async stream. Supports inherited blocks like `render_block()`. Falls back to wrapping the sync block stream if no async variant exists.
 
 ```python
 async for chunk in template.render_block_stream_async("content", items=data):
@@ -186,6 +218,75 @@ async for chunk in template.render_block_stream_async("content", items=data):
 ```
 
 **Raises**: `KeyError` if the block does not exist.
+
+#### list_blocks()
+
+List all blocks available for `render_block()`, including inherited blocks.
+
+```python
+blocks = template.list_blocks()
+# ['title', 'nav', 'content', 'footer']
+```
+
+### Introspection (frameworks, build systems)
+
+#### template_metadata()
+
+Return full template analysis (blocks, extends, dependencies). Returns `None` if AST was not preserved.
+
+```python
+meta = template.template_metadata()
+if meta:
+    print(meta.extends, meta.blocks.keys())
+```
+
+#### block_metadata()
+
+Return per-block analysis (purity, cache scope, inferred role).
+
+```python
+blocks = template.block_metadata()
+nav = blocks.get("nav")
+if nav and nav.cache_scope == "site":
+    ...
+```
+
+#### depends_on()
+
+Return all context paths this template may access.
+
+```python
+deps = template.depends_on()
+# frozenset({'page.title', 'site.pages'})
+```
+
+#### required_context()
+
+Return top-level variable names the template needs.
+
+```python
+names = template.required_context()
+# frozenset({'page', 'site'})
+```
+
+#### validate_context(context)
+
+Check a context dict for missing variables. Returns list of missing names.
+
+```python
+missing = template.validate_context(user_context)
+if missing:
+    raise ValueError(f"Missing: {missing}")
+```
+
+#### is_cacheable(block_name=None)
+
+Check if a block (or all blocks) can be safely cached.
+
+```python
+template.is_cacheable("nav")   # True if nav is cacheable
+template.is_cacheable()       # True only if all blocks cacheable
+```
 
 ### Properties
 
@@ -335,6 +436,48 @@ loader = FunctionLoader(lambda name: templates.get(name))
 
 - `get_source(name)` → `tuple[str, str | None]` — Calls `load_func` and normalizes result
 - `list_templates()` → `list[str]` — Always returns `[]` (cannot enumerate)
+
+---
+
+## Composition Helpers
+
+Validation and structure helpers for frameworks. See [Framework Integration](/docs/usage/framework-integration/) for full usage.
+
+```python
+from kida.composition import (
+    validate_block_exists,
+    validate_template_block,
+    get_structure,
+    block_role_for_framework,
+)
+```
+
+### validate_block_exists(env, template_name, block_name) → bool
+
+Check if a block exists in a template (including inherited blocks). Returns `False` if template not found or block missing.
+
+```python
+if validate_block_exists(env, "skills/page.html", "page_content"):
+    html = env.get_template("skills/page.html").render_block("page_content", ...)
+```
+
+### validate_template_block(template, block_name) → bool
+
+Check if a block exists in a loaded Template instance.
+
+### get_structure(env, template_name) → TemplateStructureManifest | None
+
+Get lightweight structure manifest (block names, extends, dependencies). Cached by Environment.
+
+```python
+struct = get_structure(env, "page.html")
+if struct and "page_root" in struct.block_names:
+    ...
+```
+
+### block_role_for_framework(block_metadata, ...) → str | None
+
+Classify block metadata into framework roles: `"fragment"`, `"page_root"`, or `None`.
 
 ---
 

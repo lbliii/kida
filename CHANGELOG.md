@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-03-06
+
+### Added
+
+- **Composition API** — `kida.composition` module with `validate_block_exists()`, `validate_template_block()`, and `get_structure()` for frameworks (Chirp, Dori) that compose templates via block rendering. `TemplateStructureManifest` exposes block names, extends parent, and dependencies.
+- **Inherited block support** — `render_block()` and `list_blocks()` now include blocks inherited from parent templates. Child templates can render parent-only blocks (e.g. `render_block("sidebar")` on a descendant).
+- **Slot context inheritance** — Lexical caller scoping for nested `{% def %}` / `{% call %}` / `{% slot %}` chains. `caller()` in slot bodies inside defs now correctly resolves to the def's caller, enabling layout chains (Dori/chirpui).
+- **String concatenation** — Polymorphic `+` operator: numeric add when both operands are numeric, otherwise string concatenation. `{{ "Hello" + " " + name }}` and `{{ 1 + 2 }}` both work as expected.
+- **String escape decoding** — Lexer decodes Python-style escape sequences in string literals: `\n`, `\t`, `\r`, `\\`, `\'`, `\"`, `\uXXXX`, `\UXXXXXXXX`.
+- **Parser error codes** — `ParseError` now carries `ErrorCode` (e.g. `UNEXPECTED_TOKEN`, `UNCLOSED_BLOCK`, `INVALID_IDENTIFIER`) with docs URLs. `TokenType.display_name` provides human-readable names for error messages.
+- **Block/fragment hyphen detection** — Parser rejects `{% block foo-bar %}` and `{% fragment foo-bar %}` with a suggestion to use underscores.
+- **Framework integration docs** — New guide for block rendering, introspection, and composition APIs (Chirp, Bengal, Dori).
+- **`strip_colors` export** — Restored colored exception output; `strip_colors()` available from `kida` for log-friendly output.
+
 ### Changed
 
 - **Async API contract clarified** — `Template.render_async()` is now explicitly a thread-pool wrapper for synchronous templates. Async templates should use `render_stream_async()`.
@@ -14,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Bytecode cache write race** — `BytecodeCache.set()` now uses unique temp files plus atomic replace, preventing concurrent writer collisions on shared `.tmp` paths.
+- **Bytecode cache write race** — `BytecodeCache.set()` now uses unique temp files plus atomic `os.replace()`, preventing concurrent writer collisions on shared `.tmp` paths.
 
 ## [0.2.3] - 2026-03-03
 
@@ -260,6 +274,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.4]: https://github.com/lbliii/kida/releases/tag/v0.2.4
 [0.2.3]: https://github.com/lbliii/kida/releases/tag/v0.2.3
 [0.2.2]: https://github.com/lbliii/kida/releases/tag/v0.2.2
 [0.2.1]: https://github.com/lbliii/kida/releases/tag/v0.2.1

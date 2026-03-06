@@ -144,7 +144,7 @@ fragment_ttl=3600.0  # 1 hour
 `fragment_ttl` is the default for `{% cache %}` blocks. You can override TTL per block:
 
 ```kida
-{% cache "user-" + user.id, ttl="5m" %}
+{% cache "user-" ~ user.id, ttl="5m" %}
     {{ render_profile(user) }}
 {% end %}
 ```

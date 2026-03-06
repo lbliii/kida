@@ -315,6 +315,40 @@ Invalidate caches when upstream data changes.
 This reduces full-site rebuild time by 40-60% for sites with shared navigation
 and footer blocks.
 
+## Case Study: Chirp Web Framework
+
+[Chirp](https://github.com/lbliii/chirp) uses Kida's introspection and block APIs for dynamic web apps:
+
+:::{steps}
+:::{step} Composition planning
+
+Use `template_metadata()` to discover blocks and inheritance before rendering.
+
+:::{/step}
+:::{step} Block validation
+
+Call `validate_block_exists(env, template, block)` before `render_block()` to avoid KeyError.
+
+:::{/step}
+:::{step} Fragment rendering
+
+Use `render_block()` for HTMX partial responses and Turbo Stream updates.
+
+:::{/step}
+:::{step} Layout assembly
+
+Use `render_with_blocks()` to inject pre-rendered content into layout templates.
+
+:::{/step}
+:::{step} Adapter pattern
+
+`KidaAdapter` implements Chirp's `TemplateAdapter` interface, wrapping all Kida APIs.
+
+:::{/step}
+:::{/steps}
+
+See [Framework Integration](/docs/usage/framework-integration/) for the full adapter pattern and API usage.
+
 ## API Reference
 
 ### Template Methods

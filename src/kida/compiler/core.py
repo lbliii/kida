@@ -121,6 +121,7 @@ class Compiler(
         "_async_mode",
         "_block_counter",
         "_blocks",
+        "_def_caller_stack",
         "_def_names",
         "_env",
         "_filename",
@@ -129,6 +130,7 @@ class Compiler(
         "_loop_vars",
         "_name",
         "_node_dispatch",
+        "_outer_caller_expr",
         "_streaming",
     )
 
@@ -152,6 +154,20 @@ class Compiler(
         self._def_names: set[str] = set()
         # Track loop variables for include scope propagation
         self._loop_vars: set[str] = set()
+        # Lexical caller scoping: def → call → caller() (reset in compile())
+        self._def_caller_stack: list[ast.expr] = []
+        self._outer_caller_expr: ast.expr | None = None
+
+    def _get_literal_extends_target(self, node: TemplateNode) -> str | None:
+        """Return literal extends target if template uses {% extends "literal" %}, else None."""
+        from kida.nodes import Const, Extends
+
+        for child in node.body:
+            if isinstance(child, Extends):
+                if isinstance(child.template, Const) and isinstance(child.template.value, str):
+                    return child.template.value
+                return None
+        return None
 
     def _collect_blocks(self, nodes: Sequence[Node]) -> None:
         """Recursively collect all Block nodes from the AST.
@@ -254,6 +270,8 @@ class Compiler(
         self._locals = set()  # Reset locals for each compilation
         self._block_counter = 0  # Reset counter for each compilation
         self._has_async = False  # Reset async flag for each compilation
+        self._def_caller_stack = []  # Lexical caller scoping: def → call → caller()
+        self._outer_caller_expr = None  # Set when compiling call body inside def
 
         # Generate Python AST
         module = self._compile_template(node)
@@ -300,6 +318,16 @@ class Compiler(
         saved_blocks = dict(self._blocks)
 
         module_body: list[ast.stmt] = []
+
+        # Emit _extends_target for literal-string {% extends %} (inherited block lookup)
+        extends_target = self._get_literal_extends_target(node)
+        if extends_target is not None:
+            module_body.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_extends_target", ctx=ast.Store())],
+                    value=ast.Constant(value=extends_target),
+                )
+            )
 
         # Detect {% globals %} blocks and compile _globals_setup function
         globals_setup = self._make_globals_setup(node)

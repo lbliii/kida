@@ -291,6 +291,18 @@ class ExpressionCompilationMixin:
             if isinstance(node.func, OptionalGetattr):
                 return self._compile_optional_method_call(node.func, node.args, node.kwargs)
 
+            # Lexical caller scoping: caller() in call body inside def → use enclosing _caller
+            outer = getattr(self, "_outer_caller_expr", None)
+            if outer is not None and isinstance(node.func, Name) and node.func.name == "caller":
+                return ast.Call(
+                    func=outer,
+                    args=[self._compile_expr(a) for a in node.args],
+                    keywords=[
+                        ast.keyword(arg=k, value=self._compile_expr(v))
+                        for k, v in node.kwargs.items()
+                    ],
+                )
+
             call_node = ast.Call(
                 func=self._compile_expr(node.func),
                 args=[self._compile_expr(a) for a in node.args],

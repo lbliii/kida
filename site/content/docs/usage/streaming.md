@@ -108,11 +108,7 @@ async for chunk in template.render_stream_async(**context):
 Stream a single block instead of the full template:
 
 ```python
-# Sync
-for chunk in template.render_block_stream("content", **context):
-    send(chunk)
-
-# Async
+# Async (sync block streaming wraps in async generator)
 async for chunk in template.render_block_stream_async("content", **context):
     await send(chunk)
 ```

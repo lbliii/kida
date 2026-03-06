@@ -157,14 +157,21 @@ Use single or double quotes:
 
 ## String Concatenation
 
-Use the `~` operator to concatenate strings (idiomatic for dynamic URLs in attributes):
+Kida supports both `+` and `~` for string building:
+
+- `+` adds when both operands are numeric, otherwise it concatenates as strings.
+- `~` always coerces both sides to strings, which makes it the clearest choice for dynamic
+  URLs, paths, and IDs.
 
 ```kida
+{{ "Hello, " + name }}
+{{ count + " items" }}
 {{ "/path/" ~ id ~ "/action" }}
 hx-post="{{ '/chains/' ~ chain_id ~ '/add-step' }}"
 ```
 
-Both `~` and `{{ var }}` produce identical output at render time. Static analysis tools (e.g. Chirp's contract checker) treat both as dynamic and skip route validation for such URLs.
+Static analysis tools (e.g. Chirp's contract checker) treat these concatenated attribute
+values as dynamic and skip route validation for such URLs.
 
 ## Method Calls
 

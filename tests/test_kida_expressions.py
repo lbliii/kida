@@ -299,6 +299,16 @@ class TestPolymorphicAddition:
         tmpl = env.from_string("{{ 'Hello ' + name }}")
         assert tmpl.render(name="World") == "Hello World"
 
+    def test_bool_plus_int_uses_numeric_addition(self, env):
+        """Bool participates in numeric addition like Python."""
+        tmpl = env.from_string("{{ true + 1 }}")
+        assert tmpl.render() == "2"
+
+    def test_int_plus_bool_uses_numeric_addition(self, env):
+        """Int + bool remains arithmetic, not string concatenation."""
+        tmpl = env.from_string("{{ 1 + false }}")
+        assert tmpl.render() == "1"
+
 
 class TestStringConcatenation:
     """String concatenation tests."""
