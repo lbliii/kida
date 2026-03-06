@@ -163,8 +163,8 @@ class TestListBlocks:
         blocks = template.list_blocks()
         assert blocks == []
 
-    def test_inherited_blocks_only_overridden(self) -> None:
-        """list_blocks only returns blocks the child explicitly defines."""
+    def test_inherited_blocks_included(self) -> None:
+        """list_blocks returns all blocks the child can render, including inherited."""
         env = _env(
             base="{% block a %}{% endblock %}{% block b %}{% endblock %}",
             child='{% extends "base" %}{% block a %}overridden{% endblock %}',
@@ -172,8 +172,7 @@ class TestListBlocks:
         template = env.get_template("child")
         blocks = template.list_blocks()
         assert "a" in blocks
-        # b was not overridden — kida doesn't list it
-        assert "b" not in blocks
+        assert "b" in blocks  # inherited from parent, available via render_block
 
 
 class TestFragmentBlocks:

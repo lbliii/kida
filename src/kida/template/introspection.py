@@ -297,11 +297,21 @@ class TemplateIntrospectionMixin:
             return
         result = analyzer.analyze(self._optimized_ast)
 
+        # Merge inherited blocks from parent when template extends another
+        blocks = dict(result.blocks)
+        if result.extends and env_for_cache is not None:
+            parent = resolve_template(result.extends)
+            if parent is not None:
+                parent_meta = parent.template_metadata()
+                if parent_meta is not None and parent_meta.blocks:
+                    # Parent blocks first, child overlay (child overrides parent)
+                    blocks = {**parent_meta.blocks, **blocks}
+
         # Set template name from self
         self._metadata_cache = TemplateMetadata(
             name=self._name,
             extends=result.extends,
-            blocks=result.blocks,
+            blocks=blocks,
             top_level_depends_on=result.top_level_depends_on,
         )
 

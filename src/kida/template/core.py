@@ -633,12 +633,12 @@ class Template(TemplateIntrospectionMixin):
                     yield chunk
 
     def list_blocks(self) -> list[str]:
-        """List all blocks defined in this template.
+        """List all blocks available for render_block() (including inherited).
 
         Returns:
             List of block names available for render_block()
         """
-        return list(self._block_names)
+        return list(self._effective_block_map("sync").keys())
 
     def _enhance_error(
         self,
