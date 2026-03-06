@@ -19,12 +19,12 @@ def normalize_template_name(name: str) -> str:
     Raises:
         TemplateNotFoundError: If name contains path traversal (..).
     """
-    from kida.environment.exceptions import TemplateNotFoundError
-
     normalized = name.strip().replace("\\", "/")
-    # Reject path traversal
+    # Reject path traversal (import deferred to raise path only)
     parts = normalized.split("/")
     for part in parts:
         if part == "..":
+            from kida.environment.exceptions import TemplateNotFoundError
+
             raise TemplateNotFoundError(name)
     return normalized

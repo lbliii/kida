@@ -145,3 +145,22 @@ def large_context() -> dict[str, object]:
 @pytest.fixture(scope="session")
 def complex_context() -> dict[str, object]:
     return COMPLEX_CONTEXT
+
+
+@pytest.fixture(scope="session")
+def bytecode_cache_dir_prepopulated(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Pre-populate bytecode cache for disk-load benchmarks.
+
+    Returns cache dir with small.html compiled. Benchmarks create fresh env
+    per iteration to measure disk load path (marshal.load) not in-memory hit.
+    """
+    cache_dir = tmp_path_factory.mktemp("kida-bytecode-disk")
+    loader = KidaFileSystemLoader(str(TEMPLATE_DIR))
+    env = KidaEnvironment(
+        loader=loader,
+        bytecode_cache=BytecodeCache(cache_dir),
+        auto_reload=False,
+        preserve_ast=False,
+    )
+    env.get_template("small.html")  # Populate bytecode cache on disk
+    return cache_dir

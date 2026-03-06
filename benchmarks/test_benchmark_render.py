@@ -19,6 +19,8 @@ Compare: pytest benchmarks/test_benchmark_render.py --benchmark-compare
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from jinja2 import Environment as Jinja2Environment
 from pytest_benchmark.fixture import BenchmarkFixture
@@ -311,6 +313,35 @@ def test_compile_from_string_kida(
     """Kida: from_string() compiles from source (no bytecode cache)."""
     source = template_loader("small.html", engine="kida")
     benchmark(kida_env.from_string, source)
+
+
+@pytest.mark.benchmark(group="compile:bytecode-cache-disk")
+def test_load_from_bytecode_cache_disk_kida(
+    benchmark: BenchmarkFixture,
+    bytecode_cache_dir_prepopulated: Path,
+) -> None:
+    """Kida: get_template() loading from disk bytecode cache (cold in-memory).
+
+    Creates fresh env per iteration so each call hits disk (marshal.load),
+    not the in-memory LRU. Measures cold load path for bytecode cache.
+    """
+    from kida import FileSystemLoader as KidaFileSystemLoader
+    from kida.bytecode_cache import BytecodeCache
+
+    cache_dir = bytecode_cache_dir_prepopulated
+    template_dir = Path(__file__).resolve().parent / "templates"
+    loader = KidaFileSystemLoader(str(template_dir))
+
+    def run() -> object:
+        env = KidaEnvironment(
+            loader=loader,
+            bytecode_cache=BytecodeCache(cache_dir),
+            auto_reload=False,
+            preserve_ast=False,
+        )
+        return env.get_template("small.html")
+
+    benchmark(run)
 
 
 # =============================================================================
