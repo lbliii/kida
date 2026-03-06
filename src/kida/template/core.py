@@ -243,6 +243,8 @@ class Template(TemplateIntrospectionMixin):
 
     def _inheritance_chain(self) -> list[Template]:
         """Return [self, parent, grandparent, ...] for inherited block resolution."""
+        from kida.environment.exceptions import TemplateRuntimeError
+
         chain: list[Template] = [self]
         current: Template = self
         max_depth, _ = self._get_env_limits()
@@ -252,6 +254,13 @@ class Template(TemplateIntrospectionMixin):
             chain.append(parent)
             current = parent
             depth += 1
+        if current._extends_target is not None and depth >= max_depth:
+            raise TemplateRuntimeError(
+                f"Maximum extends depth exceeded ({max_depth}) "
+                f"when resolving inheritance chain for '{self._name or '(inline)'}'",
+                template_name=self._name,
+                suggestion="Check for circular inheritance: A extends B extends A",
+            )
         return chain
 
     def _effective_block_map(self, kind: str) -> dict[str, Any]:
@@ -267,7 +276,7 @@ class Template(TemplateIntrospectionMixin):
                 if not key.startswith("_block_") or not callable(ns[key]):
                     continue
                 if key.endswith("_stream_async"):
-                    name = key[7:-14]
+                    name = key[7:-13]
                 elif key.endswith("_stream"):
                     name = key[7:-7]
                 else:
@@ -412,8 +421,8 @@ class Template(TemplateIntrospectionMixin):
         Renders just the named block, useful for caching blocks that
         only depend on site-wide context (e.g., navigation, footer).
         Supports inherited blocks: descendant templates can render
-        parent-only blocks by name (e.g. render_block("content") on
-        a child that extends a base defining content).
+        blocks defined only in a parent by name (e.g. render_block("sidebar")
+        on a child that extends a base defining a sidebar block it does not override).
 
         Args:
             block_name: Name of the block to render (e.g., "nav", "footer")
