@@ -199,4 +199,14 @@ def recompile_blocks(
         template._namespace.pop(f"_block_{block_name}_stream", None)
         template._namespace.pop(f"_block_{block_name}_stream_async", None)
 
+    # Rebuild Template's cached block maps so render_block() uses the patched
+    # functions. The namespace was updated by exec(), but _local_blocks_sync
+    # and _effective_blocks_cache still referenced the old functions.
+    sync, stream, async_stream = type(template)._build_local_block_maps(template._namespace)
+    template._local_blocks_sync = sync
+    template._local_blocks_stream = stream
+    template._local_blocks_async_stream = async_stream
+    template._block_names = tuple(sync.keys())
+    template._effective_blocks_cache.clear()
+
     return frozenset(recompiled)
