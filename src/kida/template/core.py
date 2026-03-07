@@ -279,8 +279,7 @@ class Template(TemplateIntrospectionMixin):
         """Return [self, parent, grandparent, ...] for inherited block resolution."""
         from kida.environment.exceptions import TemplateRuntimeError
 
-        with self._inheritance_cache_lock:
-            cached_chain = self._inheritance_chain_cache
+        cached_chain = self._inheritance_chain_cache
         if cached_chain is not None:
             return list(cached_chain)
 
@@ -311,11 +310,15 @@ class Template(TemplateIntrospectionMixin):
         kind: "sync" | "stream" | "async_stream"
         Returns dict of block_name -> callable for that kind.
         """
-        with self._inheritance_cache_lock:
-            cached_map = self._effective_blocks_cache.get(kind)
+        cached_map = self._effective_blocks_cache.get(kind)
         if cached_map is not None:
             return cached_map
 
+        with self._inheritance_cache_lock:
+            cached_map = self._effective_blocks_cache.get(kind)
+            if cached_map is not None:
+                return cached_map
+        # Build outside lock — _inheritance_chain() acquires it when populating
         effective: dict[str, Any] = {}
         for t in self._inheritance_chain():
             if kind == "sync":
