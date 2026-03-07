@@ -46,22 +46,25 @@ from collections.abc import AsyncIterator, Iterator
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
-from kida.render_context import RenderContext
 from kida.template.cached_blocks import CachedBlocksDict
+from kida.template.error_enhancement import enhance_template_error
 from kida.template.helpers import (
     STATIC_NAMESPACE,
     UNDEFINED,
     add_polymorphic,
     coerce_numeric,
     default_safe,
+    getattr_preserve_none,
     is_defined,
     lookup,
     lookup_scope,
     null_coalesce,
     optional_call,
+    safe_getattr,
     spaceless,
     str_safe,
 )
+from kida.template.inheritance import TemplateInheritanceMixin
 from kida.template.introspection import TemplateIntrospectionMixin
 from kida.template.loop_context import AsyncLoopContext, LoopContext
 from kida.template.render_helpers import make_render_helpers
@@ -72,12 +75,10 @@ if TYPE_CHECKING:
 
     from kida.analysis import TemplateMetadata
     from kida.environment import Environment
-    from kida.environment.exceptions import TemplateRuntimeError
     from kida.nodes import Template as TemplateNode
-    from kida.render_context import RenderContext
 
 
-class Template(TemplateIntrospectionMixin):
+class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
     """Compiled template ready for rendering.
 
     Wraps a compiled code object containing a ``render(ctx, _blocks)`` function.
@@ -164,7 +165,7 @@ class Template(TemplateIntrospectionMixin):
             optimized_ast: Optional preserved AST for introspection.
                 If None, introspection methods return empty results.
             source: Template source for runtime error snippets.
-                Stored for use by _enhance_error() to provide source
+                Stored for use by enhance_template_error() to provide source
                 context in TemplateRuntimeError exceptions.
         """
         # Use weakref to prevent circular reference: Template <-> Environment
@@ -196,9 +197,9 @@ class Template(TemplateIntrospectionMixin):
                 "_env": env,
                 "_filters": env._filters,
                 "_tests": env._tests,
-                "_escape": self._escape,
-                "_getattr": self._safe_getattr,
-                "_getattr_none": self._getattr_preserve_none,
+                "_escape": html_escape,
+                "_getattr": safe_getattr,
+                "_getattr_none": getattr_preserve_none,
                 "_lookup": lookup,
                 "_lookup_scope": lookup_scope,
                 "_default_safe": default_safe,
@@ -237,27 +238,6 @@ class Template(TemplateIntrospectionMixin):
         ) = self._build_local_block_maps(namespace)
         self._block_names = tuple(self._local_blocks_sync.keys())
 
-    @staticmethod
-    def _build_local_block_maps(
-        namespace: dict[str, Any],
-    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        """Precompute per-template block function maps from compiled namespace."""
-        sync_map: dict[str, Any] = {}
-        stream_map: dict[str, Any] = {}
-        async_stream_map: dict[str, Any] = {}
-
-        for key, value in namespace.items():
-            if not key.startswith("_block_") or not callable(value):
-                continue
-            if key.endswith("_stream_async"):
-                async_stream_map[key[7:-13]] = value
-            elif key.endswith("_stream"):
-                stream_map[key[7:-7]] = value
-            else:
-                sync_map[key[7:]] = value
-
-        return sync_map, stream_map, async_stream_map
-
     @property
     def _env(self) -> Environment:
         """Get the Environment (dereferences weak reference)."""
@@ -274,71 +254,6 @@ class Template(TemplateIntrospectionMixin):
         if env is None:
             return (50, 50)
         return (env.max_extends_depth, env.max_include_depth)
-
-    def _inheritance_chain(self) -> list[Template]:
-        """Return [self, parent, grandparent, ...] for inherited block resolution."""
-        from kida.environment.exceptions import TemplateRuntimeError
-
-        cached_chain = self._inheritance_chain_cache
-        if cached_chain is not None:
-            return list(cached_chain)
-
-        chain: list[Template] = [self]
-        current: Template = self
-        max_depth, _ = self._get_env_limits()
-        depth = 0
-        while current._extends_target is not None and depth < max_depth:
-            parent = current._env.get_template(current._extends_target)
-            chain.append(parent)
-            current = parent
-            depth += 1
-        if current._extends_target is not None and depth >= max_depth:
-            raise TemplateRuntimeError(
-                f"Maximum extends depth exceeded ({max_depth}) "
-                f"when resolving inheritance chain for '{self._name or '(inline)'}'",
-                template_name=self._name,
-                suggestion="Check for circular inheritance: A extends B extends A",
-            )
-        with self._inheritance_cache_lock:
-            if self._inheritance_chain_cache is None:
-                self._inheritance_chain_cache = tuple(chain)
-        return chain
-
-    def _effective_block_map(self, kind: str) -> dict[str, Any]:
-        """Build nearest-child-wins block map for render_block inheritance.
-
-        kind: "sync" | "stream" | "async_stream"
-        Returns dict of block_name -> callable for that kind.
-        """
-        cached_map = self._effective_blocks_cache.get(kind)
-        if cached_map is not None:
-            return cached_map
-
-        with self._inheritance_cache_lock:
-            cached_map = self._effective_blocks_cache.get(kind)
-            if cached_map is not None:
-                return cached_map
-        # Build outside lock — _inheritance_chain() acquires it when populating
-        effective: dict[str, Any] = {}
-        for t in self._inheritance_chain():
-            if kind == "sync":
-                for name, fn in t._local_blocks_sync.items():
-                    effective.setdefault(name, fn)
-            elif kind == "stream":
-                for name, fn in t._local_blocks_stream.items():
-                    effective.setdefault(name, fn)
-                for name, fn in t._local_blocks_sync.items():
-                    effective.setdefault(name, fn)
-            else:
-                for name, fn in t._local_blocks_async_stream.items():
-                    effective.setdefault(name, fn)
-                for name, fn in t._local_blocks_stream.items():
-                    effective.setdefault(name, fn)
-                for name, fn in t._local_blocks_sync.items():
-                    effective.setdefault(name, fn)
-        with self._inheritance_cache_lock:
-            self._effective_blocks_cache.setdefault(kind, effective)
-        return effective
 
     def _build_context(
         self, args: tuple[Any, ...], kwargs: dict[str, Any], method_name: str
@@ -456,7 +371,7 @@ class Template(TemplateIntrospectionMixin):
 
                 if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
                     raise
-                raise self._enhance_error(e, render_ctx) from e
+                raise enhance_template_error(e, render_ctx, self._source) from e
 
     def render_block(self, block_name: str, *args: Any, **kwargs: Any) -> str:
         """Render a single block from the template.
@@ -527,7 +442,7 @@ class Template(TemplateIntrospectionMixin):
 
                 if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
                     raise
-                raise self._enhance_error(e, render_ctx) from e
+                raise enhance_template_error(e, render_ctx, self._source) from e
 
     def render_with_blocks(
         self,
@@ -610,7 +525,7 @@ class Template(TemplateIntrospectionMixin):
 
                 if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
                     raise
-                raise self._enhance_error(e, render_ctx) from e
+                raise enhance_template_error(e, render_ctx, self._source) from e
 
     def render_stream(self, *args: Any, **kwargs: Any) -> Iterator[str]:
         """Render template as a generator of HTML chunks.
@@ -691,121 +606,6 @@ class Template(TemplateIntrospectionMixin):
             List of block names available for render_block()
         """
         return list(self._effective_block_map("sync").keys())
-
-    def _enhance_error(
-        self,
-        error: Exception,
-        render_ctx: RenderContext,
-    ) -> TemplateRuntimeError:
-        """Enhance a generic exception with template context from RenderContext.
-
-        Converts generic Python exceptions into TemplateRuntimeError with
-        template name, line number, and source snippet context.
-        """
-        from kida.environment.exceptions import (
-            ErrorCode,
-            NoneComparisonError,
-            TemplateRuntimeError,
-            build_source_snippet,
-        )
-
-        template_name = render_ctx.template_name
-        lineno = render_ctx.line
-        error_str = str(error).strip()
-        error_type = type(error).__name__
-
-        # Handle empty or ambiguous error messages (e.g., KeyError(1) yields "1")
-        if not error_str:
-            if hasattr(error, "args") and error.args:
-                non_empty = [str(a) for a in error.args if str(a).strip()]
-                if non_empty:
-                    error_str = f"{error_type}: {', '.join(non_empty)}"
-                else:
-                    error_str = f"{error_type} (no details available)"
-            else:
-                error_str = f"{error_type} (no details available)"
-        elif not error_str.startswith(error_type):
-            error_str = f"{error_type}: {error_str}"
-
-        # Build source snippet from template source
-        snippet = None
-        source = self._source
-        if source and lineno:
-            snippet = build_source_snippet(source, lineno)
-
-        # Handle None comparison errors specially
-        if isinstance(error, TypeError) and "NoneType" in error_str:
-            return NoneComparisonError(
-                None,
-                None,
-                template_name=template_name,
-                lineno=lineno,
-                expression="<see stack trace>",
-                source_snippet=snippet,
-            )
-
-        # Determine error code from exception type
-        error_code = ErrorCode.RUNTIME_ERROR
-        if isinstance(error, KeyError):
-            error_code = ErrorCode.KEY_ERROR
-        elif isinstance(error, AttributeError):
-            error_code = ErrorCode.ATTRIBUTE_ERROR
-        elif isinstance(error, ZeroDivisionError):
-            error_code = ErrorCode.ZERO_DIVISION
-        elif isinstance(error, TypeError):
-            error_code = ErrorCode.TYPE_ERROR
-
-        # TypeError from arithmetic (e.g. str // int) - YAML/config may pass strings
-        suggestion = None
-        if isinstance(error, TypeError) and (
-            "unsupported operand" in error_str or "'str'" in error_str
-        ):
-            suggestion = (
-                "Values from YAML/config may be strings. Use the coerce_int filter "
-                "or ensure numeric types at the data source."
-            )
-
-        # AttributeError/TypeError: '_Undefined' — attribute access on missing value
-        if (isinstance(error, (AttributeError, TypeError))) and (
-            "_undefined" in error_str.lower()
-            and ("not callable" in error_str.lower() or "has no attribute" in error_str.lower())
-        ):
-            suggestion = (
-                "Attribute access on a missing value. Use optional chaining (`?.`) "
-                "or check with `is defined`."
-            )
-
-        # AttributeError on None/NoneType — same suggestion (e.g. from filters)
-        if (
-            suggestion is None
-            and isinstance(error, AttributeError)
-            and ("has no attribute" in error_str.lower() and "nonetype" in error_str.lower())
-        ):
-            suggestion = (
-                "Attribute access on a missing value. Use optional chaining (`?.`) "
-                "or check with `is defined`."
-            )
-
-        # KeyError — safe key access
-        if isinstance(error, KeyError) and error.args:
-            key = error.args[0]
-            suggestion = (
-                f"Key {key!r} not found. Use `.get({key!r})` or `?[{key}]` for safe access."
-            )
-
-        # ZeroDivisionError
-        if isinstance(error, ZeroDivisionError):
-            suggestion = "Division by zero. Guard with `{% if divisor %}` or use `| default(1)`."
-
-        return TemplateRuntimeError(
-            error_str,
-            template_name=template_name,
-            lineno=lineno,
-            source_snippet=snippet,
-            template_stack=list(render_ctx.template_stack),
-            suggestion=suggestion,
-            code=error_code,
-        )
 
     async def render_async(self, *args: Any, **kwargs: Any) -> str:
         """Async wrapper for synchronous templates.
@@ -951,90 +751,6 @@ class Template(TemplateIntrospectionMixin):
                 for chunk in block_func(ctx, effective):
                     if chunk is not None:
                         yield chunk
-
-    @staticmethod
-    def _escape(value: Any) -> str:
-        """HTML-escape a value.
-
-        Uses optimized html_escape from utils.html module.
-        Complexity: O(n) single-pass using str.translate().
-        """
-        return html_escape(value)
-
-    @staticmethod
-    def _safe_getattr(obj: Any, name: str) -> Any:
-        """Get attribute with dict fallback and None-safe handling.
-
-        Resolution order:
-        - Dicts: subscript first (user data), getattr fallback (methods).
-          This prevents dict method names like ``items``, ``keys``,
-          ``values``, ``get`` from shadowing user data keys.
-        - Objects: getattr first, subscript fallback.
-
-        None Handling (like Hugo/Go templates):
-        - If obj is None, returns UNDEFINED (prevents crashes)
-        - If attribute value is None, returns "" (normalizes output)
-
-        Not-Found Handling:
-        - Returns the ``UNDEFINED`` sentinel when the attribute/key is
-          not found.  ``UNDEFINED`` stringifies as ``""`` (so template
-          output is unchanged) but ``is_defined()`` recognises it as
-          *not defined*, fixing ``x.missing is defined`` → False.
-
-        Complexity: O(1)
-        """
-        if obj is None:
-            return UNDEFINED
-        # Dicts: subscript first so keys like "items" resolve to user data,
-        # not the dict.items method
-        if isinstance(obj, dict):
-            try:
-                val = obj[name]
-                return "" if val is None else val
-            except KeyError:
-                try:
-                    val = getattr(obj, name)
-                    return "" if val is None else val
-                except AttributeError:
-                    return UNDEFINED
-        # Objects: getattr first, subscript fallback
-        try:
-            val = getattr(obj, name)
-            return "" if val is None else val
-        except AttributeError:
-            try:
-                val = obj[name]
-                return "" if val is None else val
-            except KeyError, TypeError:
-                return UNDEFINED
-
-    @staticmethod
-    def _getattr_preserve_none(obj: Any, name: str) -> Any:
-        """Get attribute with dict fallback, preserving None values.
-
-        Like _safe_getattr but preserves None values instead of converting
-        to empty string. Used for optional chaining (?.) so that null
-        coalescing (??) can work correctly.
-
-        Resolution order matches _safe_getattr: dicts try subscript first.
-
-        Complexity: O(1)
-        """
-        if isinstance(obj, dict):
-            try:
-                return obj[name]
-            except KeyError:
-                try:
-                    return getattr(obj, name)
-                except AttributeError:
-                    return None
-        try:
-            return getattr(obj, name)
-        except AttributeError:
-            try:
-                return obj[name]
-            except KeyError, TypeError:
-                return None
 
     def __repr__(self) -> str:
         return f"<Template {self._name or '(inline)'}>"

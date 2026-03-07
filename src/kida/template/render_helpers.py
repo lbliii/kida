@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from kida.render_context import RenderContext
 from kida.template.cached_blocks import CachedBlocksDict
+from kida.template.error_enhancement import enhance_template_error
 from kida.template.helpers import UNDEFINED
 from kida.template.types import BlocksDict
 
@@ -205,7 +206,7 @@ def make_render_helpers(env_ref: Any) -> dict[str, Any]:
             except TemplateError:
                 raise
             except Exception as e:
-                raise included._enhance_error(e, child_ctx) from e
+                raise enhance_template_error(e, child_ctx, included._source) from e
             finally:
                 reset_render_context(token)
         except TemplateError as e:

@@ -33,6 +33,7 @@ class FunctionCompilationMixin:
         # Host attributes (from Compiler.__init__)
         _locals: set[str]
         _def_names: set[str]
+        _def_caller_stack: list[ast.expr]
 
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...

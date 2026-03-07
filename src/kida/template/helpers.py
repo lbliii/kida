@@ -85,6 +85,79 @@ class _Undefined:
 
 UNDEFINED = _Undefined()
 
+
+def safe_getattr(obj: Any, name: str) -> Any:
+    """Get attribute with dict fallback and None-safe handling.
+
+    Resolution order:
+    - Dicts: subscript first (user data), getattr fallback (methods).
+      This prevents dict method names like ``items``, ``keys``,
+      ``values``, ``get`` from shadowing user data keys.
+    - Objects: getattr first, subscript fallback.
+
+    None Handling (like Hugo/Go templates):
+    - If obj is None, returns UNDEFINED (prevents crashes)
+    - If attribute value is None, returns "" (normalizes output)
+
+    Not-Found Handling:
+    - Returns the ``UNDEFINED`` sentinel when the attribute/key is
+      not found.  ``UNDEFINED`` stringifies as ``""`` (so template
+      output is unchanged) but ``is_defined()`` recognises it as
+      *not defined*, fixing ``x.missing is defined`` → False.
+
+    Complexity: O(1)
+    """
+    if obj is None:
+        return UNDEFINED
+    if isinstance(obj, dict):
+        try:
+            val = obj[name]
+            return "" if val is None else val
+        except KeyError:
+            try:
+                val = getattr(obj, name)
+                return "" if val is None else val
+            except AttributeError:
+                return UNDEFINED
+    try:
+        val = getattr(obj, name)
+        return "" if val is None else val
+    except AttributeError:
+        try:
+            val = obj[name]
+            return "" if val is None else val
+        except KeyError, TypeError:
+            return UNDEFINED
+
+
+def getattr_preserve_none(obj: Any, name: str) -> Any:
+    """Get attribute with dict fallback, preserving None values.
+
+    Like safe_getattr but preserves None values instead of converting
+    to empty string. Used for optional chaining (?.) so that null
+    coalescing (??) can work correctly.
+
+    Resolution order matches safe_getattr: dicts try subscript first.
+
+    Complexity: O(1)
+    """
+    if isinstance(obj, dict):
+        try:
+            return obj[name]
+        except KeyError:
+            try:
+                return getattr(obj, name)
+            except AttributeError:
+                return None
+    try:
+        return getattr(obj, name)
+    except AttributeError:
+        try:
+            return obj[name]
+        except KeyError, TypeError:
+            return None
+
+
 # =============================================================================
 # Shared Base Namespace (Performance Optimization)
 # =============================================================================
