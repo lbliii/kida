@@ -194,9 +194,11 @@ def verify_extraction() -> None:
         src_dir / "environment" / "core.py",
         src_dir / "utils" / "lru_cache.py",
     ]
-    for path in required:
-        if not path.exists():
-            errors.append(f"Missing required file: {path.relative_to(KIDA_ROOT)}")
+    errors.extend(
+        f"Missing required file: {path.relative_to(KIDA_ROOT)}"
+        for path in required
+        if not path.exists()
+    )
 
     if errors:
         print("❌ Verification failed:")

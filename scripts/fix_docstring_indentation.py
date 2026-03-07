@@ -204,8 +204,7 @@ def fix_file(file_path: Path) -> tuple[int, list[str]]:
 
                     # Rebuild docstring
                     new_lines = [f"{indent}{prefix}{quote}{fixed_lines[0]}"]
-                    for fline in fixed_lines[1:]:
-                        new_lines.append(f"{indent}{fline}")
+                    new_lines.extend(f"{indent}{fline}" for fline in fixed_lines[1:])
                     new_lines.append(f"{indent}{quote}")
 
                     # Replace the range
@@ -228,18 +227,15 @@ def fix_file(file_path: Path) -> tuple[int, list[str]]:
 def main():
     """Main entry point."""
     # Find all Python files
-    python_files = []
     # Look for src/kida (kida repo structure) or bengal (bengal repo structure)
+    python_files: list[Path] = []
     if Path("src/kida").exists():
-        for path in Path("src/kida").rglob("*.py"):
-            python_files.append(path)
+        python_files.extend(Path("src/kida").rglob("*.py"))
     elif Path("bengal").exists():
-        for path in Path("bengal").rglob("*.py"):
-            python_files.append(path)
+        python_files.extend(Path("bengal").rglob("*.py"))
     # Always include tests if it exists
     if Path("tests").exists():
-        for path in Path("tests").rglob("*.py"):
-            python_files.append(path)
+        python_files.extend(Path("tests").rglob("*.py"))
 
     total_fixed = 0
     files_fixed = 0
