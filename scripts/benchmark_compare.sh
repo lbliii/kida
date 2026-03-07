@@ -82,11 +82,19 @@ echo ""
 # Run current benchmarks and compare (use --benchmark-compare-fail for hard failure)
 # pytest-benchmark saves as 0001_${name}.json; compare pattern must be *_${name} to match
 # --benchmark-min-rounds=8 reduces variance vs default 5
+# Benchmark suite must stay in sync with benchmark_baseline.sh.
 echo "--- Running benchmarks ---"
+BENCHMARK_FILES=(
+    "$PROJECT_DIR/benchmarks/test_benchmark_render.py"
+    "$PROJECT_DIR/benchmarks/test_benchmark_full_comparison.py"
+    "$PROJECT_DIR/benchmarks/test_benchmark_features.py"
+    "$PROJECT_DIR/benchmarks/test_benchmark_introspection.py"
+    "$PROJECT_DIR/benchmarks/test_benchmark_include_depth.py"
+    "$PROJECT_DIR/benchmarks/test_benchmark_inherited_blocks.py"
+    "$PROJECT_DIR/benchmarks/test_benchmark_output_sanity.py"
+)
 if [ "${BENCHMARK_INCLUDE_ALL:-0}" = "1" ]; then
-    python -m pytest \
-        "$PROJECT_DIR/benchmarks/test_benchmark_render.py" \
-        "$PROJECT_DIR/benchmarks/test_benchmark_full_comparison.py" \
+    python -m pytest "${BENCHMARK_FILES[@]}" \
         --benchmark-only \
         --benchmark-compare="*_${BASELINE}" \
         --benchmark-compare-fail="mean:${THRESHOLD}%" \
@@ -94,9 +102,7 @@ if [ "${BENCHMARK_INCLUDE_ALL:-0}" = "1" ]; then
         --benchmark-min-rounds=8 \
         -q
 else
-    python -m pytest \
-        "$PROJECT_DIR/benchmarks/test_benchmark_render.py" \
-        "$PROJECT_DIR/benchmarks/test_benchmark_full_comparison.py" \
+    python -m pytest "${BENCHMARK_FILES[@]}" \
         -k "$EXCLUDE_K" \
         --benchmark-only \
         --benchmark-compare="*_${BASELINE}" \

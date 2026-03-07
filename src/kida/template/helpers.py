@@ -340,23 +340,35 @@ def spaceless(html: str) -> str:
     return _SPACELESS_RE.sub("><", html).strip()
 
 
-def add_polymorphic(left: Any, right: Any) -> int | float | str:
-    """Polymorphic + operator: add if both numeric, else concatenate as strings.
+def add_polymorphic(left: Any, right: Any) -> Any:
+    """Polymorphic + operator with safe string-concatenation fallback.
 
-    Enables Jinja-style patterns like {{ count + " items" }} and {{ "Hello " + name }}
-    without requiring ~ for string concatenation. Arithmetic (5 + 3) still works.
+    Goals:
+    - Keep natural Python behavior for compatible operand types (`list + list`,
+      `tuple + tuple`, etc.).
+    - Support Jinja-style string ergonomics (`count + " items"`).
+    - Avoid silently stringifying collection arithmetic, which can explode output.
 
     Args:
         left: Left operand
         right: Right operand
 
     Returns:
-        left + right (numeric) if both are int/float; else str(left) + str(right)
+        `left + right` using Python semantics, except string concatenation fallback
+        when one operand is string-like.
     """
     # Treat bool like Python does: it participates in numeric addition.
     if isinstance(left, (int, float)) and isinstance(right, (int, float)):
         return left + right
-    return str(left) + str(right)
+
+    # Keep Jinja-like ergonomics for mixed string arithmetic.
+    if isinstance(left, str) or isinstance(right, str):
+        return str(left) + str(right)
+
+    # Preserve Python behavior for compatible non-string types
+    # (e.g. list + list, tuple + tuple), and let incompatible combinations
+    # raise a normal TypeError instead of being stringified.
+    return left + right
 
 
 def coerce_numeric(value: Any) -> int | float:

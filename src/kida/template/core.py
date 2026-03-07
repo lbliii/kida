@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import weakref
 from collections.abc import AsyncIterator, Iterator
+from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from kida.render_context import RenderContext
@@ -125,9 +126,15 @@ class Template(TemplateIntrospectionMixin):
     __slots__ = (
         "_block_names",  # Cached block names for O(1) list_blocks
         "_code",
+        "_effective_blocks_cache",  # kind -> effective inherited block map
         "_env_ref",
         "_extends_target",  # Literal parent name for inherited block lookup (or None)
         "_filename",
+        "_inheritance_cache_lock",  # Thread safety for inherited block caches
+        "_inheritance_chain_cache",  # Cached [self, parent, ...] resolution
+        "_local_blocks_async_stream",  # Local async stream block funcs
+        "_local_blocks_stream",  # Local stream block funcs
+        "_local_blocks_sync",  # Local sync block funcs
         "_metadata_cache",  # Cached analysis results
         "_name",
         "_namespace",  # Compiled namespace with block functions
@@ -168,6 +175,9 @@ class Template(TemplateIntrospectionMixin):
         self._optimized_ast = optimized_ast
         self._source = source
         self._metadata_cache: TemplateMetadata | None = None
+        self._inheritance_chain_cache: tuple[Template, ...] | None = None
+        self._effective_blocks_cache: dict[str, dict[str, Any]] = {}
+        self._inheritance_cache_lock = Lock()
 
         # Build render helpers from factory (extracted to render_helpers.py)
         env_ref = self._env_ref
@@ -220,9 +230,33 @@ class Template(TemplateIntrospectionMixin):
         self._render_stream_async_func = namespace.get("render_stream_async")
         self._namespace = namespace  # Keep for render_block()
         self._extends_target = namespace.get("_extends_target")
-        self._block_names = tuple(
-            k[7:] for k in namespace if k.startswith("_block_") and callable(namespace[k])
-        )
+        (
+            self._local_blocks_sync,
+            self._local_blocks_stream,
+            self._local_blocks_async_stream,
+        ) = self._build_local_block_maps(namespace)
+        self._block_names = tuple(self._local_blocks_sync.keys())
+
+    @staticmethod
+    def _build_local_block_maps(
+        namespace: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """Precompute per-template block function maps from compiled namespace."""
+        sync_map: dict[str, Any] = {}
+        stream_map: dict[str, Any] = {}
+        async_stream_map: dict[str, Any] = {}
+
+        for key, value in namespace.items():
+            if not key.startswith("_block_") or not callable(value):
+                continue
+            if key.endswith("_stream_async"):
+                async_stream_map[key[7:-13]] = value
+            elif key.endswith("_stream"):
+                stream_map[key[7:-7]] = value
+            else:
+                sync_map[key[7:]] = value
+
+        return sync_map, stream_map, async_stream_map
 
     @property
     def _env(self) -> Environment:
@@ -245,6 +279,11 @@ class Template(TemplateIntrospectionMixin):
         """Return [self, parent, grandparent, ...] for inherited block resolution."""
         from kida.environment.exceptions import TemplateRuntimeError
 
+        with self._inheritance_cache_lock:
+            cached_chain = self._inheritance_chain_cache
+        if cached_chain is not None:
+            return list(cached_chain)
+
         chain: list[Template] = [self]
         current: Template = self
         max_depth, _ = self._get_env_limits()
@@ -261,6 +300,9 @@ class Template(TemplateIntrospectionMixin):
                 template_name=self._name,
                 suggestion="Check for circular inheritance: A extends B extends A",
             )
+        with self._inheritance_cache_lock:
+            if self._inheritance_chain_cache is None:
+                self._inheritance_chain_cache = tuple(chain)
         return chain
 
     def _effective_block_map(self, kind: str) -> dict[str, Any]:
@@ -269,32 +311,30 @@ class Template(TemplateIntrospectionMixin):
         kind: "sync" | "stream" | "async_stream"
         Returns dict of block_name -> callable for that kind.
         """
+        with self._inheritance_cache_lock:
+            cached_map = self._effective_blocks_cache.get(kind)
+        if cached_map is not None:
+            return cached_map
+
         effective: dict[str, Any] = {}
         for t in self._inheritance_chain():
-            ns = t._namespace
-            for key in ns:
-                if not key.startswith("_block_") or not callable(ns[key]):
-                    continue
-                if key.endswith("_stream_async"):
-                    name = key[7:-13]
-                elif key.endswith("_stream"):
-                    name = key[7:-7]
-                else:
-                    name = key[7:]
-                if name in effective:
-                    continue
-                if kind == "sync":
-                    fn = ns.get(f"_block_{name}")
-                elif kind == "stream":
-                    fn = ns.get(f"_block_{name}_stream") or ns.get(f"_block_{name}")
-                else:
-                    fn = (
-                        ns.get(f"_block_{name}_stream_async")
-                        or ns.get(f"_block_{name}_stream")
-                        or ns.get(f"_block_{name}")
-                    )
-                if fn is not None:
+            if kind == "sync":
+                for name, fn in t._local_blocks_sync.items():
                     effective.setdefault(name, fn)
+            elif kind == "stream":
+                for name, fn in t._local_blocks_stream.items():
+                    effective.setdefault(name, fn)
+                for name, fn in t._local_blocks_sync.items():
+                    effective.setdefault(name, fn)
+            else:
+                for name, fn in t._local_blocks_async_stream.items():
+                    effective.setdefault(name, fn)
+                for name, fn in t._local_blocks_stream.items():
+                    effective.setdefault(name, fn)
+                for name, fn in t._local_blocks_sync.items():
+                    effective.setdefault(name, fn)
+        with self._inheritance_cache_lock:
+            self._effective_blocks_cache.setdefault(kind, effective)
         return effective
 
     def _build_context(

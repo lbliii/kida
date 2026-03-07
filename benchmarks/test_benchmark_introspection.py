@@ -150,14 +150,14 @@ MEDIUM_SOURCE = """\
 """
 
 
-@pytest.mark.benchmark(group="introspection:preserve-ast")
+@pytest.mark.benchmark(group="introspection:preserve-ast", min_rounds=20)
 def test_compile_preserve_ast_true(benchmark: BenchmarkFixture) -> None:
     """from_string() with preserve_ast=True (keeps AST for introspection)."""
     env = KidaEnvironment(preserve_ast=True)
     benchmark(env.from_string, MEDIUM_SOURCE, name="preserve_ast_bench")
 
 
-@pytest.mark.benchmark(group="introspection:preserve-ast")
+@pytest.mark.benchmark(group="introspection:preserve-ast", min_rounds=20)
 def test_compile_preserve_ast_false(benchmark: BenchmarkFixture) -> None:
     """from_string() with preserve_ast=False (minimal memory footprint)."""
     env = KidaEnvironment(preserve_ast=False)

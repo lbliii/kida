@@ -32,11 +32,16 @@ if [ "$NAME" = "baseline" ]; then
     echo ""
 fi
 
-# Run render + full_comparison benchmarks (CI uses both for regression check)
-echo "--- Running render and full comparison benchmarks ---"
+# Run the full regression suite (must match benchmark_compare.sh)
+echo "--- Running benchmark suite ---"
 python -m pytest \
     "$PROJECT_DIR/benchmarks/test_benchmark_render.py" \
     "$PROJECT_DIR/benchmarks/test_benchmark_full_comparison.py" \
+    "$PROJECT_DIR/benchmarks/test_benchmark_features.py" \
+    "$PROJECT_DIR/benchmarks/test_benchmark_introspection.py" \
+    "$PROJECT_DIR/benchmarks/test_benchmark_include_depth.py" \
+    "$PROJECT_DIR/benchmarks/test_benchmark_inherited_blocks.py" \
+    "$PROJECT_DIR/benchmarks/test_benchmark_output_sanity.py" \
     --benchmark-only \
     --benchmark-save="$NAME" \
     --benchmark-storage="$STORAGE" \
