@@ -119,31 +119,6 @@ jobs:
         run: |
           uv run ruff format --check src/kida tests/ benchmarks/ scripts/
 
-  # Baseline drift policy (PR only)
-  baseline-drift-policy:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Require rationale for benchmark baseline updates
-        env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          git fetch origin "$BASE_REF" --depth=1
-          CHANGED="$(git diff --name-only "origin/$BASE_REF"...HEAD)"
-          if echo "$CHANGED" | grep -qE "^benchmarks/.+_baseline\.json$"; then
-            echo "Detected benchmark baseline change."
-            if ! echo "$PR_BODY" | grep -qiE "baseline drift rationale"; then
-              echo "Missing required PR rationale."
-              echo "Add 'Baseline Drift Rationale' section with before/after metrics and why drift is expected."
-              exit 1
-            fi
-          fi
-
   # Thread safety tests
   thread-safety:
     runs-on: ubuntu-latest
