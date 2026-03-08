@@ -62,9 +62,11 @@ class TemplateInheritanceMixin:
         """Return [self, parent, grandparent, ...] for inherited block resolution."""
         from kida.environment.exceptions import TemplateRuntimeError
 
-        cached_chain = self._inheritance_chain_cache
-        if cached_chain is not None:
-            return list(cached_chain)
+        # Skip cache when auto_reload: parent templates can be reloaded independently
+        if not self._env.auto_reload:
+            cached_chain = self._inheritance_chain_cache
+            if cached_chain is not None:
+                return list(cached_chain)
 
         chain: list[Any] = [self]
         current: Any = self
@@ -82,9 +84,10 @@ class TemplateInheritanceMixin:
                 template_name=self._name,
                 suggestion="Check for circular inheritance: A extends B extends A",
             )
-        with self._inheritance_cache_lock:
-            if self._inheritance_chain_cache is None:
-                self._inheritance_chain_cache = tuple(chain)
+        if not self._env.auto_reload:
+            with self._inheritance_cache_lock:
+                if self._inheritance_chain_cache is None:
+                    self._inheritance_chain_cache = tuple(chain)
         return chain
 
     def _effective_block_map(self, kind: str) -> dict[str, Any]:
@@ -93,14 +96,16 @@ class TemplateInheritanceMixin:
         kind: "sync" | "stream" | "async_stream"
         Returns dict of block_name -> callable for that kind.
         """
-        cached_map = self._effective_blocks_cache.get(kind)
-        if cached_map is not None:
-            return cached_map
-
-        with self._inheritance_cache_lock:
+        if not self._env.auto_reload:
             cached_map = self._effective_blocks_cache.get(kind)
             if cached_map is not None:
                 return cached_map
+
+        with self._inheritance_cache_lock:
+            if not self._env.auto_reload:
+                cached_map = self._effective_blocks_cache.get(kind)
+                if cached_map is not None:
+                    return cached_map
         # Build outside lock — _inheritance_chain() acquires it when populating
         effective: dict[str, Any] = {}
         for t in self._inheritance_chain():
@@ -119,6 +124,7 @@ class TemplateInheritanceMixin:
                     effective.setdefault(name, fn)
                 for name, fn in t._local_blocks_sync.items():
                     effective.setdefault(name, fn)
-        with self._inheritance_cache_lock:
-            self._effective_blocks_cache.setdefault(kind, effective)
+        if not self._env.auto_reload:
+            with self._inheritance_cache_lock:
+                self._effective_blocks_cache.setdefault(kind, effective)
         return effective

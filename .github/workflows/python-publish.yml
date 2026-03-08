@@ -44,6 +44,7 @@ jobs:
           uv run pytest -n 0 -q --tb=short \
             tests/test_kida_expressions.py \
             tests/test_render_output_regression_guards.py
+          export PATH="$PWD/.venv/bin:$PATH"
           ./scripts/benchmark_compare.sh
 
   release-build:

@@ -135,9 +135,9 @@ jobs:
         run: |
           git fetch origin "$BASE_REF" --depth=1
           CHANGED="$(git diff --name-only "origin/$BASE_REF"...HEAD)"
-          if echo "$CHANGED" | rg -q "^benchmarks/.+_baseline\.json$"; then
+          if echo "$CHANGED" | grep -qE "^benchmarks/.+_baseline\.json$"; then
             echo "Detected benchmark baseline change."
-            if ! echo "$PR_BODY" | rg -iq "baseline drift rationale"; then
+            if ! echo "$PR_BODY" | grep -qiE "baseline drift rationale"; then
               echo "Missing required PR rationale."
               echo "Add 'Baseline Drift Rationale' section with before/after metrics and why drift is expected."
               exit 1

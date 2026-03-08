@@ -125,7 +125,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
     """
 
     __slots__ = (
-        "_block_names",  # Cached block names for O(1) list_blocks
+        "_block_names",  # Local block names for CachedBlocksDict / render_with_blocks
         "_code",
         "_effective_blocks_cache",  # kind -> effective inherited block map
         "_env_ref",
@@ -288,6 +288,9 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
     def render(self, *args: Any, **kwargs: Any) -> str:
         """Render template with given context.
 
+        Context is passed as keyword arguments. Common keys include
+        ``page``, ``site``, ``user`` — types vary by template.
+
         User context is now CLEAN - no internal keys injected.
         Internal state (_template, _line, _include_depth, _cached_blocks,
         _cached_stats) is managed via RenderContext ContextVar.
@@ -375,6 +378,9 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
 
     def render_block(self, block_name: str, *args: Any, **kwargs: Any) -> str:
         """Render a single block from the template.
+
+        Context is passed as keyword arguments. Common keys include
+        ``page``, ``site``, ``user`` — types vary by template.
 
         Renders just the named block, useful for caching blocks that
         only depend on site-wide context (e.g., navigation, footer).

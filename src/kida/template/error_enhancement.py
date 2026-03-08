@@ -80,8 +80,8 @@ def enhance_template_error(
         "unsupported operand" in error_str or "'str'" in error_str
     ):
         suggestion = (
-            "Values from YAML/config may be strings. Use the coerce_int filter "
-            "or ensure numeric types at the data source."
+            "Values from YAML/config may be strings. Use the `int` filter "
+            "(e.g. `| int` or `| default(0) | int`) or ensure numeric types at the data source."
         )
 
     # AttributeError/TypeError: '_Undefined' — attribute access on missing value
@@ -108,7 +108,7 @@ def enhance_template_error(
     # KeyError — safe key access
     if isinstance(error, KeyError) and error.args:
         key = error.args[0]
-        suggestion = f"Key {key!r} not found. Use `.get({key!r})` or `?[{key}]` for safe access."
+        suggestion = f"Key {key!r} not found. Use `.get({key!r})` or `?[{key!r}]` for safe access."
 
     # ZeroDivisionError
     if isinstance(error, ZeroDivisionError):

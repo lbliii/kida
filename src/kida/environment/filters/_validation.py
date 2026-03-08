@@ -2,23 +2,28 @@
 
 from __future__ import annotations
 
-from typing import Any
+from kida.template.helpers import UNDEFINED
 
 
-def _filter_default(value: Any, default: Any = "", boolean: bool = False) -> Any:
+def _filter_default(value: object, default: object = "", boolean: bool = False) -> object:
     """Return default if value is undefined or falsy.
 
     With None-resilient handling, empty string is treated as missing (like None).
+    Treats UNDEFINED (from missing attribute/key access) as missing.
     This matches Hugo behavior where nil access returns empty string.
 
     """
     if boolean:
         return value or default
-    # Treat both None and "" as missing (None-resilient compatibility)
-    return default if value is None or value == "" else value
+    # Treat UNDEFINED, None, and "" as missing (None-resilient compatibility)
+    if value is UNDEFINED or value is None or value == "":
+        return default
+    return value
 
 
-def _filter_require(value: Any, message: str | None = None, field_name: str | None = None) -> Any:
+def _filter_require(
+    value: object, message: str | None = None, field_name: str | None = None
+) -> object:
     """Require a value to be non-None, raising a clear error if it is.
 
     Usage:

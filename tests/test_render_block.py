@@ -175,10 +175,15 @@ class TestListBlocks:
         assert "b" in blocks  # inherited from parent, available via render_block
 
     def test_inherited_block_map_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Effective inherited block map is computed once and reused."""
-        env = _env(
-            base="{% block sidebar %}s{% endblock %}{% block content %}c{% endblock %}",
-            child='{% extends "base" %}{% block content %}overridden{% endblock %}',
+        """Effective inherited block map is computed once and reused (when auto_reload=False)."""
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "base": "{% block sidebar %}s{% endblock %}{% block content %}c{% endblock %}",
+                    "child": '{% extends "base" %}{% block content %}overridden{% endblock %}',
+                }
+            ),
+            auto_reload=False,
         )
         template = env.get_template("child")
 

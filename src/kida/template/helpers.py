@@ -63,22 +63,22 @@ class _Undefined:
     def __len__(self) -> int:
         return 0
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: object | None = None) -> object:
         """Return default for any key; enables obj.missing.get('x', 'fb') pattern.
 
         When default is None, returns "" to match template output normalization.
         """
         return "" if default is None else default
 
-    def keys(self) -> list[Any]:
+    def keys(self) -> list[str]:
         """Empty keys; enables {% for k in missing.keys() %} without error."""
         return []
 
-    def values(self) -> list[Any]:
+    def values(self) -> list[object]:
         """Empty values; enables {% for v in missing.values() %} without error."""
         return []
 
-    def items(self) -> list[tuple[Any, Any]]:
+    def items(self) -> list[tuple[str, object]]:
         """Empty items; enables {% for k, v in missing.items() %} without error."""
         return []
 
@@ -86,7 +86,7 @@ class _Undefined:
 UNDEFINED = _Undefined()
 
 
-def safe_getattr(obj: Any, name: str) -> Any:
+def safe_getattr(obj: object, name: str) -> object:
     """Get attribute with dict fallback and None-safe handling.
 
     Resolution order:
@@ -111,7 +111,7 @@ def safe_getattr(obj: Any, name: str) -> Any:
         return UNDEFINED
     if isinstance(obj, dict):
         try:
-            val = obj[name]
+            val = obj[name]  # ty: ignore[invalid-argument-type]
             return "" if val is None else val
         except KeyError:
             try:
@@ -124,13 +124,13 @@ def safe_getattr(obj: Any, name: str) -> Any:
         return "" if val is None else val
     except AttributeError:
         try:
-            val = obj[name]
+            val = obj[name]  # ty: ignore[not-subscriptable]
             return "" if val is None else val
         except KeyError, TypeError:
             return UNDEFINED
 
 
-def getattr_preserve_none(obj: Any, name: str) -> Any:
+def getattr_preserve_none(obj: object, name: str) -> object:
     """Get attribute with dict fallback, preserving None values.
 
     Like safe_getattr but preserves None values instead of converting
@@ -143,7 +143,7 @@ def getattr_preserve_none(obj: Any, name: str) -> Any:
     """
     if isinstance(obj, dict):
         try:
-            return obj[name]
+            return obj[name]  # ty: ignore[invalid-argument-type]
         except KeyError:
             try:
                 return getattr(obj, name)
@@ -153,7 +153,7 @@ def getattr_preserve_none(obj: Any, name: str) -> Any:
         return getattr(obj, name)
     except AttributeError:
         try:
-            return obj[name]
+            return obj[name]  # ty: ignore[not-subscriptable]
         except KeyError, TypeError:
             return None
 

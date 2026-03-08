@@ -216,10 +216,10 @@ Kida is AST-native and uses several compile-time passes:
 Use `static_context` when your template has expressions that can be fully evaluated at compile time:
 
 ```python
-# Site config known at compile time
-env = Environment(loader=loader)
+# Site config known at compile time — pass at Environment or get_template
+env = Environment(loader=loader, static_context={"site": site_config})
 template = env.get_template("page.html")
-template.render(page=page, site=site, static_context={"site": site_config})
+template.render(page=page, site=site)
 ```
 
 Benefits (~13% faster render for templates with many static expressions):

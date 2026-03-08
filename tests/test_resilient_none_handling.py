@@ -41,6 +41,12 @@ class TestResilientNoneHandling:
         result = tmpl.render(obj={"present": "value"})
         assert result == ""
 
+    def test_default_filter_with_undefined_missing_key(self, env: Environment) -> None:
+        """default() treats UNDEFINED (missing attribute/key) as missing."""
+        tmpl = env.from_string("{{ obj.missing | default('fallback') }}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == "fallback"
+
     def test_none_object_access_returns_empty(self, env: Environment) -> None:
         """Accessing attribute on None object returns empty string."""
         tmpl = env.from_string("{{ obj.attr }}")
