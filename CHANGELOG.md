@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-03-07
+
+### Added
+
+- **Filter modularization** — Built-in filters split into category submodules (`_collections`, `_debug`, `_html_security`, `_misc`, `_numbers`, `_string`, `_type_conversion`, `_validation`). `_impl.py` is now a registry aggregating implementations. Improves maintainability and discoverability.
+- **Tests reference docs** — New reference page documenting all built-in tests (`defined`, `undefined`, `string`, `number`, `mapping`, `iterable`, comparison tests, HTMX tests, etc.).
+- **Configuration reference docs** — Expanded documentation for all `Environment` options (loader, autoescape, bytecode_cache, etc.).
+- **Benchmark dimensions** — New benchmark suites: static_context vs dynamic render, bytecode cache disk load, introspection (template_metadata, list_blocks, get_template_structure, render_block). `benchmark_compare.sh` integrated into release gate.
+- **Render output regression guards** — Test suite for non-empty render, loop count parity, include chain counts, inheritance block deduplication, stream vs render parity. Run as release regression gate before PyPI publish.
+- **PyPI publish workflow** — `.github/workflows/python-publish.yml` triggers on release publish; runs regression gate (expression tests, output guards, benchmark compare) before building and uploading to PyPI.
+
+### Changed
+
+- **`render_block()` performance** — Lock removed from cache-hit path in `_effective_block_map` and `_inheritance_chain`. Cache-hit path reads without lock; double-check inside lock on miss. ~2µs per call improvement.
+- **Polymorphic `+` operator** — `add_polymorphic()` now preserves Python semantics for compatible types (`list + list`, `tuple + tuple`). Avoids silently stringifying collection arithmetic, which could explode template output. String concatenation fallback still applies when one operand is string-like.
+- **Template inheritance refactor** — `TemplateInheritanceMixin` extracted to `template/inheritance.py` with cached inheritance chain and effective block maps. `_build_local_block_maps()` precomputes block function maps at load time.
+- **Error enhancement extraction** — `enhance_template_error()` moved to pure function in `template/error_enhancement.py`. Converts generic exceptions to `TemplateRuntimeError` with template name, line, and source snippet. Handles `NoneComparisonError` specially.
+- **Attribute helpers extraction** — `safe_getattr()` and `getattr_preserve_none()` moved from `Template` to `template/helpers.py` for reuse. `html_escape` passed via render helpers instead of instance method.
+
+### Fixed
+
+- **Inherited block benchmark regression** — Lock acquisition on cache-hit path was adding ~2µs per `render_block()` call; fixed by lock-free read path with double-check on miss.
+
 ## [0.2.4] - 2026-03-06
 
 ### Added
@@ -274,6 +297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.5]: https://github.com/lbliii/kida/releases/tag/v0.2.5
 [0.2.4]: https://github.com/lbliii/kida/releases/tag/v0.2.4
 [0.2.3]: https://github.com/lbliii/kida/releases/tag/v0.2.3
 [0.2.2]: https://github.com/lbliii/kida/releases/tag/v0.2.2
