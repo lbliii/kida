@@ -211,6 +211,25 @@ Kida is AST-native and uses several compile-time passes:
   and replaces them with constants. Supports Filter and Pipeline for pure filters
   (e.g. `{{ site.title | default("x") }}`).
 
+### When to Use static_context
+
+Use `static_context` when your template has expressions that can be fully evaluated at compile time:
+
+```python
+# Site config known at compile time — pass at Environment or get_template
+env = Environment(loader=loader, static_context={"site": site_config})
+template = env.get_template("page.html")
+template.render(page=page, site=site)
+```
+
+Benefits (~13% faster render for templates with many static expressions):
+
+- Filter pipelines like `{{ site.title | default("Untitled") }}` are reduced to constants
+- Nested attribute chains (`site.nav.items`) are inlined
+- Fewer runtime lookups and filter calls
+
+Only include keys whose values are immutable and known when compiling. Avoid passing user data or request-specific values in `static_context`.
+
 ## Caching Strategies
 
 ### Template Cache

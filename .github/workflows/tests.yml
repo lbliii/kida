@@ -113,11 +113,11 @@ jobs:
 
       - name: Run ruff check
         run: |
-          uv run ruff check src/kida tests/
+          uv run ruff check src/kida tests/ benchmarks/ scripts/
 
       - name: Run ruff format check
         run: |
-          uv run ruff format --check src/kida tests/
+          uv run ruff format --check src/kida tests/ benchmarks/ scripts/
 
   # Thread safety tests
   thread-safety:
@@ -235,20 +235,7 @@ jobs:
           PYTHON_GIL: "0"
         run: |
           export PATH="$PWD/.venv/bin:$PATH"
-          EXIT=0
-          ./scripts/benchmark_compare.sh || EXIT=$?
-          if [ "$EXIT" -eq 2 ]; then
-            echo "No baseline found for this platform; running benchmarks without compare."
-            echo "To enable regression checks: Actions → Benchmark baseline → Run workflow, then commit the artifact."
-            uv run pytest benchmarks/test_benchmark_render.py benchmarks/test_benchmark_full_comparison.py \
-              -k "not (test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida)" \
-              --benchmark-only \
-              --benchmark-storage=file://$PWD/benchmarks \
-              --benchmark-min-rounds=8 \
-              -q
-          else
-            exit "$EXIT"
-          fi
+          ./scripts/benchmark_compare.sh
 
   # Full benchmark suite (weekly/manual only; uploads results)
   benchmarks:

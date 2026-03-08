@@ -412,9 +412,16 @@ class Environment:
             raise RuntimeError("No loader configured")
 
         name = normalize_template_name(name)
+
+        # Fast path: cache hit when auto_reload=False (avoids _cache_lock overhead)
+        if not self.auto_reload:
+            cached: Template | None = self._cache.get(name)
+            if cached is not None:
+                return cached
+
         with self._cache_lock:
             # Check cache (thread-safe LRU)
-            cached: Template | None = self._cache.get(name)
+            cached = self._cache.get(name)
             if cached is not None:
                 # With auto_reload=True, verify source hasn't changed
                 if self.auto_reload:

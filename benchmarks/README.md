@@ -105,6 +105,12 @@ pytest benchmarks/test_benchmark_compile_pipeline.py -v --benchmark-only
 # Scaling: variables, loops, filters, inheritance, include depth
 pytest benchmarks/test_benchmark_scaling.py -v --benchmark-only
 
+# Output-sanity benchmark guards (count/equivalence assertions + timing)
+pytest benchmarks/test_benchmark_output_sanity.py -v --benchmark-only
+
+# Inherited block hot-path performance
+pytest benchmarks/test_benchmark_inherited_blocks.py -v --benchmark-only
+
 # Scaling depth: inheritance, filter chains, add_filter, partial eval, cache contention
 pytest benchmarks/test_benchmark_scaling_depth.py -v --benchmark-only
 
@@ -145,13 +151,31 @@ CI runs a benchmark regression check on every PR and push. It compares against a
 3. Extract to `benchmarks/` (creates `Linux-CPython-3.14-64bit/0001_baseline.json`)
 4. Commit and push
 
-Without a Linux baseline, CI runs benchmarks without compare (informational only).
+Without a Linux baseline, benchmark-regression CI fails intentionally.
+Add a baseline before merging release-critical performance changes.
 
 **Updating the baseline**: After intentional performance changes, run the Benchmark baseline workflow again, or locally:
 
 ```bash
 ./scripts/benchmark_baseline.sh
 # Then commit benchmarks/<platform>/*.json
+```
+
+When a PR updates benchmark baseline JSON files, include a **Baseline Drift Rationale**
+section in the PR description with:
+- before/after metric deltas
+- why drift is expected
+- why the new baseline is safe to adopt
+
+### Release Checklist Addendum
+
+Before tagging/publishing a Kida release candidate:
+
+```bash
+# In bengal repo, validate downstream sentinels against the candidate
+uv run pytest -n 0 -q --tb=short -m performance \
+  tests/performance/test_autodoc_render_regression.py \
+  tests/performance/test_asset_fallback_cost.py
 ```
 
 Note: Baselines are machine-specific. CI uses Ubuntu (Linux); local baselines (e.g. Darwin) are for development only.

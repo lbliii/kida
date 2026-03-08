@@ -174,6 +174,38 @@ class TestListBlocks:
         assert "a" in blocks
         assert "b" in blocks  # inherited from parent, available via render_block
 
+    def test_inherited_block_map_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Effective inherited block map is computed once and reused (when auto_reload=False)."""
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "base": "{% block sidebar %}s{% endblock %}{% block content %}c{% endblock %}",
+                    "child": '{% extends "base" %}{% block content %}overridden{% endblock %}',
+                }
+            ),
+            auto_reload=False,
+        )
+        template = env.get_template("child")
+
+        calls = 0
+        original = template._inheritance_chain
+
+        def counted_inheritance_chain():
+            nonlocal calls
+            calls += 1
+            return original()
+
+        monkeypatch.setattr(template, "_inheritance_chain", counted_inheritance_chain)
+
+        # First lookup builds cache, subsequent lookups should reuse it.
+        template.render_block("sidebar")
+        template.render_block("content")
+        blocks = template.list_blocks()
+
+        assert "sidebar" in blocks
+        assert "content" in blocks
+        assert calls == 1
+
 
 class TestFragmentBlocks:
     """{% fragment name %} — blocks skipped during render(), available via render_block()."""

@@ -41,6 +41,12 @@ class TestResilientNoneHandling:
         result = tmpl.render(obj={"present": "value"})
         assert result == ""
 
+    def test_default_filter_with_undefined_missing_key(self, env: Environment) -> None:
+        """default() treats UNDEFINED (missing attribute/key) as missing."""
+        tmpl = env.from_string("{{ obj.missing | default('fallback') }}")
+        result = tmpl.render(obj={"present": "value"})
+        assert result == "fallback"
+
     def test_none_object_access_returns_empty(self, env: Environment) -> None:
         """Accessing attribute on None object returns empty string."""
         tmpl = env.from_string("{{ obj.attr }}")
@@ -331,28 +337,28 @@ class TestDictSafeAttributeResolution:
 
     def test_dict_missing_key_falls_back_to_getattr(self, env: Environment) -> None:
         """Missing dict key falls back to getattr (e.g. dict methods)."""
-        from kida.template import Template
+        from kida.template.helpers import safe_getattr
 
         # Calling dict.items() explicitly should still work
-        result = Template._safe_getattr({"a": 1}, "items")
+        result = safe_getattr({"a": 1}, "items")
         # items is not a key, so falls back to getattr → dict.items method
         assert callable(result)
 
     def test_object_attr_resolution_unchanged(self, env: Environment) -> None:
         """Non-dict objects still use getattr-first resolution."""
-        from kida.template import Template
+        from kida.template.helpers import safe_getattr
 
         class Obj:
             name = "Alice"
 
-        result = Template._safe_getattr(Obj(), "name")
+        result = safe_getattr(Obj(), "name")
         assert result == "Alice"
 
     def test_optional_chaining_dict_safe(self, env: Environment) -> None:
         """Optional chaining (?.) also uses dict-safe resolution."""
-        from kida.template import Template
+        from kida.template.helpers import getattr_preserve_none
 
-        result = Template._getattr_preserve_none({"items": [1, 2]}, "items")
+        result = getattr_preserve_none({"items": [1, 2]}, "items")
         assert result == [1, 2]
 
     def test_dict_nested_access(self, env: Environment) -> None:
@@ -468,19 +474,19 @@ class TestPerformanceCharacteristics:
 
         This is a sanity check - the actual benchmarks are in Phase 3.
         """
-        from kida.template import Template
+        from kida.template.helpers import safe_getattr
 
         # Single access should be fast
         obj = {"key": "value"}
-        result = Template._safe_getattr(obj, "key")
+        result = safe_getattr(obj, "key")
         assert result == "value"
 
         # None access should return UNDEFINED sentinel (stringifies as "")
-        result = Template._safe_getattr(None, "key")
+        result = safe_getattr(None, "key")
         assert str(result) == ""
         assert not result  # falsy
 
         # Missing key should return UNDEFINED sentinel (stringifies as "")
-        result = Template._safe_getattr(obj, "missing")
+        result = safe_getattr(obj, "missing")
         assert str(result) == ""
         assert not result  # falsy

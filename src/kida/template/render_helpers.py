@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from kida.render_context import RenderContext
 from kida.template.cached_blocks import CachedBlocksDict
+from kida.template.error_enhancement import enhance_template_error
 from kida.template.helpers import UNDEFINED
 from kida.template.types import BlocksDict
 
@@ -94,12 +95,12 @@ class MacroWrapper:
     attributes are available for future error enhancement (e.g. source snippets).
     """
 
-    _fn: Callable[..., Any]
+    _fn: Callable[..., object]
     _kida_source_template: str
     _kida_source_file: str | None
     _source: str | None
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+    def __call__(self, *args: object, **kwargs: object) -> object:
         from kida.render_context import get_render_context_required
 
         render_ctx = get_render_context_required()
@@ -122,7 +123,7 @@ class MacroWrapper:
 
 
 def _make_macro_wrapper(
-    macro_fn: Any,
+    macro_fn: Callable[..., object],
     source_template: str,
     source_file: str | None,
     source: str | None = None,
@@ -136,7 +137,9 @@ def _make_macro_wrapper(
     )
 
 
-def make_render_helpers(env_ref: Any) -> dict[str, Any]:
+def make_render_helpers(
+    env_ref: Callable[[], Environment | None],
+) -> dict[str, Any]:
     """Create all render helpers for a Template namespace.
 
     Args:
@@ -205,7 +208,7 @@ def make_render_helpers(env_ref: Any) -> dict[str, Any]:
             except TemplateError:
                 raise
             except Exception as e:
-                raise included._enhance_error(e, child_ctx) from e
+                raise enhance_template_error(e, child_ctx, included._source) from e
             finally:
                 reset_render_context(token)
         except TemplateError as e:

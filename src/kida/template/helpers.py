@@ -63,27 +63,100 @@ class _Undefined:
     def __len__(self) -> int:
         return 0
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: object | None = None) -> object:
         """Return default for any key; enables obj.missing.get('x', 'fb') pattern.
 
         When default is None, returns "" to match template output normalization.
         """
         return "" if default is None else default
 
-    def keys(self) -> list[Any]:
+    def keys(self) -> list[str]:
         """Empty keys; enables {% for k in missing.keys() %} without error."""
         return []
 
-    def values(self) -> list[Any]:
+    def values(self) -> list[object]:
         """Empty values; enables {% for v in missing.values() %} without error."""
         return []
 
-    def items(self) -> list[tuple[Any, Any]]:
+    def items(self) -> list[tuple[str, object]]:
         """Empty items; enables {% for k, v in missing.items() %} without error."""
         return []
 
 
 UNDEFINED = _Undefined()
+
+
+def safe_getattr(obj: object, name: str) -> object:
+    """Get attribute with dict fallback and None-safe handling.
+
+    Resolution order:
+    - Dicts: subscript first (user data), getattr fallback (methods).
+      This prevents dict method names like ``items``, ``keys``,
+      ``values``, ``get`` from shadowing user data keys.
+    - Objects: getattr first, subscript fallback.
+
+    None Handling (like Hugo/Go templates):
+    - If obj is None, returns UNDEFINED (prevents crashes)
+    - If attribute value is None, returns "" (normalizes output)
+
+    Not-Found Handling:
+    - Returns the ``UNDEFINED`` sentinel when the attribute/key is
+      not found.  ``UNDEFINED`` stringifies as ``""`` (so template
+      output is unchanged) but ``is_defined()`` recognises it as
+      *not defined*, fixing ``x.missing is defined`` → False.
+
+    Complexity: O(1)
+    """
+    if obj is None:
+        return UNDEFINED
+    if isinstance(obj, dict):
+        try:
+            val = obj[name]  # ty: ignore[invalid-argument-type]
+            return "" if val is None else val
+        except KeyError:
+            try:
+                val = getattr(obj, name)
+                return "" if val is None else val
+            except AttributeError:
+                return UNDEFINED
+    try:
+        val = getattr(obj, name)
+        return "" if val is None else val
+    except AttributeError:
+        try:
+            val = obj[name]  # ty: ignore[not-subscriptable]
+            return "" if val is None else val
+        except KeyError, TypeError:
+            return UNDEFINED
+
+
+def getattr_preserve_none(obj: object, name: str) -> object:
+    """Get attribute with dict fallback, preserving None values.
+
+    Like safe_getattr but preserves None values instead of converting
+    to empty string. Used for optional chaining (?.) so that null
+    coalescing (??) can work correctly.
+
+    Resolution order matches safe_getattr: dicts try subscript first.
+
+    Complexity: O(1)
+    """
+    if isinstance(obj, dict):
+        try:
+            return obj[name]  # ty: ignore[invalid-argument-type]
+        except KeyError:
+            try:
+                return getattr(obj, name)
+            except AttributeError:
+                return None
+    try:
+        return getattr(obj, name)
+    except AttributeError:
+        try:
+            return obj[name]  # ty: ignore[not-subscriptable]
+        except KeyError, TypeError:
+            return None
+
 
 # =============================================================================
 # Shared Base Namespace (Performance Optimization)
@@ -340,23 +413,35 @@ def spaceless(html: str) -> str:
     return _SPACELESS_RE.sub("><", html).strip()
 
 
-def add_polymorphic(left: Any, right: Any) -> int | float | str:
-    """Polymorphic + operator: add if both numeric, else concatenate as strings.
+def add_polymorphic(left: Any, right: Any) -> Any:
+    """Polymorphic + operator with safe string-concatenation fallback.
 
-    Enables Jinja-style patterns like {{ count + " items" }} and {{ "Hello " + name }}
-    without requiring ~ for string concatenation. Arithmetic (5 + 3) still works.
+    Goals:
+    - Keep natural Python behavior for compatible operand types (`list + list`,
+      `tuple + tuple`, etc.).
+    - Support Jinja-style string ergonomics (`count + " items"`).
+    - Avoid silently stringifying collection arithmetic, which can explode output.
 
     Args:
         left: Left operand
         right: Right operand
 
     Returns:
-        left + right (numeric) if both are int/float; else str(left) + str(right)
+        `left + right` using Python semantics, except string concatenation fallback
+        when one operand is string-like.
     """
     # Treat bool like Python does: it participates in numeric addition.
     if isinstance(left, (int, float)) and isinstance(right, (int, float)):
         return left + right
-    return str(left) + str(right)
+
+    # Keep Jinja-like ergonomics for mixed string arithmetic.
+    if isinstance(left, str) or isinstance(right, str):
+        return str(left) + str(right)
+
+    # Preserve Python behavior for compatible non-string types
+    # (e.g. list + list, tuple + tuple), and let incompatible combinations
+    # raise a normal TypeError instead of being stringified.
+    return left + right
 
 
 def coerce_numeric(value: Any) -> int | float:

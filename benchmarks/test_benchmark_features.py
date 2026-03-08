@@ -93,3 +93,46 @@ def test_match_default_case_jinja2(benchmark: BenchmarkFixture) -> None:
     env = Jinja2Environment()
     template = env.from_string(MATCH_JINJA2)
     benchmark(template.render, **CONTEXT_DEFAULT)
+
+
+# =============================================================================
+# static_context / partial evaluation benchmarks
+# =============================================================================
+
+# Template with static expression (site.title known at compile time)
+STATIC_CTX_TEMPLATE = """
+<html>
+<head><title>{{ site.title }}</title></head>
+<body>
+    <h1>{{ site.title }}</h1>
+    <p>Items: {{ items | length }}</p>
+    {% for item in items %}
+        <li>{{ item }}</li>
+    {% end %}
+</body>
+</html>
+"""
+
+STATIC_SITE = {"title": "My Site", "tagline": "Fast templates"}
+DYNAMIC_ITEMS = ["a", "b", "c", "d", "e"]
+
+
+@pytest.mark.benchmark(group="features:static-context")
+def test_render_with_static_context_kida(benchmark: BenchmarkFixture) -> None:
+    """Kida: render() with static_context (partial eval at compile time)."""
+    env = KidaEnvironment()
+    template = env.from_string(
+        STATIC_CTX_TEMPLATE,
+        name="static_bench",
+        static_context={"site": STATIC_SITE},
+    )
+    benchmark(template.render, items=DYNAMIC_ITEMS)
+
+
+@pytest.mark.benchmark(group="features:static-context")
+def test_render_without_static_context_kida(benchmark: BenchmarkFixture) -> None:
+    """Kida: render() without static_context (all dynamic at runtime)."""
+    env = KidaEnvironment()
+    template = env.from_string(STATIC_CTX_TEMPLATE, name="dynamic_bench")
+    context = {"site": STATIC_SITE, "items": DYNAMIC_ITEMS}
+    benchmark(template.render, **context)

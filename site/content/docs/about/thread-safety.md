@@ -292,6 +292,15 @@ template = env.get_template("page.html")
 
 **Key insight**: Jinja2 shows *negative scaling* at 4+ workers (slower than 1 worker), indicating internal contention. Kida's thread-safe design avoids this.
 
+## Code References
+
+| Pattern | File |
+|---------|------|
+| PEP 703 declaration | [src/kida/__init__.py](https://github.com/lbliii/kida/blob/main/src/kida/__init__.py) |
+| RenderContext (ContextVar) | [src/kida/template/core.py](https://github.com/lbliii/kida/blob/main/src/kida/template/core.py) |
+| Copy-on-write filters | [src/kida/environment/core.py](https://github.com/lbliii/kida/blob/main/src/kida/environment/core.py) |
+| Free-threading detection | [src/kida/utils/workers.py](https://github.com/lbliii/kida/blob/main/src/kida/utils/workers.py) |
+
 ## See Also
 
 - [[docs/about/architecture|Architecture]] — Rendering internals

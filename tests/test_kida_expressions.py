@@ -6,6 +6,7 @@ Tests arithmetic, comparison, logic operators, literals, and complex expressions
 import pytest
 
 from kida import Environment
+from kida.environment.exceptions import TemplateRuntimeError
 
 
 @pytest.fixture
@@ -308,6 +309,37 @@ class TestPolymorphicAddition:
         """Int + bool remains arithmetic, not string concatenation."""
         tmpl = env.from_string("{{ 1 + false }}")
         assert tmpl.render() == "1"
+
+    def test_list_plus_list_preserves_python_concat(self, env):
+        """List + list should keep list semantics, not stringify."""
+        tmpl = env.from_string("{{ [1, 2] + [3] }}")
+        assert tmpl.render() == "[1, 2, 3]"
+
+    def test_tuple_plus_tuple_preserves_python_concat(self, env):
+        """Tuple + tuple should keep tuple semantics, not stringify."""
+        tmpl = env.from_string("{{ (1, 2) + (3,) }}")
+        assert tmpl.render() == "(1, 2, 3)"
+
+    def test_export_list_accumulation_does_not_stringify(self, env):
+        """
+        Regression: export list accumulation must stay list-typed.
+
+        This mirrors the autodoc member collection pattern:
+        `{% export items = items + [item] %}`.
+        """
+        tmpl = env.from_string(
+            "{% let collected = [] %}"
+            "{% for m in members %}{% export collected = collected + [m] %}{% end %}"
+            "{% for m in collected %}<code>{{ m }}</code>{% end %}"
+        )
+        out = tmpl.render(members=["a", "b"])
+        assert out == "<code>a</code><code>b</code>"
+
+    def test_incompatible_non_string_operands_raise(self, env):
+        """Mixed non-string operands should raise, not silently stringify."""
+        tmpl = env.from_string("{{ [1] + (2,) }}")
+        with pytest.raises(TemplateRuntimeError, match="TypeError"):
+            tmpl.render()
 
 
 class TestStringConcatenation:
