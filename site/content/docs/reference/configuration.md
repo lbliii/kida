@@ -174,6 +174,27 @@ bytecode_cache=False
 bytecode_cache=BytecodeCache("__pycache__/kida/")
 ```
 
+### static_context
+
+Static values for partial evaluation at compile time. Expressions that depend only on these values are evaluated during compilation and replaced with constants in the bytecode — enabling near-`str.format()` speed for static regions (e.g. `site.title`, `config.base_url`).
+
+| Type | Default | Description |
+|------|---------|-------------|
+| `dict[str, Any] \| None` | `None` | Values known at compile time |
+
+```python
+# Site-wide config available in all templates
+env = Environment(
+    loader=FileSystemLoader("templates/"),
+    static_context={"site": site_config, "config": app_config},
+)
+
+# from_string() accepts its own static_context kwarg (takes precedence)
+template = env.from_string("{{ site.title }}", static_context={"site": {"title": "My Site"}})
+```
+
+Applied automatically to all templates loaded via `get_template()`. Use `from_string(source, static_context={...})` to override per-call.
+
 ---
 
 ## Lexer Options

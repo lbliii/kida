@@ -315,6 +315,46 @@ String matches regex pattern.
 
 ---
 
+## HTMX Tests
+
+When `enable_htmx_helpers=True` (default), these tests work with request objects that have a `headers` dict/attribute. Frameworks must set metadata via `render_context().set_meta()` before rendering. See [[docs/extending/custom-globals|Custom Globals]] for setup.
+
+### hx_request
+
+Request is from HTMX (checks HX-Request header).
+
+```kida
+{% if request is hx_request %}
+    {# Render fragment for HTMX partial #}
+{% else %}
+    {# Render full page #}
+{% end %}
+```
+
+### hx_target(id)
+
+HTMX target element ID matches the given ID.
+
+```kida
+{% if request is hx_target("sidebar") %}
+    <aside id="sidebar">{{ sidebar_content }}</aside>
+{% elif request is hx_target("main") %}
+    <main>{{ main_content }}</main>
+{% end %}
+```
+
+### hx_boosted
+
+Request came from hx-boost="true" (progressive enhancement).
+
+```kida
+{% if request is hx_boosted %}
+    {# AJAX navigation — partial render #}
+{% end %}
+```
+
+---
+
 ## Negation
 
 Use `is not` to negate any test:

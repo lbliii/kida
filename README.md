@@ -52,6 +52,8 @@ Requires Python 3.14+
 | `template.render(**ctx)` | Full page (StringBuilder, fastest) |
 | `template.render_block(name, **ctx)` | Single block (fragments, HTMX) |
 | `template.render_stream(**ctx)` | Generator (chunked HTTP, SSE) |
+| `template.render_async(**ctx)` | Async buffered output |
+| `template.render_stream_async(**ctx)` | Async streaming (for `{% async for %}`) |
 | `template.list_blocks()` | Block names for validation |
 | `RenderedTemplate(template, ctx)` | Lazy iterable wrapper for streaming |
 
@@ -63,16 +65,19 @@ Requires Python 3.14+
 |---------|-------------|------|
 | **Template Syntax** | Variables, filters, control flow, pattern matching | [Syntax →](https://lbliii.github.io/kida/docs/syntax/) |
 | **Inheritance** | Template extends, blocks, includes | [Inheritance →](https://lbliii.github.io/kida/docs/syntax/inheritance/) |
-| **Filters & Tests** | 40+ built-in filters, custom filter registration | [Filters →](https://lbliii.github.io/kida/docs/reference/filters/) |
+| **Filters & Tests** | 50+ built-in filters, custom filter registration | [Filters →](https://lbliii.github.io/kida/docs/reference/filters/) |
 | **Streaming** | Statement-level generator rendering via `render_stream()` | [Streaming →](https://lbliii.github.io/kida/docs/usage/streaming/) |
 | **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
 | **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
 | **Components & Slots** | `{% def %}`, `{% call %}`, default + named `{% slot %}` | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/) |
 | **Block Rendering** | `render_block()`, `render_with_blocks()` for fragments and layout composition | [Framework Integration →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
 | **Introspection** | `template_metadata()`, `block_metadata()`, `validate_context()` for frameworks | [Analysis →](https://lbliii.github.io/kida/docs/advanced/analysis/) |
-| **Partial Evaluation** | Compile-time evaluation of static expressions | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
+| **Partial Evaluation** | Compile-time evaluation via `static_context` | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
 | **Block Recompilation** | Recompile only changed blocks in live templates | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
 | **Extensibility** | Custom filters, tests, globals, loaders | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
+| **T-Strings (PEP 750)** | `k()` auto-escaping, `r()` composable regex (Python 3.14+) | [T-Strings →](https://lbliii.github.io/kida/docs/advanced/t-strings/) |
+| **HTMX Helpers** | `hx_request()`, `hx_target()`, `csrf_token()` for partials | [Custom Globals →](https://lbliii.github.io/kida/docs/extending/custom-globals/) |
+| **Worker Auto-Tuning** | `get_optimal_workers()`, `should_parallelize()` for parallel render | [Workers →](https://lbliii.github.io/kida/docs/advanced/workers/) |
 
 📚 **Full documentation**: [lbliii.github.io/kida](https://lbliii.github.io/kida/)
 

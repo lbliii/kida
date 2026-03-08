@@ -41,6 +41,7 @@ env = Environment(
 | `cache_size` | `int` | `400` | Max cached templates |
 | `fragment_cache_size` | `int` | `1000` | Max cached fragments |
 | `fragment_ttl` | `float` | `300.0` | Fragment TTL (seconds) |
+| `static_context` | `dict \| None` | `None` | Values for compile-time partial evaluation |
 
 ### Methods
 
@@ -63,6 +64,8 @@ template = env.from_string("Hello, {{ name }}!")
 ```
 
 > **Bytecode caching**: If you have a `bytecode_cache` configured, pass `name=` to enable it. Without a name, there's no stable cache key, so the bytecode cache is bypassed. A `UserWarning` is emitted if you call `from_string()` without `name=` when a bytecode cache is active.
+
+> **Partial evaluation**: Pass `static_context={...}` to evaluate expressions at compile time. Overrides Environment's `static_context` for this call.
 
 #### render(template_name, **context)
 
@@ -475,6 +478,16 @@ if struct and "page_root" in struct.block_names:
     ...
 ```
 
+**TemplateStructureManifest** fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `str \| None` | Template name |
+| `extends` | `str \| None` | Parent template from `{% extends %}` |
+| `block_names` | `tuple[str, ...]` | Ordered block names |
+| `block_hashes` | `dict[str, str]` | Per-block structural hashes |
+| `dependencies` | `frozenset[str]` | Context paths accessed |
+
 ### block_role_for_framework(block_metadata, ...) → str | None
 
 Classify block metadata into framework roles: `"fragment"`, `"page_root"`, or `None`.
@@ -618,7 +631,9 @@ Per-render state management via ContextVar.
 from kida.render_context import (
     RenderContext,
     render_context,
+    async_render_context,
     get_render_context,
+    get_render_context_required,
 )
 ```
 
@@ -638,7 +653,10 @@ from kida.render_context import (
 | Method | Description |
 |--------|-------------|
 | `check_include_depth(name)` | Raise if depth exceeded |
-| `child_context(name)` | Create child with incremented depth |
+| `child_context(template_name=None, *, source=None)` | Create child for include/embed with incremented depth |
+| `child_context_for_extends(parent_name, *, source=None)` | Create child for extends with incremented extends_depth |
+| `get_meta(key, default=None)` | Get framework metadata (HTMX, CSRF, etc.) |
+| `set_meta(key, value)` | Set framework metadata before rendering |
 
 ### Functions
 
@@ -647,6 +665,16 @@ from kida.render_context import (
 | `get_render_context()` | Get current context (None if not rendering) |
 | `get_render_context_required()` | Get context or raise RuntimeError |
 | `render_context(...)` | Context manager for render scope |
+| `async_render_context(...)` | Async context manager for render scope |
+
+### Low-Level APIs
+
+For cases where the context manager isn't suitable (e.g. nested include/embed that need manual restore):
+
+| Function | Description |
+|----------|-------------|
+| `set_render_context(ctx)` | Set a RenderContext, returns reset token |
+| `reset_render_context(token)` | Restore previous context using token from `set_render_context()` |
 
 ---
 

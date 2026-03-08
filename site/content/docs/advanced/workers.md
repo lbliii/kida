@@ -191,7 +191,7 @@ from kida.utils.workers import (
 
 env = Environment(loader=FileSystemLoader("templates/"))
 
-# Load and schedule templates
+# Load and schedule templates (requires a loader; FunctionLoader returns [])
 templates = [env.get_template(name) for name in env.loader.list_templates()]
 ordered = order_by_complexity(templates)
 
