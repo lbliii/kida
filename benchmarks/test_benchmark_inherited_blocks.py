@@ -28,7 +28,7 @@ def _build_env() -> Environment:
         ),
         "page": ('{% extends "layout" %}{% block content %}page-content{% endblock %}'),
     }
-    return Environment(loader=DictLoader(templates), auto_reload=True)
+    return Environment(loader=DictLoader(templates), auto_reload=False)
 
 
 @pytest.mark.benchmark(group="inherited-blocks:render-block")

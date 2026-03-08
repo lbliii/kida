@@ -52,7 +52,7 @@ def kida_env_preserve_ast() -> KidaEnvironment:
 @pytest.mark.benchmark(group="introspection:template-metadata")
 def test_template_metadata_small(benchmark: BenchmarkFixture) -> None:
     """template_metadata() on small template with blocks."""
-    env = KidaEnvironment(preserve_ast=True)
+    env = KidaEnvironment(preserve_ast=True, auto_reload=False)
     template = env.from_string(BLOCKS_TEMPLATE, name="introspection_bench")
     benchmark(template.template_metadata)
 
@@ -74,7 +74,7 @@ def test_template_metadata_complex(
 @pytest.mark.benchmark(group="introspection:list-blocks")
 def test_list_blocks_small(benchmark: BenchmarkFixture) -> None:
     """list_blocks() on template with 2 blocks."""
-    env = KidaEnvironment(preserve_ast=True)
+    env = KidaEnvironment(preserve_ast=True, auto_reload=False)
     template = env.from_string(BLOCKS_TEMPLATE, name="list_blocks_bench")
     benchmark(template.list_blocks)
 
@@ -109,7 +109,7 @@ def test_get_template_structure_complex(
 @pytest.mark.benchmark(group="introspection:render-block")
 def test_render_block_small(benchmark: BenchmarkFixture) -> None:
     """render_block() single block vs full render."""
-    env = KidaEnvironment(preserve_ast=True)
+    env = KidaEnvironment(preserve_ast=True, auto_reload=False)
     template = env.from_string(BLOCKS_TEMPLATE, name="render_block_bench")
     context = {"title": "Benchmark", "items": ["a", "b", "c"]}
     benchmark(template.render_block, "content", **context)
