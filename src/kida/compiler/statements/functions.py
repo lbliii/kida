@@ -615,7 +615,7 @@ class FunctionCompilationMixin:
                 args=args_list,
                 vararg=vararg_node,
                 kwonlyargs=[ast.arg(arg="_outer_ctx")],
-                kw_defaults=[ast.Constant(value=None)],  # Caller must pass ctx
+                kw_defaults=[None],  # Required kw-only (no default)
                 kwarg=kwarg_node,
                 defaults=defaults,
             ),

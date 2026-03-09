@@ -130,8 +130,10 @@ class BlockAnalyzer:
     def _analyze_block(self, block_node: Block | Region) -> BlockMetadata:
         """Analyze a single block or region node."""
         if isinstance(block_node, Region):
-            # Regions: depends_on from param names (explicit contract)
-            depends_on = frozenset(p.name for p in block_node.params)
+            # Regions: body deps (outer-context vars) union param names (explicit contract)
+            body_deps = self._dep_walker.analyze(block_node)
+            param_names = frozenset(p.name for p in block_node.params)
+            depends_on = body_deps | param_names
             region_params = tuple(p.name for p in block_node.params)
         else:
             depends_on = self._dep_walker.analyze(block_node)

@@ -14,6 +14,7 @@ keywords:
 - render_block
 - def scope
 - blocks
+- region
 category: troubleshooting
 ---
 
@@ -55,6 +56,20 @@ Split defs into a separate file and import them:
 ```
 
 Now both full-page `render()` and `render_block("content", ...)` work, because the block imports `helper` from another template.
+
+## Regions: An Alternative
+
+`{% region %}` blocks are compiled as part of the template and have access to defs and imports from the same file. If you need a parameterized block that uses defs, consider a region instead of splitting into a separate template:
+
+```kida
+{% from "_helpers.html" import helper %}
+
+{% region sidebar(current_path="/") %}
+  {{ helper(current_path) }}
+{% end %}
+```
+
+Both `render_block("sidebar", ...)` and `{{ sidebar(...) }}` work, and the region body can call `helper()`. See [Functions — Regions](/docs/syntax/functions/#regions).
 
 ## When This Matters
 

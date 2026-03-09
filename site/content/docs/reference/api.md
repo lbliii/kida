@@ -241,6 +241,7 @@ Return full template analysis (blocks, extends, dependencies). Returns `None` if
 meta = template.template_metadata()
 if meta:
     print(meta.extends, meta.blocks.keys())
+    regions = meta.regions()  # Only {% region %} blocks (for OOB discovery)
 ```
 
 #### block_metadata()

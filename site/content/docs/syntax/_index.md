@@ -64,8 +64,8 @@ Kida's template syntax for expressions, control flow, and composition.
 :::{card} Functions
 :icon: function
 :link: /docs/syntax/functions/
-:description: Define reusable template functions
-`{% def greet(name) %}`, `{% macro %}`
+:description: Define reusable template functions and regions
+`{% def greet(name) %}`, `{% region sidebar(path) %}`, `{% macro %}`
 :::{/card}
 
 :::{card} Inheritance

@@ -587,11 +587,14 @@ class Compiler(
         keywords: list[ast.keyword] = []
         for i, param_name in enumerate(param_names):
             if i < n_required:
-                # Required param: ctx['param']
-                val = ast.Subscript(
-                    value=ast.Name(id="ctx", ctx=ast.Load()),
-                    slice=ast.Constant(value=param_name),
-                    ctx=ast.Load(),
+                # Required param: _lookup(ctx, name) raises UndefinedError if missing
+                val = ast.Call(
+                    func=ast.Name(id="_lookup", ctx=ast.Load()),
+                    args=[
+                        ast.Name(id="ctx", ctx=ast.Load()),
+                        ast.Constant(value=param_name),
+                    ],
+                    keywords=[],
                 )
             else:
                 # Optional param: ctx.get('param', default)
@@ -894,10 +897,14 @@ class Compiler(
         keywords: list[ast.keyword] = []
         for i, param_name in enumerate(param_names):
             if i < n_required:
-                val = ast.Subscript(
-                    value=ast.Name(id="ctx", ctx=ast.Load()),
-                    slice=ast.Constant(value=param_name),
-                    ctx=ast.Load(),
+                # Required param: _lookup(ctx, name) raises UndefinedError if missing
+                val = ast.Call(
+                    func=ast.Name(id="_lookup", ctx=ast.Load()),
+                    args=[
+                        ast.Name(id="ctx", ctx=ast.Load()),
+                        ast.Constant(value=param_name),
+                    ],
+                    keywords=[],
                 )
             else:
                 default_val = self._compile_expr(region_node.defaults[i - n_required])
@@ -933,8 +940,8 @@ class Compiler(
                 defaults=[],
             ),
             body=[
-                ast.Return(value=None),
                 ast.Expr(value=ast.Yield(value=call)),
+                ast.Return(value=None),
             ],
             decorator_list=[],
             returns=None,

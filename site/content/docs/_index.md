@@ -37,6 +37,12 @@ New to Kida? Install and render your first template in under 2 minutes.
 :description: Install Kida and render your first template
 :::{/card}
 
+:::{card} Learning Tracks
+:icon: book
+:link: /tracks/
+:description: Goal-oriented journeys — Jinja2 migration, Chirp + Kida, framework integration
+:::{/card}
+
 :::{card} API Reference
 :icon: bookmark
 :link: ./reference/api/

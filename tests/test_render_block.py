@@ -528,6 +528,11 @@ class TestRegionBlocks:
         template = env.get_template("page")
         result = template.render(breadcrumb_items=[{"label": "Docs", "href": "/docs"}])
         assert "1" in result
+        # Region depends_on must include outer-context vars (BlockMetadata contract)
+        meta = template.template_metadata()
+        crumbs = meta.get_block("crumbs")
+        assert crumbs is not None
+        assert "breadcrumb_items" in crumbs.depends_on
 
     def test_region_imported_macro_slot_uses_outer_ctx_render_block(self) -> None:
         """Region body can execute imported call/slot chains using outer context values."""

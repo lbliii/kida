@@ -13,6 +13,7 @@ keywords:
 - functions
 - macros
 - def
+- region
 - reusable
 - typed parameters
 - type annotations
@@ -288,6 +289,74 @@ Guidelines:
 </section>
 {% end %}
 ```
+
+---
+
+## Regions
+
+Regions are parameterized blocks that work as both **blocks** (for `render_block()`) and **callables** (for `{{ name(args) }}`). Use them when you need parameterized fragments for HTMX partials, OOB updates, or layout composition.
+
+### Syntax
+
+```kida
+{% region name(param1, param2=default) %}
+    ...body...
+{% end %}
+
+{{ name(value1, value2) }}
+```
+
+### Block and Callable
+
+A region compiles to both:
+
+- A **block** — call `template.render_block("name", param1=..., param2=...)`
+- A **callable** — use `{{ name(args) }}` in the template body
+
+```kida
+{% region sidebar(current_path="/") %}
+  <nav>{{ current_path }}</nav>
+{% end %}
+
+{% block content %}
+  {{ sidebar(current_path="/about") }}
+{% endblock %}
+```
+
+```python
+# From Python: render the region as a block
+html = template.render_block("sidebar", current_path="/settings")
+```
+
+### Outer Context
+
+Region bodies can read variables from the outer render context (not just parameters):
+
+```kida
+{% region crumbs(current_path="/") %}
+{{ breadcrumb_items | default([{"label":"Home","href":"/"}]) | length }}
+{% end %}
+
+{{ crumbs(current_path="/x") }}
+```
+
+When `render_block("crumbs", ...)` or `{{ crumbs(...) }}` is called, the region receives its params plus the caller's context. `breadcrumb_items` comes from the outer context.
+
+### Regions vs Defs
+
+| Use case | Region | Def |
+|----------|--------|-----|
+| `render_block()` | ✅ Yes — region is a block | ❌ No — def is not a block |
+| `{{ name(args) }}` | ✅ Yes | ✅ Yes |
+| Slots / `{% call %}` | ❌ No | ✅ Yes |
+| Outer-context access | ✅ Yes | ✅ Yes (via caller context) |
+| Framework OOB discovery | ✅ `meta.regions()` | ❌ N/A |
+
+**Use regions** when you need parameterized blocks for `render_block()`, HTMX OOB, or framework layout composition. **Use defs** when you need slots, `{% call %}`, or component composition.
+
+### Framework Integration
+
+Frameworks like [Chirp](https://github.com/lbliii/chirp) use `template_metadata().regions()` to discover OOB regions at build time. Each region's `BlockMetadata` includes `is_region`, `region_params`, and `depends_on` for cache scope inference. See [Framework Integration](/docs/usage/framework-integration/).
 
 ---
 

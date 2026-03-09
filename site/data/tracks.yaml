@@ -1,0 +1,39 @@
+# Learning Tracks
+# Each track is a curated journey through Kida documentation.
+# Keys must match track_id in the corresponding content/tracks/*.md page.
+
+jinja2-migration:
+  title: "Jinja2 Migration"
+  description: "Migrate your templates from Jinja2 to Kida."
+  duration: "30 min"
+  audience: "Jinja2 users"
+  items:
+    - docs/get-started/coming-from-jinja2
+    - docs/tutorials/migrate-from-jinja2
+    - docs/syntax/variables
+    - docs/syntax/control-flow
+    - docs/syntax/filters
+    - docs/extending/custom-filters
+
+chirp-kida:
+  title: "Chirp + Kida"
+  description: "Build HTMX apps with Chirp and Kida templates."
+  duration: "45 min"
+  audience: "Chirp and HTMX developers"
+  items:
+    - docs/usage/framework-integration
+    - docs/syntax/functions
+    - docs/advanced/analysis
+    - docs/troubleshooting/render-block-scope
+
+framework-integration:
+  title: "Framework Integration"
+  description: "Integrate Kida into your framework or build system."
+  duration: "45 min"
+  audience: "Framework authors, SSG maintainers"
+  items:
+    - docs/usage/framework-integration
+    - docs/advanced/analysis
+    - docs/extending/custom-filters
+    - docs/extending/custom-loaders
+    - docs/reference/api

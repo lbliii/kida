@@ -63,6 +63,7 @@ if TYPE_CHECKING:
         Pipeline,
         Range,
         Raw,
+        Region,
         Set,
         Slice,
         Slot,
@@ -326,6 +327,21 @@ class DependencyWalker:
             self._visit(default)
 
         # Push function parameter names into scope
+        self._scope_stack.append({p.name for p in node.params})
+
+        # Visit body
+        for child in node.body:
+            self._visit(child)
+
+        self._scope_stack.pop()
+
+    def _visit_region(self, node: Region) -> None:
+        """Handle region: push params into scope, visit body (same as def)."""
+        # Visit defaults (outside region scope)
+        for default in node.defaults:
+            self._visit(default)
+
+        # Push region parameter names into scope
         self._scope_stack.append({p.name for p in node.params})
 
         # Visit body
