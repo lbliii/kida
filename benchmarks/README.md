@@ -142,7 +142,7 @@ CI runs a benchmark regression check on every PR and push. It compares against a
 
 **Thresholds**: CI uses 20% (shared runners, 4 cores); local uses 15%. Override with `BENCHMARK_REGRESSION_THRESHOLD=25`.
 
-**Excluded from regression** (high variance on shared runners): `test_render_async_medium_kida`, `test_render_async_large_kida`, `test_render_complex_kida`. Include with `BENCHMARK_INCLUDE_ALL=1`.
+**Excluded from regression** (high variance on shared runners): `test_render_async_medium_kida`, `test_render_async_large_kida`, `test_render_complex_kida`, `test_include_depth_scaling`. Include with `BENCHMARK_INCLUDE_ALL=1`.
 
 **Initial setup** (required for CI to pass):
 

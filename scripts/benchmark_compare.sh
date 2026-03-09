@@ -40,9 +40,9 @@ else
     THRESHOLD="15"
 fi
 
-# Exclude high-variance benchmarks from regression (async + complex inheritance)
-# These have StdDev ~50-100% of mean on shared CI runners
-EXCLUDE_K="not (test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida or test_render_complex_jinja2)"
+# Exclude high-variance benchmarks from regression (async + complex inheritance + include depth)
+# These have StdDev ~50-100% of mean on shared CI runners; include_depth[1] is especially noisy
+EXCLUDE_K="not (test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida or test_render_complex_jinja2 or test_include_depth_scaling)"
 
 echo "=== Kida Benchmark Regression Check ==="
 echo "Baseline: $BASELINE"
@@ -51,7 +51,7 @@ echo "Storage: $STORAGE"
 echo "Python: $(python --version 2>&1)"
 echo "Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 if [ "${BENCHMARK_INCLUDE_ALL:-0}" != "1" ]; then
-    echo "Excluded (high variance): async_medium, async_large, render_complex (kida+jinja2)"
+    echo "Excluded (high variance): async_medium, async_large, render_complex (kida+jinja2), include_depth_scaling"
 fi
 echo ""
 
