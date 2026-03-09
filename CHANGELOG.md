@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-03-09
+
+### Added
+
+- **`{% region %}` blocks** — Parameterized blocks that work as both blocks (for `render_block()`) and callables (for `{{ name(args) }}`). Use when you need parameterized fragments for HTMX partials, OOB updates, or layout composition. Regions support required and optional params, default values, and access to outer render context.
+- **Region metadata** — `BlockMetadata` now includes `is_region` and `region_params`. `TemplateMetadata.regions()` returns only region-typed blocks for framework OOB discovery (e.g. Chirp's AST-driven layout contracts).
+- **Functions reference docs** — New syntax page documenting `{% def %}`, `{% region %}`, parameters, typed params, slots, `caller()`, `has_slot()`, and the regions vs defs comparison.
+- **render_block and def scope troubleshooting** — New guide explaining the historical limitation where blocks could not inherit defs from the same template, how 0.2.6 lets blocks call top-level defs, and when to still split defs into imports or use regions for shared logic.
+- **Framework integration docs** — Expanded guide with Chirp + Regions step-by-step, adapter pattern, and case studies for Bengal, Chirp, and Dori.
+- **Doc tracks** — Learning tracks for Chirp+Kida, framework integration, and Jinja2 migration.
+- **Render block tests** — Test suite for `render_block()` contract (Chirp fragment dependency), inheritance, regions, and slot context inheritance.
+
+### Changed
+
+- **Top-level defs and regions in globals setup** — Defs and regions at template top-level are now compiled into `_globals_setup`, so `render_block()` has access to macros and region callables. Fixes `NameError` when blocks call defs defined in the same template.
+- **Compiler preamble refactor** — `_make_runtime_preamble()` centralizes shared runtime locals (scope stack, escape/str, buf/append, acc). `_make_block_preamble()` and `_make_render_preamble()` delegate to it.
+- **Block/region name collision** — Compiler rejects duplicate block and region names with `TemplateSyntaxError`.
+
+### Fixed
+
+- **render_block def scope** — Blocks can now call defs from the same template when defs are top-level; previously `render_block("content")` would fail with `NameError` if the block used `{{ helper() }}` and `helper` was a def in the same file.
+
 ## [0.2.5] - 2026-03-07
 
 ### Added
@@ -297,6 +319,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.6]: https://github.com/lbliii/kida/releases/tag/v0.2.6
 [0.2.5]: https://github.com/lbliii/kida/releases/tag/v0.2.5
 [0.2.4]: https://github.com/lbliii/kida/releases/tag/v0.2.4
 [0.2.3]: https://github.com/lbliii/kida/releases/tag/v0.2.3
