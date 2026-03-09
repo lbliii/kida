@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`{% region %}` blocks** — Parameterized blocks that work as both blocks (for `render_block()`) and callables (for `{{ name(args) }}`). Use when you need parameterized fragments for HTMX partials, OOB updates, or layout composition. Regions support required and optional params, default values, and access to outer render context.
 - **Region metadata** — `BlockMetadata` now includes `is_region` and `region_params`. `TemplateMetadata.regions()` returns only region-typed blocks for framework OOB discovery (e.g. Chirp's AST-driven layout contracts).
 - **Functions reference docs** — New syntax page documenting `{% def %}`, `{% region %}`, parameters, typed params, slots, `caller()`, `has_slot()`, and the regions vs defs comparison.
-- **render_block and def scope troubleshooting** — New guide explaining that blocks do not inherit defs from the same template; recommends splitting defs into imports or using regions when blocks need shared logic.
+- **render_block and def scope troubleshooting** — New guide explaining the historical limitation where blocks could not inherit defs from the same template, how 0.2.6 lets blocks call top-level defs, and when to still split defs into imports or use regions for shared logic.
 - **Framework integration docs** — Expanded guide with Chirp + Regions step-by-step, adapter pattern, and case studies for Bengal, Chirp, and Dori.
 - **Doc tracks** — Learning tracks for Chirp+Kida, framework integration, and Jinja2 migration.
 - **Render block tests** — Test suite for `render_block()` contract (Chirp fragment dependency), inheritance, regions, and slot context inheritance.
