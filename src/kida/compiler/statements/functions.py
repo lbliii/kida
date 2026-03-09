@@ -13,7 +13,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import CallBlock, Def, Node, Slot
+    from kida.nodes import CallBlock, Def, Node, Region, Slot
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,47 @@ class FunctionCompilationMixin:
         except SyntaxError:
             logger.warning("Malformed type annotation in {%% def %%}: %r", raw)
             return None
+
+    def _make_callable_preamble(self, *, include_scope_stack: bool = False) -> list[ast.stmt]:
+        """Build common local runtime preamble for callable codegen paths."""
+        stmts: list[ast.stmt] = [
+            ast.Assign(
+                targets=[ast.Name(id="_e", ctx=ast.Store())],
+                value=ast.Name(id="_escape", ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_s", ctx=ast.Store())],
+                value=ast.Name(id="_str", ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="buf", ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_append", ctx=ast.Store())],
+                value=ast.Attribute(
+                    value=ast.Name(id="buf", ctx=ast.Load()),
+                    attr="append",
+                    ctx=ast.Load(),
+                ),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                ),
+            ),
+        ]
+        if include_scope_stack:
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
+                    value=ast.List(elts=[], ctx=ast.Load()),
+                )
+            )
+        return stmts
 
     def _compile_def(self, node: Def) -> list[ast.stmt]:
         """Compile {% def name(params) %}...{% enddef %.
@@ -111,39 +152,7 @@ class FunctionCompilationMixin:
 
         # Build function body
         func_body: list[ast.stmt] = [
-            # _e = _escape
-            ast.Assign(
-                targets=[ast.Name(id="_e", ctx=ast.Store())],
-                value=ast.Name(id="_escape", ctx=ast.Load()),
-            ),
-            # _s = _str
-            ast.Assign(
-                targets=[ast.Name(id="_s", ctx=ast.Store())],
-                value=ast.Name(id="_str", ctx=ast.Load()),
-            ),
-            # buf = []
-            ast.Assign(
-                targets=[ast.Name(id="buf", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            # _append = buf.append
-            ast.Assign(
-                targets=[ast.Name(id="_append", ctx=ast.Store())],
-                value=ast.Attribute(
-                    value=ast.Name(id="buf", ctx=ast.Load()),
-                    attr="append",
-                    ctx=ast.Load(),
-                ),
-            ),
-            # Profiling: _acc = _get_accumulator()
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            ),
+            *self._make_callable_preamble(),
             # Create local context: ctx = {**_outer_ctx, 'arg1': arg1, ...}
             ast.Assign(
                 targets=[ast.Name(id="ctx", ctx=ast.Store())],
@@ -325,36 +334,7 @@ class FunctionCompilationMixin:
             safe_name = slot_name.replace("-", "_")
             fn_name = f"_caller_{safe_name}"
 
-            caller_body: list[ast.stmt] = [
-                ast.Assign(
-                    targets=[ast.Name(id="_e", ctx=ast.Store())],
-                    value=ast.Name(id="_escape", ctx=ast.Load()),
-                ),
-                ast.Assign(
-                    targets=[ast.Name(id="_s", ctx=ast.Store())],
-                    value=ast.Name(id="_str", ctx=ast.Load()),
-                ),
-                ast.Assign(
-                    targets=[ast.Name(id="buf", ctx=ast.Store())],
-                    value=ast.List(elts=[], ctx=ast.Load()),
-                ),
-                ast.Assign(
-                    targets=[ast.Name(id="_append", ctx=ast.Store())],
-                    value=ast.Attribute(
-                        value=ast.Name(id="buf", ctx=ast.Load()),
-                        attr="append",
-                        ctx=ast.Load(),
-                    ),
-                ),
-                ast.Assign(
-                    targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                    value=ast.Call(
-                        func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                        args=[],
-                        keywords=[],
-                    ),
-                ),
-            ]
+            caller_body: list[ast.stmt] = self._make_callable_preamble()
 
             saved_async_cb = getattr(self, "_async_mode", False)
             if saved_async_cb:
@@ -393,12 +373,12 @@ class FunctionCompilationMixin:
             )
 
             slot_fns[slot_name] = fn_name
-            # Add _outer_caller param when inside def, so caller() resolves to def's caller
-            slot_args: list[ast.arg] = []
+            # _scope_stack required for _lookup_scope; _outer_caller for def nesting
+            slot_args: list[ast.arg] = [ast.arg(arg="_scope_stack")]
             slot_defaults: list[ast.expr] = []
             if outer is not None:
-                slot_args = [ast.arg(arg="_outer_caller")]
-                slot_defaults = [outer]
+                slot_args.append(ast.arg(arg="_outer_caller"))
+                slot_defaults.append(outer)
             stmts.append(
                 ast.FunctionDef(
                     name=fn_name,
@@ -420,7 +400,7 @@ class FunctionCompilationMixin:
         # Build _caller(slot="default") wrapper
         # def _caller(slot="default"):
         #     f = _caller_slots.get(slot)
-        #     return f() if f else _Markup("")
+        #     return f(_scope_stack) if f else _Markup("")
         wrapper_body = [
             ast.Assign(
                 targets=[ast.Name(id="_f", ctx=ast.Store())],
@@ -439,7 +419,7 @@ class FunctionCompilationMixin:
                     test=ast.Name(id="_f", ctx=ast.Load()),
                     body=ast.Call(
                         func=ast.Name(id="_f", ctx=ast.Load()),
-                        args=[],
+                        args=[ast.Name(id="_scope_stack", ctx=ast.Load())],
                         keywords=[],
                     ),
                     orelse=ast.Call(
@@ -461,12 +441,13 @@ class FunctionCompilationMixin:
         )
         # Use _caller_wrapper to avoid shadowing the def's _caller parameter
         # (which would cause UnboundLocalError when _def_caller = _caller runs)
+        # Wrapper takes (slot, _scope_stack) so slot functions get scope for _lookup_scope
         stmts.append(
             ast.FunctionDef(
                 name="_caller_wrapper",
                 args=ast.arguments(
                     posonlyargs=[],
-                    args=[ast.arg(arg="slot")],
+                    args=[ast.arg(arg="slot"), ast.arg(arg="_scope_stack")],
                     vararg=None,
                     kwonlyargs=[],
                     kw_defaults=[],
@@ -478,6 +459,31 @@ class FunctionCompilationMixin:
                 returns=None,
             )
         )
+        # Lambda captures _scope_stack from render scope; macro calls _caller() or _caller(slot)
+        stmts.append(
+            ast.Assign(
+                targets=[ast.Name(id="_caller_with_scope", ctx=ast.Store())],
+                value=ast.Lambda(
+                    args=ast.arguments(
+                        posonlyargs=[],
+                        args=[ast.arg(arg="slot")],
+                        vararg=None,
+                        kwonlyargs=[],
+                        kw_defaults=[],
+                        kwarg=None,
+                        defaults=[ast.Constant(value="default")],
+                    ),
+                    body=ast.Call(
+                        func=ast.Name(id="_caller_wrapper", ctx=ast.Load()),
+                        args=[
+                            ast.Name(id="slot", ctx=ast.Load()),
+                            ast.Name(id="_scope_stack", ctx=ast.Load()),
+                        ],
+                        keywords=[],
+                    ),
+                ),
+            )
+        )
 
         # Compile the call expression and add _caller keyword argument
         # Suppress macro instrumentation so we get a raw ast.Call back
@@ -486,10 +492,10 @@ class FunctionCompilationMixin:
         call_expr = self._compile_expr(node.call)
         self._skip_macro_instrumentation = saved_skip
 
-        # If it's a function call, add _caller keyword
+        # If it's a function call, add _caller keyword (lambda binds _scope_stack)
         if isinstance(call_expr, ast.Call):
             call_expr.keywords.append(
-                ast.keyword(arg="_caller", value=ast.Name(id="_caller_wrapper", ctx=ast.Load()))
+                ast.keyword(arg="_caller", value=ast.Name(id="_caller_with_scope", ctx=ast.Load()))
             )
         else:
             # Wrap in a call with _caller
@@ -497,7 +503,10 @@ class FunctionCompilationMixin:
                 func=call_expr,
                 args=[],
                 keywords=[
-                    ast.keyword(arg="_caller", value=ast.Name(id="_caller_wrapper", ctx=ast.Load()))
+                    ast.keyword(
+                        arg="_caller",
+                        value=ast.Name(id="_caller_with_scope", ctx=ast.Load()),
+                    )
                 ],
             )
 
@@ -513,6 +522,123 @@ class FunctionCompilationMixin:
         )
 
         return stmts
+
+    def _make_region_function(self, name: str, node: Region) -> ast.FunctionDef:
+        """Generate module-level region callable: _region_name(params, *, _outer_ctx) -> Markup.
+
+        Regions compile to both a callable (this) and a block wrapper.
+        No _caller/slots — regions are parameterized renderable units only.
+        """
+        func_name = f"_region_{name}"
+        param_names = [p.name for p in node.params]
+        ctx_keys: list[ast.expr | None] = [ast.Constant(value=n) for n in param_names]
+        ctx_values = [ast.Name(id=n, ctx=ast.Load()) for n in param_names]
+        if node.vararg:
+            ctx_keys.append(ast.Constant(value=node.vararg))
+            ctx_values.append(ast.Name(id=node.vararg, ctx=ast.Load()))
+        if node.kwarg:
+            ctx_keys.append(ast.Constant(value=node.kwarg))
+            ctx_values.append(ast.Name(id=node.kwarg, ctx=ast.Load()))
+
+        args_list = [
+            ast.arg(
+                arg=p.name,
+                annotation=(self._parse_annotation(p.annotation) if p.annotation else None),
+            )
+            for p in node.params
+        ]
+        defaults = [self._compile_expr(d) for d in node.defaults]
+        vararg_node = ast.arg(arg=node.vararg) if node.vararg else None
+        kwarg_node = ast.arg(arg=node.kwarg) if node.kwarg else None
+
+        func_body: list[ast.stmt] = [
+            *self._make_callable_preamble(include_scope_stack=True),
+            ast.Assign(
+                targets=[ast.Name(id="ctx", ctx=ast.Store())],
+                value=ast.Dict(
+                    keys=[None, None],
+                    values=[
+                        ast.Name(id="_outer_ctx", ctx=ast.Load()),
+                        ast.Dict(keys=ctx_keys, values=ctx_values),
+                    ],
+                ),
+            ),
+        ]
+
+        for p in node.params:
+            self._locals.add(p.name)
+        if node.vararg:
+            self._locals.add(node.vararg)
+        if node.kwarg:
+            self._locals.add(node.kwarg)
+
+        saved_async = getattr(self, "_async_mode", False)
+        if saved_async:
+            self._async_mode = False
+        try:
+            for child in node.body:
+                func_body.extend(self._compile_node(child))
+        finally:
+            for p in node.params:
+                self._locals.discard(p.name)
+            if node.vararg:
+                self._locals.discard(node.vararg)
+            if node.kwarg:
+                self._locals.discard(node.kwarg)
+            if saved_async:
+                self._async_mode = True
+
+        func_body.append(
+            ast.Return(
+                value=ast.Call(
+                    func=ast.Name(id="_Markup", ctx=ast.Load()),
+                    args=[
+                        ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Constant(value=""),
+                                attr="join",
+                                ctx=ast.Load(),
+                            ),
+                            args=[ast.Name(id="buf", ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                    ],
+                    keywords=[],
+                ),
+            )
+        )
+
+        return ast.FunctionDef(
+            name=func_name,
+            args=ast.arguments(
+                posonlyargs=[],
+                args=args_list,
+                vararg=vararg_node,
+                kwonlyargs=[ast.arg(arg="_outer_ctx")],
+                kw_defaults=[ast.Constant(value=None)],  # Caller must pass ctx
+                kwarg=kwarg_node,
+                defaults=defaults,
+            ),
+            body=func_body,
+            decorator_list=[],
+            returns=None,
+        )
+
+    def _compile_region(self, node: Region) -> list[ast.stmt]:
+        """Compile {% region name(params) %} for template body — emit ctx assign only."""
+        func_name = f"_region_{node.name}"
+        return [
+            ast.Assign(
+                targets=[
+                    ast.Subscript(
+                        value=ast.Name(id="ctx", ctx=ast.Load()),
+                        slice=ast.Constant(value=node.name),
+                        ctx=ast.Store(),
+                    )
+                ],
+                value=ast.Name(id=func_name, ctx=ast.Load()),
+            ),
+        ]
 
     def _compile_slot(self, node: Slot) -> list[ast.stmt]:
         """Compile {% slot %} or {% slot name %.

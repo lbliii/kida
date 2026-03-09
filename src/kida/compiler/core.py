@@ -45,6 +45,7 @@ from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
 from kida.compiler.statements import StatementCompilationMixin
 from kida.compiler.utils import OperatorUtilsMixin
+from kida.nodes import Block, Region
 
 _BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
@@ -52,10 +53,12 @@ if TYPE_CHECKING:
     import types
 
     from kida.environment import Environment
-    from kida.nodes import Block, Extends, Node
+    from kida.nodes import Block, Extends, Node, Region
     from kida.nodes import Template as TemplateNode
 
-_TOP_LEVEL_STATEMENTS = frozenset({"FromImport", "Import", "Set", "Let", "Export", "Def", "Do"})
+_TOP_LEVEL_STATEMENTS = frozenset(
+    {"FromImport", "Import", "Set", "Let", "Export", "Def", "Do", "Region"}
+)
 
 
 class Compiler(
@@ -141,7 +144,7 @@ class Compiler(
         # Track local variables (loop variables, etc.) for O(1) direct access
         self._locals: set[str] = set()
         # Track blocks for inheritance
-        self._blocks: dict[str, Block] = {}
+        self._blocks: dict[str, Block | Region] = {}
         # Counter for unique variable names in nested structures
         self._block_counter: int = 0
         # When True, output statements generate yield instead of _append
@@ -176,7 +179,7 @@ class Compiler(
         conditionals, etc.) are all registered for compilation.
         """
         from kida.environment.exceptions import TemplateSyntaxError
-        from kida.nodes import Block, CallBlock, Def, Slot, SlotBlock
+        from kida.nodes import Block, CallBlock, Def, Region, Slot, SlotBlock
 
         for node in nodes:
             if isinstance(node, Block):
@@ -184,6 +187,13 @@ class Compiler(
                     raise TemplateSyntaxError(
                         f"Invalid block name '{node.name}': must be identifier-like "
                         "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
+                if node.name in self._blocks and isinstance(self._blocks[node.name], Region):
+                    raise TemplateSyntaxError(
+                        f"Duplicate block/region name '{node.name}'",
                         lineno=node.lineno,
                         name=self._name,
                         filename=self._filename,
@@ -200,6 +210,24 @@ class Compiler(
                         name=self._name,
                         filename=self._filename,
                     )
+                self._collect_blocks(node.body)
+            elif isinstance(node, Region):
+                if not _BLOCK_NAME_RE.match(node.name):
+                    raise TemplateSyntaxError(
+                        f"Invalid region name '{node.name}': must be identifier-like "
+                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
+                if node.name in self._blocks:
+                    raise TemplateSyntaxError(
+                        f"Duplicate block/region name '{node.name}'",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
+                self._blocks[node.name] = node  # Region stored as block for registration
                 self._collect_blocks(node.body)
             elif isinstance(node, CallBlock):
                 for slot_name in node.slots:
@@ -329,6 +357,11 @@ class Compiler(
                 )
             )
 
+        # Emit region callables (module-level) before _globals_setup
+        for block_name, block_node in saved_blocks.items():
+            if isinstance(block_node, Region):
+                module_body.append(self._make_region_function(block_name, block_node))
+
         # Detect {% globals %} blocks and compile _globals_setup function
         globals_setup = self._make_globals_setup(node)
         if globals_setup is not None:
@@ -385,54 +418,51 @@ class Compiler(
         into the block's context. Returns None if neither globals nor top-level
         imports exist.
         """
-        from kida.nodes import FromImport, Globals, Import, Imports
+        from kida.nodes import Def, FromImport, Globals, Import, Imports
 
         setup_nodes = [n for n in node.body if isinstance(n, (Globals, Imports))]
         top_level_imports = [n for n in node.body if isinstance(n, (FromImport, Import))]
-        if not setup_nodes and not top_level_imports:
+        top_level_defs = [n for n in node.body if isinstance(n, Def)]
+        top_level_regions = [n for n in node.body if isinstance(n, Region)]
+        if (
+            not setup_nodes
+            and not top_level_imports
+            and not top_level_defs
+            and not top_level_regions
+        ):
             return None
 
         # Preamble: scope stack, buf, _append, _e, _s, _acc (needed by imports/globals)
-        body_stmts: list[ast.stmt] = [
-            # _scope_stack = [] (needed by {% set %} statements)
-            ast.Assign(
-                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            # buf = [] (needed as no-op target for any accidental output)
-            ast.Assign(
-                targets=[ast.Name(id="buf", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            # _append = buf.append
-            ast.Assign(
-                targets=[ast.Name(id="_append", ctx=ast.Store())],
-                value=ast.Attribute(
-                    value=ast.Name(id="buf", ctx=ast.Load()),
-                    attr="append",
-                    ctx=ast.Load(),
-                ),
-            ),
-            # _e = _escape (needed for compiled def bodies)
-            ast.Assign(
-                targets=[ast.Name(id="_e", ctx=ast.Store())],
-                value=ast.Name(id="_escape", ctx=ast.Load()),
-            ),
-            # _s = _str
-            ast.Assign(
-                targets=[ast.Name(id="_s", ctx=ast.Store())],
-                value=ast.Name(id="_str", ctx=ast.Load()),
-            ),
-            # _acc = None (profiling disabled in globals setup)
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Constant(value=None),
-            ),
-        ]
+        body_stmts: list[ast.stmt] = self._make_runtime_preamble(
+            include_scope_stack=True,
+            include_escape_str=True,
+            include_buf_append=True,
+            include_acc=True,
+            acc_none=True,
+        )
 
         # Top-level imports first (so macros are in ctx for blocks)
         for imp_node in top_level_imports:
             body_stmts.extend(self._compile_node(imp_node))
+
+        # Top-level defs (so render_block has macros in scope)
+        for def_node in top_level_defs:
+            body_stmts.extend(self._compile_node(def_node))
+
+        # Top-level regions (ctx['name'] = _region_name for render_block)
+        body_stmts.extend(
+            ast.Assign(
+                targets=[
+                    ast.Subscript(
+                        value=ast.Name(id="ctx", ctx=ast.Load()),
+                        slice=ast.Constant(value=region_node.name),
+                        ctx=ast.Store(),
+                    )
+                ],
+                value=ast.Name(id=f"_region_{region_node.name}", ctx=ast.Load()),
+            )
+            for region_node in top_level_regions
+        )
 
         for setup_node in setup_nodes:
             for child in setup_node.body:
@@ -451,34 +481,56 @@ class Compiler(
             decorator_list=[],
         )
 
-    def _make_block_preamble(self, streaming: bool) -> list[ast.stmt]:
-        """Common setup stmts for block functions.
-
-        Non-streaming adds buf and _append for StringBuilder.
-        """
-        stmts: list[ast.stmt] = [
-            ast.Assign(
-                targets=[ast.Name(id="_e", ctx=ast.Store())],
-                value=ast.Name(id="_escape", ctx=ast.Load()),
-            ),
-            ast.Assign(
-                targets=[ast.Name(id="_s", ctx=ast.Store())],
-                value=ast.Name(id="_str", ctx=ast.Load()),
-            ),
-            ast.Assign(
-                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            ),
-        ]
-        if not streaming:
+    def _make_runtime_preamble(
+        self,
+        *,
+        include_blocks_guard: bool = False,
+        include_scope_stack: bool = False,
+        include_escape_str: bool = False,
+        include_buf_append: bool = False,
+        include_acc: bool = False,
+        acc_none: bool = False,
+    ) -> list[ast.stmt]:
+        """Build shared runtime locals preamble for generated functions."""
+        stmts: list[ast.stmt] = []
+        if include_blocks_guard:
+            stmts.append(
+                ast.If(
+                    test=ast.Compare(
+                        left=ast.Name(id="_blocks", ctx=ast.Load()),
+                        ops=[ast.Is()],
+                        comparators=[ast.Constant(value=None)],
+                    ),
+                    body=[
+                        ast.Assign(
+                            targets=[ast.Name(id="_blocks", ctx=ast.Store())],
+                            value=ast.Dict(keys=[], values=[]),
+                        )
+                    ],
+                    orelse=[],
+                )
+            )
+        if include_scope_stack:
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
+                    value=ast.List(elts=[], ctx=ast.Load()),
+                )
+            )
+        if include_escape_str:
+            stmts.extend(
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id="_e", ctx=ast.Store())],
+                        value=ast.Name(id="_escape", ctx=ast.Load()),
+                    ),
+                    ast.Assign(
+                        targets=[ast.Name(id="_s", ctx=ast.Store())],
+                        value=ast.Name(id="_str", ctx=ast.Load()),
+                    ),
+                ]
+            )
+        if include_buf_append:
             stmts.extend(
                 [
                     ast.Assign(
@@ -495,10 +547,100 @@ class Compiler(
                     ),
                 ]
             )
+        if include_acc:
+            acc_value: ast.expr = (
+                ast.Constant(value=None)
+                if acc_none
+                else ast.Call(
+                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                    args=[],
+                    keywords=[],
+                )
+            )
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                    value=acc_value,
+                )
+            )
         return stmts
 
-    def _make_block_function(self, name: str, block_node: Block) -> ast.FunctionDef:
+    def _make_block_preamble(self, streaming: bool) -> list[ast.stmt]:
+        """Common setup stmts for block functions.
+
+        Non-streaming adds buf and _append for StringBuilder.
+        """
+        return self._make_runtime_preamble(
+            include_scope_stack=True,
+            include_escape_str=True,
+            include_buf_append=not streaming,
+            include_acc=True,
+        )
+
+    def _make_region_block_function(self, name: str, region_node: Region) -> ast.FunctionDef:
+        """Generate block wrapper that delegates to region callable with ctx params."""
+        param_names = [p.name for p in region_node.params]
+        n_defaults = len(region_node.defaults)
+        n_required = len(param_names) - n_defaults
+
+        # Build call: ctx['name'](param=ctx.get/ctx[], ..., _outer_ctx=ctx)
+        keywords: list[ast.keyword] = []
+        for i, param_name in enumerate(param_names):
+            if i < n_required:
+                # Required param: ctx['param']
+                val = ast.Subscript(
+                    value=ast.Name(id="ctx", ctx=ast.Load()),
+                    slice=ast.Constant(value=param_name),
+                    ctx=ast.Load(),
+                )
+            else:
+                # Optional param: ctx.get('param', default)
+                default_val = self._compile_expr(region_node.defaults[i - n_required])
+                val = ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="ctx", ctx=ast.Load()),
+                        attr="get",
+                        ctx=ast.Load(),
+                    ),
+                    args=[ast.Constant(value=param_name), default_val],
+                    keywords=[],
+                )
+            keywords.append(ast.keyword(arg=param_name, value=val))
+        keywords.append(ast.keyword(arg="_outer_ctx", value=ast.Name(id="ctx", ctx=ast.Load())))
+
+        return ast.FunctionDef(
+            name=f"_block_{name}",
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[],
+            ),
+            body=[
+                ast.Return(
+                    value=ast.Call(
+                        func=ast.Subscript(
+                            value=ast.Name(id="ctx", ctx=ast.Load()),
+                            slice=ast.Constant(value=name),
+                            ctx=ast.Load(),
+                        ),
+                        args=[],
+                        keywords=keywords,
+                    ),
+                )
+            ],
+            decorator_list=[],
+            returns=None,
+        )
+
+    def _make_block_function(self, name: str, block_node: Block | Region) -> ast.FunctionDef:
         """Generate a block function: _block_name(ctx, _blocks) -> str."""
+        if isinstance(block_node, Region):
+            return self._make_region_block_function(name, block_node)
+
         body: list[ast.stmt] = self._make_block_preamble(streaming=False)
 
         # Compile block body with f-string coalescing
@@ -537,40 +679,17 @@ class Compiler(
 
     def _make_render_preamble(self) -> list[ast.stmt]:
         """Shared init block for render functions: if _blocks, _scope_stack, _acc."""
-        return [
-            ast.If(
-                test=ast.Compare(
-                    left=ast.Name(id="_blocks", ctx=ast.Load()),
-                    ops=[ast.Is()],
-                    comparators=[ast.Constant(value=None)],
-                ),
-                body=[
-                    ast.Assign(
-                        targets=[ast.Name(id="_blocks", ctx=ast.Store())],
-                        value=ast.Dict(keys=[], values=[]),
-                    )
-                ],
-                orelse=[],
-            ),
-            ast.Assign(
-                targets=[ast.Name(id="_scope_stack", ctx=ast.Store())],
-                value=ast.List(elts=[], ctx=ast.Load()),
-            ),
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            ),
-        ]
+        return self._make_runtime_preamble(
+            include_blocks_guard=True,
+            include_scope_stack=True,
+            include_acc=True,
+        )
 
     def _make_render_extends_body(
         self,
         node: TemplateNode,
         extends_node: Extends,
-        block_names: dict[str, Block],
+        block_names: dict[str, Block | Region],
         block_suffix: str,
         extends_helper: str,
     ) -> list[ast.stmt]:
@@ -623,33 +742,10 @@ class Compiler(
 
     def _make_render_direct_body(self, node: TemplateNode, streaming: bool) -> list[ast.stmt]:
         """No-extends path: buf setup (if not streaming), body compile, return vs yield."""
-        body: list[ast.stmt] = [
-            ast.Assign(
-                targets=[ast.Name(id="_e", ctx=ast.Store())],
-                value=ast.Name(id="_escape", ctx=ast.Load()),
-            ),
-            ast.Assign(
-                targets=[ast.Name(id="_s", ctx=ast.Store())],
-                value=ast.Name(id="_str", ctx=ast.Load()),
-            ),
-        ]
-        if not streaming:
-            body.extend(
-                [
-                    ast.Assign(
-                        targets=[ast.Name(id="buf", ctx=ast.Store())],
-                        value=ast.List(elts=[], ctx=ast.Load()),
-                    ),
-                    ast.Assign(
-                        targets=[ast.Name(id="_append", ctx=ast.Store())],
-                        value=ast.Attribute(
-                            value=ast.Name(id="buf", ctx=ast.Load()),
-                            attr="append",
-                            ctx=ast.Load(),
-                        ),
-                    ),
-                ]
-            )
+        body: list[ast.stmt] = self._make_runtime_preamble(
+            include_escape_str=True,
+            include_buf_append=not streaming,
+        )
         body.extend(self._compile_body_with_coalescing(list(node.body)))
         if streaming:
             body.append(ast.Return(value=None))
@@ -716,8 +812,11 @@ class Compiler(
             returns=None,
         )
 
-    def _make_block_function_stream(self, name: str, block_node: Block) -> ast.FunctionDef:
+    def _make_block_function_stream(self, name: str, block_node: Block | Region) -> ast.FunctionDef:
         """Generate a streaming block: _block_name_stream(ctx, _blocks) -> Generator[str]."""
+        if isinstance(block_node, Region):
+            return self._make_region_block_function_stream(name, block_node)
+
         body: list[ast.stmt] = self._make_block_preamble(streaming=True)
 
         # Compile block body with streaming yields
@@ -745,7 +844,7 @@ class Compiler(
         )
 
     def _make_render_function_stream(
-        self, node: TemplateNode, blocks: dict[str, Block]
+        self, node: TemplateNode, blocks: dict[str, Block | Region]
     ) -> ast.FunctionDef:
         """Generate render_stream(ctx, _blocks=None) generator function.
 
@@ -787,8 +886,75 @@ class Compiler(
             returns=None,
         )
 
+    def _make_region_block_function_stream(self, name: str, region_node: Region) -> ast.FunctionDef:
+        """Streaming block wrapper for region — yields callable result."""
+        param_names = [p.name for p in region_node.params]
+        n_defaults = len(region_node.defaults)
+        n_required = len(param_names) - n_defaults
+        keywords: list[ast.keyword] = []
+        for i, param_name in enumerate(param_names):
+            if i < n_required:
+                val = ast.Subscript(
+                    value=ast.Name(id="ctx", ctx=ast.Load()),
+                    slice=ast.Constant(value=param_name),
+                    ctx=ast.Load(),
+                )
+            else:
+                default_val = self._compile_expr(region_node.defaults[i - n_required])
+                val = ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="ctx", ctx=ast.Load()),
+                        attr="get",
+                        ctx=ast.Load(),
+                    ),
+                    args=[ast.Constant(value=param_name), default_val],
+                    keywords=[],
+                )
+            keywords.append(ast.keyword(arg=param_name, value=val))
+        keywords.append(ast.keyword(arg="_outer_ctx", value=ast.Name(id="ctx", ctx=ast.Load())))
+        call = ast.Call(
+            func=ast.Subscript(
+                value=ast.Name(id="ctx", ctx=ast.Load()),
+                slice=ast.Constant(value=name),
+                ctx=ast.Load(),
+            ),
+            args=[],
+            keywords=keywords,
+        )
+        return ast.FunctionDef(
+            name=f"_block_{name}_stream",
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[],
+            ),
+            body=[
+                ast.Return(value=None),
+                ast.Expr(value=ast.Yield(value=call)),
+            ],
+            decorator_list=[],
+            returns=None,
+        )
+
+    def _make_region_block_function_stream_async(
+        self, name: str, region_node: Region
+    ) -> ast.AsyncFunctionDef:
+        """Async streaming block wrapper for region."""
+        stream_sync = self._make_region_block_function_stream(name, region_node)
+        return ast.AsyncFunctionDef(
+            name=f"_block_{name}_stream_async",
+            args=stream_sync.args,
+            body=stream_sync.body,
+            decorator_list=[],
+            returns=None,
+        )
+
     def _make_block_function_stream_async(
-        self, name: str, block_node: Block
+        self, name: str, block_node: Block | Region
     ) -> ast.AsyncFunctionDef:
         """Generate async streaming block: _block_name_stream_async(ctx, _blocks).
 
@@ -798,6 +964,9 @@ class Compiler(
 
         Part of RFC: rfc-async-rendering.
         """
+        if isinstance(block_node, Region):
+            return self._make_region_block_function_stream_async(name, block_node)
+
         body: list[ast.stmt] = self._make_block_preamble(streaming=True)
 
         body.extend(self._compile_body_with_coalescing(list(block_node.body)))
@@ -823,7 +992,7 @@ class Compiler(
         )
 
     def _make_render_function_stream_async(
-        self, node: TemplateNode, blocks: dict[str, Block]
+        self, node: TemplateNode, blocks: dict[str, Block | Region]
     ) -> ast.AsyncFunctionDef:
         """Generate async render_stream_async(ctx, _blocks=None) function.
 
@@ -964,6 +1133,7 @@ class Compiler(
                 "Globals": self._compile_globals,
                 "Imports": self._compile_imports,
                 "Def": self._compile_def,
+                "Region": self._compile_region,
                 "CallBlock": self._compile_call_block,
                 "Slot": self._compile_slot,
                 "FromImport": self._compile_from_import,

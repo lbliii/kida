@@ -459,6 +459,153 @@ class TestImportsBlock:
         assert "ok" in result
 
 
+class TestTopLevelDefInRenderBlock:
+    """Top-level {% def %} available in render_block() without {% globals %} (Phase 1 preamble hoisting)."""
+
+    def test_top_level_def_available_in_render_block(self) -> None:
+        """Template with top-level {% def %} at root, no globals — def is hoisted to _globals_setup."""
+        env = _env(
+            page=(
+                "{% def greet(name) %}Hello, {{ name }}!{% end %}"
+                '{% block content %}{{ greet("World") }}{% endblock %}'
+            )
+        )
+        template = env.get_template("page")
+        result = template.render_block("content")
+        assert "Hello, World!" in result
+
+    def test_top_level_def_in_fragment(self) -> None:
+        """Top-level def works with {% fragment %} blocks."""
+        env = _env(
+            page=(
+                "{% def card(title) %}<div>{{ title }}</div>{% end %}"
+                "Page content "
+                '{% fragment oob %}{{ card("Task 1") }}{% endfragment %}'
+            )
+        )
+        template = env.get_template("page")
+        result = template.render()
+        assert "Page content" in result
+        assert "Task 1" not in result
+        result = template.render_block("oob")
+        assert "<div>Task 1</div>" in result
+
+
+class TestRegionBlocks:
+    """{% region name(params) %} — parameterized renderable units (RFC: kida-regions)."""
+
+    def test_region_render_block(self) -> None:
+        """Region is renderable via render_block() with params."""
+        env = _env(
+            page="""{% region sidebar(current_path="/") %}
+  <nav>{{ current_path }}</nav>
+{% end %}"""
+        )
+        template = env.get_template("page")
+        result = template.render_block("sidebar", current_path="/settings")
+        assert "<nav>/settings</nav>" in result
+
+    def test_region_callable_in_template(self) -> None:
+        """Region is callable via {{ name(args) }} in template body."""
+        env = _env(
+            page="""{% region sidebar(current_path="/") %}
+  <nav>{{ current_path }}</nav>
+{% end %}
+{{ sidebar(current_path="/about") }}"""
+        )
+        template = env.get_template("page")
+        result = template.render()
+        assert "<nav>/about</nav>" in result
+
+    def test_region_can_lookup_outer_ctx_values(self) -> None:
+        """Region body can resolve non-parameter names from outer ctx."""
+        env = _env(
+            page="""{% region crumbs(current_path="/") %}
+{{ breadcrumb_items | default([{"label":"Home","href":"/"}]) | length }}
+{% end %}
+{{ crumbs(current_path="/x") }}"""
+        )
+        template = env.get_template("page")
+        result = template.render(breadcrumb_items=[{"label": "Docs", "href": "/docs"}])
+        assert "1" in result
+
+    def test_region_imported_macro_slot_uses_outer_ctx_render_block(self) -> None:
+        """Region body can execute imported call/slot chains using outer context values."""
+        env = _env(
+            forms="""{% def form(action, method="get") %}
+<form action="{{ action }}" method="{{ method }}">{% slot %}</form>
+{% end %}""",
+            page="""{% from "forms" import form %}
+{% region shell(current_path="/") %}
+  {% call form("/search") %}{{ selected_tags | join(",") }}{% end %}
+{% end %}
+{% block content %}{{ shell(current_path="/x") }}{% endblock %}""",
+        )
+        template = env.get_template("page")
+        result = template.render_block("content", selected_tags=["a", "b"])
+        assert "<form" in result
+        assert "a,b" in result
+
+    def test_region_render_and_render_block_match(self) -> None:
+        """Region output should be consistent between render() and render_block() entry points."""
+        env = _env(
+            page="""{% region shell(current_path="/") %}
+{{ breadcrumb_items | default([{"label":"Home","href":"/"}]) | length }}
+{% end %}
+{% block content %}{{ shell(current_path="/x") }}{% endblock %}""",
+        )
+        template = env.get_template("page")
+        context = {"breadcrumb_items": [{"label": "Docs", "href": "/docs"}]}
+        render_full = template.render(**context)
+        render_block = template.render_block("content", **context)
+        assert "1" in render_full
+        assert "1" in render_block
+
+    def test_region_missing_var_raises_undefined_not_nameerror(self) -> None:
+        """Missing values in region body should raise UndefinedError, not NameError."""
+        from kida.environment.exceptions import UndefinedError
+
+        env = _env(
+            page="""{% region shell(current_path="/") %}
+{{ missing_value }}
+{% end %}
+{{ shell(current_path="/x") }}""",
+        )
+        template = env.get_template("page")
+        with pytest.raises(UndefinedError):
+            template.render()
+
+    def test_region_listed_in_blocks(self) -> None:
+        """Region blocks appear in list_blocks()."""
+        env = _env(page="""{% region sidebar(current_path="/") %}<nav></nav>{% end %}""")
+        template = env.get_template("page")
+        assert "sidebar" in template.list_blocks()
+
+    def test_region_metadata_is_region(self) -> None:
+        """Region blocks have is_region=True in template_metadata()."""
+        env = _env(page="""{% region sidebar(current_path="/") %}<nav></nav>{% end %}""")
+        template = env.get_template("page")
+        meta = template.template_metadata()
+        assert meta is not None
+        sidebar = meta.get_block("sidebar")
+        assert sidebar is not None
+        assert sidebar.is_region is True
+        assert "current_path" in sidebar.region_params
+
+    def test_region_regions_convenience(self) -> None:
+        """TemplateMetadata.regions() returns only region blocks."""
+        env = _env(
+            page="""{% block content %}c{% endblock %}
+{% region sidebar(current_path="/") %}s{% end %}"""
+        )
+        template = env.get_template("page")
+        meta = template.template_metadata()
+        assert meta is not None
+        regions = meta.regions()
+        assert "sidebar" in regions
+        assert "content" not in regions
+
+
 class TestTopLevelImportInRenderBlock:
     """Top-level {% from %}...{% import %} available in render_block() without {% globals %}."""
 

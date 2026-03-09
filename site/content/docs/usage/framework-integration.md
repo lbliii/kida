@@ -224,6 +224,15 @@ class KidaAdapter:
 - **Introspection** — `template_metadata()` for composition planning, `validate_block_exists()` before `render_block`
 - **Adapter** — `KidaAdapter` implements Chirp's `TemplateAdapter` interface
 
+**AST-driven OOB discovery**: Chirp uses `template_metadata()` to discover OOB regions
+at build time — it never hard-codes which blocks to render. `build_layout_contract()`
+calls `meta.regions()` (or filters `meta.blocks` by `*_oob` suffix), extracts
+`cache_scope` and `depends_on` from each block's `BlockMetadata`, and builds a
+`LayoutContract` cached per template. On boosted navigation, Chirp renders the
+page fragment plus the OOB regions as `hx-swap-oob` updates. See [Chirp's Kida
+Integration](https://lbliii.github.io/chirp/docs/templates/kida-integration/)
+for the full flow.
+
 ## See Also
 
 - [Inheritance](/docs/syntax/inheritance/) — `render_block` with `{% extends %}`

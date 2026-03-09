@@ -79,6 +79,10 @@ class BlockMetadata:
     # Stable across runs for identical template source.
     block_hash: str = ""
 
+    # Region-specific (RFC: kida-regions)
+    is_region: bool = False
+    region_params: tuple[str, ...] = ()
+
     def is_cacheable(self) -> bool:
         """Check if this block can be safely cached.
 
@@ -182,6 +186,10 @@ class TemplateMetadata:
             List of BlockMetadata where cache_scope is "site".
         """
         return [block for block in self.blocks.values() if block.cache_scope == "site"]
+
+    def regions(self) -> dict[str, BlockMetadata]:
+        """Return only region-typed blocks (RFC: kida-regions)."""
+        return {k: v for k, v in self.blocks.items() if v.is_region}
 
 
 @dataclass(frozen=True, slots=True)

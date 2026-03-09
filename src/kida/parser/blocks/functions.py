@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
 from kida.environment.exceptions import ErrorCode
-from kida.nodes import CallBlock, Def, DefParam, Slot, SlotBlock
+from kida.nodes import CallBlock, Def, DefParam, Region, Slot, SlotBlock
 
 if TYPE_CHECKING:
     from kida.nodes import Data, Expr, Node, Output
@@ -267,6 +267,86 @@ class FunctionBlockParsingMixin(BlockStackMixin):
         self._consume_end_tag("def")
 
         return Def(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            name=name,
+            params=tuple(params),
+            body=tuple(body),
+            defaults=tuple(defaults),
+            vararg=vararg,
+            kwarg=kwarg,
+        )
+
+    def _parse_region(self) -> Region:
+        """Parse {% region name(params) %}...{% end %} or {% endregion %}."""
+        start = self._advance()  # consume 'region'
+        self._push_block("region", start)
+
+        if self._current.type != TokenType.NAME:
+            raise self._error(
+                "Expected region name",
+                suggestion="Region syntax: {% region name(params) %}...{% end %}",
+            )
+        name = self._advance().value
+
+        params: list[DefParam] = []
+        defaults: list[Expr] = []
+        vararg: str | None = None
+        kwarg: str | None = None
+        has_args = False
+
+        self._expect(TokenType.LPAREN)
+        while not self._match(TokenType.RPAREN):
+            if has_args:
+                self._expect(TokenType.COMMA)
+
+            if self._match(TokenType.POW):
+                self._advance()
+                if self._current.type != TokenType.NAME:
+                    raise self._error("Expected argument name after **")
+                kwarg = self._advance().value
+                has_args = True
+                if not self._match(TokenType.RPAREN):
+                    raise self._error(
+                        "**kwargs must be the last parameter",
+                        suggestion="Move **kwargs to the end of the parameter list",
+                    )
+                break
+
+            if self._match(TokenType.MUL):
+                self._advance()
+                if self._current.type != TokenType.NAME:
+                    raise self._error("Expected argument name after *")
+                vararg = self._advance().value
+                has_args = True
+                continue
+
+            if self._current.type != TokenType.NAME:
+                raise self._error("Expected argument name")
+            param_token = self._current
+            arg_name = self._advance().value
+            annotation = self._parse_type_annotation()
+            params.append(
+                DefParam(
+                    lineno=param_token.lineno,
+                    col_offset=param_token.col_offset,
+                    name=arg_name,
+                    annotation=annotation,
+                )
+            )
+            has_args = True
+
+            if self._match(TokenType.ASSIGN):
+                self._advance()
+                defaults.append(self._parse_expression())
+
+        self._expect(TokenType.RPAREN)
+        self._expect(TokenType.BLOCK_END)
+
+        body = self._parse_body()
+        self._consume_end_tag("region")
+
+        return Region(
             lineno=start.lineno,
             col_offset=start.col_offset,
             name=name,
