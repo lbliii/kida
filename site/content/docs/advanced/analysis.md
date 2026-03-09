@@ -374,6 +374,8 @@ See [Framework Integration](/docs/usage/framework-integration/) for the full ada
 | `emits_html` | `bool` | Whether block produces output |
 | `emits_landmarks` | `frozenset[str]` | HTML5 landmarks detected |
 | `inferred_role` | `str` | Heuristic role classification |
+| `is_region` | `bool` | True if block is a `{% region %}` |
+| `region_params` | `tuple[str, ...]` | Parameter names (regions only) |
 
 ### TemplateMetadata
 
@@ -388,6 +390,7 @@ See [Framework Integration](/docs/usage/framework-integration/) for the full ada
 |---|---|
 | `all_dependencies()` | Union of all block and top-level dependencies |
 | `get_block(name)` | Get metadata for a specific block |
+| `regions()` | Return only region-typed blocks (for OOB discovery) |
 | `cacheable_blocks()` | List of blocks where `is_cacheable()` is True |
 | `site_cacheable_blocks()` | List of blocks with `cache_scope == "site"` |
 

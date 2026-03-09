@@ -30,6 +30,7 @@ from kida.nodes import (
     Name,
     Node,
     Output,
+    Region,
     Template,
 )
 
@@ -126,10 +127,17 @@ class BlockAnalyzer:
             top_level_depends_on=top_level_deps,
         )
 
-    def _analyze_block(self, block_node: Block) -> BlockMetadata:
-        """Analyze a single block node."""
-        # Dependency analysis
-        depends_on = self._dep_walker.analyze(block_node)
+    def _analyze_block(self, block_node: Block | Region) -> BlockMetadata:
+        """Analyze a single block or region node."""
+        if isinstance(block_node, Region):
+            # Regions: body deps (outer-context vars) union param names (explicit contract)
+            body_deps = self._dep_walker.analyze(block_node)
+            param_names = frozenset(p.name for p in block_node.params)
+            depends_on = body_deps | param_names
+            region_params = tuple(p.name for p in block_node.params)
+        else:
+            depends_on = self._dep_walker.analyze(block_node)
+            region_params = ()
 
         # Purity analysis
         is_pure = self._purity_analyzer.analyze(block_node)
@@ -155,18 +163,22 @@ class BlockAnalyzer:
             is_pure=is_pure,
             cache_scope=cache_scope,
             block_hash=_compute_block_hash(block_node),
+            is_region=isinstance(block_node, Region),
+            region_params=region_params,
         )
 
-    def _collect_blocks(self, ast: Template) -> list[Block]:
-        """Recursively collect all Block nodes from AST."""
-        blocks: list[Block] = []
+    def _collect_blocks(self, ast: Template) -> list[Block | Region]:
+        """Recursively collect all Block and Region nodes from AST."""
+        blocks: list[Block | Region] = []
         self._collect_blocks_recursive(ast.body, blocks)
         return blocks
 
-    def _collect_blocks_recursive(self, nodes: Sequence[Node], blocks: list[Block]) -> None:
-        """Recursively find Block nodes."""
+    def _collect_blocks_recursive(
+        self, nodes: Sequence[Node], blocks: list[Block | Region]
+    ) -> None:
+        """Recursively find Block and Region nodes."""
         for node in nodes:
-            if isinstance(node, Block):
+            if isinstance(node, (Block, Region)):
                 blocks.append(node)
 
             # Recurse into containers
@@ -490,7 +502,7 @@ class _DefSignature:
         )
 
 
-def _compute_block_hash(block_node: Block) -> str:
+def _compute_block_hash(block_node: Block | Region) -> str:
     """Compute deterministic structural hash for a block AST."""
     parts: list[str] = []
 

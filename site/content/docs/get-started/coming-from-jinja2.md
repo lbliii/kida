@@ -134,6 +134,8 @@ Kida has native block-level caching (no extensions needed):
 | Add test | `env.tests["name"] = fn` | `env.add_test("name", fn)` |
 | Stream render | `template.generate(**ctx)` | `template.render_stream(**ctx)` |
 | Async render | N/A | `template.render_stream_async(**ctx)` |
+| Render block | N/A | `template.render_block(name, **ctx)` |
+| Template metadata | N/A | `template.template_metadata()`, `meta.regions()` |
 
 ## What Kida Adds
 
@@ -141,10 +143,13 @@ Kida has native block-level caching (no extensions needed):
 |---------|-------------|
 | Pipeline `\|>` | Left-to-right filter chains |
 | `{% match %}` | Pattern matching for cleaner branching |
+| `{% region %}` | Parameterized blocks for `render_block()` and OOB (no Jinja2 equivalent) |
 | `{% cache %}` | Built-in block-level output caching |
 | `{% let %}` / `{% export %}` | Explicit variable scoping |
 | Native async | `{% async for %}`, `{{ await expr }}` |
 | Streaming | `render_stream()` yields chunks for HTMX/SSE |
+| Block rendering | `render_block()`, `render_with_blocks()` for fragments and layout composition |
+| Static analysis | `template_metadata()`, `depends_on()`, `regions()` for framework integration |
 | Free-threading | True parallelism on Python 3.14t |
 | T-string tag | `k(t"Hello {name}!")` for inline templates |
 

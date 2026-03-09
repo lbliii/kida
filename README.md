@@ -54,7 +54,10 @@ Requires Python 3.14+
 | `template.render_stream(**ctx)` | Generator (chunked HTTP, SSE) |
 | `template.render_async(**ctx)` | Async buffered output |
 | `template.render_stream_async(**ctx)` | Async streaming (for `{% async for %}`) |
+| `template.render_with_blocks(overrides, **ctx)` | Compose layout with pre-rendered blocks |
 | `template.list_blocks()` | Block names for validation |
+| `template.template_metadata()` | Full analysis (blocks, regions, dependencies) |
+| `validate_block_exists(env, template, block)` | Check block exists before render_block |
 | `RenderedTemplate(template, ctx)` | Lazy iterable wrapper for streaming |
 
 ---
@@ -70,6 +73,7 @@ Requires Python 3.14+
 | **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
 | **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
 | **Components & Slots** | `{% def %}`, `{% call %}`, default + named `{% slot %}` | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/) |
+| **Regions** | `{% region name(params) %}...{% end %}` — parameterized blocks for render_block | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/#regions) |
 | **Block Rendering** | `render_block()`, `render_with_blocks()` for fragments and layout composition | [Framework Integration →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
 | **Introspection** | `template_metadata()`, `block_metadata()`, `validate_context()` for frameworks | [Analysis →](https://lbliii.github.io/kida/docs/advanced/analysis/) |
 | **Partial Evaluation** | Compile-time evaluation via `static_context` | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
@@ -166,6 +170,23 @@ print(template.render(title="Hello", content="World"))
 
 `{% slot %}` is the default slot. Named slot blocks inside `{% call %}` map to
 matching placeholders in `{% def %}`.
+
+</details>
+
+<details>
+<summary><strong>Regions</strong> — Parameterized blocks for render_block</summary>
+
+```kida
+{% region sidebar(current_path="/") %}
+  <nav>{{ current_path }}</nav>
+{% end %}
+
+{{ sidebar(current_path="/about") }}
+```
+
+Regions are both blocks (for `render_block()`) and callables (for `{{ name(args) }}`).
+They can read outer-context variables. Use for HTMX OOB, layout composition, and
+framework integration. See [Functions → Regions](https://lbliii.github.io/kida/docs/syntax/functions/#regions).
 
 </details>
 
@@ -319,9 +340,10 @@ Module declares itself GIL-independent via `_Py_mod_gil = 0` (PEP 703).
 
 ## Performance
 
-- **Simple render** — ~0.12ms
-- **Complex template** — ~2.1ms
-- **Concurrent (8 threads)** — ~0.15ms avg under Python 3.14t free-threading
+- **Minimal** — ~3.5µs (file-based)
+- **Medium** — ~0.4ms (~100 vars)
+- **Large** — ~1.9ms (1000 loop items)
+- **Concurrent (8 workers)** — scales with worker count under Python 3.14t free-threading
 
 See [benchmarks/README.md](benchmarks/README.md) and [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for full Kida vs Jinja2 comparison.
 

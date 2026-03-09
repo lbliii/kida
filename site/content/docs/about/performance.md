@@ -116,15 +116,16 @@ See `benchmarks/RESULTS.md` in the repo for the Kida vs Jinja2 comparison matrix
 Run locally:
 
 ```bash
-# GIL on
-uv run pytest benchmarks/benchmark_render.py --benchmark-only \
-  --benchmark-json .benchmarks/render_auto_reload_off.json \
-  --override-ini "python_files=benchmark_*.py test_*.py"
+# File-based rendering (single-threaded)
+uv run pytest benchmarks/test_benchmark_render.py -v --benchmark-only
+
+# GIL on (legacy JSON export)
+uv run pytest benchmarks/test_benchmark_render.py --benchmark-only \
+  --benchmark-json .benchmarks/render_auto_reload_off.json
 
 # Free-threaded
-PYTHON_GIL=0 uv run --python 3.14t pytest benchmarks/benchmark_render.py \
-  --benchmark-only --benchmark-json .benchmarks/render_free_thread.json \
-  --override-ini "python_files=benchmark_*.py test_*.py"
+PYTHON_GIL=0 uv run --python 3.14t pytest benchmarks/test_benchmark_render.py \
+  -v --benchmark-only
 ```
 
 ## Why Kida is Fast

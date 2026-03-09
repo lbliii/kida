@@ -18,6 +18,7 @@ from kida.utils.typo_suggestions import suggest_closest
 if TYPE_CHECKING:
     from kida.environment import Environment
     from kida.nodes import (
+        Block,
         InlinedFilter,
         Node,
         NullCoalesce,
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
         OptionalGetitem,
         Pipeline,
         Range,
+        Region,
     )
 
 # Arithmetic operators that require numeric operands (excludes +, which is polymorphic)
@@ -51,6 +53,7 @@ class ExpressionCompilationMixin:
         _locals: set[str]
         _block_counter: int
         _def_names: set[str]
+        _blocks: dict[str, Block | Region]
 
         # From OperatorUtilsMixin
         def _get_binop(self, op: str) -> ast.operator: ...
@@ -303,12 +306,25 @@ class ExpressionCompilationMixin:
                     ],
                 )
 
+            keywords = [
+                ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
+            ]
+            # Region callables require _outer_ctx=ctx (RFC: kida-regions)
+            func_name = getattr(node.func, "name", None)
+            if func_name and func_name in getattr(self, "_blocks", {}):
+                from kida.nodes import Region
+
+                if isinstance(self._blocks.get(func_name), Region):
+                    keywords.append(
+                        ast.keyword(
+                            arg="_outer_ctx",
+                            value=ast.Name(id="ctx", ctx=ast.Load()),
+                        )
+                    )
             call_node = ast.Call(
                 func=self._compile_expr(node.func),
                 args=[self._compile_expr(a) for a in node.args],
-                keywords=[
-                    ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
-                ],
+                keywords=keywords,
             )
             # Profiling: record macro call when target is a known {% def %} name
             # Skip when inside {% call %} block (needs raw ast.Call for _caller kwarg)

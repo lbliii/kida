@@ -10,11 +10,13 @@ tags:
 - framework
 - blocks
 - introspection
+- regions
 keywords:
 - framework
 - render_block
 - render_with_blocks
 - template_metadata
+- regions
 - composition
 - adapter
 icon: puzzle
@@ -224,8 +226,36 @@ class KidaAdapter:
 - **Introspection** — `template_metadata()` for composition planning, `validate_block_exists()` before `render_block`
 - **Adapter** — `KidaAdapter` implements Chirp's `TemplateAdapter` interface
 
+**AST-driven OOB discovery**: Chirp uses `template_metadata()` to discover OOB regions
+at build time — it never hard-codes which blocks to render. `build_layout_contract()`
+calls `meta.regions()` (or filters `meta.blocks` by `*_oob` suffix), extracts
+`cache_scope` and `depends_on` from each block's `BlockMetadata`, and builds a
+`LayoutContract` cached per template. On boosted navigation, Chirp renders the
+page fragment plus the OOB regions as `hx-swap-oob` updates. See [Chirp's Kida
+Integration](https://lbliii.github.io/chirp/docs/templates/kida-integration/)
+for the full flow.
+
+### Chirp + Regions: Step-by-Step
+
+1. **Define regions in layout templates** — Use `{% region %}` for blocks that should update out-of-band (sidebar, breadcrumbs, title):
+
+   ```kida
+   {% region sidebar_oob(current_path="/") %}
+     <nav>{{ current_path }}</nav>
+   {% end %}
+   ```
+
+2. **Discover at build time** — Chirp calls `meta = template.template_metadata()` and `meta.regions()` to get region blocks. Each has `region_params`, `depends_on`, and `cache_scope`.
+
+3. **Render on navigation** — For HTMX boosted requests, Chirp renders the main content block plus each OOB region via `render_block()`, passing the region's params from the request context.
+
+4. **No hard-coding** — The layout contract is built from AST analysis. Add or remove regions in templates; Chirp adapts automatically.
+
+See [Regions](/docs/syntax/functions/#regions) for syntax and [Chirp Kida Integration](https://lbliii.github.io/chirp/docs/templates/kida-integration/) for the full Chirp flow.
+
 ## See Also
 
 - [Inheritance](/docs/syntax/inheritance/) — `render_block` with `{% extends %}`
+- [Regions](/docs/syntax/functions/#regions) — Parameterized blocks for OOB and fragments
 - [Static Analysis](/docs/advanced/analysis/) — Full introspection API
 - [render_block and Def Scope](/docs/troubleshooting/render-block-scope/) — Def scope in blocks

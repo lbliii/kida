@@ -226,3 +226,26 @@ class TestNestedImportedMacrosSlotContext:
         assert "a,b" in result
         assert "abc" in result
         assert 'action="/skills"' in result
+
+    def test_region_wrapping_imported_slot_chain_inherits_context(self) -> None:
+        """Region + imported call/slot chain should inherit caller context variables."""
+        env = _env(
+            forms=(
+                "{% def form(action, method='get') %}"
+                '<form action="{{ action }}" method="{{ method }}">{% slot %}</form>'
+                "{% end %}"
+            ),
+            page=(
+                '{% from "forms" import form %}'
+                "{% region shell(current_path='/') %}"
+                '{% call form("/skills", method="get") %}'
+                '{{ selected_tags | join(",") }}'
+                "{% end %}"
+                "{% end %}"
+                "{% block page_content %}{{ shell(current_path='/x') }}{% endblock %}"
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("page_content", selected_tags=["a", "b"])
+        assert "a,b" in result
+        assert 'action="/skills"' in result
