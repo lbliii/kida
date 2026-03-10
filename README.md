@@ -5,7 +5,7 @@
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://pypi.org/project/kida-templates/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**Modern template engine for Python 3.14t**
+**A Python template engine and Jinja2 alternative for HTML templates, streaming, and framework integration**
 
 ```python
 from kida import Environment
@@ -22,13 +22,21 @@ print(template.render(name="World"))
 
 Kida is a modern template engine for Python 3.14t. It works for static site generation (Bengal), dynamic web apps (Chirp), and anywhere you need templates — same syntax, same engine. It compiles templates to Python AST directly (no string generation), supports streaming and block rendering, and is built for free-threading.
 
-**What's good about it:**
+**Why people pick it:**
 
 - **AST-native** — Compiles to Python AST directly. Structured code manipulation, compile-time optimization, precise error source mapping.
 - **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703). All public APIs are thread-safe.
 - **Dual-mode rendering** — `render()` uses StringBuilder for maximum throughput. `render_stream()` yields chunks for streaming HTTP and SSE.
 - **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`, null coalescing, optional chaining.
 - **Zero dependencies** — Pure Python, includes native `Markup` implementation.
+
+## Use Kida For
+
+- **HTML template rendering** — Pages, partials, emails, and reusable components
+- **Jinja2-style migration paths** — Familiar syntax with new features and different internals
+- **Streaming interfaces** — Chunked HTML, SSE, and progressive rendering
+- **Framework integration** — Block rendering, introspection, and template analysis for app frameworks
+- **Python 3.14+ template stacks** — Async rendering and free-threading-friendly execution
 
 ---
 
@@ -66,6 +74,8 @@ Requires Python 3.14+
 
 | Feature | Description | Docs |
 |---------|-------------|------|
+| **Jinja2 Migration** | Learn where syntax matches, what changes, and how to switch safely | [Migrate from Jinja2 →](https://lbliii.github.io/kida/docs/tutorials/migrate-from-jinja2/) |
+| **Framework Integration** | Block rendering, metadata, and adapters for web frameworks | [Framework Integration →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
 | **Template Syntax** | Variables, filters, control flow, pattern matching | [Syntax →](https://lbliii.github.io/kida/docs/syntax/) |
 | **Inheritance** | Template extends, blocks, includes | [Inheritance →](https://lbliii.github.io/kida/docs/syntax/inheritance/) |
 | **Filters & Tests** | 50+ built-in filters, custom filter registration | [Filters →](https://lbliii.github.io/kida/docs/reference/filters/) |

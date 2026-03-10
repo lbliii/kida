@@ -1,12 +1,12 @@
 ---
 title: Kida
-description: Modern template engine for Python 3.14t
+description: A Python template engine and Jinja2 alternative for HTML templates, streaming, and framework integration
 template: home.html
 weight: 100
 type: page
 draft: false
 lang: en
-keywords: [kida, template-engine, jinja2, python, free-threading, async]
+keywords: [kida, python template engine, jinja2 alternative, html templates, streaming templates, async templates]
 category: home
 
 # Hero configuration
@@ -24,11 +24,13 @@ cta_buttons:
 show_recent_posts: false
 ---
 
-## Templates, Evolved
+## Python Template Engine for Modern Templates
 
-**AST-native. Free-threading ready. Zero regex.**
+**Jinja2 alternative. AST-native. Streaming-ready.**
 
-Kida is a pure-Python template engine designed for Python 3.14t+. It compiles templates directly to Python AST—no string manipulation, no regex, no security vulnerabilities.
+Kida is a pure-Python template engine for HTML templates, partials, and reusable
+components. It compiles templates directly to Python AST, supports block rendering and
+streaming output, and works well as a Jinja2 alternative for Python 3.14+ projects.
 
 ```python
 from kida import Environment
@@ -41,7 +43,7 @@ print(template.render(name="World"))
 
 ---
 
-## What's good about it
+## Why Use Kida
 
 :::{cards}
 :columns: 2
@@ -49,7 +51,8 @@ print(template.render(name="World"))
 
 :::{card} AST-Native Compilation
 :icon: cpu
-Compiles templates to `ast.Module` objects directly. No string concatenation, no regex parsing, no code generation vulnerabilities.
+Compiles templates to `ast.Module` objects directly. No string concatenation, no regex
+parsing, no code-generation layer.
 :::{/card}
 
 :::{card} Free-Threading Ready
@@ -68,6 +71,14 @@ Pure Python with no runtime dependencies. Includes native `Markup` class—no ma
 :::{/card}
 
 :::{/cards}
+
+## Common Use Cases
+
+- Rendering HTML templates for web apps, static sites, and email output
+- Replacing or evaluating Jinja2 in Python codebases
+- Streaming template output for chunked responses and SSE
+- Rendering blocks or regions for HTMX partials and layout composition
+- Integrating template analysis and metadata into higher-level frameworks
 
 ---
 

@@ -7,10 +7,13 @@ cascade:
   type: doc
   variant: standard
 category: documentation
-description: Kida template engine documentation
+description: Documentation for the Kida Python template engine, including syntax, streaming, and Jinja2 migration
 keywords:
 - documentation
+- python template engine
 - templates
+- jinja2 alternative
+- html templates
 - api
 menu:
   main:
@@ -25,7 +28,8 @@ icon: book-open
 
 ## Start Here
 
-New to Kida? Install and render your first template in under 2 minutes.
+New to Kida? Start here to render HTML templates, learn the syntax, migrate from
+Jinja2, and integrate Kida into web frameworks or static site generators.
 
 :::{cards}
 :columns: 2
@@ -53,7 +57,7 @@ New to Kida? Install and render your first template in under 2 minutes.
 
 ## Learn Kida
 
-Master template syntax and usage patterns.
+Master template syntax, rendering patterns, framework integration, and migration paths.
 
 :::{cards}
 :columns: 2
@@ -86,7 +90,7 @@ Master template syntax and usage patterns.
 :::{card} Tutorials
 :icon: notepad
 :link: ./tutorials/
-:description: Step-by-step guides for common scenarios
+:description: Step-by-step guides for common scenarios and Jinja2 migration
 :::{/card}
 
 :::{/cards}
@@ -114,7 +118,7 @@ Technical specifications, troubleshooting, and design details.
 :::{card} About
 :icon: info
 :link: ./about/
-:description: Architecture, performance, and design philosophy
+:description: Architecture, performance, comparisons, and design philosophy
 :::{/card}
 
 :::{/cards}

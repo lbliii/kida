@@ -1,6 +1,6 @@
 ---
 title: Kida Syntax and Features
-description: Kida's syntax and when it fits
+description: How Kida compares to Jinja2-style template engines and when it fits best
 draft: false
 weight: 40
 lang: en
@@ -13,12 +13,16 @@ keywords:
 - syntax
 - features
 - migration
+- jinja2 alternative
+- python template engine
 icon: arrows-angle-contract
 ---
 
 # Kida Syntax and Features
 
-Kida uses Jinja2-compatible syntax with extensions. Key differences for migration.
+Kida uses Jinja2-compatible syntax with extensions. If you are evaluating Python
+template engines, this page shows what carries over from Jinja2, what changes, and
+where Kida fits best.
 
 ## Syntax
 
@@ -83,6 +87,8 @@ Kida uses `|>` for pipelines (Jinja2 uses `|`):
 
 ## When to Use Kida
 
+- Need a Python template engine for HTML rendering and reusable components
+- Want a Jinja2 alternative with familiar syntax
 - Need free-threading support (Python 3.14t)
 - Want zero dependencies
 - Prefer unified block syntax
