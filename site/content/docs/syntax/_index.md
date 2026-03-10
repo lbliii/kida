@@ -1,6 +1,6 @@
 ---
 title: Syntax
-description: Kida template language syntax and features
+description: Kida template language syntax for HTML templates, inheritance, filters, and control flow
 draft: false
 weight: 20
 lang: en
@@ -13,6 +13,8 @@ keywords:
 - variables
 - control flow
 - filters
+- template inheritance
+- html templates
 category: syntax
 cascade:
   type: doc
@@ -21,7 +23,8 @@ icon: code
 
 # Syntax
 
-Kida's template syntax for expressions, control flow, and composition.
+Kida's template syntax for expressions, control flow, inheritance, filters, and
+composition.
 
 ## Quick Reference
 

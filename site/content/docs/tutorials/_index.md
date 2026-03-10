@@ -1,6 +1,6 @@
 ---
 title: Tutorials
-description: Step-by-step guides for common scenarios
+description: Step-by-step guides for Jinja2 migration, framework integration, and common Kida workflows
 draft: false
 weight: 40
 lang: en
@@ -11,6 +11,8 @@ keywords:
 - tutorials
 - guides
 - migration
+- jinja2 migration
+- python template engine
 category: tutorials
 cascade:
   type: doc
@@ -19,7 +21,8 @@ icon: notepad
 
 # Tutorials
 
-Step-by-step guides for common Kida usage scenarios.
+Step-by-step guides for common Kida usage scenarios, migration paths, and integration
+workflows.
 
 :::{cards}
 :columns: 1

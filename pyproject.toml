@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kida-templates"
 version = "0.2.6"
-description = "Modern template engine for Python 3.14t — AST-native, free-threading ready. Works for static sites (Bengal), dynamic web (Chirp), streaming, and framework integration."
+description = "Python template engine and Jinja2 alternative for HTML templates, streaming, and framework integration"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"
-keywords = ["template-engine", "jinja2", "free-threading", "async", "templates"]
+keywords = ["python-template-engine", "template-engine", "jinja2-alternative", "html-templates", "streaming", "async", "templates", "free-threading"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -27,8 +27,8 @@ docs = ["bengal>=0.2.0"]
 perf = ["markupsafe"]
 
 [project.urls]
-Homepage = "https://github.com/lbliii/kida"
-Documentation = "https://github.com/lbliii/kida"
+Homepage = "https://lbliii.github.io/kida/"
+Documentation = "https://lbliii.github.io/kida/"
 Repository = "https://github.com/lbliii/kida"
 Changelog = "https://github.com/lbliii/kida/blob/main/CHANGELOG.md"
 

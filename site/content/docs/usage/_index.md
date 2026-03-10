@@ -1,6 +1,6 @@
 ---
 title: Usage
-description: Loading templates, rendering contexts, and error handling
+description: Loading templates, rendering HTML, streaming output, and integrating Kida into Python applications
 draft: false
 weight: 30
 lang: en
@@ -12,6 +12,8 @@ keywords:
 - loading
 - rendering
 - contexts
+- streaming templates
+- framework integration
 category: usage
 cascade:
   type: doc

@@ -1,6 +1,6 @@
 ---
 title: About
-description: Architecture, performance, and design philosophy
+description: Architecture, performance, comparisons, and design philosophy for the Kida Python template engine
 draft: false
 weight: 00
 lang: en
@@ -11,6 +11,8 @@ keywords:
 - about
 - architecture
 - performance
+- python template engine
+- jinja2 alternative
 category: about
 cascade:
   type: doc
@@ -19,7 +21,8 @@ icon: info
 
 # About
 
-Understand Kida's design and capabilities.
+Understand Kida's design, performance profile, and where it fits as a Python template
+engine or Jinja2 alternative.
 
 :::{cards}
 :columns: 2
@@ -49,8 +52,8 @@ PEP 703 compliance and concurrent rendering.
 :::{card} Syntax and Features
 :icon: arrows-angle-contract
 :link: /docs/about/comparison/
-:description: Kida syntax and when it fits
-Syntax reference and migration notes.
+:description: Kida syntax, comparisons, and when it fits
+Syntax reference, Jinja2 comparison, and migration notes.
 :::{/card}
 
 :::{card} FAQ

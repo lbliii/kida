@@ -1,6 +1,6 @@
 ---
 title: Get Started
-description: Install Kida and render your first template
+description: Install Kida and render your first HTML template with a Python template engine built for modern apps
 draft: false
 weight: 10
 lang: en
@@ -12,6 +12,9 @@ keywords:
 - getting started
 - installation
 - quickstart
+- python template engine
+- html templates
+- jinja2 alternative
 category: onboarding
 cascade:
   type: doc
@@ -64,7 +67,7 @@ Build a mini email template system with shared layouts.
 :icon: arrow-right
 :link: /docs/get-started/coming-from-jinja2/
 :description: Quick syntax cheat sheet
-See what's the same, what's different, and what's new.
+See what's familiar, what changes, and what Kida adds beyond Jinja2.
 :::{/card}
 
 :::{card} T-String Templates
