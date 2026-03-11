@@ -99,6 +99,7 @@ class MacroWrapper:
     _kida_source_template: str
     _kida_source_file: str | None
     _source: str | None
+    _kida_macro_name: str | None
 
     def __call__(self, *args: object, **kwargs: object) -> object:
         from kida.render_context import get_render_context_required
@@ -121,12 +122,27 @@ class MacroWrapper:
             render_ctx.line = prev_line
             render_ctx.source = prev_source
 
+    def __iter__(self) -> Iterator[object]:
+        """Raise helpful error when a macro is used in a for loop.
+
+        This commonly happens when a macro and context variable share the same
+        name (e.g. route_tabs). The macro shadows the variable, so {% for x in
+        route_tabs %} iterates over the macro instead of the intended list.
+        """
+        name = self._kida_macro_name or "macro"
+        raise TypeError(
+            f"Cannot iterate over macro '{name}'. "
+            "A macro may be shadowing a template variable with the same name. "
+            "Consider renaming the macro (e.g. render_route_tabs) to avoid collisions."
+        )
+
 
 def _make_macro_wrapper(
     macro_fn: Callable[..., object],
     source_template: str,
     source_file: str | None,
     source: str | None = None,
+    macro_name: str | None = None,
 ) -> MacroWrapper:
     """Wrap imported macro to push/pop template_stack for error attribution."""
     return MacroWrapper(
@@ -134,6 +150,7 @@ def _make_macro_wrapper(
         _kida_source_template=source_template,
         _kida_source_file=source_file,
         _source=source,
+        _kida_macro_name=macro_name,
     )
 
 
@@ -415,7 +432,7 @@ def make_render_helpers(
                 for key, val in list(import_ctx.items()):
                     if callable(val) and not isinstance(val, type):
                         import_ctx[key] = _make_macro_wrapper(
-                            val, template_name, source_file, macro_source
+                            val, template_name, source_file, macro_source, macro_name=key
                         )
                 return import_ctx
             finally:

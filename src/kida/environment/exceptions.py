@@ -84,6 +84,7 @@ class ErrorCode(Enum):
     ATTRIBUTE_ERROR = "K-RUN-010"
     ZERO_DIVISION = "K-RUN-011"
     TYPE_ERROR = "K-RUN-012"
+    MACRO_ITERATION = "K-RUN-013"
 
     # Template loading errors (K-TPL-xxx)
     TEMPLATE_NOT_FOUND = "K-TPL-001"

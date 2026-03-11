@@ -72,7 +72,10 @@ def enhance_template_error(
     elif isinstance(error, ZeroDivisionError):
         error_code = ErrorCode.ZERO_DIVISION
     elif isinstance(error, TypeError):
-        error_code = ErrorCode.TYPE_ERROR
+        if "Cannot iterate over macro" in error_str or "MacroWrapper" in error_str:
+            error_code = ErrorCode.MACRO_ITERATION
+        else:
+            error_code = ErrorCode.TYPE_ERROR
 
     # TypeError from arithmetic (e.g. str // int) - YAML/config may pass strings
     suggestion = None
@@ -82,6 +85,17 @@ def enhance_template_error(
         suggestion = (
             "Values from YAML/config may be strings. Use the `int` filter "
             "(e.g. `| int` or `| default(0) | int`) or ensure numeric types at the data source."
+        )
+
+    # MacroWrapper iteration — macro/context variable name collision
+    if (
+        suggestion is None
+        and isinstance(error, TypeError)
+        and ("Cannot iterate over macro" in error_str or "MacroWrapper" in error_str)
+    ):
+        suggestion = (
+            "A macro and a context variable share the same name. Rename the macro "
+            "(e.g. render_route_tabs) so the variable is not shadowed."
         )
 
     # AttributeError/TypeError: '_Undefined' — attribute access on missing value
