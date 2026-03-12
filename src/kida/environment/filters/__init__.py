@@ -47,6 +47,7 @@ from kida.environment.filters._impl import (
     _filter_take,
     _filter_tojson,
     _filter_trim,
+    _filter_typeof,
     _filter_unique,
     _make_sort_key_numeric,
     _make_sort_key_string,

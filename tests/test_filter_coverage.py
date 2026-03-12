@@ -360,6 +360,51 @@ class TestImpureFilters:
         assert "3" in r
 
 
+class TestTypeofFilter:
+    """Test typeof filter for generic type names."""
+
+    def test_bool(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=True) == "bool"
+        assert env.from_string("{{ v | typeof }}").render(v=False) == "bool"
+
+    def test_int(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=42) == "int"
+
+    def test_float(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=3.14) == "float"
+
+    def test_path(self) -> None:
+        from pathlib import Path, PurePosixPath
+
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=Path("/foo")) == "path"
+        assert env.from_string("{{ v | typeof }}").render(v=PurePosixPath("/bar")) == "path"
+
+    def test_list(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=[1, 2]) == "list"
+
+    def test_dict(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v={"a": 1}) == "dict"
+
+    def test_none(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=None) == "none"
+
+    def test_str(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v="hello") == "str"
+
+    def test_bool_before_int(self) -> None:
+        """bool is subclass of int; typeof must return 'bool' for bool values."""
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=True) == "bool"
+
+
 class TestJsonFilter:
     """Test JSON serialization."""
 

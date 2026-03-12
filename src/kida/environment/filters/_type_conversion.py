@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import PurePath
 from typing import Any
 
 from kida.environment.exceptions import TemplateRuntimeError
@@ -90,6 +91,25 @@ def _filter_float(value: Any, default: float = 0.0, strict: bool = False) -> flo
 def _filter_list(value: Any) -> list[Any]:
     """Convert to list."""
     return list(value)
+
+
+def _filter_typeof(value: Any) -> str:
+    """Return generic type name for a value (bool, int, float, path, list, dict, none, str)."""
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, int):
+        return "int"
+    if isinstance(value, float):
+        return "float"
+    if isinstance(value, PurePath):
+        return "path"
+    if isinstance(value, list):
+        return "list"
+    if isinstance(value, dict):
+        return "dict"
+    if value is None:
+        return "none"
+    return "str"
 
 
 def _filter_tojson(value: Any, indent: int | None = None) -> Markup:

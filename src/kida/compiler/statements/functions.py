@@ -343,6 +343,27 @@ class FunctionCompilationMixin:
             # Use _outer_caller param to avoid shadowing by inner _caller wrapper
             if outer is not None:
                 self._outer_caller_expr = ast.Name(id="_outer_caller", ctx=ast.Load())
+                # Delegate to outer caller when slot body is empty (fixes nested macro slot passthrough)
+                if not slot_body:
+                    caller_body.append(
+                        ast.If(
+                            test=ast.Compare(
+                                left=ast.Name(id="_outer_caller", ctx=ast.Load()),
+                                ops=[ast.IsNot()],
+                                comparators=[ast.Constant(value=None)],
+                            ),
+                            body=[
+                                ast.Return(
+                                    value=ast.Call(
+                                        func=ast.Name(id="_outer_caller", ctx=ast.Load()),
+                                        args=[ast.Constant(value=slot_name)],
+                                        keywords=[],
+                                    )
+                                )
+                            ],
+                            orelse=[],
+                        )
+                    )
             try:
                 for child in slot_body:
                     caller_body.extend(self._compile_node(child))
