@@ -39,6 +39,19 @@ class TestStringFilters:
         r = env.from_string("{{ 'hello' | replace('l', 'r') }}").render()
         assert r == "herro"
 
+    def test_replace_string_count_coerced(self) -> None:
+        from kida.environment.filters._string import _filter_replace
+
+        assert _filter_replace("hello", "l", "r", count="1") == "herlo"
+
+    def test_replace_invalid_count_raises(self) -> None:
+        import pytest
+
+        from kida.environment.filters._string import _filter_replace
+
+        with pytest.raises(ValueError, match="replace count"):
+            _filter_replace("hello", "l", "r", count="x")
+
     def test_center(self) -> None:
         env = Environment()
         r = env.from_string("{{ 'hi' | center(10) }}").render()
@@ -555,6 +568,15 @@ class TestDecimalFilter:
 
         assert _filter_decimal("not a number") == "not a number"
 
+    def test_decimal_strict_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.environment.filters import _filter_decimal
+
+        with pytest.raises(TemplateRuntimeError, match="Cannot convert"):
+            _filter_decimal("not a number", strict=True)
+
 
 # ── date, slug, pluralize filters ─────────────────────────────────────────
 
@@ -611,3 +633,56 @@ class TestDateSlugPluralizeFilters:
     def test_pluralize_y_ies_plural(self) -> None:
         env = Environment()
         assert env.from_string('{{ 2 | pluralize("y,ies") }}').render() == "ies"
+
+    def test_pluralize_non_numeric_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        env = Environment()
+        tmpl = env.from_string("{{ x | pluralize }}")
+        with pytest.raises((ValueError, TemplateRuntimeError)):
+            tmpl.render(x="two")
+
+
+# ── format_number strict ─────────────────────────────────────────────────
+
+
+class TestFormatNumberStrict:
+    """Test format_number strict mode."""
+
+    def test_format_number_strict_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.environment.filters._numbers import _filter_format_number
+
+        with pytest.raises(TemplateRuntimeError, match="Cannot convert"):
+            _filter_format_number("not a number", strict=True)
+
+
+# ── join, reverse non-iterable (breaking change) ──────────────────────────
+
+
+class TestJoinReverseNonIterable:
+    """Test join and reverse raise on non-iterable (fail fast)."""
+
+    def test_join_non_iterable_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        env = Environment()
+        tmpl = env.from_string('{{ x | join(", ") }}')
+        with pytest.raises((TypeError, TemplateRuntimeError)):
+            tmpl.render(x=42)
+
+    def test_reverse_non_iterable_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        env = Environment()
+        tmpl = env.from_string("{{ x | reverse }}")
+        with pytest.raises((TypeError, TemplateRuntimeError)):
+            tmpl.render(x=42)

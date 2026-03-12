@@ -80,18 +80,12 @@ def _filter_join(value: Any, separator: str = "") -> str:
     """Join sequence with separator."""
     if value is None:
         return ""
-    try:
-        return separator.join(str(x) for x in value)
-    except TypeError, ValueError:
-        return str(value)
+    return separator.join(str(x) for x in value)
 
 
-def _filter_reverse(value: Any) -> list[Any] | str:
+def _filter_reverse(value: Any) -> list[Any]:
     """Reverse sequence."""
-    try:
-        return list(reversed(value))
-    except TypeError:
-        return str(value)[::-1]
+    return list(reversed(value))
 
 
 def _filter_batch(value: Any, linecount: int, fill_with: Any = None) -> list[list[Any]]:

@@ -128,6 +128,47 @@ def enhance_template_error(
     if isinstance(error, ZeroDivisionError):
         suggestion = "Division by zero. Guard with `{% if divisor %}` or use `| default(1)`."
 
+    # ValueError from format filter — %-style string with {} expected
+    if suggestion is None and isinstance(error, ValueError) and "format filter" in error_str:
+        suggestion = (
+            "The format filter uses str.format() with {} placeholders, not %. "
+            'For numbers use `x | format_number(2)` or `{{ "{:.2f}" | format(x) }}`.'
+        )
+
+    # ValueError + pluralize — non-numeric input
+    if suggestion is None and isinstance(error, ValueError) and "pluralize" in error_str:
+        suggestion = "pluralize expects a number. Use `| int` or ensure numeric value."
+
+    # ValueError + date filter — strftime format
+    if (
+        suggestion is None
+        and isinstance(error, ValueError)
+        and ("Invalid format" in error_str or "strftime" in error_str)
+    ):
+        suggestion = "date filter uses strftime format (e.g. %Y, %m, %d). See strftime directives."
+
+    # ValueError + invalid literal — int/float conversion
+    if suggestion is None and isinstance(error, ValueError) and "invalid literal" in error_str:
+        suggestion = (
+            "Conversion failed. Use `| int` or `| float` for numeric coercion, "
+            "or ensure correct type at data source."
+        )
+
+    # TypeError + join or reverse — sequence expected
+    if (
+        suggestion is None
+        and isinstance(error, TypeError)
+        and (
+            "reversible" in error_str
+            or "join an iterable" in error_str
+            or "object is not iterable" in error_str
+        )
+    ):
+        suggestion = (
+            "join expects a sequence. Use `items | join(', ')`. "
+            "reverse expects an iterable. Use `list(value) | reverse` if needed."
+        )
+
     return TemplateRuntimeError(
         error_str,
         template_name=template_name,

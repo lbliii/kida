@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Template error handling improvements** — Fail fast with actionable messages. `pluralize` raises on non-numeric input; `replace` coerces `count` from YAML/config and raises on invalid coercion; `decimal` and `format_number` support `strict=True` to raise on conversion failure; error enhancement adds suggestions for pluralize, date/strftime, invalid literal, and join/reverse sequence errors.
+
+### Changed
+
+- **`join` and `reverse` filters (breaking)** — No longer fall back to `str(value)` or `str(value)[::-1]` on non-iterable input. `42 | join(", ")` and `42 | reverse` now raise `TypeError` instead of returning `"42"` or `"24"`. Use `list(value) | reverse` or ensure iterable input for `join`.
+
 ## [0.2.6] - 2026-03-09
 
 ### Added
