@@ -23,7 +23,8 @@ from kida import FileSystemLoader as KidaFileSystemLoader
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
-CACHED_CALLS_PER_ROUND = 1024
+ACCESSOR_CALLS_PER_ROUND = 8192
+CONTEXT_CALLS_PER_ROUND = 1024
 
 # Template with blocks, no extends (for list_blocks, template_metadata)
 BLOCKS_TEMPLATE = """\
@@ -53,7 +54,7 @@ VALIDATION_CONTEXT = {
 
 def _run_cached_batch(
     func: Callable[[], object | None],
-    iterations: int = CACHED_CALLS_PER_ROUND,
+    iterations: int,
 ) -> object | None:
     """Run a cached accessor enough times to drown out call overhead."""
     result: object | None = None
@@ -67,6 +68,11 @@ def _compile_and_analyze_small_template() -> object | None:
     env = KidaEnvironment(preserve_ast=True, auto_reload=False)
     template = env.from_string(BLOCKS_TEMPLATE, name="introspection_first_call")
     return template.template_metadata()
+
+
+def _get_template_structure_complex(env: KidaEnvironment) -> object | None:
+    """Benchmark cached structure lookup on a preloaded complex template."""
+    return env.get_template_structure("complex/page.html")
 
 
 @pytest.fixture(scope="session")
@@ -91,7 +97,7 @@ def test_template_metadata_small_cached_batch(benchmark: BenchmarkFixture) -> No
     env = KidaEnvironment(preserve_ast=True, auto_reload=False)
     template = env.from_string(BLOCKS_TEMPLATE, name="introspection_bench")
     template.template_metadata()  # Warm the metadata cache before timing.
-    benchmark(_run_cached_batch, template.template_metadata)
+    benchmark(_run_cached_batch, template.template_metadata, ACCESSOR_CALLS_PER_ROUND)
 
 
 @pytest.mark.benchmark(group="introspection:template-metadata-cached")
@@ -101,7 +107,7 @@ def test_template_metadata_complex_cached_batch(
     """Cached template_metadata() on a complex inheritance chain."""
     template = kida_env_preserve_ast.get_template("complex/page.html")
     template.template_metadata()  # Warm the metadata cache before timing.
-    benchmark(_run_cached_batch, template.template_metadata)
+    benchmark(_run_cached_batch, template.template_metadata, ACCESSOR_CALLS_PER_ROUND)
 
 
 @pytest.mark.benchmark(group="introspection:template-metadata-first-call")
@@ -121,7 +127,7 @@ def test_list_blocks_small_cached_batch(benchmark: BenchmarkFixture) -> None:
     env = KidaEnvironment(preserve_ast=True, auto_reload=False)
     template = env.from_string(BLOCKS_TEMPLATE, name="list_blocks_bench")
     template.list_blocks()  # Warm the metadata cache before timing.
-    benchmark(_run_cached_batch, template.list_blocks)
+    benchmark(_run_cached_batch, template.list_blocks, ACCESSOR_CALLS_PER_ROUND)
 
 
 @pytest.mark.benchmark(group="introspection:list-blocks-cached")
@@ -131,7 +137,7 @@ def test_list_blocks_complex_cached_batch(
     """Cached list_blocks() on a complex inheritance chain, batched."""
     template = kida_env_preserve_ast.get_template("complex/page.html")
     template.list_blocks()  # Warm the metadata cache before timing.
-    benchmark(_run_cached_batch, template.list_blocks)
+    benchmark(_run_cached_batch, template.list_blocks, ACCESSOR_CALLS_PER_ROUND)
 
 
 # =============================================================================
@@ -145,7 +151,7 @@ def test_required_context_small_cached_batch(benchmark: BenchmarkFixture) -> Non
     env = KidaEnvironment(preserve_ast=True, auto_reload=False)
     template = env.from_string(VALIDATION_TEMPLATE, name="required_context_bench")
     template.required_context()  # Warm dependency analysis before timing.
-    benchmark(_run_cached_batch, template.required_context)
+    benchmark(_run_cached_batch, template.required_context, CONTEXT_CALLS_PER_ROUND)
 
 
 @pytest.mark.benchmark(group="introspection:validate-context-cached")
@@ -154,7 +160,12 @@ def test_validate_context_small_cached_batch(benchmark: BenchmarkFixture) -> Non
     env = KidaEnvironment(preserve_ast=True, auto_reload=False)
     template = env.from_string(VALIDATION_TEMPLATE, name="validate_context_bench")
     template.template_metadata()  # Warm dependency analysis before timing.
-    benchmark(lambda: _run_cached_batch(lambda: template.validate_context(VALIDATION_CONTEXT)))
+    benchmark(
+        lambda: _run_cached_batch(
+            lambda: template.validate_context(VALIDATION_CONTEXT),
+            CONTEXT_CALLS_PER_ROUND,
+        )
+    )
 
 
 # =============================================================================
@@ -162,12 +173,17 @@ def test_validate_context_small_cached_batch(benchmark: BenchmarkFixture) -> Non
 # =============================================================================
 
 
-@pytest.mark.benchmark(group="introspection:get-template-structure")
-def test_get_template_structure_complex(
+@pytest.mark.benchmark(group="introspection:get-template-structure-cached")
+def test_get_template_structure_complex_cached_batch(
     benchmark: BenchmarkFixture, kida_env_preserve_ast: KidaEnvironment
 ) -> None:
-    """get_template_structure() on complex inheritance chain."""
-    benchmark(kida_env_preserve_ast.get_template_structure, "complex/page.html")
+    """Cached get_template_structure() on a complex inheritance chain, batched."""
+    kida_env_preserve_ast.get_template_structure("complex/page.html")
+    benchmark(
+        _run_cached_batch,
+        lambda: _get_template_structure_complex(kida_env_preserve_ast),
+        ACCESSOR_CALLS_PER_ROUND,
+    )
 
 
 # =============================================================================
