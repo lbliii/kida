@@ -7,13 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-03-12
+
 ### Added
 
-- **Template error handling improvements** — Fail fast with actionable messages. `pluralize` raises on non-numeric input; `replace` coerces `count` from YAML/config and raises on invalid coercion; `decimal` and `format_number` support `strict=True` to raise on conversion failure; error enhancement adds suggestions for pluralize, date/strftime, invalid literal, and join/reverse sequence errors.
+- **`typeof` filter** — Returns stable type names for common template values: `bool`, `int`, `float`, `path`, `list`, `dict`, `none`, and `str`. Useful for debugging mixed YAML/config inputs in templates.
+- **Macro collision diagnostics** — Imported macros now raise a targeted error when used as iterables, helping diagnose macro/context variable name collisions like `route_tabs` vs `render_route_tabs`.
 
 ### Changed
 
+- **Template error handling improvements** — `pluralize` now raises on non-numeric input; `replace` coerces `count` from YAML/config strings and raises on invalid coercion; `decimal` and `format_number` support `strict=True`; runtime error enhancement adds clearer suggestions for macro iteration, date/strftime, invalid numeric literals, and sequence-only filters.
 - **`join` and `reverse` filters (breaking)** — No longer fall back to `str(value)` or `str(value)[::-1]` on non-iterable input. `42 | join(", ")` and `42 | reverse` now raise `TypeError` instead of returning `"42"` or `"24"`. Use `list(value) | reverse` or ensure iterable input for `join`.
+
+### Fixed
+
+- **Nested slot passthrough** — Empty or whitespace-only slot bodies now delegate correctly to the outer caller in nested `{% def %}` / `{% call %}` / `{% slot %}` chains, fixing layout/component passthrough patterns.
 
 ## [0.2.6] - 2026-03-09
 
@@ -327,6 +335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.7]: https://github.com/lbliii/kida/releases/tag/v0.2.7
 [0.2.6]: https://github.com/lbliii/kida/releases/tag/v0.2.6
 [0.2.5]: https://github.com/lbliii/kida/releases/tag/v0.2.5
 [0.2.4]: https://github.com/lbliii/kida/releases/tag/v0.2.4
