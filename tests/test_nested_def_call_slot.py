@@ -113,3 +113,48 @@ class TestNestedDefCallSlot:
         assert 'href="#"' in html
         assert "Clear" in html
         assert "Skill A" in html
+
+    def test_nested_whitespace_only_slot_passthrough_to_outer_caller(self) -> None:
+        """Whitespace-only slot bodies should delegate to the outer caller too."""
+        loader = DictLoader(
+            {
+                "filter_bar.html": (
+                    "{% def filter_bar(action) %}"
+                    '<form class="filter-bar" action="{{ action }}">'
+                    '<div class="controls">{% slot filter_controls %}</div>'
+                    '<div class="actions">{% slot filter_actions %}</div>'
+                    "</form>"
+                    "{% end %}"
+                ),
+                "resource_index.html": (
+                    "{% from 'filter_bar.html' import filter_bar %}"
+                    "{% def resource_index(title, filter_action) %}"
+                    '<div class="resource-index">'
+                    "<h1>{{ title }}</h1>"
+                    "{% if filter_action %}"
+                    "{% call filter_bar(filter_action) %}"
+                    "{% slot filter_controls %}\n    \n{% end %}"
+                    "{% slot filter_actions %}\n{% end %}"
+                    "{% end %}"
+                    "{% endif %}"
+                    '<div class="results">{% slot %}</div>'
+                    "</div>"
+                    "{% end %}"
+                ),
+                "page.html": (
+                    '{% from "resource_index.html" import resource_index %}'
+                    "{% call resource_index('Skills', '/skills') %}"
+                    "{% slot filter_controls %}<button>Filters</button>{% end %}"
+                    '{% slot filter_actions %}<a href="#">Clear</a>{% end %}'
+                    "<article>Skill A</article>"
+                    "{% end %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        page = env.get_template("page.html")
+        html = page.render()
+        assert "filter-bar" in html
+        assert "<button>Filters</button>" in html
+        assert 'href="#"' in html
+        assert "Clear" in html

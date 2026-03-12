@@ -109,7 +109,9 @@ def _filter_typeof(value: Any) -> str:
         return "dict"
     if value is None:
         return "none"
-    return "str"
+    if isinstance(value, str):
+        return "str"
+    return type(value).__name__
 
 
 def _filter_tojson(value: Any, indent: int | None = None) -> Markup:

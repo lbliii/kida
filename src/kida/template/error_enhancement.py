@@ -12,6 +12,16 @@ if TYPE_CHECKING:
     from kida.render_context import RenderContext
 
 
+def _is_macro_iteration_error(error_str: str) -> bool:
+    """Return True only for iteration-specific MacroWrapper failures."""
+    error_lower = error_str.lower()
+    if "cannot iterate over macro" in error_lower:
+        return True
+    return "macrowrapper" in error_str and (
+        "iterate" in error_lower or "iterable" in error_lower or "reversible" in error_lower
+    )
+
+
 def enhance_template_error(
     error: Exception,
     render_ctx: RenderContext,
@@ -72,15 +82,17 @@ def enhance_template_error(
     elif isinstance(error, ZeroDivisionError):
         error_code = ErrorCode.ZERO_DIVISION
     elif isinstance(error, TypeError):
-        if "Cannot iterate over macro" in error_str or "MacroWrapper" in error_str:
+        if _is_macro_iteration_error(error_str):
             error_code = ErrorCode.MACRO_ITERATION
         else:
             error_code = ErrorCode.TYPE_ERROR
 
     # TypeError from arithmetic (e.g. str // int) - YAML/config may pass strings
     suggestion = None
-    if isinstance(error, TypeError) and (
-        "unsupported operand" in error_str or "'str'" in error_str
+    if (
+        isinstance(error, TypeError)
+        and "'str'" in error_str
+        and ("unsupported operand" in error_str or "must be str" in error_str)
     ):
         suggestion = (
             "Values from YAML/config may be strings. Use the `int` filter "
@@ -88,11 +100,7 @@ def enhance_template_error(
         )
 
     # MacroWrapper iteration — macro/context variable name collision
-    if (
-        suggestion is None
-        and isinstance(error, TypeError)
-        and ("Cannot iterate over macro" in error_str or "MacroWrapper" in error_str)
-    ):
+    if suggestion is None and isinstance(error, TypeError) and _is_macro_iteration_error(error_str):
         suggestion = (
             "A macro and a context variable share the same name. Rename the macro "
             "(e.g. render_route_tabs) so the variable is not shadowed."

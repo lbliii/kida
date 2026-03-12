@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from kida.environment.exceptions import ErrorCode
 from kida.render_context import render_context
+from kida.template.error_enhancement import enhance_template_error
 from kida.template.render_helpers import MacroWrapper, _make_macro_wrapper
 
 
@@ -99,3 +101,17 @@ def test_macro_wrapper_iteration_without_macro_name() -> None:
             pass
 
     assert "Cannot iterate over macro 'macro'" in str(exc_info.value)
+
+
+def test_macro_wrapper_non_iteration_type_error_keeps_type_error_code() -> None:
+    """MacroWrapper in an unrelated TypeError must not map to MACRO_ITERATION."""
+    with render_context(template_name="caller.html", source="{{ macro + 1 }}") as ctx:
+        ctx.line = 1
+        enhanced = enhance_template_error(
+            TypeError("unsupported operand type(s) for +: 'MacroWrapper' and 'int'"),
+            ctx,
+            ctx.source,
+        )
+
+    assert enhanced.code == ErrorCode.TYPE_ERROR
+    assert enhanced.suggestion is None

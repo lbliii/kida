@@ -44,6 +44,11 @@ class TestStringFilters:
 
         assert _filter_replace("hello", "l", "r", count="1") == "herlo"
 
+    def test_replace_zero_count_keeps_original(self) -> None:
+        from kida.environment.filters._string import _filter_replace
+
+        assert _filter_replace("hello", "l", "r", count=0) == "hello"
+
     def test_replace_invalid_count_raises(self) -> None:
         import pytest
 
@@ -412,6 +417,10 @@ class TestTypeofFilter:
         env = Environment()
         assert env.from_string("{{ v | typeof }}").render(v="hello") == "str"
 
+    def test_fallback_uses_runtime_type_name(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=(1, 2)) == "tuple"
+
     def test_bool_before_int(self) -> None:
         """bool is subclass of int; typeof must return 'bool' for bool values."""
         env = Environment()
@@ -641,7 +650,7 @@ class TestDateSlugPluralizeFilters:
 
         env = Environment()
         tmpl = env.from_string("{{ x | pluralize }}")
-        with pytest.raises((ValueError, TemplateRuntimeError)):
+        with pytest.raises(TemplateRuntimeError, match="pluralize expects a number"):
             tmpl.render(x="two")
 
 
@@ -674,7 +683,7 @@ class TestJoinReverseNonIterable:
 
         env = Environment()
         tmpl = env.from_string('{{ x | join(", ") }}')
-        with pytest.raises((TypeError, TemplateRuntimeError)):
+        with pytest.raises(TemplateRuntimeError):
             tmpl.render(x=42)
 
     def test_reverse_non_iterable_raises(self) -> None:
@@ -684,5 +693,5 @@ class TestJoinReverseNonIterable:
 
         env = Environment()
         tmpl = env.from_string("{{ x | reverse }}")
-        with pytest.raises((TypeError, TemplateRuntimeError)):
+        with pytest.raises(TemplateRuntimeError):
             tmpl.render(x=42)

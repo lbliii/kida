@@ -50,7 +50,9 @@ def _filter_replace(value: str, old: str, new: str, count: int | str | None = -1
                 f"replace count expects a number, got {type(count).__name__}: {count!r}. "
                 "Use | int on the count value."
             ) from e
-    return str(value).replace(old, new, replace_count if replace_count > 0 else -1)
+    if replace_count < 0:
+        replace_count = -1
+    return str(value).replace(old, new, replace_count)
 
 
 def _filter_truncate(
