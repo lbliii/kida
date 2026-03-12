@@ -38,9 +38,21 @@ def _filter_trim(value: str, chars: str | None = None) -> str:
     return str(value).strip(chars)
 
 
-def _filter_replace(value: str, old: str, new: str, count: int = -1) -> str:
+def _filter_replace(value: str, old: str, new: str, count: int | str | None = -1) -> str:
     """Replace occurrences."""
-    return str(value).replace(old, new, count if count > 0 else -1)
+    if count is None or count == -1:
+        replace_count = -1
+    else:
+        try:
+            replace_count = int(count)
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"replace count expects a number, got {type(count).__name__}: {count!r}. "
+                "Use | int on the count value."
+            ) from e
+    if replace_count < 0:
+        replace_count = -1
+    return str(value).replace(old, new, replace_count)
 
 
 def _filter_truncate(
@@ -104,9 +116,23 @@ def _filter_wordwrap(value: str, width: int = 79, break_long_words: bool = True)
     return textwrap.fill(str(value), width=width, break_long_words=break_long_words)
 
 
+# Pattern for %-style format specs (e.g. %.2f, %s, %5d) — avoids false positive on "50%"
+_PERCENT_FORMAT_SPEC = re.compile(r"%\d*\.?\d*[sdfioxXeEgGcrs]")
+
+
 def _filter_format(value: str, *args: Any, **kwargs: Any) -> str:
-    """Format string with args/kwargs."""
-    return str(value).format(*args, **kwargs)
+    """Format string with args/kwargs. Uses str.format() — {} placeholders, not %."""
+    s = str(value)
+    has_args = bool(args or kwargs)
+    has_placeholders = "{" in s
+    # Detect %-style format string passed to format filter — Python silently ignores
+    if has_args and not has_placeholders and _PERCENT_FORMAT_SPEC.search(s):
+        raise ValueError(
+            "format filter uses str.format() with {} placeholders, not %. "
+            "For numeric formatting use format_number (e.g. x | format_number(2)) "
+            'or {:.2f}-style: {{ "{:.2f}" | format(x) }}.'
+        )
+    return s.format(*args, **kwargs)
 
 
 def _filter_slug(value: Any) -> str:
@@ -135,7 +161,13 @@ def _filter_pluralize(value: Any, suffix: str = "s") -> str:
     """
     if value is None:
         return suffix
-    n = int(value) if not isinstance(value, int) else value
+    try:
+        n = int(value) if not isinstance(value, int) else value
+    except (ValueError, TypeError) as e:
+        raise ValueError(
+            f"pluralize expects a number, got {type(value).__name__}: {value!r}. "
+            "Use | int or ensure numeric value."
+        ) from e
     if n == 1:
         if "," in suffix:
             return suffix.split(",")[0].strip()

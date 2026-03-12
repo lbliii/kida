@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from kida.environment.exceptions import TemplateRuntimeError
+
 
 def _filter_abs(value: Any) -> Any:
     """Return absolute value."""
@@ -21,7 +23,7 @@ def _filter_round(value: Any, precision: int = 0, method: str = "common") -> flo
         return round(float(value), precision)
 
 
-def _filter_decimal(value: Any, places: int = 2) -> str:
+def _filter_decimal(value: Any, places: int = 2, *, strict: bool = False) -> str:
     """Format a number with a fixed number of decimal places.
 
     Example:
@@ -29,11 +31,21 @@ def _filter_decimal(value: Any, places: int = 2) -> str:
         {{ 3.1 | decimal(1) }}  → "3.1"
         {{ 1234 | decimal(2) }} → "1234.00"
 
+    Args:
+        value: Value to format.
+        places: Number of decimal places.
+        strict: If True, raise TemplateRuntimeError on conversion failure.
+
     """
     try:
         num = float(value)
         return f"{num:.{places}f}"
-    except ValueError, TypeError:
+    except (ValueError, TypeError) as e:
+        if strict:
+            raise TemplateRuntimeError(
+                f"Cannot convert {type(value).__name__} to decimal: {value!r}",
+                suggestion="Use | int or | float for numeric coercion, or ensure correct type at data source",
+            ) from e
         return str(value)
 
 
@@ -59,12 +71,17 @@ def _filter_filesizeformat(value: int | float, binary: bool = False) -> str:
     return f"{bytes_val / (base**4):.1f} {'TiB' if binary else 'TB'}"
 
 
-def _filter_format_number(value: Any, decimal_places: int = 0) -> str:
+def _filter_format_number(value: Any, decimal_places: int = 0, *, strict: bool = False) -> str:
     """Format a number with thousands separators.
 
     Example:
         {{ 1234567 | format_number }} → "1,234,567"
         {{ 1234.567 | format_number(2) }} → "1,234.57"
+
+    Args:
+        value: Value to format.
+        decimal_places: Number of decimal places.
+        strict: If True, raise TemplateRuntimeError on conversion failure.
 
     """
     try:
@@ -73,7 +90,12 @@ def _filter_format_number(value: Any, decimal_places: int = 0) -> str:
             return f"{num:,.{decimal_places}f}"
         else:
             return f"{int(num):,}"
-    except ValueError, TypeError:
+    except (ValueError, TypeError) as e:
+        if strict:
+            raise TemplateRuntimeError(
+                f"Cannot convert {type(value).__name__} to number: {value!r}",
+                suggestion="Use | int or | float for numeric coercion, or ensure correct type at data source",
+            ) from e
         return str(value)
 
 

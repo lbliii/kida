@@ -427,6 +427,31 @@ Each function should do one thing:
 {% def do_thing(item) %}
 ```
 
+### Macro vs Context Variable Naming
+
+When importing macros that render context variables, **use different names** so the macro does not shadow the variable. Prefer verb-prefixed names for macros and noun-like names for context variables:
+
+```kida
+{# Good: Macro and variable have different names #}
+{% from "_route_tabs.html" import render_route_tabs %}
+{% if route_tabs | default([]) %}
+    {{ render_route_tabs(route_tabs, current_path) }}
+{% end %}
+
+{# Avoid: Same name causes shadowing — route_tabs may resolve to the macro #}
+{% from "_route_tabs.html" import route_tabs %}
+{% if route_tabs | default([]) %}  {# When route_tabs not in context, this is the macro (truthy) #}
+    {{ route_tabs(route_tabs, current_path) }}  {# Passes macro as first arg → "not iterable" #}
+{% end %}
+```
+
+| Use for | Naming | Examples |
+|---------|--------|----------|
+| Macros | Verb-prefixed | `render_route_tabs`, `format_date`, `render_nav` |
+| Context variables | Noun-like | `route_tabs`, `items`, `skills` |
+
+If you see `Cannot iterate over macro 'X'`, a macro is shadowing a context variable. Rename the macro (e.g. `render_X`) to avoid the collision.
+
 ## See Also
 
 - [[docs/syntax/inheritance|Inheritance]] — Extend base templates

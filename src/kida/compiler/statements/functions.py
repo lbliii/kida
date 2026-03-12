@@ -10,12 +10,22 @@ from __future__ import annotations
 
 import ast
 import logging
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+from kida.nodes.output import Data
 
 if TYPE_CHECKING:
     from kida.nodes import CallBlock, Def, Node, Region, Slot
 
 logger = logging.getLogger(__name__)
+
+
+def _slot_body_is_empty(slot_body: Sequence[object]) -> bool:
+    """Treat whitespace-only Data nodes the same as an empty slot body."""
+    return not slot_body or all(
+        isinstance(child, Data) and not child.value.strip() for child in slot_body
+    )
 
 
 class FunctionCompilationMixin:
@@ -343,6 +353,27 @@ class FunctionCompilationMixin:
             # Use _outer_caller param to avoid shadowing by inner _caller wrapper
             if outer is not None:
                 self._outer_caller_expr = ast.Name(id="_outer_caller", ctx=ast.Load())
+                # Delegate to outer caller when slot body is empty (fixes nested macro slot passthrough)
+                if _slot_body_is_empty(slot_body):
+                    caller_body.append(
+                        ast.If(
+                            test=ast.Compare(
+                                left=ast.Name(id="_outer_caller", ctx=ast.Load()),
+                                ops=[ast.IsNot()],
+                                comparators=[ast.Constant(value=None)],
+                            ),
+                            body=[
+                                ast.Return(
+                                    value=ast.Call(
+                                        func=ast.Name(id="_outer_caller", ctx=ast.Load()),
+                                        args=[ast.Constant(value=slot_name)],
+                                        keywords=[],
+                                    )
+                                )
+                            ],
+                            orelse=[],
+                        )
+                    )
             try:
                 for child in slot_body:
                     caller_body.extend(self._compile_node(child))

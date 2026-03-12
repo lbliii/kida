@@ -136,6 +136,12 @@ Fix: Reduce include nesting. Check for circular includes.
 
 Fix: Check the traceback for the underlying cause. Ensure context values have expected types.
 
+### k-run-013
+
+**Macro iteration** — A macro was used in a `{% for %}` loop (e.g. `{% for x in route_tabs %}`). This usually means a macro and a context variable share the same name; when the variable is missing, the name resolves to the imported macro.
+
+Fix: Rename the macro to avoid collision. Use verb-prefixed names for macros (e.g. `render_route_tabs`) and noun-like names for context variables (`route_tabs`). See [[docs/syntax/functions#macro-vs-context-variable-naming|Macro vs Context Variable Naming]].
+
 ## Template Loading Errors (K-TPL-xxx)
 
 Template loading errors occur when resolving or loading template files.

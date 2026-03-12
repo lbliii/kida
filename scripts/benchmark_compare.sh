@@ -81,7 +81,7 @@ echo ""
 
 # Run current benchmarks and compare (use --benchmark-compare-fail for hard failure)
 # pytest-benchmark saves as 0001_${name}.json; compare pattern must be *_${name} to match
-# --benchmark-min-rounds=8 reduces variance vs default 5
+# Keep compare settings aligned with benchmark_baseline.sh to avoid artificial drift.
 # Benchmark suite must stay in sync with benchmark_baseline.sh.
 echo "--- Running benchmarks ---"
 BENCHMARK_FILES=(
@@ -99,7 +99,7 @@ if [ "${BENCHMARK_INCLUDE_ALL:-0}" = "1" ]; then
         --benchmark-compare="*_${BASELINE}" \
         --benchmark-compare-fail="mean:${THRESHOLD}%" \
         --benchmark-storage="$STORAGE" \
-        --benchmark-min-rounds=8 \
+        --benchmark-min-rounds=10 \
         -q
 else
     python -m pytest "${BENCHMARK_FILES[@]}" \
@@ -108,6 +108,6 @@ else
         --benchmark-compare="*_${BASELINE}" \
         --benchmark-compare-fail="mean:${THRESHOLD}%" \
         --benchmark-storage="$STORAGE" \
-        --benchmark-min-rounds=8 \
+        --benchmark-min-rounds=10 \
         -q
 fi

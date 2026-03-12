@@ -132,3 +132,4 @@ All blocks use unified `{% end %}` — no `{% endif %}`, `{% endfor %}`, `{% end
 - Use `| default()` for optional variables
 - Use `~` for dynamic URL/path building: `hx-post="{{ '/chains/' ~ chain_id ~ '/add-step' }}"`
 - Blocks cannot be defined inside loops — use `{% def %}` functions instead
+- **Macro vs context variable naming**: Use verb-prefixed names for imported macros (`render_route_tabs`, `format_date`) and noun-like names for context variables (`route_tabs`, `items`). Same-name collisions cause the macro to shadow the variable, leading to "Cannot iterate over macro" when the variable is missing.

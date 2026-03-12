@@ -39,6 +39,24 @@ class TestStringFilters:
         r = env.from_string("{{ 'hello' | replace('l', 'r') }}").render()
         assert r == "herro"
 
+    def test_replace_string_count_coerced(self) -> None:
+        from kida.environment.filters._string import _filter_replace
+
+        assert _filter_replace("hello", "l", "r", count="1") == "herlo"
+
+    def test_replace_zero_count_keeps_original(self) -> None:
+        from kida.environment.filters._string import _filter_replace
+
+        assert _filter_replace("hello", "l", "r", count=0) == "hello"
+
+    def test_replace_invalid_count_raises(self) -> None:
+        import pytest
+
+        from kida.environment.filters._string import _filter_replace
+
+        with pytest.raises(ValueError, match="replace count"):
+            _filter_replace("hello", "l", "r", count="x")
+
     def test_center(self) -> None:
         env = Environment()
         r = env.from_string("{{ 'hi' | center(10) }}").render()
@@ -360,6 +378,55 @@ class TestImpureFilters:
         assert "3" in r
 
 
+class TestTypeofFilter:
+    """Test typeof filter for generic type names."""
+
+    def test_bool(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=True) == "bool"
+        assert env.from_string("{{ v | typeof }}").render(v=False) == "bool"
+
+    def test_int(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=42) == "int"
+
+    def test_float(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=3.14) == "float"
+
+    def test_path(self) -> None:
+        from pathlib import Path, PurePosixPath
+
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=Path("/foo")) == "path"
+        assert env.from_string("{{ v | typeof }}").render(v=PurePosixPath("/bar")) == "path"
+
+    def test_list(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=[1, 2]) == "list"
+
+    def test_dict(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v={"a": 1}) == "dict"
+
+    def test_none(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=None) == "none"
+
+    def test_str(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v="hello") == "str"
+
+    def test_fallback_uses_runtime_type_name(self) -> None:
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=(1, 2)) == "tuple"
+
+    def test_bool_before_int(self) -> None:
+        """bool is subclass of int; typeof must return 'bool' for bool values."""
+        env = Environment()
+        assert env.from_string("{{ v | typeof }}").render(v=True) == "bool"
+
+
 class TestJsonFilter:
     """Test JSON serialization."""
 
@@ -510,6 +577,15 @@ class TestDecimalFilter:
 
         assert _filter_decimal("not a number") == "not a number"
 
+    def test_decimal_strict_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.environment.filters import _filter_decimal
+
+        with pytest.raises(TemplateRuntimeError, match="Cannot convert"):
+            _filter_decimal("not a number", strict=True)
+
 
 # ── date, slug, pluralize filters ─────────────────────────────────────────
 
@@ -566,3 +642,56 @@ class TestDateSlugPluralizeFilters:
     def test_pluralize_y_ies_plural(self) -> None:
         env = Environment()
         assert env.from_string('{{ 2 | pluralize("y,ies") }}').render() == "ies"
+
+    def test_pluralize_non_numeric_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        env = Environment()
+        tmpl = env.from_string("{{ x | pluralize }}")
+        with pytest.raises(TemplateRuntimeError, match="pluralize expects a number"):
+            tmpl.render(x="two")
+
+
+# ── format_number strict ─────────────────────────────────────────────────
+
+
+class TestFormatNumberStrict:
+    """Test format_number strict mode."""
+
+    def test_format_number_strict_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.environment.filters._numbers import _filter_format_number
+
+        with pytest.raises(TemplateRuntimeError, match="Cannot convert"):
+            _filter_format_number("not a number", strict=True)
+
+
+# ── join, reverse non-iterable (breaking change) ──────────────────────────
+
+
+class TestJoinReverseNonIterable:
+    """Test join and reverse raise on non-iterable (fail fast)."""
+
+    def test_join_non_iterable_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        env = Environment()
+        tmpl = env.from_string('{{ x | join(", ") }}')
+        with pytest.raises(TemplateRuntimeError):
+            tmpl.render(x=42)
+
+    def test_reverse_non_iterable_raises(self) -> None:
+        import pytest
+
+        from kida.environment.exceptions import TemplateRuntimeError
+
+        env = Environment()
+        tmpl = env.from_string("{{ x | reverse }}")
+        with pytest.raises(TemplateRuntimeError):
+            tmpl.render(x=42)

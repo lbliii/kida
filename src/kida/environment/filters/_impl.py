@@ -83,6 +83,7 @@ from kida.environment.filters._type_conversion import (
     _filter_list,
     _filter_string,
     _filter_tojson,
+    _filter_typeof,
 )
 from kida.environment.filters._validation import _filter_default, _filter_require
 
@@ -156,6 +157,7 @@ DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {
     # Debugging and validation filters
     "require": _filter_require,
     "debug": _filter_debug,
+    "typeof": _filter_typeof,
     # Safe access filter (avoids Python method name conflicts)
     "get": _filter_get,
     # Randomization filters (impure - non-deterministic)
@@ -206,6 +208,7 @@ __all__ = [
     "_filter_take",
     "_filter_tojson",
     "_filter_trim",
+    "_filter_typeof",
     "_filter_unique",
     "_make_sort_key_numeric",
     "_make_sort_key_string",
