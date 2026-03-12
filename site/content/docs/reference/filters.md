@@ -55,11 +55,18 @@ HTML-escape the value.
 
 ### format
 
-Format string with arguments.
+Format string with arguments using Python `str.format()` and `{}` placeholders.
 
 ```kida
 {{ "Hello, {}!" | format(name) }}
 {{ "{} + {} = {}" | format(1, 2, 3) }}
+```
+
+Use `format_number` for numeric formatting helpers. `%`-style format strings are not supported by
+this filter:
+
+```kida
+{{ "{:.2f}" | format(price) }}
 ```
 
 ### indent
@@ -86,6 +93,12 @@ Replace occurrences.
 ```kida
 {{ "hello" | replace("l", "L") }}  → heLLo
 {{ "aaa" | replace("a", "b", 2) }}  → bba
+```
+
+`count` may come from YAML/config as a string if it can be coerced to an integer:
+
+```kida
+{{ "hello" | replace("l", "L", "1") }}  → heLlo
 ```
 
 ### safe
@@ -223,12 +236,15 @@ Group by attribute.
 
 ### join
 
-Join with separator.
+Join an iterable with a separator.
 
 ```kida
 {{ items | join(", ") }}
 {{ [1, 2, 3] | join("-") }}  → 1-2-3
 ```
+
+`join` expects iterable input. Scalars like `42` now raise `TypeError` instead of falling back to
+stringification.
 
 ### last
 
@@ -301,10 +317,16 @@ Reject items where attribute matches.
 
 ### reverse
 
-Reverse sequence.
+Reverse an iterable or sequence.
 
 ```kida
 {{ [1, 2, 3] | reverse | list }}  → [3, 2, 1]
+```
+
+`reverse` expects iterable input. If needed, coerce first:
+
+```kida
+{{ value | list | reverse }}
 ```
 
 ### select
@@ -444,6 +466,12 @@ Format with thousands separator.
 {{ 1000000 | commas }}  → 1,000,000
 ```
 
+Use `strict=true` to raise on invalid numeric conversion instead of returning the original value:
+
+```kida
+{{ price | format_number(2, strict=true) }}
+```
+
 ---
 
 ## CSS / HTML Filters
@@ -490,6 +518,12 @@ Non-numeric values pass through unchanged:
 {{ "hello" | decimal(2) }}  → hello
 ```
 
+Use `strict=true` to raise on invalid numeric conversion:
+
+```kida
+{{ value | decimal(2, strict=true) }}
+```
+
 ---
 
 ## Utility Filters
@@ -522,6 +556,8 @@ Django-style pluralization suffix.
 {{ 1 | pluralize("y,ies") }}  → y
 {{ 2 | pluralize("y,ies") }}  → ies
 ```
+
+`pluralize` expects numeric input. For YAML/config values, use `| int` first when needed.
 
 ### dictsort
 
@@ -566,6 +602,19 @@ Convert to JSON.
 <script>const data = {{ config | tojson }};</script>
 {{ data | tojson(indent=2) }}
 ```
+
+### typeof
+
+Return a normalized type name for debugging template data.
+
+```kida
+{{ value | typeof }}  → str
+{{ none | typeof }}  → none
+{{ some_path | typeof }}  → path
+```
+
+Common normalized names include `bool`, `int`, `float`, `path`, `list`, `dict`, `none`, and
+`str`.
 
 ### xmlattr
 
