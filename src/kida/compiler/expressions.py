@@ -188,11 +188,14 @@ class ExpressionCompilationMixin:
 
             # Strict mode: check scope stack first, then ctx
             # _lookup_scope(ctx, _scope_stack, name) checks scopes then ctx
+            # When compiling for thunks, use override names (e.g. _thunk_ctx, _thunk_scope)
+            ctx_name = getattr(self, "_ctx_override", None) or "ctx"
+            scope_name = getattr(self, "_scope_override", None) or "_scope_stack"
             return ast.Call(
                 func=ast.Name(id="_lookup_scope", ctx=ast.Load()),
                 args=[
-                    ast.Name(id="ctx", ctx=ast.Load()),
-                    ast.Name(id="_scope_stack", ctx=ast.Load()),
+                    ast.Name(id=ctx_name, ctx=ast.Load()),
+                    ast.Name(id=scope_name, ctx=ast.Load()),
                     ast.Constant(value=node.name),
                 ],
                 keywords=[],
@@ -373,7 +376,9 @@ class ExpressionCompilationMixin:
                     args=[value_lambda, *filter_args],
                     keywords=[ast.keyword(arg=k, value=v) for k, v in filter_kwargs.items()],
                 )
-                # Profiling: record as 'default' (canonical name)
+                # Thunk mode: no _acc, skip profiling
+                if getattr(self, "_ctx_override", None):
+                    return default_call
                 return ast.Call(
                     func=ast.Name(id="_record_filter", ctx=ast.Load()),
                     args=[
@@ -396,9 +401,9 @@ class ExpressionCompilationMixin:
                     ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
                 ],
             )
-            # Profiling: _record_filter(_acc, 'name', filter_result)
-            # Always called, but _record_filter short-circuits when _acc is None
-            # (single falsy check + return). No AST duplication.
+            # Thunk mode: no _acc, skip profiling
+            if getattr(self, "_ctx_override", None):
+                return filter_call
             return ast.Call(
                 func=ast.Name(id="_record_filter", ctx=ast.Load()),
                 args=[

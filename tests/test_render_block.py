@@ -610,6 +610,124 @@ class TestRegionBlocks:
         assert "sidebar" in regions
         assert "content" not in regions
 
+    def test_region_default_param_from_ctx_extends_chain(self) -> None:
+        """Region param default (e.g. current_page=page) must not reference ctx at def time.
+
+        Python evaluates default args when the function is defined (during exec).
+        ctx/_scope_stack don't exist then. We use _REGION_DEFAULT sentinel and resolve
+        at call time. Regression for NameError when parent with region+default is
+        loaded during child's _extends().
+        """
+        env = _env(
+            layout="""{% extends "base" %}
+{% block content %}
+{% region sidebar(section, current_page=page) %}
+<nav>{{ section }} / {{ current_page.title }}</nav>
+{% end %}
+{{ sidebar(section=section) }}
+{% endblock %}""",
+            base="<html>{% block content %}{% endblock %}</html>",
+        )
+        template = env.get_template("layout")
+        result = template.render(
+            section="API",
+            page=type("Page", (), {"title": "Products"})(),
+        )
+        assert "API" in result
+        assert "Products" in result
+
+    def test_region_default_getattr(self) -> None:
+        """Getattr in region default: meta=page.metadata must not leak sentinel."""
+        env = _env(
+            page="""{% region sidebar(section, meta=page.metadata) %}
+{{ meta.title }}{% end %}
+{{ sidebar(section="API") }}"""
+        )
+        template = env.get_template("page")
+        page_cls = type("Page", (), {"metadata": type("M", (), {"title": "Docs"})()})
+        result = template.render(section="API", page=page_cls())
+        assert "Docs" in result
+
+    def test_region_default_filter(self) -> None:
+        """Filter in region default: count=items | length must not leak sentinel."""
+        env = _env(
+            page="""{% region stats(count=items | length) %}
+{{ count }} items{% end %}
+{{ stats() }}"""
+        )
+        template = env.get_template("page")
+        result = template.render(items=["a", "b", "c"])
+        assert "3 items" in result
+
+    def test_region_default_null_coalesce(self) -> None:
+        """Null coalesce in region default: meta=data?.info ?? fallback must not leak sentinel."""
+        env = _env(
+            page="""{% region panel(meta=data?.info ?? "fallback") %}
+{{ meta }}{% end %}
+{{ panel() }}"""
+        )
+        template = env.get_template("page")
+        result = template.render()
+        assert "fallback" in result
+
+    def test_region_default_optional_getattr(self) -> None:
+        """Optional chain in region default: title=page?.title ?? Default."""
+        env = _env(
+            page="""{% region header(title=page?.title ?? "Default") %}
+<h1>{{ title }}</h1>{% end %}
+{{ header() }}"""
+        )
+        template = env.get_template("page")
+        result = template.render()
+        assert "Default" in result
+
+    def test_region_default_complex_with_extends(self) -> None:
+        """Complex default must survive extends chain (exec-time safety)."""
+        env = _env(
+            base="<html>{% block content %}{% endblock %}</html>",
+            layout="""{% extends "base" %}{% block content %}
+{% region sidebar(section, meta=page.metadata) %}
+<nav>{{ meta.title }}</nav>{% end %}
+{{ sidebar(section="API") }}
+{% endblock %}""",
+        )
+        template = env.get_template("layout")
+        page_cls = type("Page", (), {"metadata": type("M", (), {"title": "Ref"})()})
+        result = template.render(section="API", page=page_cls())
+        assert "Ref" in result
+
+    def test_region_default_complex_render_block(self) -> None:
+        """Complex default works when region is invoked via render_block (block path)."""
+        env = _env(
+            layout="""{% extends "base" %}{% block content %}
+{% region sidebar(section, meta=page.metadata) %}
+<nav>{{ meta.title }}</nav>{% end %}
+{{ sidebar(section="API") }}
+{% endblock %}""",
+            base="<html>{% block content %}{% endblock %}</html>",
+        )
+        template = env.get_template("layout")
+        page_cls = type("Page", (), {"metadata": type("M", (), {"title": "Block"})()})
+        result = template.render_block("content", section="API", page=page_cls())
+        assert "Block" in result
+
+    def test_region_default_complex_depends_on(self) -> None:
+        """Static analysis depends_on captures vars from complex region defaults."""
+        env = _env(
+            page="""{% region sidebar(section, meta=page.metadata) %}
+{{ meta.title }}{% end %}
+{% region stats(count=items | length) %}{{ count }}{% end %}
+{{ sidebar(section="API") }}{{ stats() }}"""
+        )
+        template = env.get_template("page")
+        meta = template.template_metadata()
+        sidebar = meta.get_block("sidebar")
+        stats = meta.get_block("stats")
+        assert sidebar is not None
+        assert stats is not None
+        assert "page.metadata" in sidebar.depends_on or "page" in sidebar.depends_on
+        assert "items" in stats.depends_on
+
     def test_region_with_block_and_child_override(self) -> None:
         """Region body containing {% block %} receives _blocks for dispatch."""
         env = _env(
@@ -629,6 +747,54 @@ class TestRegionBlocks:
         )
         result = env.get_template("page").render()
         assert "OVERRIDE Hello" in result
+        assert "DEFAULT" not in result
+
+    def test_region_with_block_from_and_let(self) -> None:
+        """Child with {% from %} and {% let %} at top level, region+block in parent."""
+        env = _env(
+            components="{% def bar(x) %}[{{ x }}]{% end %}",
+            layout=(
+                "{% block content %}"
+                "{% region panel() %}"
+                "{% block content_main %}DEFAULT{% endblock %}"
+                "{% end %}"
+                "{{ panel() }}"
+                "{% endblock %}"
+            ),
+            page=(
+                '{% extends "layout" %}'
+                '{% from "components" import bar %}'
+                '{% let meta = "META" %}'
+                "{% block content_main %}{{ bar(meta) }}{% endblock %}"
+            ),
+        )
+        result = env.get_template("page").render()
+        assert "[META]" in result
+        assert "DEFAULT" not in result
+
+    def test_region_with_block_three_level_extends(self) -> None:
+        """Three-level inheritance: page -> layout -> base, child has from+let."""
+        env = _env(
+            components="{% def bar(x) %}[{{ x }}]{% end %}",
+            base="<html>{% block content %}base{% endblock %}</html>",
+            layout=(
+                '{% extends "base" %}'
+                "{% block content %}"
+                "{% region panel() %}"
+                "{% block content_main %}DEFAULT{% endblock %}"
+                "{% end %}"
+                "{{ panel() }}"
+                "{% endblock %}"
+            ),
+            page=(
+                '{% extends "layout" %}'
+                '{% from "components" import bar %}'
+                '{% let meta = "META" %}'
+                "{% block content_main %}{{ bar(meta) }}{% endblock %}"
+            ),
+        )
+        result = env.get_template("page").render()
+        assert "[META]" in result
         assert "DEFAULT" not in result
 
     def test_region_with_block_streaming(self) -> None:

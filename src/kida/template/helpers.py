@@ -168,9 +168,13 @@ def getattr_preserve_none(obj: object, name: str) -> object:
 # Thread-Safety: This dict is read-only after module load.
 # =============================================================================
 
+# Sentinel for region param defaults that reference ctx (evaluated at call time, not def time)
+_REGION_DEFAULT = object()
+
 STATIC_NAMESPACE: dict[str, Any] = {
     "__builtins__": {"__import__": __import__},
     "_Markup": Markup,
+    "_REGION_DEFAULT": _REGION_DEFAULT,
     "_str": str,
     "_len": len,
     "_range": range,

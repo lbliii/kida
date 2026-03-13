@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Region default expressions** — Optional region parameters now support arbitrary expressions as defaults (e.g. `meta=page.metadata`, `count=items | length`, `title=page?.title ?? "Default"`). Previously only simple variable names worked; complex expressions leaked an internal sentinel. Defaults are evaluated at call time from the caller's context. Static analysis (`depends_on`) correctly captures paths from complex defaults.
+
 ## [0.2.7] - 2026-03-12
 
 ### Added

@@ -1,0 +1,23 @@
+{% region sidebar(section, current_page=page) %}
+<nav>
+  <h3>{{ section }}</h3>
+  <p>Page: {{ current_page.title }}</p>
+</nav>
+{% end %}
+
+{% region stats(count=items | length) %}
+<aside>
+  <h3>Stats</h3>
+  <p>{{ count }} items</p>
+</aside>
+{% end %}
+
+{% region header(title=page?.title ?? "Default") %}
+<h1>{{ title }}</h1>
+{% end %}
+
+<main>
+  {{ sidebar(section="API") }}
+  {{ stats() }}
+  {{ header() }}
+</main>

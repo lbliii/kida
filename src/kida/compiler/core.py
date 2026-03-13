@@ -124,6 +124,7 @@ class Compiler(
         "_async_mode",
         "_block_counter",
         "_blocks",
+        "_ctx_override",
         "_def_caller_stack",
         "_def_names",
         "_env",
@@ -134,6 +135,7 @@ class Compiler(
         "_name",
         "_node_dispatch",
         "_outer_caller_expr",
+        "_scope_override",
         "_streaming",
     )
 
@@ -160,6 +162,10 @@ class Compiler(
         # Lexical caller scoping: def → call → caller() (reset in compile())
         self._def_caller_stack: list[ast.expr] = []
         self._outer_caller_expr: ast.expr | None = None
+        # Context-override for thunk compilation (region defaults): use param names
+        # instead of hardcoded ctx/_scope_stack when compiling expressions
+        self._ctx_override: str | None = None
+        self._scope_override: str | None = None
 
     def _get_literal_extends_target(self, node: TemplateNode) -> str | None:
         """Return literal extends target if template uses {% extends "literal" %}, else None."""
@@ -360,7 +366,9 @@ class Compiler(
         # Emit region callables (module-level) before _globals_setup
         for block_name, block_node in saved_blocks.items():
             if isinstance(block_node, Region):
-                module_body.append(self._make_region_function(block_name, block_node))
+                thunk_defs, region_func = self._make_region_function(block_name, block_node)
+                module_body.extend(thunk_defs)
+                module_body.append(region_func)
 
         # Detect {% globals %} blocks and compile _globals_setup function
         globals_setup = self._make_globals_setup(node)
@@ -418,17 +426,19 @@ class Compiler(
         into the block's context. Returns None if neither globals nor top-level
         imports exist.
         """
-        from kida.nodes import Def, FromImport, Globals, Import, Imports
+        from kida.nodes import Def, FromImport, Globals, Import, Imports, Let
 
         setup_nodes = [n for n in node.body if isinstance(n, (Globals, Imports))]
         top_level_imports = [n for n in node.body if isinstance(n, (FromImport, Import))]
         top_level_defs = [n for n in node.body if isinstance(n, Def)]
         top_level_regions = [n for n in node.body if isinstance(n, Region)]
+        top_level_lets = [n for n in node.body if isinstance(n, Let)]
         if (
             not setup_nodes
             and not top_level_imports
             and not top_level_defs
             and not top_level_regions
+            and not top_level_lets
         ):
             return None
 
@@ -444,6 +454,10 @@ class Compiler(
         # Top-level imports first (so macros are in ctx for blocks)
         for imp_node in top_level_imports:
             body_stmts.extend(self._compile_node(imp_node))
+
+        # Top-level lets (so render_block has same context as full render)
+        for let_node in top_level_lets:
+            body_stmts.extend(self._compile_node(let_node))
 
         # Top-level defs (so render_block has macros in scope)
         for def_node in top_level_defs:
@@ -597,15 +611,17 @@ class Compiler(
                     keywords=[],
                 )
             else:
-                # Optional param: ctx.get('param', default)
-                default_val = self._compile_expr(region_node.defaults[i - n_required])
+                # Optional param: ctx.get('param', _REGION_DEFAULT) — region resolves at call
                 val = ast.Call(
                     func=ast.Attribute(
                         value=ast.Name(id="ctx", ctx=ast.Load()),
                         attr="get",
                         ctx=ast.Load(),
                     ),
-                    args=[ast.Constant(value=param_name), default_val],
+                    args=[
+                        ast.Constant(value=param_name),
+                        ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()),
+                    ],
                     keywords=[],
                 )
             keywords.append(ast.keyword(arg=param_name, value=val))
@@ -908,14 +924,17 @@ class Compiler(
                     keywords=[],
                 )
             else:
-                default_val = self._compile_expr(region_node.defaults[i - n_required])
+                # Optional param: ctx.get('param', _REGION_DEFAULT) — region resolves at call
                 val = ast.Call(
                     func=ast.Attribute(
                         value=ast.Name(id="ctx", ctx=ast.Load()),
                         attr="get",
                         ctx=ast.Load(),
                     ),
-                    args=[ast.Constant(value=param_name), default_val],
+                    args=[
+                        ast.Constant(value=param_name),
+                        ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()),
+                    ],
                     keywords=[],
                 )
             keywords.append(ast.keyword(arg=param_name, value=val))

@@ -342,6 +342,34 @@ Region bodies can read variables from the outer render context (not just paramet
 
 When `render_block("crumbs", ...)` or `{{ crumbs(...) }}` is called, the region receives its params plus the caller's context. `breadcrumb_items` comes from the outer context.
 
+### Region default expressions
+
+Optional parameters can use **any expression** as a default, not just simple variable names. Defaults are evaluated at **call time** from the caller's context:
+
+```kida
+{% region sidebar(section, meta=page.metadata) %}
+  <nav>{{ meta.title }}</nav>
+{% end %}
+
+{% region stats(count=items | length) %}
+  {{ count }} items
+{% end %}
+
+{% region header(title=page?.title ?? "Default") %}
+  <h1>{{ title }}</h1>
+{% end %}
+```
+
+Supported expressions include:
+
+- **Simple names** — `current_page=page` (zero-overhead inline lookup)
+- **Attribute access** — `meta=page.metadata`
+- **Filters** — `count=items | length`
+- **Optional chaining** — `title=page?.title ?? "Default"`
+- **Null coalescing** — `meta=data?.info ?? {}`
+
+Static analysis (`depends_on`) correctly captures context paths from complex defaults for incremental build and cache scope inference.
+
 ### Regions vs Defs
 
 | Use case | Region | Def |
