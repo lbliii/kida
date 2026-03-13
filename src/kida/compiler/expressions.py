@@ -309,7 +309,7 @@ class ExpressionCompilationMixin:
             keywords = [
                 ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
             ]
-            # Region callables require _outer_ctx=ctx (RFC: kida-regions)
+            # Region callables require _outer_ctx=ctx and _blocks (RFC: kida-regions)
             func_name = getattr(node.func, "name", None)
             if func_name and func_name in getattr(self, "_blocks", {}):
                 from kida.nodes import Region
@@ -321,6 +321,12 @@ class ExpressionCompilationMixin:
                             value=ast.Name(id="ctx", ctx=ast.Load()),
                         )
                     )
+                    blocks_value = (
+                        ast.Dict(keys=[], values=[])
+                        if self._def_caller_stack
+                        else ast.Name(id="_blocks", ctx=ast.Load())
+                    )
+                    keywords.append(ast.keyword(arg="_blocks", value=blocks_value))
             call_node = ast.Call(
                 func=self._compile_expr(node.func),
                 args=[self._compile_expr(a) for a in node.args],

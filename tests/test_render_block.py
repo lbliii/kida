@@ -610,6 +610,46 @@ class TestRegionBlocks:
         assert "sidebar" in regions
         assert "content" not in regions
 
+    def test_region_with_block_and_child_override(self) -> None:
+        """Region body containing {% block %} receives _blocks for dispatch."""
+        env = _env(
+            layout=(
+                "{% block content %}"
+                "{% region panel() %}"
+                "{% block inner %}DEFAULT{% endblock %}"
+                "{% end %}"
+                "{{ panel() }}"
+                "{% endblock %}"
+            ),
+            page=(
+                '{% extends "layout" %}'
+                '{% let title = "Hello" %}'
+                "{% block inner %}OVERRIDE {{ title }}{% endblock %}"
+            ),
+        )
+        result = env.get_template("page").render()
+        assert "OVERRIDE Hello" in result
+        assert "DEFAULT" not in result
+
+    def test_region_with_block_streaming(self) -> None:
+        """Streaming block wrapper forwards _blocks for region block dispatch."""
+        env = _env(
+            layout=(
+                "{% block content %}"
+                "{% region panel() %}"
+                "{% block inner %}DEFAULT{% endblock %}"
+                "{% end %}"
+                "{{ panel() }}"
+                "{% endblock %}"
+            ),
+            page='{% extends "layout" %}{% block inner %}STREAMED{% endblock %}',
+        )
+        # render_block uses _block_content which invokes region; verifies _blocks
+        # forwarding in block wrapper (sync path). Full render_stream would need
+        # region to yield-from streaming blocks — separate RFC.
+        result = env.get_template("page").render_block("content")
+        assert "STREAMED" in result
+
 
 class TestTopLevelImportInRenderBlock:
     """Top-level {% from %}...{% import %} available in render_block() without {% globals %}."""

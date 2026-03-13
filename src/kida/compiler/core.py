@@ -610,6 +610,7 @@ class Compiler(
                 )
             keywords.append(ast.keyword(arg=param_name, value=val))
         keywords.append(ast.keyword(arg="_outer_ctx", value=ast.Name(id="ctx", ctx=ast.Load())))
+        keywords.append(ast.keyword(arg="_blocks", value=ast.Name(id="_blocks", ctx=ast.Load())))
 
         return ast.FunctionDef(
             name=f"_block_{name}",
@@ -919,6 +920,7 @@ class Compiler(
                 )
             keywords.append(ast.keyword(arg=param_name, value=val))
         keywords.append(ast.keyword(arg="_outer_ctx", value=ast.Name(id="ctx", ctx=ast.Load())))
+        keywords.append(ast.keyword(arg="_blocks", value=ast.Name(id="_blocks", ctx=ast.Load())))
         call = ast.Call(
             func=ast.Subscript(
                 value=ast.Name(id="ctx", ctx=ast.Load()),

@@ -645,8 +645,8 @@ class FunctionCompilationMixin:
                 posonlyargs=[],
                 args=args_list,
                 vararg=vararg_node,
-                kwonlyargs=[ast.arg(arg="_outer_ctx")],
-                kw_defaults=[None],  # Required kw-only (no default)
+                kwonlyargs=[ast.arg(arg="_outer_ctx"), ast.arg(arg="_blocks")],
+                kw_defaults=[None, None],
                 kwarg=kwarg_node,
                 defaults=defaults,
             ),
