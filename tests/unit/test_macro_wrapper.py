@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from kida import Environment, FileSystemLoader
 from kida.environment.exceptions import ErrorCode
 from kida.render_context import render_context
 from kida.template.error_enhancement import enhance_template_error
@@ -90,6 +91,7 @@ def test_macro_wrapper_iteration_without_macro_name() -> None:
 
     wrapper = MacroWrapper(
         _fn=lambda: None,
+        _defining_namespace={},
         _kida_source_template="t.html",
         _kida_source_file=None,
         _source=None,
@@ -115,3 +117,47 @@ def test_macro_wrapper_non_iteration_type_error_keeps_type_error_code() -> None:
 
     assert enhanced.code == ErrorCode.TYPE_ERROR
     assert enhanced.suggestion is None
+
+
+def test_imported_macro_uses_defining_namespace_for_nested_macro_call(tmp_path) -> None:
+    """Imported macro that calls another macro from its defining template succeeds.
+
+    Caller imports only article_card; article_card calls tag_list. Without
+    defining-namespace injection, tag_list would be _Undefined in caller's context.
+    """
+    components = tmp_path / "components"
+    components.mkdir()
+
+    (components / "tags.html").write_text(
+        """
+{% def tag_list(items, small=false) %}
+<span class="tags{{ ' small' if small else '' }}">{{ items | join(', ') }}</span>
+{% end %}
+""".strip()
+    )
+
+    (components / "article.html").write_text(
+        """
+{% from 'components/tags.html' import tag_list %}
+{% def article_card(article, show_excerpt=true) %}
+<div class="card">
+  <h3>{{ article.title }}</h3>
+  {{ tag_list(article.tags or [], small=true) }}
+</div>
+{% end %}
+""".strip()
+    )
+
+    (tmp_path / "caller.html").write_text(
+        """
+{% from 'components/article.html' import article_card %}
+{{ article_card(page) }}
+""".strip()
+    )
+
+    env = Environment(loader=FileSystemLoader(str(tmp_path)))
+    template = env.get_template("caller.html")
+    result = template.render(page={"title": "Hello", "tags": ["a", "b"]})
+    assert "Hello" in result
+    assert "a, b" in result
+    assert "small" in result

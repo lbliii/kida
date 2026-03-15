@@ -7,6 +7,7 @@ compiled template code.
 
 from __future__ import annotations
 
+import inspect
 import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
@@ -93,9 +94,13 @@ class MacroWrapper:
     Used for error attribution: template_stack, template_name, and source
     are set on render_ctx before calling the macro. The _kida_source_*
     attributes are available for future error enhancement (e.g. source snippets).
+
+    Injects _defining_namespace as _outer_ctx so macros see their defining
+    template's namespace (e.g. tag_list when article_card calls it).
     """
 
     _fn: Callable[..., object]
+    _defining_namespace: dict[str, Any]
     _kida_source_template: str
     _kida_source_file: str | None
     _source: str | None
@@ -114,8 +119,15 @@ class MacroWrapper:
         render_ctx.template_name = self._kida_source_template
         render_ctx.line = 0
         render_ctx.source = self._source
+        kwargs_to_use = dict(kwargs)
         try:
-            return self._fn(*args, **kwargs)
+            sig = inspect.signature(self._fn)
+            if "_outer_ctx" in sig.parameters:
+                kwargs_to_use["_outer_ctx"] = self._defining_namespace
+        except ValueError, TypeError:
+            pass
+        try:
+            return self._fn(*args, **kwargs_to_use)
         finally:
             render_ctx.template_stack.pop()
             render_ctx.template_name = prev_name
@@ -143,10 +155,12 @@ def _make_macro_wrapper(
     source_file: str | None,
     source: str | None = None,
     macro_name: str | None = None,
+    defining_namespace: dict[str, Any] | None = None,
 ) -> MacroWrapper:
     """Wrap imported macro to push/pop template_stack for error attribution."""
     return MacroWrapper(
         _fn=macro_fn,
+        _defining_namespace=defining_namespace or {},
         _kida_source_template=source_template,
         _kida_source_file=source_file,
         _source=source,
@@ -429,10 +443,16 @@ def make_render_helpers(
                             )
                 source_file = imported._filename if imported else None
                 macro_source = imported._source if imported else None
+                defining_namespace = dict(import_ctx)
                 for key, val in list(import_ctx.items()):
                     if callable(val) and not isinstance(val, type):
                         import_ctx[key] = _make_macro_wrapper(
-                            val, template_name, source_file, macro_source, macro_name=key
+                            val,
+                            template_name,
+                            source_file,
+                            macro_source,
+                            macro_name=key,
+                            defining_namespace=defining_namespace,
                         )
                 return import_ctx
             finally:
