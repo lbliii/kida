@@ -464,3 +464,18 @@ class FunctionBlockParsingMixin(BlockStackMixin):
             col_offset=start.col_offset,
             name=name,
         )
+
+    def _parse_yield(self) -> Slot:
+        """Parse {% yield %} or {% yield name %} — always a render reference.
+
+        Unlike {% slot %}, which becomes a SlotBlock inside {% call %} blocks,
+        {% yield %} always produces a Slot node. This makes it safe to use
+        inside nested {% call %} blocks when forwarding the enclosing def's
+        caller slots.
+        """
+        start = self._advance()  # consume 'yield'
+        name = "default"
+        if self._current.type == TokenType.NAME:
+            name = self._advance().value
+        self._expect(TokenType.BLOCK_END)
+        return Slot(lineno=start.lineno, col_offset=start.col_offset, name=name)

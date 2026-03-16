@@ -92,6 +92,7 @@ class TestDispatchTableKeywords:
             "flush",
             # Advanced features
             "slot",
+            "yield",
             "match",
             "spaceless",
             "embed",
