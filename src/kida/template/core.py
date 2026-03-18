@@ -188,7 +188,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         namespace: dict[str, Any] = STATIC_NAMESPACE.copy()
 
         # Import RenderContext getter for generated code
-        from kida.render_context import get_render_context_required
+        from kida.render_context import NULL_RENDER_CONTEXT, get_render_context
 
         # Add per-template dynamic entries
         namespace.update(
@@ -221,7 +221,8 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 "_LoopContext": LoopContext,
                 "_AsyncLoopContext": AsyncLoopContext,
                 # RFC: kida-contextvar-patterns - for generated code line tracking
-                "_get_render_ctx": get_render_context_required,
+                "_get_render_ctx": get_render_context,
+                "_null_rc": NULL_RENDER_CONTEXT,
             }
         )
         exec(code, namespace)

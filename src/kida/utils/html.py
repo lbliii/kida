@@ -23,11 +23,11 @@ from typing import Any, Self, SupportsIndex, cast
 
 from kida.utils.constants import EVENT_HANDLER_ATTRS as _EVENT_HANDLER_ATTRS
 
-# Optional MarkupSafe (C extension) for faster escaping when installed
-try:
-    from markupsafe import escape as _ms_escape
-except ImportError:
-    _ms_escape = None  # type: ignore[assignment]
+# NOTE: markupsafe is no longer used for escaping. Kida's native
+# str.translate(_ESCAPE_TABLE) is C-level fast, handles NUL byte stripping
+# in the same pass, and avoids the Markup→str round-trip overhead that the
+# markupsafe path incurred. The __html__ protocol is still supported for
+# interoperability with external Markup objects.
 
 # =============================================================================
 # Core Escaping Infrastructure
@@ -398,17 +398,14 @@ def html_escape(value: Any) -> str:
 
     Security:
         - Escapes &, <, >, ", '
-        - Strips NUL bytes (\x00) which can bypass some filters
+        - Strips NUL bytes (\x00) in the same translate pass
         - Objects with __html__() are returned as-is (already safe)
 
     Optimizations:
-        1. Skip Markup objects (already safe)
-        2. Skip objects with __html__() method (protocol-based safety)
+        1. Fast path for plain str (type check excludes Markup subclass)
+        2. Skip Markup objects (already safe)
         3. Skip numeric types (int, float, bool) - cannot contain HTML chars
-        4. Single-pass translation instead of 5 chained .replace()
-
-    The numeric type optimization provides ~2.5x speedup for number-heavy
-    templates (benchmarks/test_benchmark_optimization_levers.py).
+        4. Single-pass translation handles escaping + NUL stripping together
 
     Args:
         value: Value to escape (will be converted to string)
@@ -417,31 +414,28 @@ def html_escape(value: Any) -> str:
         Escaped string (not Markup, so it can be escaped again if needed)
 
     """
-    # Skip Markup objects - they're already safe
-    # Must check before str() conversion since str(Markup) returns plain str
+    # Fast path: plain strings are the most common case in templates.
+    # type() is str is False for Markup (str subclass), so this correctly
+    # skips already-safe content. Avoids getattr/__html__ probe entirely.
+    if type(value) is str:
+        return value.translate(_ESCAPE_TABLE)
+
+    # Markup objects are already safe — return as plain str
     if isinstance(value, Markup):
         return str(value)
 
-    # Check __html__ protocol (supports markupsafe.Markup and similar)
-    # This enables interoperability with other template engines
+    # __html__ protocol (supports external Markup-like objects)
     html_method = getattr(value, "__html__", None)
     if html_method is not None:
         return str(html_method())
 
-    # Optimization: numeric types cannot contain HTML special characters
-    # Use type() instead of isinstance() to exclude subclasses that might
-    # override __str__ with HTML content
-    # Note: This is safe because int/float/bool.__str__ always returns
-    # decimal digits, signs, decimal points, 'e', 'True', or 'False'
+    # Numeric types cannot contain HTML special characters
     value_type = type(value)
     if value_type is int or value_type is float or value_type is bool:
         return str(value)
 
-    s = str(value)
-    s = s.replace("\x00", "")  # Strip NUL (security) — MarkupSafe doesn't do this
-    if _ms_escape is not None:
-        return str(_ms_escape(s))  # MarkupSafe returns Markup; we need str
-    return _escape_str(s)
+    # General case: convert to string, then single-pass escape + NUL strip
+    return str(value).translate(_ESCAPE_TABLE)
 
 
 def html_escape_filter(value: Any) -> Markup:
@@ -459,6 +453,12 @@ def html_escape_filter(value: Any) -> Markup:
     # Already safe - return as-is
     if isinstance(value, Markup):
         return value
+    # Fast path: plain strings — single translate + one Markup allocation.
+    # Avoids calling html_escape() which would return str, only for us to
+    # wrap it in Markup again.
+    if type(value) is str:
+        return Markup(value.translate(_ESCAPE_TABLE))
+    # Delegate to html_escape for __html__ protocol, numerics, etc.
     return Markup(html_escape(value))
 
 

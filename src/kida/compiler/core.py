@@ -495,6 +495,7 @@ class Compiler(
             include_buf_append=True,
             include_acc=True,
             acc_none=True,
+            include_render_ctx=True,
         )
 
         # Top-level imports first (so macros are in ctx for blocks)
@@ -551,6 +552,7 @@ class Compiler(
         include_acc: bool = False,
         acc_none: bool = False,
         include_lookup_scope: bool = False,
+        include_render_ctx: bool = False,
     ) -> list[ast.stmt]:
         """Build shared runtime locals preamble for generated functions."""
         stmts: list[ast.stmt] = []
@@ -632,6 +634,27 @@ class Compiler(
                     value=acc_value,
                 )
             )
+        if include_render_ctx:
+            # Cache render context as _rc for LOAD_FAST instead of
+            # calling ContextVar.get() on every line-tracked node.
+            # Falls back to _null_rc (absorbs .line = N) when called
+            # outside a render context (e.g. block recompilation tests).
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_rc", ctx=ast.Store())],
+                    value=ast.BoolOp(
+                        op=ast.Or(),
+                        values=[
+                            ast.Call(
+                                func=ast.Name(id="_get_render_ctx", ctx=ast.Load()),
+                                args=[],
+                                keywords=[],
+                            ),
+                            ast.Name(id="_null_rc", ctx=ast.Load()),
+                        ],
+                    ),
+                )
+            )
         return stmts
 
     def _make_block_preamble(self, streaming: bool) -> list[ast.stmt]:
@@ -645,6 +668,7 @@ class Compiler(
             include_lookup_scope=True,
             include_buf_append=not streaming,
             include_acc=True,
+            include_render_ctx=True,
         )
 
     def _make_region_block_function(self, name: str, region_node: Region) -> ast.FunctionDef:
@@ -760,6 +784,7 @@ class Compiler(
             include_scope_stack=True,
             include_lookup_scope=True,
             include_acc=True,
+            include_render_ctx=True,
         )
 
     def _make_render_extends_body(
@@ -823,6 +848,7 @@ class Compiler(
             include_escape_str=True,
             include_lookup_scope=True,
             include_buf_append=not streaming,
+            include_render_ctx=True,
         )
         body.extend(self._compile_body_with_coalescing(list(node.body)))
         if streaming:
@@ -1153,21 +1179,17 @@ class Compiler(
     def _make_line_marker(self, lineno: int) -> ast.stmt:
         """Generate RenderContext line update for error tracking.
 
-        Generates: _get_render_ctx().line = lineno
+        Generates: _rc.line = lineno
 
-        This updates the ContextVar-stored RenderContext instead of
-        polluting the user's ctx dict.
+        Uses the cached _rc local (set in preamble) instead of calling
+        _get_render_ctx() per node, avoiding repeated ContextVar.get() calls.
 
         RFC: kida-contextvar-patterns
         """
         return ast.Assign(
             targets=[
                 ast.Attribute(
-                    value=ast.Call(
-                        func=ast.Name(id="_get_render_ctx", ctx=ast.Load()),
-                        args=[],
-                        keywords=[],
-                    ),
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
                     attr="line",
                     ctx=ast.Store(),
                 )
