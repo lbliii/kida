@@ -50,7 +50,6 @@ from kida.template.cached_blocks import CachedBlocksDict
 from kida.template.error_enhancement import enhance_template_error
 from kida.template.helpers import (
     STATIC_NAMESPACE,
-    UNDEFINED,
     add_polymorphic,
     coerce_numeric,
     default_safe,
@@ -263,17 +262,18 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         Shared by render, render_block, render_with_blocks, render_stream,
         render_stream_async, render_block_stream_async.
         """
-        ctx: dict[str, Any] = {}
-        ctx.update({k: v for k, v in self._env.globals.items() if v is not UNDEFINED})
         if args:
-            if len(args) == 1 and isinstance(args[0], dict):
-                ctx.update(args[0])
-            else:
+            if len(args) != 1 or not isinstance(args[0], dict):
                 raise TypeError(
                     f"{method_name}() takes at most 1 positional argument (a dict), got {len(args)}"
                 )
-        ctx.update(kwargs)
-        return ctx
+            # Single-pass merge: globals | positional dict | keyword overrides
+            return {**self._env.globals, **args[0], **kwargs}
+        if kwargs:
+            return {**self._env.globals, **kwargs}
+        # Common case: no args, no kwargs — copy globals only
+        env_globals = self._env.globals
+        return dict(env_globals) if env_globals else {}
 
     @property
     def name(self) -> str | None:

@@ -61,6 +61,7 @@ _BLOCK_PARSERS: dict[str, str] = {
     "flush": "_parse_flush",
     # Advanced features
     "slot": "_parse_slot",
+    "yield": "_parse_yield",
     "match": "_parse_match",
     "spaceless": "_parse_spaceless",  # RFC: kida-modern-syntax-features
     "embed": "_parse_embed",  # RFC: kida-modern-syntax-features

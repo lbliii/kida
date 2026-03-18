@@ -82,6 +82,11 @@ class FunctionCompilationMixin:
                 targets=[ast.Name(id="_s", ctx=ast.Store())],
                 value=ast.Name(id="_str", ctx=ast.Load()),
             ),
+            # Cache _lookup_scope as _ls for LOAD_FAST
+            ast.Assign(
+                targets=[ast.Name(id="_ls", ctx=ast.Store())],
+                value=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+            ),
             ast.Assign(
                 targets=[ast.Name(id="buf", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
@@ -554,11 +559,14 @@ class FunctionCompilationMixin:
 
         return stmts
 
-    def _make_region_function(self, name: str, node: Region) -> ast.FunctionDef:
+    def _make_region_function(
+        self, name: str, node: Region
+    ) -> tuple[list[ast.FunctionDef], ast.FunctionDef]:
         """Generate module-level region callable: _region_name(params, *, _outer_ctx) -> Markup.
 
         Regions compile to both a callable (this) and a block wrapper.
         No _caller/slots — regions are parameterized renderable units only.
+        Returns (thunk_defs, region_func) — thunks must be emitted before the region func.
         """
         func_name = f"_region_{name}"
         param_names = [p.name for p in node.params]
@@ -578,12 +586,113 @@ class FunctionCompilationMixin:
             )
             for p in node.params
         ]
-        defaults = [self._compile_expr(d) for d in node.defaults]
+        # Use _REGION_DEFAULT for param defaults: Python evaluates defaults at def time,
+        # but region defaults reference ctx/_scope_stack which don't exist during exec().
+        # We resolve them at call time in the function body.
+        defaults = [ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()) for _ in node.defaults]
+        from kida.nodes.expressions import Name
+
+        default_resolvers: list[tuple[str, str]] = []  # (param_name, lookup_key)
+        thunk_resolvers: list[tuple[str, str]] = []  # (param_name, thunk_name)
+        thunk_defs: list[ast.FunctionDef] = []
+        n_defaults = len(node.defaults)
+        n_required = len(param_names) - n_defaults
+
+        for i, default_node in enumerate(node.defaults):
+            param_name = param_names[n_required + i]
+            if isinstance(default_node, Name):
+                default_resolvers.append((param_name, default_node.name))
+            else:
+                # Thunk path: compile expression with context-override
+                self._ctx_override = "_thunk_ctx"
+                self._scope_override = "_thunk_scope"
+                try:
+                    compiled = self._compile_expr(default_node)
+                finally:
+                    self._ctx_override = None
+                    self._scope_override = None
+
+                thunk_name = f"_rgn_default_{name}_{i}"
+                thunk_def = ast.FunctionDef(
+                    name=thunk_name,
+                    args=ast.arguments(
+                        posonlyargs=[],
+                        args=[
+                            ast.arg(arg="_thunk_ctx"),
+                            ast.arg(arg="_thunk_scope"),
+                        ],
+                        vararg=None,
+                        kwonlyargs=[],
+                        kw_defaults=[],
+                        kwarg=None,
+                        defaults=[],
+                    ),
+                    body=[ast.Return(value=compiled)],
+                    decorator_list=[],
+                    returns=None,
+                )
+                thunk_defs.append(thunk_def)
+                thunk_resolvers.append((param_name, thunk_name))
+
         vararg_node = ast.arg(arg=node.vararg) if node.vararg else None
         kwarg_node = ast.arg(arg=node.kwarg) if node.kwarg else None
 
-        func_body: list[ast.stmt] = [
-            *self._make_callable_preamble(include_scope_stack=True),
+        func_body = list(self._make_callable_preamble(include_scope_stack=True))
+
+        # Resolve param defaults that reference ctx (evaluated at call time, not def time)
+        for param_name, lookup_key in default_resolvers:
+            func_body.append(
+                ast.If(
+                    test=ast.Compare(
+                        left=ast.Name(id=param_name, ctx=ast.Load()),
+                        ops=[ast.Is()],
+                        comparators=[ast.Name(id="_REGION_DEFAULT", ctx=ast.Load())],
+                    ),
+                    body=[
+                        ast.Assign(
+                            targets=[ast.Name(id=param_name, ctx=ast.Store())],
+                            value=ast.Call(
+                                func=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+                                args=[
+                                    ast.Name(id="_outer_ctx", ctx=ast.Load()),
+                                    ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                    ast.Constant(value=lookup_key),
+                                ],
+                                keywords=[],
+                            ),
+                        )
+                    ],
+                    orelse=[],
+                )
+            )
+
+        # Resolve complex defaults via thunks
+        for param_name, thunk_name in thunk_resolvers:
+            func_body.append(
+                ast.If(
+                    test=ast.Compare(
+                        left=ast.Name(id=param_name, ctx=ast.Load()),
+                        ops=[ast.Is()],
+                        comparators=[ast.Name(id="_REGION_DEFAULT", ctx=ast.Load())],
+                    ),
+                    body=[
+                        ast.Assign(
+                            targets=[ast.Name(id=param_name, ctx=ast.Store())],
+                            value=ast.Call(
+                                func=ast.Name(id=thunk_name, ctx=ast.Load()),
+                                args=[
+                                    ast.Name(id="_outer_ctx", ctx=ast.Load()),
+                                    ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                ],
+                                keywords=[],
+                            ),
+                        )
+                    ],
+                    orelse=[],
+                )
+            )
+
+        func_body.append(
             ast.Assign(
                 targets=[ast.Name(id="ctx", ctx=ast.Store())],
                 value=ast.Dict(
@@ -594,7 +703,7 @@ class FunctionCompilationMixin:
                     ],
                 ),
             ),
-        ]
+        )
 
         for p in node.params:
             self._locals.add(p.name)
@@ -639,14 +748,14 @@ class FunctionCompilationMixin:
             )
         )
 
-        return ast.FunctionDef(
+        region_func = ast.FunctionDef(
             name=func_name,
             args=ast.arguments(
                 posonlyargs=[],
                 args=args_list,
                 vararg=vararg_node,
-                kwonlyargs=[ast.arg(arg="_outer_ctx")],
-                kw_defaults=[None],  # Required kw-only (no default)
+                kwonlyargs=[ast.arg(arg="_outer_ctx"), ast.arg(arg="_blocks")],
+                kw_defaults=[None, None],
                 kwarg=kwarg_node,
                 defaults=defaults,
             ),
@@ -654,6 +763,7 @@ class FunctionCompilationMixin:
             decorator_list=[],
             returns=None,
         )
+        return (thunk_defs, region_func)
 
     def _compile_region(self, node: Region) -> list[ast.stmt]:
         """Compile {% region name(params) %} for template body — emit ctx assign only."""

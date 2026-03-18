@@ -23,6 +23,7 @@ Example:
 from __future__ import annotations
 
 import json
+import os
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -240,6 +241,8 @@ class Environment:
     _fragment_cache: LRUCache[str, str] = field(init=False)
     # Source hashes for cache invalidation (template_name -> source_hash)
     _template_hashes: dict[str, str] = field(init=False, default_factory=dict)
+    # File mtimes for fast stale check (filename -> mtime_ns); skip hash when mtime unchanged
+    _template_mtimes: dict[str, int] = field(init=False, default_factory=dict)
     # Shared analysis cache (template_name -> TemplateMetadata)
     # Prevents redundant analysis when multiple templates include the same partial
     _analysis_cache: dict[str, TemplateMetadata] = field(init=False, default_factory=dict)
@@ -429,6 +432,7 @@ class Environment:
                         # Source changed - invalidate cache and reload
                         self._cache.delete(name)
                         self._template_hashes.pop(name, None)
+                        self._template_mtimes.pop(name, None)
                         self._analysis_cache.pop(name, None)  # Invalidate analysis cache
                     else:
                         # Source unchanged - return cached template
@@ -457,6 +461,12 @@ class Environment:
             # Update cache (LRU handles eviction)
             self._cache.set(name, template)
             self._template_hashes[name] = source_hash
+            # Record mtime for fast stale checks (skip hash when mtime unchanged)
+            if filename is not None:
+                try:
+                    self._template_mtimes[name] = os.stat(filename).st_mtime_ns
+                except OSError:
+                    self._template_mtimes.pop(name, None)
 
             return template
 
@@ -621,9 +631,9 @@ class Environment:
     def _is_template_stale(self, name: str) -> bool:
         """Check if a cached template is stale (source changed).
 
-        Compares current source hash with cached hash. Returns True if:
-        - No cached hash exists (first load)
-        - Current source hash differs from cached hash
+        Uses a two-tier check: mtime first (cheap stat call), then hash
+        comparison only if mtime changed. This avoids reading and hashing
+        the entire source on every get_template() call when auto_reload=True.
 
         Args:
             name: Template identifier
@@ -632,23 +642,33 @@ class Environment:
             True if template source changed, False if unchanged
         """
         if name not in self._template_hashes:
-            # No cached hash - treat as stale to force reload
             return True
 
         try:
-            # Load current source and compute hash
             if self.loader is None:
                 return True
+
+            # Fast path: if file mtime hasn't changed, source hasn't changed
+            cached_mtime = self._template_mtimes.get(name)
+            if cached_mtime is not None:
+                # Resolve filename from cached template
+                cached_template = self._cache.get(name)
+                if cached_template is not None and cached_template._filename is not None:
+                    try:
+                        current_mtime = os.stat(cached_template._filename).st_mtime_ns
+                        if current_mtime == cached_mtime:
+                            return False  # mtime unchanged → not stale
+                    except OSError:
+                        pass  # Fall through to hash check
+
+            # Slow path: read source and compare hash
             source, _ = self.loader.get_source(name)
             from kida.bytecode_cache import hash_source
 
             current_hash = hash_source(source)
             cached_hash = self._template_hashes[name]
-
-            # Stale if hashes differ
             return current_hash != cached_hash
         except TemplateNotFoundError, OSError, UnicodeDecodeError:
-            # File deleted, permission error, encoding issue, etc. → treat as stale
             return True
 
     def clear_template_cache(self, names: list[str] | None = None) -> None:
@@ -669,6 +689,7 @@ class Environment:
                 # Clear all templates
                 self._cache.clear()
                 self._template_hashes.clear()
+                self._template_mtimes.clear()
                 self._analysis_cache.clear()
                 self._structure_manifest_cache.clear()
             else:
@@ -676,6 +697,7 @@ class Environment:
                 for name in names:
                     self._cache.delete(name)
                     self._template_hashes.pop(name, None)
+                    self._template_mtimes.pop(name, None)
                     self._analysis_cache.pop(name, None)  # Invalidate analysis cache
                     self._structure_manifest_cache.pop(name, None)
 

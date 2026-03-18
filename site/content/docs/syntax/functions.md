@@ -196,6 +196,30 @@ How it works:
 - Inside `{% call %}`, use `{% slot name %}...{% end %}` to provide named slot content.
 - `caller("name")` retrieves a named slot from inside a `def`.
 
+### Slot Forwarding with `{% yield %}`
+
+When composing macros, you often need to forward the outer caller's slot content into a nested `{% call %}`. The `{% slot %}` tag has context-dependent meaning: inside `{% call %}` it defines content (a `SlotBlock`), not a render reference. Use `{% yield %}` when you want to **render** the enclosing def's caller slot regardless of block context:
+
+```kida
+{% def selection_bar() %}<bar>{{ caller() }}</bar>{% end %}
+{% def resource_index() %}
+  {% call selection_bar() %}
+    {% yield selection %}
+  {% end %}
+{% end %}
+{% call resource_index() %}
+  {% slot selection %}Badges{% end %}
+  Cards
+{% end %}
+```
+
+- `{% yield %}` — render the caller's default slot (same as `{% slot %}` inside a def).
+- `{% yield name %}` — render the caller's named slot `name`.
+
+`{% yield %}` is self-closing (no `{% end %}`) and always produces a render reference, even inside `{% call %}` blocks. It resolves to the **nearest enclosing def's caller**, regardless of nesting depth. No caller means no output (silent no-op).
+
+**When to use:** Prefer `{% yield %}` over the double-nesting workaround `{% slot x %}{% slot x %}{% end %}` when forwarding slots through nested calls.
+
 ### Slot Context Inheritance
 
 Slot content is rendered in the **caller's context**. Variables from the page or render context are available in slot content without `| default()`:
@@ -341,6 +365,34 @@ Region bodies can read variables from the outer render context (not just paramet
 ```
 
 When `render_block("crumbs", ...)` or `{{ crumbs(...) }}` is called, the region receives its params plus the caller's context. `breadcrumb_items` comes from the outer context.
+
+### Region default expressions
+
+Optional parameters can use **any expression** as a default, not just simple variable names. Defaults are evaluated at **call time** from the caller's context:
+
+```kida
+{% region sidebar(section, meta=page.metadata) %}
+  <nav>{{ meta.title }}</nav>
+{% end %}
+
+{% region stats(count=items | length) %}
+  {{ count }} items
+{% end %}
+
+{% region header(title=page?.title ?? "Default") %}
+  <h1>{{ title }}</h1>
+{% end %}
+```
+
+Supported expressions include:
+
+- **Simple names** — `current_page=page` (zero-overhead inline lookup)
+- **Attribute access** — `meta=page.metadata`
+- **Filters** — `count=items | length`
+- **Optional chaining** — `title=page?.title ?? "Default"`
+- **Null coalescing** — `meta=data?.info ?? {}`
+
+Static analysis (`depends_on`) correctly captures context paths from complex defaults for incremental build and cache scope inference.
 
 ### Regions vs Defs
 

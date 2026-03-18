@@ -80,6 +80,18 @@ API that Purr's reactive pipeline uses to map content changes to template blocks
 cd examples/introspection && python app.py
 ```
 
+### `regions/` -- Parameterized Blocks
+
+`{% region %}` blocks are parameterized fragments that work as both blocks (for
+`render_block()`) and callables (for `{{ name(args) }}`). Supports simple and
+complex default expressions (`meta=page.metadata`, `count=items | length`,
+`title=page?.title ?? "Default"`). Use for HTMX partials, OOB updates, or
+layout composition.
+
+```bash
+cd examples/regions && python app.py
+```
+
 ### `htmx_partials/` -- Partial Block Rendering
 
 `render_block()` extracts and renders a single block from a template -- the
@@ -228,15 +240,16 @@ pytest examples/hello/
 
 ## What Each Example Exercises
 
-| Feature | hello | file_loader | components | streaming | async_rendering | caching | modern_syntax | introspection | htmx_partials | bytecode_cache | design_system | fastapi_async | llm_streaming | concurrent | profiling | dict_loader | custom_filters | rendered_template | t_string | jinja2_migration | loop_context |
+| Feature | hello | file_loader | components | regions | streaming | async_rendering | caching | modern_syntax | introspection | htmx_partials | bytecode_cache | design_system | fastapi_async | llm_streaming | concurrent | profiling | dict_loader | custom_filters | rendered_template | t_string | jinja2_migration | loop_context |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | `from_string()` | x | | | | | | | | | | | | | x | | x | x | x | | x |
-| `FileSystemLoader` | | x | x | x | | x | x | x | x | x | x | x | x | | x | | x | | | | x |
+| `FileSystemLoader` | | x | x | x | x | | x | x | x | x | x | x | x | | x | | x | | | | x |
 | `DictLoader` | | | | | | | | | | | | | | | | x | | | | | |
-| `render()` | x | x | x | | | x | x | x | x | x | x | | | x | x | x | x | | x | x | x |
-| `render_stream()` | | | | x | | | | | | | | | | | | | x | | | | |
-| `render_stream_async()` | | | | | x | | | | | | | x | x | | | | | | | | |
-| `render_block()` | | | | | | | | | x | | | | | | | | | | | | |
+| `render()` | x | x | x | x | | | x | x | x | x | x | | | x | x | x | x | | x | x | x |
+| `render_stream()` | | | | | x | | | | | | | | | | | | x | | | | |
+| `render_stream_async()` | | | | | | x | | | | | | x | x | | | | | | | | |
+| `render_block()` | | | | x | | | | | x | x | | | | | | | | | | | |
+| `{% region %}` | | | | x | | | | | | | | | | | | | | | | | |
 | `RenderedTemplate` | | | | | | | | | | | | | | | | | | x | | | | |
 | `render_stream()` via RenderedTemplate | | | | | | | | | | | | | | | | | | x | | | | |
 | `{% extends %}` / `{% block %}` | | x | | | | | | x | x | | | | | | x | x | | | | | | |
@@ -251,8 +264,8 @@ pytest examples/hello/
 | `required_context()` | | | | | | | | x | | | | | | | | | | | | | |
 | `block_metadata()` | | | | | | | | x | | | | | | | | | | | | | |
 | `validate_context()` | | | | | | | | x | | | | | | | | | | | | | |
-| `depends_on()` | | | | | | | | x | | | | | | | | | | | | | |
-| `template_metadata()` | | | | | | | | x | | | | | | | | | | | | | |
+| `depends_on()` | | | | x | | | | x | | | | | | | | | | | | | |
+| `template_metadata()` | | | | x | | | | x | | | | | | | | | | | | | |
 | `BytecodeCache` | | | | | | | | | | x | | | | | | | | | | | |
 | `profiled_render()` | | | | | | | | | | | | | | | x | | | | | | |
 | `add_filter()` / `add_test()` | | | | | | | | | | | | | | | | | x | | | | | |

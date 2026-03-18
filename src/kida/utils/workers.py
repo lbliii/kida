@@ -399,21 +399,32 @@ def estimate_template_weight(template: Template) -> float:
     if source_len > 5000:
         weight += (source_len - 5000) / 10000  # +0.5 per 5KB above threshold
 
-    # Block count factor (each adds render overhead)
-    block_count = source.count("{% block")
+    # Single-pass tag counting (avoids 4 separate source scans)
+    block_count = 0
+    macro_count = 0
+    extends_found = False
+    include_count = 0
+    idx = 0
+    while True:
+        idx = source.find("{%", idx)
+        if idx == -1:
+            break
+        tag = source[idx + 2 : idx + 12].lstrip()
+        if tag.startswith("block"):
+            block_count += 1
+        elif tag.startswith("macro"):
+            macro_count += 1
+        elif tag.startswith("extends"):
+            extends_found = True
+        elif tag.startswith("include"):
+            include_count += 1
+        idx += 2
+
     if block_count > 3:
         weight += (block_count - 3) * 0.1
-
-    # Macro count factor (more expensive than blocks)
-    macro_count = source.count("{% macro")
     weight += macro_count * 0.2
-
-    # Inheritance adds complexity
-    if "{% extends" in source:
+    if extends_found:
         weight += 0.5
-
-    # Include statements add I/O + render overhead
-    include_count = source.count("{% include")
     weight += include_count * 0.15
 
     return min(weight, 5.0)  # Cap at 5x to avoid outlier distortion

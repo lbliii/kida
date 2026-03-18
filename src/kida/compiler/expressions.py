@@ -187,12 +187,18 @@ class ExpressionCompilationMixin:
                 return ast.Name(id=node.name, ctx=ast.Load())
 
             # Strict mode: check scope stack first, then ctx
-            # _lookup_scope(ctx, _scope_stack, name) checks scopes then ctx
+            # _ls(ctx, _scope_stack, name) checks scopes then ctx
+            # _ls is a LOAD_FAST alias for _lookup_scope (cached in preamble)
+            # When compiling for thunks, use override names (e.g. _thunk_ctx, _thunk_scope)
+            ctx_name = getattr(self, "_ctx_override", None) or "ctx"
+            scope_name = getattr(self, "_scope_override", None) or "_scope_stack"
+            # Use _ls (cached local) when available, fall back to _lookup_scope for thunks
+            lookup_name = "_ls" if ctx_name == "ctx" else "_lookup_scope"
             return ast.Call(
-                func=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+                func=ast.Name(id=lookup_name, ctx=ast.Load()),
                 args=[
-                    ast.Name(id="ctx", ctx=ast.Load()),
-                    ast.Name(id="_scope_stack", ctx=ast.Load()),
+                    ast.Name(id=ctx_name, ctx=ast.Load()),
+                    ast.Name(id=scope_name, ctx=ast.Load()),
                     ast.Constant(value=node.name),
                 ],
                 keywords=[],
@@ -309,7 +315,7 @@ class ExpressionCompilationMixin:
             keywords = [
                 ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
             ]
-            # Region callables require _outer_ctx=ctx (RFC: kida-regions)
+            # Region callables require _outer_ctx=ctx and _blocks (RFC: kida-regions)
             func_name = getattr(node.func, "name", None)
             if func_name and func_name in getattr(self, "_blocks", {}):
                 from kida.nodes import Region
@@ -321,6 +327,12 @@ class ExpressionCompilationMixin:
                             value=ast.Name(id="ctx", ctx=ast.Load()),
                         )
                     )
+                    blocks_value = (
+                        ast.Dict(keys=[], values=[])
+                        if self._def_caller_stack
+                        else ast.Name(id="_blocks", ctx=ast.Load())
+                    )
+                    keywords.append(ast.keyword(arg="_blocks", value=blocks_value))
             call_node = ast.Call(
                 func=self._compile_expr(node.func),
                 args=[self._compile_expr(a) for a in node.args],
@@ -367,7 +379,9 @@ class ExpressionCompilationMixin:
                     args=[value_lambda, *filter_args],
                     keywords=[ast.keyword(arg=k, value=v) for k, v in filter_kwargs.items()],
                 )
-                # Profiling: record as 'default' (canonical name)
+                # Thunk mode: no _acc, skip profiling
+                if getattr(self, "_ctx_override", None):
+                    return default_call
                 return ast.Call(
                     func=ast.Name(id="_record_filter", ctx=ast.Load()),
                     args=[
@@ -390,9 +404,9 @@ class ExpressionCompilationMixin:
                     ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
                 ],
             )
-            # Profiling: _record_filter(_acc, 'name', filter_result)
-            # Always called, but _record_filter short-circuits when _acc is None
-            # (single falsy check + return). No AST duplication.
+            # Thunk mode: no _acc, skip profiling
+            if getattr(self, "_ctx_override", None):
+                return filter_call
             return ast.Call(
                 func=ast.Name(id="_record_filter", ctx=ast.Load()),
                 args=[

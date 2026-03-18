@@ -39,7 +39,7 @@ from __future__ import annotations
 import ast
 import re
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
@@ -124,6 +124,7 @@ class Compiler(
         "_async_mode",
         "_block_counter",
         "_blocks",
+        "_ctx_override",
         "_def_caller_stack",
         "_def_names",
         "_env",
@@ -134,6 +135,7 @@ class Compiler(
         "_name",
         "_node_dispatch",
         "_outer_caller_expr",
+        "_scope_override",
         "_streaming",
     )
 
@@ -160,6 +162,44 @@ class Compiler(
         # Lexical caller scoping: def → call → caller() (reset in compile())
         self._def_caller_stack: list[ast.expr] = []
         self._outer_caller_expr: ast.expr | None = None
+        # Context-override for thunk compilation (region defaults): use param names
+        # instead of hardcoded ctx/_scope_stack when compiling expressions
+        self._ctx_override: str | None = None
+        self._scope_override: str | None = None
+        # Node dispatch table - built once, reused for all node compilations
+        self._node_dispatch: dict[str, Callable] = {
+            "Data": self._compile_data,
+            "Output": self._compile_output,
+            "If": self._compile_if,
+            "For": self._compile_for,
+            "AsyncFor": self._compile_async_for,
+            "While": self._compile_while,
+            "Match": self._compile_match,
+            "Set": self._compile_set,
+            "Let": self._compile_let,
+            "Export": self._compile_export,
+            "Import": self._compile_import,
+            "Include": self._compile_include,
+            "Block": self._compile_block,
+            "Globals": self._compile_globals,
+            "Imports": self._compile_imports,
+            "Def": self._compile_def,
+            "Region": self._compile_region,
+            "CallBlock": self._compile_call_block,
+            "Slot": self._compile_slot,
+            "FromImport": self._compile_from_import,
+            "With": self._compile_with,
+            "WithConditional": self._compile_with_conditional,
+            "Raw": self._compile_raw,
+            "Capture": self._compile_capture,
+            "Cache": self._compile_cache,
+            "FilterBlock": self._compile_filter_block,
+            "Break": self._compile_break,
+            "Continue": self._compile_continue,
+            "Spaceless": self._compile_spaceless,
+            "Flush": self._compile_flush,
+            "Embed": self._compile_embed,
+        }
 
     def _get_literal_extends_target(self, node: TemplateNode) -> str | None:
         """Return literal extends target if template uses {% extends "literal" %}, else None."""
@@ -360,7 +400,9 @@ class Compiler(
         # Emit region callables (module-level) before _globals_setup
         for block_name, block_node in saved_blocks.items():
             if isinstance(block_node, Region):
-                module_body.append(self._make_region_function(block_name, block_node))
+                thunk_defs, region_func = self._make_region_function(block_name, block_node)
+                module_body.extend(thunk_defs)
+                module_body.append(region_func)
 
         # Detect {% globals %} blocks and compile _globals_setup function
         globals_setup = self._make_globals_setup(node)
@@ -418,17 +460,31 @@ class Compiler(
         into the block's context. Returns None if neither globals nor top-level
         imports exist.
         """
-        from kida.nodes import Def, FromImport, Globals, Import, Imports
+        from kida.nodes import Def, FromImport, Globals, Import, Imports, Let
 
-        setup_nodes = [n for n in node.body if isinstance(n, (Globals, Imports))]
-        top_level_imports = [n for n in node.body if isinstance(n, (FromImport, Import))]
-        top_level_defs = [n for n in node.body if isinstance(n, Def)]
-        top_level_regions = [n for n in node.body if isinstance(n, Region)]
+        # Single-pass classification instead of 5 separate list comprehensions
+        setup_nodes: list[Any] = []
+        top_level_imports: list[Any] = []
+        top_level_defs: list[Any] = []
+        top_level_regions: list[Any] = []
+        top_level_lets: list[Any] = []
+        for n in node.body:
+            if isinstance(n, (Globals, Imports)):
+                setup_nodes.append(n)
+            elif isinstance(n, (FromImport, Import)):
+                top_level_imports.append(n)
+            elif isinstance(n, Def):
+                top_level_defs.append(n)
+            elif isinstance(n, Region):
+                top_level_regions.append(n)
+            elif isinstance(n, Let):
+                top_level_lets.append(n)
         if (
             not setup_nodes
             and not top_level_imports
             and not top_level_defs
             and not top_level_regions
+            and not top_level_lets
         ):
             return None
 
@@ -444,6 +500,10 @@ class Compiler(
         # Top-level imports first (so macros are in ctx for blocks)
         for imp_node in top_level_imports:
             body_stmts.extend(self._compile_node(imp_node))
+
+        # Top-level lets (so render_block has same context as full render)
+        for let_node in top_level_lets:
+            body_stmts.extend(self._compile_node(let_node))
 
         # Top-level defs (so render_block has macros in scope)
         for def_node in top_level_defs:
@@ -490,6 +550,7 @@ class Compiler(
         include_buf_append: bool = False,
         include_acc: bool = False,
         acc_none: bool = False,
+        include_lookup_scope: bool = False,
     ) -> list[ast.stmt]:
         """Build shared runtime locals preamble for generated functions."""
         stmts: list[ast.stmt] = []
@@ -529,6 +590,14 @@ class Compiler(
                         value=ast.Name(id="_str", ctx=ast.Load()),
                     ),
                 ]
+            )
+        if include_lookup_scope:
+            # Cache _lookup_scope as _ls for LOAD_FAST instead of LOAD_GLOBAL
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_ls", ctx=ast.Store())],
+                    value=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+                )
             )
         if include_buf_append:
             stmts.extend(
@@ -573,6 +642,7 @@ class Compiler(
         return self._make_runtime_preamble(
             include_scope_stack=True,
             include_escape_str=True,
+            include_lookup_scope=True,
             include_buf_append=not streaming,
             include_acc=True,
         )
@@ -597,19 +667,22 @@ class Compiler(
                     keywords=[],
                 )
             else:
-                # Optional param: ctx.get('param', default)
-                default_val = self._compile_expr(region_node.defaults[i - n_required])
+                # Optional param: ctx.get('param', _REGION_DEFAULT) — region resolves at call
                 val = ast.Call(
                     func=ast.Attribute(
                         value=ast.Name(id="ctx", ctx=ast.Load()),
                         attr="get",
                         ctx=ast.Load(),
                     ),
-                    args=[ast.Constant(value=param_name), default_val],
+                    args=[
+                        ast.Constant(value=param_name),
+                        ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()),
+                    ],
                     keywords=[],
                 )
             keywords.append(ast.keyword(arg=param_name, value=val))
         keywords.append(ast.keyword(arg="_outer_ctx", value=ast.Name(id="ctx", ctx=ast.Load())))
+        keywords.append(ast.keyword(arg="_blocks", value=ast.Name(id="_blocks", ctx=ast.Load())))
 
         return ast.FunctionDef(
             name=f"_block_{name}",
@@ -685,6 +758,7 @@ class Compiler(
         return self._make_runtime_preamble(
             include_blocks_guard=True,
             include_scope_stack=True,
+            include_lookup_scope=True,
             include_acc=True,
         )
 
@@ -747,6 +821,7 @@ class Compiler(
         """No-extends path: buf setup (if not streaming), body compile, return vs yield."""
         body: list[ast.stmt] = self._make_runtime_preamble(
             include_escape_str=True,
+            include_lookup_scope=True,
             include_buf_append=not streaming,
         )
         body.extend(self._compile_body_with_coalescing(list(node.body)))
@@ -907,18 +982,22 @@ class Compiler(
                     keywords=[],
                 )
             else:
-                default_val = self._compile_expr(region_node.defaults[i - n_required])
+                # Optional param: ctx.get('param', _REGION_DEFAULT) — region resolves at call
                 val = ast.Call(
                     func=ast.Attribute(
                         value=ast.Name(id="ctx", ctx=ast.Load()),
                         attr="get",
                         ctx=ast.Load(),
                     ),
-                    args=[ast.Constant(value=param_name), default_val],
+                    args=[
+                        ast.Constant(value=param_name),
+                        ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()),
+                    ],
                     keywords=[],
                 )
             keywords.append(ast.keyword(arg=param_name, value=val))
         keywords.append(ast.keyword(arg="_outer_ctx", value=ast.Name(id="ctx", ctx=ast.Load())))
+        keywords.append(ast.keyword(arg="_blocks", value=ast.Name(id="_blocks", ctx=ast.Load())))
         call = ast.Call(
             func=ast.Subscript(
                 value=ast.Name(id="ctx", ctx=ast.Load()),
@@ -1113,48 +1192,12 @@ class Compiler(
             stmts.append(self._make_line_marker(node.lineno))
 
         # Dispatch table - O(1) lookup instead of isinstance chain
-        dispatch = self._get_node_dispatch()
-        handler = dispatch.get(node_type)
+        handler = self._node_dispatch.get(node_type)
         if handler:
             stmts.extend(handler(node))
 
         return stmts
 
     def _get_node_dispatch(self) -> dict[str, Callable]:
-        """Get node type dispatch table (cached on first call)."""
-        if not hasattr(self, "_node_dispatch"):
-            self._node_dispatch = {
-                "Data": self._compile_data,
-                "Output": self._compile_output,
-                "If": self._compile_if,
-                "For": self._compile_for,
-                "AsyncFor": self._compile_async_for,  # RFC: rfc-async-rendering
-                "While": self._compile_while,
-                "Match": self._compile_match,
-                "Set": self._compile_set,
-                "Let": self._compile_let,
-                "Export": self._compile_export,
-                "Import": self._compile_import,
-                "Include": self._compile_include,
-                "Block": self._compile_block,
-                "Globals": self._compile_globals,
-                "Imports": self._compile_imports,
-                "Def": self._compile_def,
-                "Region": self._compile_region,
-                "CallBlock": self._compile_call_block,
-                "Slot": self._compile_slot,
-                "FromImport": self._compile_from_import,
-                "With": self._compile_with,
-                "WithConditional": self._compile_with_conditional,
-                "Raw": self._compile_raw,
-                "Capture": self._compile_capture,
-                "Cache": self._compile_cache,
-                "FilterBlock": self._compile_filter_block,
-                # RFC: kida-modern-syntax-features
-                "Break": self._compile_break,
-                "Continue": self._compile_continue,
-                "Spaceless": self._compile_spaceless,
-                "Flush": self._compile_flush,
-                "Embed": self._compile_embed,
-            }
+        """Get node type dispatch table."""
         return self._node_dispatch

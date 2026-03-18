@@ -168,9 +168,13 @@ def getattr_preserve_none(obj: object, name: str) -> object:
 # Thread-Safety: This dict is read-only after module load.
 # =============================================================================
 
+# Sentinel for region param defaults that reference ctx (evaluated at call time, not def time)
+_REGION_DEFAULT = object()
+
 STATIC_NAMESPACE: dict[str, Any] = {
     "__builtins__": {"__import__": __import__},
     "_Markup": Markup,
+    "_REGION_DEFAULT": _REGION_DEFAULT,
     "_str": str,
     "_len": len,
     "_range": range,
@@ -271,10 +275,13 @@ def lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_nam
     Checks scopes from innermost to outermost, then falls back to ctx.
     Raises UndefinedError if not found (strict mode).
     """
-    # Check scope stack from top (innermost) to bottom (outermost)
-    for scope in reversed(scope_stack):
-        if var_name in scope:
-            return scope[var_name]
+    # Fast path: when scope_stack is empty (the common case at top level
+    # and in templates without {% set %} inside control flow), skip the
+    # reversed() iterator and go straight to ctx.
+    if scope_stack:
+        for scope in reversed(scope_stack):
+            if var_name in scope:
+                return scope[var_name]
 
     # Fall back to ctx
     if var_name in ctx:

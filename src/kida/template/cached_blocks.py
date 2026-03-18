@@ -19,7 +19,14 @@ class CachedBlocksDict:
 
     """
 
-    __slots__ = ("_cached", "_cached_names", "_original", "_stats", "_stats_lock")
+    __slots__ = (
+        "_cached",
+        "_cached_names",
+        "_cached_wrappers",
+        "_original",
+        "_stats",
+        "_stats_lock",
+    )
 
     def __init__(
         self,
@@ -34,6 +41,20 @@ class CachedBlocksDict:
         self._cached_names = cached_names
         self._stats = stats
         self._stats_lock = threading.Lock() if stats is not None else None
+        # Pre-compute wrapper functions to avoid closure creation on every .get()
+        self._cached_wrappers: dict[str, BlockCallable] = {}
+        for name in cached_names:
+            html = cached[name]
+            self._cached_wrappers[name] = self._make_wrapper(html)
+
+    @staticmethod
+    def _make_wrapper(html: str) -> BlockCallable:
+        """Create a block-signature wrapper returning cached HTML."""
+
+        def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
+            return html
+
+        return cached_block_func
 
     def _record_hit(self) -> None:
         """Record cache hit (thread-safe when stats shared)."""
@@ -49,17 +70,10 @@ class CachedBlocksDict:
 
     def get(self, key: str, default: Any = None) -> BlockCallable | Any:
         """Intercept .get() calls to return cached HTML when available."""
-        if key in self._cached_names:
-            cached_html = self._cached[key]
+        wrapper = self._cached_wrappers.get(key)
+        if wrapper is not None:
             self._record_hit()
-
-            # Return a wrapper function that matches the block function signature:
-            # _block_name(ctx, _blocks)
-            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
-                return cached_html
-
-            return cached_block_func
-
+            return wrapper
         self._record_miss()
         return self._original.get(key, default)
 
@@ -69,28 +83,19 @@ class CachedBlocksDict:
         Kida templates use .setdefault() to register their own block functions
         if not already overridden by a child template.
         """
-        if key in self._cached_names:
-            cached_html = self._cached[key]
+        wrapper = self._cached_wrappers.get(key)
+        if wrapper is not None:
             self._record_hit()
-
-            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
-                return cached_html
-
-            return cached_block_func
-
+            return wrapper
         # For non-cached blocks, use normal setdefault
         return self._original.setdefault(key, default)
 
     def __getitem__(self, key: str) -> BlockCallable | Any:
         """Support dict[key] access."""
-        if key in self._cached_names:
-            cached_html = self._cached[key]
+        wrapper = self._cached_wrappers.get(key)
+        if wrapper is not None:
             self._record_hit()
-
-            def cached_block_func(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
-                return cached_html
-
-            return cached_block_func
+            return wrapper
         return self._original[key]
 
     def __setitem__(self, key: str, value: Any) -> None:
@@ -108,23 +113,23 @@ class CachedBlocksDict:
     def copy(self) -> dict[str, Any]:
         """Support .copy() for embed/include operations."""
         result = self._original.copy()
-        # Add cached wrappers to copy (properly capture in closure)
-        for name in self._cached_names:
-            cached_html = self._cached[name]
+        if self._stats is None:
+            # No stats tracking — reuse pre-computed wrappers
+            result.update(self._cached_wrappers)
+        else:
+            # Stats tracking — create wrappers that record hits on call
+            stats = self._stats
+            lock = self._stats_lock
+            for name, html in ((n, self._cached[n]) for n in self._cached_names):
 
-            # Create wrapper with proper closure capture (thread-safe stats)
-            def make_wrapper(
-                html: str,
-                stats: dict[str, int] | None,
-                lock: threading.Lock | None,
-            ) -> BlockCallable:
-                def wrapper(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
-                    if stats is not None and lock is not None:
-                        with lock:
-                            stats["hits"] = stats.get("hits", 0) + 1
-                    return html
+                def _make(h: str) -> BlockCallable:
+                    def wrapper(_ctx: dict[str, Any], _blocks: dict[str, Any] | None) -> str:
+                        if lock is not None:
+                            with lock:
+                                stats["hits"] = stats.get("hits", 0) + 1
+                        return h
 
-                return wrapper
+                    return wrapper
 
-            result[name] = make_wrapper(cached_html, self._stats, self._stats_lock)
+                result[name] = _make(html)
         return result
