@@ -45,7 +45,24 @@ from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
 from kida.compiler.statements import StatementCompilationMixin
 from kida.compiler.utils import OperatorUtilsMixin
-from kida.nodes import Block, Region
+from kida.nodes import (
+    AsyncFor,
+    Block,
+    Capture,
+    Def,
+    Export,
+    For,
+    FromImport,
+    If,
+    Import,
+    Let,
+    Match,
+    Name,
+    Region,
+    Set,
+    While,
+)
+from kida.nodes.structure import With, WithConditional
 
 _BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
@@ -757,6 +774,37 @@ class Compiler(
     # ─────────────────────────────────────────────────────────────────────────
 
     @staticmethod
+    def _has_unconditional_exprs(body: Sequence) -> bool:
+        """Fast check: does the body have any nodes that produce unconditional Name refs?
+
+        Returns False when every top-level node is a control-flow node or Data
+        (raw text), meaning CSE analysis would find no unconditional refs and
+        can be skipped entirely.
+        """
+        from kida.nodes import Data
+
+        # Node types that never produce unconditional Name refs at their level
+        skip = (
+            For,
+            AsyncFor,
+            If,
+            While,
+            Match,
+            Set,
+            Let,
+            Export,
+            Capture,
+            With,
+            WithConditional,
+            Import,
+            FromImport,
+            Def,
+            Block,
+            Data,
+        )
+        return any(not isinstance(n, skip) for n in body)
+
+    @staticmethod
     def _collect_var_refs(nodes: Any) -> tuple[dict[str, int], set[str]]:
         """Collect variable reference counts and mutated names from Kida AST nodes.
 
@@ -772,22 +820,6 @@ class Compiler(
             in unconditional code, and mutated is the set of names assigned
             anywhere in the body.
         """
-        from kida.nodes import (
-            AsyncFor,
-            Block,
-            Capture,
-            Def,
-            Export,
-            For,
-            FromImport,
-            Import,
-            Let,
-            Match,
-            Name,
-            Set,
-        )
-        from kida.nodes.structure import With, WithConditional
-
         ref_counts: dict[str, int] = {}
         mutated: set[str] = set()
 
@@ -878,8 +910,6 @@ class Compiler(
                 return
 
             # If/While: test expression is unconditional, bodies are conditional.
-            from kida.nodes import If, While
-
             if isinstance(node, If):
                 _walk(node.test, count_refs=count_refs)
                 _walk(node.body, count_refs=False)
@@ -993,17 +1023,20 @@ class Compiler(
             return self._make_region_block_function(name, block_node)
 
         # --- CSE: analyse Kida AST before compilation ---
-        ref_counts, mutated = self._collect_var_refs(list(block_node.body))
-        cacheable = {
-            n
-            for n, count in ref_counts.items()
-            if count >= 2 and n not in mutated and n not in self._locals
-        }
+        body_nodes = list(block_node.body)
+        cacheable: set[str] = set()
+        if self._has_unconditional_exprs(body_nodes):
+            ref_counts, mutated = self._collect_var_refs(body_nodes)
+            cacheable = {
+                n
+                for n, count in ref_counts.items()
+                if count >= 2 and n not in mutated and n not in self._locals
+            }
         saved_cached = self._cached_vars
         self._cached_vars = cacheable
 
         # Compile block body with f-string coalescing
-        compiled_stmts = self._compile_body_with_coalescing(list(block_node.body))
+        compiled_stmts = self._compile_body_with_coalescing(body_nodes)
         self._cached_vars = saved_cached
 
         # --- Constant block return optimisation ---
@@ -1183,12 +1216,15 @@ class Compiler(
     def _make_render_direct_body(self, node: TemplateNode, streaming: bool) -> list[ast.stmt]:
         """No-extends path: buf setup (if not streaming), body compile, return vs yield."""
         # CSE: analyse Kida AST before compilation
-        ref_counts, mutated = self._collect_var_refs(list(node.body))
-        cacheable = {
-            n
-            for n, count in ref_counts.items()
-            if count >= 2 and n not in mutated and n not in self._locals
-        }
+        render_body_nodes = list(node.body)
+        cacheable: set[str] = set()
+        if self._has_unconditional_exprs(render_body_nodes):
+            ref_counts, mutated = self._collect_var_refs(render_body_nodes)
+            cacheable = {
+                n
+                for n, count in ref_counts.items()
+                if count >= 2 and n not in mutated and n not in self._locals
+            }
         saved_cached = self._cached_vars
         self._cached_vars = cacheable
 
@@ -1200,7 +1236,7 @@ class Compiler(
             include_render_ctx=True,
         )
         body.extend(self._emit_cache_assignments(cacheable))
-        body.extend(self._compile_body_with_coalescing(list(node.body)))
+        body.extend(self._compile_body_with_coalescing(render_body_nodes))
         self._cached_vars = saved_cached
         if streaming:
             body.append(ast.Return(value=None))
