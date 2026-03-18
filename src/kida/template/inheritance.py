@@ -107,22 +107,21 @@ class TemplateInheritanceMixin:
                 if cached_map is not None:
                     return cached_map
         # Build outside lock — _inheritance_chain() acquires it when populating
+        # Single-pass: collect all three kinds at once to avoid repeated chain traversal
+        if kind == "sync":
+            block_attrs = ("_local_blocks_sync",)
+        elif kind == "stream":
+            block_attrs = ("_local_blocks_stream", "_local_blocks_sync")
+        else:
+            block_attrs = (
+                "_local_blocks_async_stream",
+                "_local_blocks_stream",
+                "_local_blocks_sync",
+            )
         effective: dict[str, Any] = {}
         for t in self._inheritance_chain():
-            if kind == "sync":
-                for name, fn in t._local_blocks_sync.items():
-                    effective.setdefault(name, fn)
-            elif kind == "stream":
-                for name, fn in t._local_blocks_stream.items():
-                    effective.setdefault(name, fn)
-                for name, fn in t._local_blocks_sync.items():
-                    effective.setdefault(name, fn)
-            else:
-                for name, fn in t._local_blocks_async_stream.items():
-                    effective.setdefault(name, fn)
-                for name, fn in t._local_blocks_stream.items():
-                    effective.setdefault(name, fn)
-                for name, fn in t._local_blocks_sync.items():
+            for attr in block_attrs:
+                for name, fn in getattr(t, attr).items():
                     effective.setdefault(name, fn)
         if not self._env.auto_reload:
             with self._inheritance_cache_lock:

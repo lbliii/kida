@@ -1,0 +1,331 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-03-17T21:10:00.020080+00:00",
+  "files": {
+    "src/kida/compiler/core.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/compiler/expressions.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/compiler/statements/control_flow.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/compiler/statements/template_structure.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/compiler/coalescing.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/template/core.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/template/render_helpers.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/template/inheritance.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/template/introspection.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/template/helpers.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/environment/core.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/environment/loaders.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/environment/filters/_collections.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/environment/filters/_debug.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/environment/exceptions.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/analysis/dependencies.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/analysis/purity.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/analysis/landmarks.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/analysis/analyzer.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/parser/blocks/functions.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/parser/statements.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/render_accumulator.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/utils/workers.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/lexer.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/tstring.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    }
+  }
+}

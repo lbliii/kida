@@ -82,6 +82,11 @@ class FunctionCompilationMixin:
                 targets=[ast.Name(id="_s", ctx=ast.Store())],
                 value=ast.Name(id="_str", ctx=ast.Load()),
             ),
+            # Cache _lookup_scope as _ls for LOAD_FAST
+            ast.Assign(
+                targets=[ast.Name(id="_ls", ctx=ast.Store())],
+                value=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+            ),
             ast.Assign(
                 targets=[ast.Name(id="buf", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),

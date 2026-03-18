@@ -50,7 +50,6 @@ from kida.template.cached_blocks import CachedBlocksDict
 from kida.template.error_enhancement import enhance_template_error
 from kida.template.helpers import (
     STATIC_NAMESPACE,
-    UNDEFINED,
     add_polymorphic,
     coerce_numeric,
     default_safe,
@@ -264,7 +263,9 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         render_stream_async, render_block_stream_async.
         """
         ctx: dict[str, Any] = {}
-        ctx.update({k: v for k, v in self._env.globals.items() if v is not UNDEFINED})
+        env_globals = self._env.globals
+        if env_globals:
+            ctx.update(env_globals)
         if args:
             if len(args) == 1 and isinstance(args[0], dict):
                 ctx.update(args[0])
