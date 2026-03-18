@@ -28,7 +28,10 @@ class CachingMixin:
     # Host attributes and cross-mixin dependencies (type-check only)
     # ─────────────────────────────────────────────────────────────────────────
     if TYPE_CHECKING:
+        from kida.environment import Environment
+
         # Host attributes (from Compiler.__init__)
+        _env: Environment
         _block_counter: int
         _streaming: bool
 
@@ -266,15 +269,18 @@ class CachingMixin:
         )
 
         # Profiling: _record_filter(_acc, 'name', filter_result)
-        result_expr = ast.Call(
-            func=ast.Name(id="_record_filter", ctx=ast.Load()),
-            args=[
-                ast.Name(id="_acc", ctx=ast.Load()),
-                ast.Constant(value=filter_node.name),
-                filter_call,
-            ],
-            keywords=[],
-        )
+        if self._env.enable_profiling:
+            result_expr = ast.Call(
+                func=ast.Name(id="_record_filter", ctx=ast.Load()),
+                args=[
+                    ast.Name(id="_acc", ctx=ast.Load()),
+                    ast.Constant(value=filter_node.name),
+                    filter_call,
+                ],
+                keywords=[],
+            )
+        else:
+            result_expr = filter_call
 
         # _append(result) or yield result
         stmts.append(self._emit_output(result_expr))

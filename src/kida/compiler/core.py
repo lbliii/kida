@@ -489,11 +489,13 @@ class Compiler(
             return None
 
         # Preamble: scope stack, buf, _append, _e, _s, _acc (needed by imports/globals)
+        profiling = self._env.enable_profiling
         body_stmts: list[ast.stmt] = self._make_runtime_preamble(
             include_scope_stack=True,
             include_escape_str=True,
+            include_getattr=True,
             include_buf_append=True,
-            include_acc=True,
+            include_acc=profiling,
             acc_none=True,
             include_render_ctx=True,
         )
@@ -548,6 +550,7 @@ class Compiler(
         include_blocks_guard: bool = False,
         include_scope_stack: bool = False,
         include_escape_str: bool = False,
+        include_getattr: bool = False,
         include_buf_append: bool = False,
         include_acc: bool = False,
         acc_none: bool = False,
@@ -599,6 +602,15 @@ class Compiler(
                 ast.Assign(
                     targets=[ast.Name(id="_ls", ctx=ast.Store())],
                     value=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+                )
+            )
+        if include_getattr:
+            # Cache _getattr as _ga for LOAD_FAST instead of LOAD_GLOBAL.
+            # Called on every dot-access ({{ obj.attr }}), so high frequency.
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_ga", ctx=ast.Store())],
+                    value=ast.Name(id="_getattr", ctx=ast.Load()),
                 )
             )
         if include_buf_append:
@@ -662,12 +674,14 @@ class Compiler(
 
         Non-streaming adds buf and _append for StringBuilder.
         """
+        profiling = self._env.enable_profiling
         return self._make_runtime_preamble(
             include_scope_stack=True,
             include_escape_str=True,
+            include_getattr=True,
             include_lookup_scope=True,
             include_buf_append=not streaming,
-            include_acc=True,
+            include_acc=profiling,
             include_render_ctx=True,
         )
 
@@ -779,11 +793,13 @@ class Compiler(
 
     def _make_render_preamble(self) -> list[ast.stmt]:
         """Shared init block for render functions: if _blocks, _scope_stack, _acc."""
+        profiling = self._env.enable_profiling
         return self._make_runtime_preamble(
             include_blocks_guard=True,
             include_scope_stack=True,
+            include_getattr=True,
             include_lookup_scope=True,
-            include_acc=True,
+            include_acc=profiling,
             include_render_ctx=True,
         )
 
@@ -846,6 +862,7 @@ class Compiler(
         """No-extends path: buf setup (if not streaming), body compile, return vs yield."""
         body: list[ast.stmt] = self._make_runtime_preamble(
             include_escape_str=True,
+            include_getattr=True,
             include_lookup_scope=True,
             include_buf_append=not streaming,
             include_render_ctx=True,

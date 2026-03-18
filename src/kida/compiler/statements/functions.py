@@ -40,7 +40,10 @@ class FunctionCompilationMixin:
     # Host attributes and cross-mixin dependencies (type-check only)
     # ─────────────────────────────────────────────────────────────────────────
     if TYPE_CHECKING:
+        from kida.environment import Environment
+
         # Host attributes (from Compiler.__init__)
+        _env: Environment
         _locals: set[str]
         _def_names: set[str]
         _def_caller_stack: list[ast.expr]
@@ -87,6 +90,11 @@ class FunctionCompilationMixin:
                 targets=[ast.Name(id="_ls", ctx=ast.Store())],
                 value=ast.Name(id="_lookup_scope", ctx=ast.Load()),
             ),
+            # Cache _getattr as _ga for LOAD_FAST (called on every dot-access)
+            ast.Assign(
+                targets=[ast.Name(id="_ga", ctx=ast.Store())],
+                value=ast.Name(id="_getattr", ctx=ast.Load()),
+            ),
             ast.Assign(
                 targets=[ast.Name(id="buf", ctx=ast.Store())],
                 value=ast.List(elts=[], ctx=ast.Load()),
@@ -99,15 +107,20 @@ class FunctionCompilationMixin:
                     ctx=ast.Load(),
                 ),
             ),
-            ast.Assign(
-                targets=[ast.Name(id="_acc", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
-                    args=[],
-                    keywords=[],
-                ),
-            ),
         ]
+        # Only emit _acc = _get_accumulator() when profiling is enabled.
+        # Eliminates a ContextVar.get() call per function when profiling is off.
+        if self._env.enable_profiling:
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_acc", ctx=ast.Store())],
+                    value=ast.Call(
+                        func=ast.Name(id="_get_accumulator", ctx=ast.Load()),
+                        args=[],
+                        keywords=[],
+                    ),
+                ),
+            )
         if include_scope_stack:
             stmts.append(
                 ast.Assign(

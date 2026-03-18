@@ -444,13 +444,16 @@ class TestRenderAccumulator:
 
 
 class TestCompilerEmittedProfiling:
-    """Test that the compiler emits profiling instrumentation for blocks, filters, macros."""
+    """Test that the compiler emits profiling instrumentation for blocks, filters, macros.
+
+    Profiling hooks are only compiled when ``enable_profiling=True``.
+    """
 
     def test_block_profiling_auto_instrumented(self):
         """Block calls are automatically recorded with timing."""
         from kida.render_accumulator import profiled_render
 
-        env = Environment()
+        env = Environment(enable_profiling=True)
         tmpl = env.from_string("{% block header %}H{% end %}{% block body %}B{% end %}")
         with profiled_render() as acc:
             result = tmpl.render()
@@ -467,7 +470,7 @@ class TestCompilerEmittedProfiling:
         """Filter calls are automatically recorded."""
         from kida.render_accumulator import profiled_render
 
-        env = Environment()
+        env = Environment(enable_profiling=True)
         tmpl = env.from_string("{{ name | upper | trim }}")
         with profiled_render() as acc:
             result = tmpl.render(name="  alice  ")
@@ -481,7 +484,7 @@ class TestCompilerEmittedProfiling:
         """Macro ({% def %}) calls are automatically recorded."""
         from kida.render_accumulator import profiled_render
 
-        env = Environment()
+        env = Environment(enable_profiling=True)
         tmpl = env.from_string(
             "{% def greet(name) %}Hi {{ name }}{% end %}{{ greet('A') }}{{ greet('B') }}"
         )
@@ -494,7 +497,7 @@ class TestCompilerEmittedProfiling:
         assert summary["macros"]["greet"] == 2
 
     def test_profiling_zero_cost_when_disabled(self):
-        """When profiling is disabled, templates render normally."""
+        """When profiling is disabled (default), templates render normally without profiling overhead."""
         env = Environment()
         tmpl = env.from_string(
             "{% block title %}Title{% end %}"
@@ -505,6 +508,19 @@ class TestCompilerEmittedProfiling:
         assert "Title" in result
         assert "TEST" in result
         assert "ok" in result
+
+    def test_profiling_disabled_no_accumulator_data(self):
+        """With enable_profiling=False (default), profiled_render() collects no data."""
+        from kida.render_accumulator import profiled_render
+
+        env = Environment()  # enable_profiling=False by default
+        tmpl = env.from_string("{% block title %}Title{% end %}{{ name | upper }}")
+        with profiled_render() as acc:
+            tmpl.render(name="test")
+            summary = acc.summary()
+
+        assert summary["blocks"] == {}
+        assert summary["filters"] == {}
 
     def test_profiling_with_inheritance(self):
         """Profiling works with template inheritance."""
@@ -517,7 +533,7 @@ class TestCompilerEmittedProfiling:
                 "child.html": ("{% extends 'base.html' %}{% block content %}CHILD{% end %}"),
             }
         )
-        env = Environment(loader=loader)
+        env = Environment(loader=loader, enable_profiling=True)
         tmpl = env.get_template("child.html")
 
         with profiled_render() as acc:
@@ -531,7 +547,7 @@ class TestCompilerEmittedProfiling:
         """Pipeline operator filters are also recorded."""
         from kida.render_accumulator import profiled_render
 
-        env = Environment()
+        env = Environment(enable_profiling=True)
         tmpl = env.from_string("{{ name |> upper |> trim }}")
         with profiled_render() as acc:
             result = tmpl.render(name="  bob  ")

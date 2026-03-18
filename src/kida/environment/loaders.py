@@ -80,7 +80,7 @@ class FileSystemLoader:
 
     """
 
-    __slots__ = ("_encoding", "_paths")
+    __slots__ = ("_encoding", "_paths", "_resolved_bases")
 
     def __init__(
         self,
@@ -91,14 +91,16 @@ class FileSystemLoader:
             paths = [paths]
         self._paths = [Path(p) for p in paths]
         self._encoding = encoding
+        # Pre-resolve base paths once — they don't change after construction.
+        # Saves one Path.resolve() OS syscall per search path per get_source() call.
+        self._resolved_bases = [p.resolve() for p in self._paths]
 
     def get_source(self, name: str) -> tuple[str, str]:
         """Load template source from filesystem."""
-        for base in self._paths:
+        for base, base_resolved in zip(self._paths, self._resolved_bases, strict=True):
             path = base / name
             try:
                 resolved = path.resolve()
-                base_resolved = base.resolve()
                 resolved.relative_to(base_resolved)
             except ValueError:
                 raise TemplateNotFoundError(

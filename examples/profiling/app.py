@@ -13,7 +13,7 @@ from pathlib import Path
 from kida import Environment, FileSystemLoader, profiled_render
 
 templates_dir = Path(__file__).parent / "templates"
-env = Environment(loader=FileSystemLoader(str(templates_dir)))
+env = Environment(loader=FileSystemLoader(str(templates_dir)), enable_profiling=True)
 
 template = env.get_template("report.html")
 

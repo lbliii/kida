@@ -224,10 +224,11 @@ class ExpressionCompilationMixin:
             )
 
         if isinstance(node, Getattr):
-            # Use _getattr helper that falls back to __getitem__ for dicts
-            # This handles both obj.attr and dict['key'] patterns
+            # Use _ga (cached _getattr) for LOAD_FAST instead of LOAD_GLOBAL.
+            # Thunk mode uses _getattr directly (no preamble in thunk functions).
+            ga_name = "_getattr" if getattr(self, "_ctx_override", None) else "_ga"
             return ast.Call(
-                func=ast.Name(id="_getattr", ctx=ast.Load()),
+                func=ast.Name(id=ga_name, ctx=ast.Load()),
                 args=[
                     self._compile_expr(node.obj),
                     ast.Constant(value=node.attr),
@@ -340,9 +341,15 @@ class ExpressionCompilationMixin:
             )
             # Profiling: record macro call when target is a known {% def %} name
             # Skip when inside {% call %} block (needs raw ast.Call for _caller kwarg)
+            # Skip entirely when profiling is disabled at compile time
             func_name = getattr(node.func, "name", None)
             skip = getattr(self, "_skip_macro_instrumentation", False)
-            if func_name and func_name in self._def_names and not skip:
+            if (
+                self._env.enable_profiling
+                and func_name
+                and func_name in self._def_names
+                and not skip
+            ):
                 return ast.Call(
                     func=ast.Name(id="_record_macro", ctx=ast.Load()),
                     args=[
@@ -379,8 +386,8 @@ class ExpressionCompilationMixin:
                     args=[value_lambda, *filter_args],
                     keywords=[ast.keyword(arg=k, value=v) for k, v in filter_kwargs.items()],
                 )
-                # Thunk mode: no _acc, skip profiling
-                if getattr(self, "_ctx_override", None):
+                # Thunk mode or profiling disabled: skip profiling wrapper
+                if getattr(self, "_ctx_override", None) or not self._env.enable_profiling:
                     return default_call
                 return ast.Call(
                     func=ast.Name(id="_record_filter", ctx=ast.Load()),
@@ -404,8 +411,8 @@ class ExpressionCompilationMixin:
                     ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
                 ],
             )
-            # Thunk mode: no _acc, skip profiling
-            if getattr(self, "_ctx_override", None):
+            # Thunk mode or profiling disabled: skip profiling wrapper
+            if getattr(self, "_ctx_override", None) or not self._env.enable_profiling:
                 return filter_call
             return ast.Call(
                 func=ast.Name(id="_record_filter", ctx=ast.Load()),
@@ -767,14 +774,17 @@ class ExpressionCompilationMixin:
             )
 
             # Profiling: _record_filter(_acc, 'name', filter_result)
-            result = ast.Call(
-                func=ast.Name(id="_record_filter", ctx=ast.Load()),
-                args=[
-                    ast.Name(id="_acc", ctx=ast.Load()),
-                    ast.Constant(value=filter_name),
-                    filter_call,
-                ],
-                keywords=[],
-            )
+            if self._env.enable_profiling:
+                result = ast.Call(
+                    func=ast.Name(id="_record_filter", ctx=ast.Load()),
+                    args=[
+                        ast.Name(id="_acc", ctx=ast.Load()),
+                        ast.Constant(value=filter_name),
+                        filter_call,
+                    ],
+                    keywords=[],
+                )
+            else:
+                result = filter_call
 
         return result

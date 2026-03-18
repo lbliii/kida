@@ -190,6 +190,15 @@ class Environment:
     # required params, and duplicate kwargs.
     validate_calls: bool = False
 
+    # Profiling instrumentation (RFC: kida-contextvar-patterns)
+    # When True, compiled templates include profiling hooks (_record_filter,
+    # _record_macro, block timing) and call _get_accumulator() per function.
+    # When False (default), all profiling AST is stripped at compile time —
+    # zero ContextVar.get() calls, zero None checks per filter/block/macro.
+    # Note: profiled_render() only collects data for templates compiled with
+    # enable_profiling=True.
+    enable_profiling: bool = False
+
     # F-string optimization (RFC: fstring-code-generation)
     # When True, consecutive output nodes are coalesced into single f-string appends
     fstring_coalescing: bool = True
