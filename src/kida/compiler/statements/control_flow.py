@@ -39,16 +39,29 @@ class ControlFlowMixin:
         # From Compiler core
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
 
-    def _wrap_with_scope(self, body_stmts: list[ast.stmt]) -> list[ast.stmt]:
+    def _wrap_with_scope(
+        self, body_stmts: list[ast.stmt], source_nodes: Any = None
+    ) -> list[ast.stmt]:
         """Wrap statements with scope push/pop for block-scoped variables.
 
-        Generates:
+        When source_nodes is provided and contains no Set, Let, Capture, or
+        Export nodes, the scope push/pop is skipped entirely — avoiding
+        unnecessary dict allocation and list append/pop per block entry.
+
+        Generates (when scoping is needed):
             _scope_stack.append({})
             ... body statements ...
             _scope_stack.pop()
         """
         if not body_stmts:
             return [ast.Pass()]
+
+        # Skip scope push/pop when the body has no block-scoped assignments
+        if source_nodes is not None:
+            from kida.compiler.partial_eval import _body_has_scoping_nodes
+
+            if not _body_has_scoping_nodes(source_nodes):
+                return body_stmts
 
         return [
             # Push new scope
@@ -114,7 +127,7 @@ class ControlFlowMixin:
         for child in node.body:
             body.extend(self._compile_node(child))
         # Wrap body with scope for block-scoped variables
-        body = self._wrap_with_scope(body) if body else [ast.Pass()]
+        body = self._wrap_with_scope(body, source_nodes=node.body) if body else [ast.Pass()]
 
         return [
             ast.While(
@@ -131,7 +144,7 @@ class ControlFlowMixin:
         for child in node.body:
             body.extend(self._compile_node(child))
         # Wrap body with scope for block-scoped variables
-        body = self._wrap_with_scope(body) if body else [ast.Pass()]
+        body = self._wrap_with_scope(body, source_nodes=node.body) if body else [ast.Pass()]
 
         orelse: list[ast.stmt] = []
         innermost_elif: ast.If | None = None
@@ -142,7 +155,11 @@ class ControlFlowMixin:
             for child in elif_body:
                 elif_stmts.extend(self._compile_node(child))
             # Wrap elif body with scope
-            elif_stmts = self._wrap_with_scope(elif_stmts) if elif_stmts else [ast.Pass()]
+            elif_stmts = (
+                self._wrap_with_scope(elif_stmts, source_nodes=elif_body)
+                if elif_stmts
+                else [ast.Pass()]
+            )
             if not elif_stmts:
                 elif_stmts = [ast.Pass()]
             new_if = ast.If(
@@ -160,7 +177,11 @@ class ControlFlowMixin:
             for child in node.else_:
                 else_stmts.extend(self._compile_node(child))
             # Wrap else body with scope
-            else_stmts = self._wrap_with_scope(else_stmts) if else_stmts else [ast.Pass()]
+            else_stmts = (
+                self._wrap_with_scope(else_stmts, source_nodes=node.else_)
+                if else_stmts
+                else [ast.Pass()]
+            )
             if innermost_elif is not None:
                 innermost_elif.orelse = else_stmts
             else:
@@ -220,9 +241,9 @@ class ControlFlowMixin:
     def _compile_for(self, node: For) -> list[ast.stmt]:
         """Compile {% for %} loop with optional LoopContext.
 
-        Generates one of two forms based on whether loop.* is used:
+        Generates one of three forms based on loop.* usage and {% empty %} presence:
 
-        When loop.* IS used (loop.index, loop.first, etc.):
+        When loop.* IS used (requires materialized list):
             _iter_source = iterable
             _loop_items = list(_iter_source) if _iter_source is not None else []
             if _loop_items:
@@ -232,14 +253,21 @@ class ControlFlowMixin:
             else:
                 ... empty block ...
 
-        When loop.* is NOT used (1.80x faster):
+        When loop.* is NOT used and has {% empty %} (sentinel pattern):
             _iter_source = iterable
-            _loop_items = list(_iter_source) if _iter_source is not None else []
-            if _loop_items:
-                for item in _loop_items:
+            _had_items = False
+            if _iter_source is not None:
+                for item in _iter_source:
+                    _had_items = True
                     ... body ...
-            else:
+            if not _had_items:
                 ... empty block ...
+
+        When loop.* is NOT used and no {% empty %} (direct iteration):
+            _iter_source = iterable
+            if _iter_source is not None:
+                for item in _iter_source:
+                    ... body ...
 
         Optimization: Loop variables are tracked as locals and accessed
         directly (O(1) LOAD_FAST) instead of through ctx dict lookup.
@@ -267,6 +295,7 @@ class ControlFlowMixin:
         # Use unique variable name to avoid conflicts with nested loops
         self._block_counter += 1
         iter_var = f"_iter_source_{self._block_counter}"
+        has_empty = bool(node.empty)
 
         # _iter_source_N = iterable
         stmts.append(
@@ -276,53 +305,12 @@ class ControlFlowMixin:
             )
         )
 
-        # _loop_items = list(_iter_source_N) if _iter_source_N is not None else []
-        stmts.append(
-            ast.Assign(
-                targets=[ast.Name(id="_loop_items", ctx=ast.Store())],
-                value=ast.IfExp(
-                    test=ast.Compare(
-                        left=ast.Name(id=iter_var, ctx=ast.Load()),
-                        ops=[ast.IsNot()],
-                        comparators=[ast.Constant(value=None)],
-                    ),
-                    body=ast.Call(
-                        func=ast.Name(id="_list", ctx=ast.Load()),
-                        args=[ast.Name(id=iter_var, ctx=ast.Load())],
-                        keywords=[],
-                    ),
-                    orelse=ast.List(elts=[], ctx=ast.Load()),
-                ),
-            )
-        )
-
-        # Build the loop body
-        loop_body_stmts: list[ast.stmt] = []
-
-        if uses_loop:
-            # Full LoopContext needed for loop.index, loop.first, etc.
-            # loop = _LoopContext(_loop_items)
-            loop_body_stmts.append(
-                ast.Assign(
-                    targets=[ast.Name(id="loop", ctx=ast.Store())],
-                    value=ast.Call(
-                        func=ast.Name(id="_LoopContext", ctx=ast.Load()),
-                        args=[ast.Name(id="_loop_items", ctx=ast.Load())],
-                        keywords=[],
-                    ),
-                )
-            )
-            loop_iter_target = ast.Name(id="loop", ctx=ast.Load())
-        else:
-            # Direct iteration (1.80x faster) - no LoopContext overhead
-            loop_iter_target = ast.Name(id="_loop_items", ctx=ast.Load())
-
-        # Compile the inner body
+        # Compile the inner body (shared by all paths)
         body = []
         for child in node.body:
             body.extend(self._compile_node(child))
         # Wrap body with scope for block-scoped variables (each iteration gets its own scope)
-        body = self._wrap_with_scope(body) if body else [ast.Pass()]
+        body = self._wrap_with_scope(body, source_nodes=node.body) if body else [ast.Pass()]
 
         # Handle inline test condition: {% for x in items if x.visible %}
         # Part of RFC: kida-modern-syntax-features
@@ -335,36 +323,143 @@ class ControlFlowMixin:
                 )
             ]
 
-        # for item in loop/_loop_items:
-        loop_body_stmts.append(
-            ast.For(
-                target=target,
-                iter=loop_iter_target,
-                body=body,
-                orelse=[],  # No Python else - we handle it with if/else
+        if uses_loop:
+            # ── Path A: loop.* used — must materialize list for LoopContext ──
+            loop_items_var = f"_loop_items_{self._block_counter}"
+
+            # _loop_items_N = list(_iter_source_N) if _iter_source_N is not None else []
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id=loop_items_var, ctx=ast.Store())],
+                    value=ast.IfExp(
+                        test=ast.Compare(
+                            left=ast.Name(id=iter_var, ctx=ast.Load()),
+                            ops=[ast.IsNot()],
+                            comparators=[ast.Constant(value=None)],
+                        ),
+                        body=ast.Call(
+                            func=ast.Name(id="_list", ctx=ast.Load()),
+                            args=[ast.Name(id=iter_var, ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                        orelse=ast.List(elts=[], ctx=ast.Load()),
+                    ),
+                )
             )
-        )
 
-        # Compile the empty block (for empty iterable)
-        orelse = []
-        for child in node.empty:
-            orelse.extend(self._compile_node(child))
+            loop_body_stmts: list[ast.stmt] = [
+                # loop = _LoopContext(_loop_items_N)
+                ast.Assign(
+                    targets=[ast.Name(id="loop", ctx=ast.Store())],
+                    value=ast.Call(
+                        func=ast.Name(id="_LoopContext", ctx=ast.Load()),
+                        args=[ast.Name(id=loop_items_var, ctx=ast.Load())],
+                        keywords=[],
+                    ),
+                ),
+                # for item in loop:
+                ast.For(
+                    target=target,
+                    iter=ast.Name(id="loop", ctx=ast.Load()),
+                    body=body,
+                    orelse=[],
+                ),
+            ]
 
-        # if _loop_items: ... else: ...
-        if orelse:
+            # Compile the empty block
+            orelse = []
+            for child in node.empty:
+                orelse.extend(self._compile_node(child))
+
             stmts.append(
                 ast.If(
-                    test=ast.Name(id="_loop_items", ctx=ast.Load()),
+                    test=ast.Name(id=loop_items_var, ctx=ast.Load()),
                     body=loop_body_stmts,
                     orelse=orelse,
                 )
             )
-        else:
-            # No else block - just check if items exist and run the loop
+        elif has_empty:
+            # ── Path B: no loop.*, has {% empty %} — sentinel pattern ──
+            # Avoids list() materialization; uses _had_items flag like async for.
+            had_items_var = f"_had_items_{self._block_counter}"
+
+            # _had_items_N = False
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id=had_items_var, ctx=ast.Store())],
+                    value=ast.Constant(value=False),
+                )
+            )
+
+            # Prepend _had_items_N = True to loop body
+            sentinel_body = [
+                ast.Assign(
+                    targets=[ast.Name(id=had_items_var, ctx=ast.Store())],
+                    value=ast.Constant(value=True),
+                ),
+                *body,
+            ]
+
+            # if _iter_source_N is not None:
+            #     for item in _iter_source_N:
+            #         _had_items_N = True
+            #         ... body ...
             stmts.append(
                 ast.If(
-                    test=ast.Name(id="_loop_items", ctx=ast.Load()),
-                    body=loop_body_stmts,
+                    test=ast.Compare(
+                        left=ast.Name(id=iter_var, ctx=ast.Load()),
+                        ops=[ast.IsNot()],
+                        comparators=[ast.Constant(value=None)],
+                    ),
+                    body=[
+                        ast.For(
+                            target=target,
+                            iter=ast.Name(id=iter_var, ctx=ast.Load()),
+                            body=sentinel_body,
+                            orelse=[],
+                        )
+                    ],
+                    orelse=[],
+                )
+            )
+
+            # if not _had_items_N: ... empty block ...
+            orelse = []
+            for child in node.empty:
+                orelse.extend(self._compile_node(child))
+
+            stmts.append(
+                ast.If(
+                    test=ast.UnaryOp(
+                        op=ast.Not(),
+                        operand=ast.Name(id=had_items_var, ctx=ast.Load()),
+                    ),
+                    body=orelse,
+                    orelse=[],
+                )
+            )
+        else:
+            # ── Path C: no loop.*, no {% empty %} — direct iteration ──
+            # No list() materialization, no sentinel flag. Simplest path.
+
+            # if _iter_source_N is not None:
+            #     for item in _iter_source_N:
+            #         ... body ...
+            stmts.append(
+                ast.If(
+                    test=ast.Compare(
+                        left=ast.Name(id=iter_var, ctx=ast.Load()),
+                        ops=[ast.IsNot()],
+                        comparators=[ast.Constant(value=None)],
+                    ),
+                    body=[
+                        ast.For(
+                            target=target,
+                            iter=ast.Name(id=iter_var, ctx=ast.Load()),
+                            body=body,
+                            orelse=[],
+                        )
+                    ],
                     orelse=[],
                 )
             )
@@ -486,7 +581,7 @@ class ControlFlowMixin:
         body = []
         for child in node.body:
             body.extend(self._compile_node(child))
-        body = self._wrap_with_scope(body) if body else [ast.Pass()]
+        body = self._wrap_with_scope(body, source_nodes=node.body) if body else [ast.Pass()]
 
         # Handle inline test condition: {% async for x in items if x.visible %}
         if node.test:

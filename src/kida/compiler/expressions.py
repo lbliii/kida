@@ -187,12 +187,15 @@ class ExpressionCompilationMixin:
                 return ast.Name(id=node.name, ctx=ast.Load())
 
             # Strict mode: check scope stack first, then ctx
-            # _lookup_scope(ctx, _scope_stack, name) checks scopes then ctx
+            # _ls(ctx, _scope_stack, name) checks scopes then ctx
+            # _ls is a LOAD_FAST alias for _lookup_scope (cached in preamble)
             # When compiling for thunks, use override names (e.g. _thunk_ctx, _thunk_scope)
             ctx_name = getattr(self, "_ctx_override", None) or "ctx"
             scope_name = getattr(self, "_scope_override", None) or "_scope_stack"
+            # Use _ls (cached local) when available, fall back to _lookup_scope for thunks
+            lookup_name = "_ls" if ctx_name == "ctx" else "_lookup_scope"
             return ast.Call(
-                func=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+                func=ast.Name(id=lookup_name, ctx=ast.Load()),
                 args=[
                     ast.Name(id=ctx_name, ctx=ast.Load()),
                     ast.Name(id=scope_name, ctx=ast.Load()),

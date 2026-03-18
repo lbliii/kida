@@ -1,0 +1,41 @@
+{
+  "project_name": "brasilia",
+  "project_path": "/Users/llane/conductor/workspaces/kida/brasilia",
+  "discovered_patterns": [
+    {
+      "pattern_type": "readme",
+      "value": "Project README",
+      "path": "README.md",
+      "confidence": 1.0,
+      "discovered_at": "2026-03-17T21:06:04.168026+00:00"
+    },
+    {
+      "pattern_type": "docs_folder",
+      "value": "Documentation folder",
+      "path": "docs/",
+      "confidence": 1.0,
+      "discovered_at": "2026-03-17T21:06:04.168040+00:00"
+    },
+    {
+      "pattern_type": "python_project",
+      "value": "Python project",
+      "path": "pyproject.toml",
+      "confidence": 1.0,
+      "discovered_at": "2026-03-17T21:06:04.168052+00:00"
+    },
+    {
+      "pattern_type": "github_actions",
+      "value": "GitHub Actions",
+      "path": ".github/",
+      "confidence": 1.0,
+      "discovered_at": "2026-03-17T21:06:04.168072+00:00"
+    }
+  ],
+  "doc_style": {},
+  "common_issues": [],
+  "skill_usage": {
+    "layered-review": 2
+  },
+  "created_at": "2026-03-17T21:06:04.167976+00:00",
+  "last_updated": "2026-03-18T13:42:21.224807+00:00"
+}
