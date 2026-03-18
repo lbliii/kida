@@ -105,6 +105,7 @@ class MacroWrapper:
     _kida_source_file: str | None
     _source: str | None
     _kida_macro_name: str | None
+    _needs_outer_ctx: bool = False
 
     def __call__(self, *args: object, **kwargs: object) -> object:
         from kida.render_context import get_render_context_required
@@ -119,13 +120,10 @@ class MacroWrapper:
         render_ctx.template_name = self._kida_source_template
         render_ctx.line = 0
         render_ctx.source = self._source
-        kwargs_to_use = dict(kwargs)
-        try:
-            sig = inspect.signature(self._fn)
-            if "_outer_ctx" in sig.parameters:
-                kwargs_to_use["_outer_ctx"] = self._defining_namespace
-        except ValueError, TypeError:
-            pass
+        if self._needs_outer_ctx:
+            kwargs_to_use = {**kwargs, "_outer_ctx": self._defining_namespace}
+        else:
+            kwargs_to_use = kwargs  # type: ignore[assignment]
         try:
             return self._fn(*args, **kwargs_to_use)
         finally:
@@ -158,6 +156,13 @@ def _make_macro_wrapper(
     defining_namespace: dict[str, Any] | None = None,
 ) -> MacroWrapper:
     """Wrap imported macro to push/pop template_stack for error attribution."""
+    # Pre-compute whether _outer_ctx injection is needed (avoids inspect.signature per call)
+    needs_outer_ctx = False
+    try:
+        sig = inspect.signature(macro_fn)
+        needs_outer_ctx = "_outer_ctx" in sig.parameters
+    except ValueError, TypeError:
+        pass
     return MacroWrapper(
         _fn=macro_fn,
         _defining_namespace=defining_namespace or {},
@@ -165,6 +170,7 @@ def _make_macro_wrapper(
         _kida_source_file=source_file,
         _source=source,
         _kida_macro_name=macro_name,
+        _needs_outer_ctx=needs_outer_ctx,
     )
 
 
@@ -443,8 +449,11 @@ def make_render_helpers(
                             )
                 source_file = imported._filename if imported else None
                 macro_source = imported._source if imported else None
+                # Snapshot namespace before wrapping so macros see their siblings
                 defining_namespace = dict(import_ctx)
-                for key, val in list(import_ctx.items()):
+                # Single-pass: wrap callables in-place (keys() snapshot avoids dict-changed)
+                for key in list(import_ctx):
+                    val = import_ctx[key]
                     if callable(val) and not isinstance(val, type):
                         import_ctx[key] = _make_macro_wrapper(
                             val,

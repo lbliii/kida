@@ -58,7 +58,7 @@ class TemplateInheritanceMixin:
 
         return sync_map, stream_map, async_stream_map
 
-    def _inheritance_chain(self) -> list[Template]:
+    def _inheritance_chain(self) -> tuple[Template, ...] | list[Any]:
         """Return [self, parent, grandparent, ...] for inherited block resolution."""
         from kida.environment.exceptions import TemplateRuntimeError
 
@@ -66,7 +66,7 @@ class TemplateInheritanceMixin:
         if not self._env.auto_reload:
             cached_chain = self._inheritance_chain_cache
             if cached_chain is not None:
-                return list(cached_chain)
+                return cached_chain  # Return cached tuple directly; callers only iterate
 
         chain: list[Any] = [self]
         current: Any = self
