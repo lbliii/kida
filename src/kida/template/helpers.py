@@ -85,6 +85,9 @@ class _Undefined:
 
 UNDEFINED = _Undefined()
 
+# Sentinel for dict.get() miss detection — avoids KeyError allocation on miss.
+_MISS = object()
+
 
 def safe_getattr(obj: object, name: str) -> object:
     """Get attribute with dict fallback and None-safe handling.
@@ -113,15 +116,14 @@ def safe_getattr(obj: object, name: str) -> object:
     # type() is dict skips the isinstance MRO probe; dict subclasses fall
     # through to the isinstance branch which preserves subscript-first order.
     if type(obj) is dict:
-        try:
-            val = obj[name]
+        val = obj.get(name, _MISS)
+        if val is not _MISS:
             return "" if val is None else val
-        except KeyError:
-            try:
-                val = getattr(obj, name)
-                return "" if val is None else val
-            except AttributeError:
-                return UNDEFINED
+        # Fallback to getattr for dict methods (items, keys, etc.)
+        val = getattr(obj, name, _MISS)
+        if val is not _MISS:
+            return "" if val is None else val
+        return UNDEFINED
     if isinstance(obj, dict):
         try:
             val = obj[name]  # ty: ignore[invalid-argument-type]
@@ -132,15 +134,14 @@ def safe_getattr(obj: object, name: str) -> object:
                 return "" if val is None else val
             except AttributeError:
                 return UNDEFINED
-    try:
-        val = getattr(obj, name)
+    val = getattr(obj, name, _MISS)
+    if val is not _MISS:
         return "" if val is None else val
-    except AttributeError:
-        try:
-            val = obj[name]  # ty: ignore[not-subscriptable]
-            return "" if val is None else val
-        except KeyError, TypeError:
-            return UNDEFINED
+    try:
+        val = obj[name]  # ty: ignore[not-subscriptable]
+        return "" if val is None else val
+    except KeyError, TypeError:
+        return UNDEFINED
 
 
 def getattr_preserve_none(obj: object, name: str) -> object:
@@ -154,6 +155,15 @@ def getattr_preserve_none(obj: object, name: str) -> object:
 
     Complexity: O(1)
     """
+    if type(obj) is dict:
+        val = obj.get(name, _MISS)
+        if val is not _MISS:
+            return val
+        # Fallback to getattr for dict methods (items, keys, etc.)
+        val = getattr(obj, name, _MISS)
+        if val is not _MISS:
+            return val
+        return None
     if isinstance(obj, dict):
         try:
             return obj[name]  # ty: ignore[invalid-argument-type]
@@ -162,13 +172,13 @@ def getattr_preserve_none(obj: object, name: str) -> object:
                 return getattr(obj, name)
             except AttributeError:
                 return None
+    val = getattr(obj, name, _MISS)
+    if val is not _MISS:
+        return val
     try:
-        return getattr(obj, name)
-    except AttributeError:
-        try:
-            return obj[name]  # ty: ignore[not-subscriptable]
-        except KeyError, TypeError:
-            return None
+        return obj[name]  # ty: ignore[not-subscriptable]
+    except KeyError, TypeError:
+        return None
 
 
 # =============================================================================

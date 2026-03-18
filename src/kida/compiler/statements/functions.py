@@ -226,8 +226,10 @@ class FunctionCompilationMixin:
                 ],
                 orelse=[],
             ),
-            # ctx['has_slot'] = lambda: _caller is not None
+            # ctx['has_slot'] = (lambda: True) if _caller is not None else (lambda: False)
             # Allows {% if has_slot() %} guards inside def bodies.
+            # Uses constant lambdas instead of a closure over _caller to avoid
+            # creating a cell object for every def invocation.
             ast.Assign(
                 targets=[
                     ast.Subscript(
@@ -236,20 +238,35 @@ class FunctionCompilationMixin:
                         ctx=ast.Store(),
                     )
                 ],
-                value=ast.Lambda(
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=[],
-                        vararg=None,
-                        kwonlyargs=[],
-                        kw_defaults=[],
-                        kwarg=None,
-                        defaults=[],
-                    ),
-                    body=ast.Compare(
+                value=ast.IfExp(
+                    test=ast.Compare(
                         left=ast.Name(id="_caller", ctx=ast.Load()),
                         ops=[ast.IsNot()],
                         comparators=[ast.Constant(value=None)],
+                    ),
+                    body=ast.Lambda(
+                        args=ast.arguments(
+                            posonlyargs=[],
+                            args=[],
+                            vararg=None,
+                            kwonlyargs=[],
+                            kw_defaults=[],
+                            kwarg=None,
+                            defaults=[],
+                        ),
+                        body=ast.Constant(value=True),
+                    ),
+                    orelse=ast.Lambda(
+                        args=ast.arguments(
+                            posonlyargs=[],
+                            args=[],
+                            vararg=None,
+                            kwonlyargs=[],
+                            kw_defaults=[],
+                            kwarg=None,
+                            defaults=[],
+                        ),
+                        body=ast.Constant(value=False),
                     ),
                 ),
             ),

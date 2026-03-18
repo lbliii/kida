@@ -186,6 +186,10 @@ class ExpressionCompilationMixin:
             if node.name in self._locals:
                 return ast.Name(id=node.name, ctx=ast.Load())
 
+            # CSE: use cached variable if available (avoids repeated _ls() calls)
+            if node.name in self._cached_vars:
+                return ast.Name(id=f"_cv_{node.name}", ctx=ast.Load())
+
             # Strict mode: check scope stack first, then ctx
             # _ls(ctx, _scope_stack, name) checks scopes then ctx
             # _ls is a LOAD_FAST alias for _lookup_scope (cached in preamble)

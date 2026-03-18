@@ -263,6 +263,26 @@ def _dce_transform_body(body: Sequence[Node]) -> Sequence[Node]:
                 )
             else:
                 result.append(node)
+        elif isinstance(node, Output):
+            val = _try_eval_const_only(node.expr)
+            if val is not _UNRESOLVED:
+                str_val = "" if val is None else str(val)
+                # Only fold safely: numerics never need escaping,
+                # strings only fold when escape is not required
+                if isinstance(val, (int, float, bool)) or not node.escape:
+                    changed = True
+                    if str_val:
+                        result.append(
+                            Data(
+                                lineno=node.lineno,
+                                col_offset=node.col_offset,
+                                value=str_val,
+                            )
+                        )
+                else:
+                    result.append(node)
+            else:
+                result.append(node)
         else:
             result.append(node)
 
