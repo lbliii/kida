@@ -350,10 +350,12 @@ Module declares itself GIL-independent via `_Py_mod_gil = 0` (PEP 703).
 
 ## Performance
 
-- **Minimal** — ~3.5µs (file-based)
-- **Medium** — ~0.4ms (~100 vars)
-- **Large** — ~1.9ms (1000 loop items)
-- **Concurrent (8 workers)** — scales with worker count under Python 3.14t free-threading
+- **Minimal** — ~4.0µs (file-based)
+- **Small** — ~6.8µs (loop + filter)
+- **Medium** — ~0.2ms (~100 vars)
+- **Large** — ~1.6ms (1000 loop items) — **2.5x faster** than Jinja2
+- **Complex** — ~19µs (3-level inheritance) — **1.5x faster** than Jinja2
+- **Concurrent (2–4 workers)** — scales with worker count under Python 3.14t free-threading
 
 See [benchmarks/README.md](benchmarks/README.md) and [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for full Kida vs Jinja2 comparison.
 
