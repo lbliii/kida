@@ -45,7 +45,24 @@ from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
 from kida.compiler.statements import StatementCompilationMixin
 from kida.compiler.utils import OperatorUtilsMixin
-from kida.nodes import Block, Region
+from kida.nodes import (
+    AsyncFor,
+    Block,
+    Capture,
+    Def,
+    Export,
+    For,
+    FromImport,
+    If,
+    Import,
+    Let,
+    Match,
+    Name,
+    Region,
+    Set,
+    While,
+)
+from kida.nodes.structure import With, WithConditional
 
 _BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
@@ -166,6 +183,8 @@ class Compiler(
         # instead of hardcoded ctx/_scope_stack when compiling expressions
         self._ctx_override: str | None = None
         self._scope_override: str | None = None
+        # Variable caching / CSE: names cached as locals to avoid repeated _ls() calls
+        self._cached_vars: set[str] = set()
         # Node dispatch table - built once, reused for all node compilations
         self._node_dispatch: dict[str, Callable] = {
             "Data": self._compile_data,
@@ -750,15 +769,351 @@ class Compiler(
             returns=None,
         )
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # Variable caching / common subexpression elimination (CSE)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _has_unconditional_exprs(body: Sequence) -> bool:
+        """Fast check: does the body have any nodes that produce unconditional Name refs?
+
+        Returns False when every top-level node is a control-flow node or Data
+        (raw text), meaning CSE analysis would find no unconditional refs and
+        can be skipped entirely.
+        """
+        from kida.nodes import Data
+
+        # Node types that never produce unconditional Name refs at their level
+        skip = (
+            For,
+            AsyncFor,
+            If,
+            While,
+            Match,
+            Set,
+            Let,
+            Export,
+            Capture,
+            With,
+            WithConditional,
+            Import,
+            FromImport,
+            Def,
+            Block,
+            Data,
+        )
+        return any(not isinstance(n, skip) for n in body)
+
+    @staticmethod
+    def _collect_var_refs(nodes: Any) -> tuple[dict[str, int], set[str]]:
+        """Collect variable reference counts and mutated names from Kida AST nodes.
+
+        Walks the AST recursively, collecting mutations from ALL code but only
+        counting Name references in unconditional (non-branching) code paths.
+        This ensures eager cache assignments at function entry won't raise
+        UndefinedError for variables only referenced inside conditional branches.
+
+        Does NOT recurse into Block or Def bodies (separate compilation scopes).
+
+        Returns:
+            (ref_counts, mutated) where ref_counts maps var name to usage count
+            in unconditional code, and mutated is the set of names assigned
+            anywhere in the body.
+        """
+        ref_counts: dict[str, int] = {}
+        mutated: set[str] = set()
+
+        def _collect_target_names(target: Any) -> None:
+            """Collect all variable names from a For loop target (simple or tuple)."""
+            if isinstance(target, Name):
+                mutated.add(target.name)
+            elif hasattr(target, "items"):  # KidaTuple
+                for item in target.items:
+                    _collect_target_names(item)
+
+        def _walk(node: Any, *, count_refs: bool = True) -> None:
+            if node is None:
+                return
+            if isinstance(node, (list, tuple)):
+                for item in node:
+                    _walk(item, count_refs=count_refs)
+                return
+            if isinstance(node, dict):
+                for v in node.values():
+                    _walk(v, count_refs=count_refs)
+                return
+
+            # Count Name references only in unconditional code
+            if isinstance(node, Name) and node.ctx == "load":
+                if count_refs:
+                    ref_counts[node.name] = ref_counts.get(node.name, 0) + 1
+                return
+
+            # Track mutations: Set/Let/Export/Capture targets (always, regardless of branch)
+            if isinstance(node, Set):
+                if isinstance(node.target, Name):
+                    mutated.add(node.target.name)
+                _walk(node.value, count_refs=count_refs)
+                return
+            if isinstance(node, Let):
+                if isinstance(node.name, Name):
+                    mutated.add(node.name.name)
+                _walk(node.value, count_refs=count_refs)
+                return
+            if isinstance(node, Export):
+                if isinstance(node.name, Name):
+                    mutated.add(node.name.name)
+                _walk(node.value, count_refs=count_refs)
+                return
+            if isinstance(node, Capture):
+                mutated.add(node.name)
+                _walk(node.body, count_refs=False)
+                return
+
+            # Track For/AsyncFor loop targets — loop vars become Python locals
+            # at runtime and must not be cached at function entry.
+            # Also exclude 'loop' (LoopContext) which is only available inside the body.
+            # For iter expression is unconditional; body/empty are conditional.
+            if isinstance(node, (For, AsyncFor)):
+                _collect_target_names(node.target)
+                mutated.add("loop")
+                _walk(node.iter, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
+                _walk(node.empty, count_refs=False)
+                return
+
+            # With/WithConditional introduce locally-scoped variables
+            if isinstance(node, With):
+                for target_name, expr in node.targets:
+                    mutated.add(target_name)
+                    _walk(expr, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
+                return
+            if isinstance(node, WithConditional):
+                if isinstance(node.target, Name):
+                    mutated.add(node.target.name)
+                _walk(node.expr, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
+                if node.empty:
+                    _walk(node.empty, count_refs=False)
+                return
+
+            # Import/FromImport introduce names into ctx mid-function
+            if isinstance(node, Import):
+                mutated.add(node.target)
+                _walk(node.template, count_refs=count_refs)
+                return
+            if isinstance(node, FromImport):
+                for name, alias in node.names:
+                    mutated.add(alias if alias else name)
+                _walk(node.template, count_refs=count_refs)
+                return
+
+            # If/While: test expression is unconditional, bodies are conditional.
+            if isinstance(node, If):
+                _walk(node.test, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
+                for elif_test, elif_body in node.elif_:
+                    _walk(elif_test, count_refs=False)
+                    _walk(elif_body, count_refs=False)
+                if node.else_:
+                    _walk(node.else_, count_refs=False)
+                return
+            if isinstance(node, While):
+                _walk(node.test, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
+                return
+
+            # Match: subject is unconditional, case bodies are conditional.
+            # Case patterns may bind variables.
+            if isinstance(node, Match):
+                if node.subject is not None:
+                    _walk(node.subject, count_refs=count_refs)
+                for pattern, guard, case_body in node.cases:
+                    _collect_target_names(pattern)
+                    if guard is not None:
+                        _walk(guard, count_refs=False)
+                    _walk(case_body, count_refs=False)
+                return
+
+            # Don't recurse into separate compilation scopes.
+            # Def names are locally defined mid-function — exclude from caching.
+            if isinstance(node, Def):
+                mutated.add(node.name)
+                return
+            if isinstance(node, Block):
+                return
+
+            # Skip non-dataclass types
+            if not hasattr(node, "__dataclass_fields__"):
+                return
+
+            # Recurse into all dataclass fields
+            for field_name in node.__dataclass_fields__:
+                child = getattr(node, field_name, None)
+                if child is not None:
+                    _walk(child, count_refs=count_refs)
+
+        _walk(nodes)
+        return ref_counts, mutated
+
+    def _emit_cache_assignments(self, names: set[str]) -> list[ast.stmt]:
+        """Emit _cv_name = _ls(ctx, _scope_stack, 'name') for each cached variable."""
+        return [
+            ast.Assign(
+                targets=[ast.Name(id=f"_cv_{name}", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(id="_ls", ctx=ast.Load()),
+                    args=[
+                        ast.Name(id="ctx", ctx=ast.Load()),
+                        ast.Name(id="_scope_stack", ctx=ast.Load()),
+                        ast.Constant(value=name),
+                    ],
+                    keywords=[],
+                ),
+            )
+            for name in sorted(names)
+        ]
+
+    @staticmethod
+    def _is_append_constant(stmt: ast.stmt) -> str | None:
+        """If *stmt* is ``_append(<string constant>)``, return the string; else None."""
+        if (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Name)
+            and stmt.value.func.id == "_append"
+            and len(stmt.value.args) == 1
+            and not stmt.value.keywords
+            and isinstance(stmt.value.args[0], ast.Constant)
+            and isinstance(stmt.value.args[0].value, str)
+        ):
+            return stmt.value.args[0].value
+        return None
+
+    @staticmethod
+    def _is_line_tracking(stmt: ast.stmt) -> bool:
+        """Return True if *stmt* is ``_rc.line = N`` (render-context line tracking)."""
+        return (
+            isinstance(stmt, ast.Assign)
+            and len(stmt.targets) == 1
+            and isinstance(stmt.targets[0], ast.Attribute)
+            and isinstance(stmt.targets[0].value, ast.Name)
+            and stmt.targets[0].value.id == "_rc"
+            and stmt.targets[0].attr == "line"
+        )
+
+    @staticmethod
+    def _is_single_append_expr(stmt: ast.stmt) -> ast.expr | None:
+        """If *stmt* is ``_append(expr)``, return *expr*; else None."""
+        if (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Name)
+            and stmt.value.func.id == "_append"
+            and len(stmt.value.args) == 1
+            and not stmt.value.keywords
+        ):
+            return stmt.value.args[0]
+        return None
+
     def _make_block_function(self, name: str, block_node: Block | Region) -> ast.FunctionDef:
         """Generate a block function: _block_name(ctx, _blocks) -> str."""
         if isinstance(block_node, Region):
             return self._make_region_block_function(name, block_node)
 
-        body: list[ast.stmt] = self._make_block_preamble(streaming=False)
+        # --- CSE: analyse Kida AST before compilation ---
+        body_nodes = list(block_node.body)
+        cacheable: set[str] = set()
+        if self._has_unconditional_exprs(body_nodes):
+            ref_counts, mutated = self._collect_var_refs(body_nodes)
+            cacheable = {
+                n
+                for n, count in ref_counts.items()
+                if count >= 2 and n not in mutated and n not in self._locals
+            }
+        saved_cached = self._cached_vars
+        self._cached_vars = cacheable
 
         # Compile block body with f-string coalescing
-        body.extend(self._compile_body_with_coalescing(list(block_node.body)))
+        compiled_stmts = self._compile_body_with_coalescing(body_nodes)
+        self._cached_vars = saved_cached
+
+        # --- Constant block return optimisation ---
+        # If every meaningful statement is _append(<string constant>), concatenate
+        # them and emit a single ``return "..."`` with no preamble at all.
+        constant_parts: list[str] = []
+        all_constant = True
+        for stmt in compiled_stmts:
+            part = self._is_append_constant(stmt)
+            if part is not None:
+                constant_parts.append(part)
+            elif self._is_line_tracking(stmt):
+                continue  # ignore line-tracking for the constant check
+            else:
+                all_constant = False
+                break
+
+        if all_constant and constant_parts:
+            merged = "".join(constant_parts)
+            return ast.FunctionDef(
+                name=f"_block_{name}",
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                    vararg=None,
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    kwarg=None,
+                    defaults=[],
+                ),
+                body=[ast.Return(value=ast.Constant(value=merged))],
+                decorator_list=[],
+                returns=None,
+            )
+
+        # --- Single-expression return optimisation ---
+        # If there is exactly one _append(expr) (ignoring line-tracking stmts),
+        # skip buf/join and return the expression directly with a minimal preamble.
+        non_tracking = [s for s in compiled_stmts if not self._is_line_tracking(s)]
+        if len(non_tracking) == 1:
+            expr = self._is_single_append_expr(non_tracking[0])
+            if expr is not None:
+                # Minimal preamble: _e, _s, _ga, _ls, _rc but no buf/_append.
+                profiling = self._env.enable_profiling
+                preamble = self._make_runtime_preamble(
+                    include_scope_stack=True,
+                    include_escape_str=True,
+                    include_getattr=True,
+                    include_lookup_scope=True,
+                    include_buf_append=False,
+                    include_acc=profiling,
+                    include_render_ctx=True,
+                )
+                # Preserve any line-tracking statements before the append
+                tracking = [s for s in compiled_stmts if self._is_line_tracking(s)]
+                cache_stmts = self._emit_cache_assignments(cacheable)
+                body: list[ast.stmt] = preamble + cache_stmts + tracking + [ast.Return(value=expr)]
+                return ast.FunctionDef(
+                    name=f"_block_{name}",
+                    args=ast.arguments(
+                        posonlyargs=[],
+                        args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                        vararg=None,
+                        kwonlyargs=[],
+                        kw_defaults=[],
+                        kwarg=None,
+                        defaults=[],
+                    ),
+                    body=body,
+                    decorator_list=[],
+                    returns=None,
+                )
+
+        # --- Default path: full buf/join machinery ---
+        body = self._make_block_preamble(streaming=False)
+        body.extend(self._emit_cache_assignments(cacheable))
+        body.extend(compiled_stmts)
 
         # return ''.join(buf)
         body.append(
@@ -860,6 +1215,19 @@ class Compiler(
 
     def _make_render_direct_body(self, node: TemplateNode, streaming: bool) -> list[ast.stmt]:
         """No-extends path: buf setup (if not streaming), body compile, return vs yield."""
+        # CSE: analyse Kida AST before compilation
+        render_body_nodes = list(node.body)
+        cacheable: set[str] = set()
+        if self._has_unconditional_exprs(render_body_nodes):
+            ref_counts, mutated = self._collect_var_refs(render_body_nodes)
+            cacheable = {
+                n
+                for n, count in ref_counts.items()
+                if count >= 2 and n not in mutated and n not in self._locals
+            }
+        saved_cached = self._cached_vars
+        self._cached_vars = cacheable
+
         body: list[ast.stmt] = self._make_runtime_preamble(
             include_escape_str=True,
             include_getattr=True,
@@ -867,7 +1235,9 @@ class Compiler(
             include_buf_append=not streaming,
             include_render_ctx=True,
         )
-        body.extend(self._compile_body_with_coalescing(list(node.body)))
+        body.extend(self._emit_cache_assignments(cacheable))
+        body.extend(self._compile_body_with_coalescing(render_body_nodes))
+        self._cached_vars = saved_cached
         if streaming:
             body.append(ast.Return(value=None))
             body.append(ast.Expr(value=ast.Yield(value=None)))
