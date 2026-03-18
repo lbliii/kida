@@ -760,14 +760,17 @@ class Compiler(
     def _collect_var_refs(nodes: Any) -> tuple[dict[str, int], set[str]]:
         """Collect variable reference counts and mutated names from Kida AST nodes.
 
-        Walks the AST recursively, counting Name references in load context
-        and collecting names that are targets of Set/Let/Export/Capture.
+        Walks the AST recursively, collecting mutations from ALL code but only
+        counting Name references in unconditional (non-branching) code paths.
+        This ensures eager cache assignments at function entry won't raise
+        UndefinedError for variables only referenced inside conditional branches.
 
         Does NOT recurse into Block or Def bodies (separate compilation scopes).
 
         Returns:
             (ref_counts, mutated) where ref_counts maps var name to usage count
-            and mutated is the set of names assigned anywhere in the body.
+            in unconditional code, and mutated is the set of names assigned
+            anywhere in the body.
         """
         from kida.nodes import (
             AsyncFor,
@@ -796,91 +799,111 @@ class Compiler(
                 for item in target.items:
                     _collect_target_names(item)
 
-        def _walk(node: Any) -> None:
+        def _walk(node: Any, *, count_refs: bool = True) -> None:
             if node is None:
                 return
             if isinstance(node, (list, tuple)):
                 for item in node:
-                    _walk(item)
+                    _walk(item, count_refs=count_refs)
                 return
             if isinstance(node, dict):
                 for v in node.values():
-                    _walk(v)
+                    _walk(v, count_refs=count_refs)
                 return
 
-            # Count Name references in load context
+            # Count Name references only in unconditional code
             if isinstance(node, Name) and node.ctx == "load":
-                ref_counts[node.name] = ref_counts.get(node.name, 0) + 1
+                if count_refs:
+                    ref_counts[node.name] = ref_counts.get(node.name, 0) + 1
                 return
 
-            # Track mutations: Set/Let/Export/Capture targets
+            # Track mutations: Set/Let/Export/Capture targets (always, regardless of branch)
             if isinstance(node, Set):
                 if isinstance(node.target, Name):
                     mutated.add(node.target.name)
-                _walk(node.value)
+                _walk(node.value, count_refs=count_refs)
                 return
             if isinstance(node, Let):
                 if isinstance(node.name, Name):
                     mutated.add(node.name.name)
-                _walk(node.value)
+                _walk(node.value, count_refs=count_refs)
                 return
             if isinstance(node, Export):
                 if isinstance(node.name, Name):
                     mutated.add(node.name.name)
-                _walk(node.value)
+                _walk(node.value, count_refs=count_refs)
                 return
             if isinstance(node, Capture):
                 mutated.add(node.name)
-                _walk(node.body)
+                _walk(node.body, count_refs=False)
                 return
 
             # Track For/AsyncFor loop targets — loop vars become Python locals
             # at runtime and must not be cached at function entry.
             # Also exclude 'loop' (LoopContext) which is only available inside the body.
+            # For iter expression is unconditional; body/empty are conditional.
             if isinstance(node, (For, AsyncFor)):
                 _collect_target_names(node.target)
                 mutated.add("loop")
-                _walk(node.iter)
-                _walk(node.body)
-                _walk(node.empty)
+                _walk(node.iter, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
+                _walk(node.empty, count_refs=False)
                 return
 
             # With/WithConditional introduce locally-scoped variables
             if isinstance(node, With):
                 for target_name, expr in node.targets:
                     mutated.add(target_name)
-                    _walk(expr)
-                _walk(node.body)
+                    _walk(expr, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
                 return
             if isinstance(node, WithConditional):
                 if isinstance(node.target, Name):
                     mutated.add(node.target.name)
-                _walk(node.expr)
-                _walk(node.body)
+                _walk(node.expr, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
                 if node.empty:
-                    _walk(node.empty)
+                    _walk(node.empty, count_refs=False)
                 return
 
             # Import/FromImport introduce names into ctx mid-function
             if isinstance(node, Import):
                 mutated.add(node.target)
-                _walk(node.template)
+                _walk(node.template, count_refs=count_refs)
                 return
             if isinstance(node, FromImport):
                 for name, alias in node.names:
                     mutated.add(alias if alias else name)
-                _walk(node.template)
+                _walk(node.template, count_refs=count_refs)
                 return
 
-            # Match cases may bind pattern variables (simple or destructured)
+            # If/While: test expression is unconditional, bodies are conditional.
+            from kida.nodes import If, While
+
+            if isinstance(node, If):
+                _walk(node.test, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
+                for elif_test, elif_body in node.elif_:
+                    _walk(elif_test, count_refs=False)
+                    _walk(elif_body, count_refs=False)
+                if node.else_:
+                    _walk(node.else_, count_refs=False)
+                return
+            if isinstance(node, While):
+                _walk(node.test, count_refs=count_refs)
+                _walk(node.body, count_refs=False)
+                return
+
+            # Match: subject is unconditional, case bodies are conditional.
+            # Case patterns may bind variables.
             if isinstance(node, Match):
                 if node.subject is not None:
-                    _walk(node.subject)
+                    _walk(node.subject, count_refs=count_refs)
                 for pattern, guard, case_body in node.cases:
                     _collect_target_names(pattern)
                     if guard is not None:
-                        _walk(guard)
-                    _walk(case_body)
+                        _walk(guard, count_refs=False)
+                    _walk(case_body, count_refs=False)
                 return
 
             # Don't recurse into separate compilation scopes.
@@ -899,7 +922,7 @@ class Compiler(
             for field_name in node.__dataclass_fields__:
                 child = getattr(node, field_name, None)
                 if child is not None:
-                    _walk(child)
+                    _walk(child, count_refs=count_refs)
 
         _walk(nodes)
         return ref_counts, mutated
