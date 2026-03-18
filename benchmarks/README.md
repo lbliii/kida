@@ -8,15 +8,25 @@ Performance comparison between Kida and Jinja2 on **Python 3.14 free-threading**
 
 ## Quick Results
 
-### Single-Threaded Performance
+### Single-Threaded Performance (Inline Templates)
 
 | Template | Kida | Jinja2 | Kida Advantage |
 |----------|------|--------|----------------|
-| **Minimal** (`{{ name }}`) | 8.25µs | 11.97µs | **1.45x faster** |
-| **Small** (loop + filter) | 17.03µs | 27.69µs | **1.63x faster** |
-| **Medium** (conditionals + loops) | 17.90µs | 19.04µs | 1.06x faster |
+| **Minimal** (`{{ name }}`) | 4.53µs | 5.13µs | **1.13x faster** |
+| **Small** (loop + filter) | 7.66µs | 10.71µs | **1.40x faster** |
+| **Medium** (conditionals + loops) | 9.41µs | 11.82µs | **1.26x faster** |
 
-**Takeaway**: Kida has significantly lower per-render overhead, most visible on small templates.
+### Single-Threaded Performance (File-Based Templates)
+
+| Template | Kida | Jinja2 | Kida Advantage |
+|----------|------|--------|----------------|
+| **Minimal** (`{{ name }}`) | 4.04µs | 5.28µs | **1.31x faster** |
+| **Small** (loop + filter) | 6.77µs | 9.78µs | **1.44x faster** |
+| **Medium** (~100 vars) | 210.57µs | 363.14µs | **1.72x faster** |
+| **Large** (1000 loop items) | 1.59ms | 4.03ms | **2.53x faster** |
+| **Complex** (3-level inheritance) | 18.93µs | 29.33µs | **1.55x faster** |
+
+**Takeaway**: Kida is faster across the board. The advantage grows with template size — 2.53x on large templates due to the StringBuilder pattern.
 
 ---
 
@@ -26,16 +36,15 @@ Same total work (100 renders of medium template), distributed across workers:
 
 | Workers | Kida | Jinja2 | Kida Advantage |
 |---------|------|--------|----------------|
-| **1** (baseline) | 1.80ms | 1.80ms | ~same |
-| **2** | 1.12ms | 1.15ms | ~same |
-| **4** | 1.62ms | 1.90ms | **1.17x faster** |
-| **8** | 1.76ms | 1.97ms | **1.12x faster** |
+| **1** (baseline) | 1.25ms | 1.48ms | **1.18x faster** |
+| **2** | 0.87ms | 0.98ms | **1.12x faster** |
+| **4** | 0.90ms | 1.02ms | **1.13x faster** |
+| **8** | 1.68ms | 1.62ms | ~same |
 
-**Takeaway**: Kida's advantage **grows with concurrency**. Jinja2 degrades at higher worker counts.
+**Takeaway**: Kida is faster at all worker counts up to 4. At 8 workers, threading overhead dominates for both engines on this workload size.
 
 > Concurrent benchmarks use `pedantic(rounds=5)` and have higher variance than
-> single-threaded benchmarks. The consistent signal is that Kida maintains
-> performance under concurrency while Jinja2 tends to degrade.
+> single-threaded benchmarks. Median values are reported above for stability.
 
 ---
 
@@ -43,10 +52,10 @@ Same total work (100 renders of medium template), distributed across workers:
 
 | Engine | 1→2 workers | 1→4 workers | 1→8 workers |
 |--------|-------------|-------------|-------------|
-| **Kida** | 1.61x speedup | 1.11x speedup | 1.02x speedup |
-| **Jinja2** | 1.57x speedup | 0.95x speedup ⚠️ | 0.91x speedup ⚠️ |
+| **Kida** | 1.44x speedup | 1.39x speedup | ~0.7x ⚠️ |
+| **Jinja2** | 1.51x speedup | 1.45x speedup | ~0.9x ⚠️ |
 
-**Takeaway**: Jinja2 shows **negative scaling** at 4+ workers (slower than baseline). Kida maintains gains.
+**Takeaway**: Both engines scale well up to 4 workers. At 8 workers, threading overhead exceeds the parallelism gains for this workload (100 renders of a small inline template). For real-world workloads with heavier templates, scaling continues further.
 
 ---
 
@@ -200,28 +209,29 @@ Platform: macOS (Apple Silicon)
 
 ### When Kida Wins Big
 
-- **Minimal/small templates**: Lower runtime overhead dominates (1.5-1.6x)
-- **Large templates**: 2.14x faster (file-based benchmark, `test_benchmark_render.py`)
-- **High concurrency**: Thread-safe design enables true parallelism
-- **Many small renders**: Per-render overhead matters
+- **Large templates**: 2.53x faster (file-based benchmark, `test_benchmark_render.py`)
+- **Medium templates**: 1.72x faster (file-based, ~100 vars)
+- **Small/minimal templates**: 1.3-1.4x faster (lower per-render overhead)
+- **Complex inheritance**: 1.55x faster (3-level inheritance chain)
+- **Concurrent (2-4 workers)**: Consistent 1.1-1.2x advantage
 
 ### When Results Are Similar
 
-- **Medium templates**: HTML escaping overhead dominates — Jinja2's C extension (`markupsafe`) vs Kida's pure-Python escape is a factor
-- **Single-threaded**: GIL isn't a bottleneck
+- **8+ worker concurrency**: Threading overhead dominates for small workloads
 - **I/O-heavy workloads**: Template rendering isn't the bottleneck
 
 ### The Real Story
 
-**Single-threaded benchmarks undersell Kida**. The true advantage emerges under concurrent workloads — exactly where modern Python (free-threading) is headed. Kida also wins large template rendering (2.14x faster) due to the StringBuilder pattern.
+Kida is faster across the board — from minimal templates (1.3x) to large templates (2.53x). The advantage grows with template complexity due to the StringBuilder pattern and AST-native compilation.
 
 | Scenario | Kida Advantage |
 |----------|----------------|
-| Single-threaded, minimal template | 1.56x (file-based) |
-| Single-threaded, large template | **2.14x** (file-based) |
-| 8 workers, concurrent renders | 1.12x |
+| Single-threaded, minimal template | 1.31x (file-based) |
+| Single-threaded, medium template | **1.72x** (file-based) |
+| Single-threaded, large template | **2.53x** (file-based) |
+| 2-4 workers, concurrent renders | 1.12-1.13x |
 
 Choose Kida when you need:
-- High-concurrency template rendering
+- High-throughput template rendering
 - Minimal per-render overhead
 - True parallelism on Python 3.14+
