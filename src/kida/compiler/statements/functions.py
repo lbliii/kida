@@ -115,6 +115,23 @@ class FunctionCompilationMixin:
                     value=ast.List(elts=[], ctx=ast.Load()),
                 )
             )
+        # Cache render context for line tracking (same as _make_runtime_preamble)
+        stmts.append(
+            ast.Assign(
+                targets=[ast.Name(id="_rc", ctx=ast.Store())],
+                value=ast.BoolOp(
+                    op=ast.Or(),
+                    values=[
+                        ast.Call(
+                            func=ast.Name(id="_get_render_ctx", ctx=ast.Load()),
+                            args=[],
+                            keywords=[],
+                        ),
+                        ast.Name(id="_null_rc", ctx=ast.Load()),
+                    ],
+                ),
+            )
+        )
         return stmts
 
     def _compile_def(self, node: Def) -> list[ast.stmt]:

@@ -27,6 +27,22 @@ if TYPE_CHECKING:
     pass
 
 
+class _NullRenderContext:
+    """Lightweight stub used when generated code runs outside a render context.
+
+    Silently absorbs `_rc.line = N` assignments without raising.
+    """
+
+    __slots__ = ("line",)
+
+    def __init__(self) -> None:
+        self.line = 0
+
+
+# Module-level singleton — used as fallback in generated code preambles.
+NULL_RENDER_CONTEXT = _NullRenderContext()
+
+
 @dataclass
 class RenderContext:
     """Per-render state isolated from user context.
