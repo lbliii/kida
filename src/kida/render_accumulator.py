@@ -188,10 +188,18 @@ def profiled_render() -> Iterator[RenderAccumulator]:
     for the duration of the with block. Template code can check for the
     accumulator and record metrics.
 
+    Note:
+        Templates must be compiled with ``Environment(enable_profiling=True)``
+        for profiling hooks to be present. Templates compiled with the default
+        ``enable_profiling=False`` strip all profiling AST at compile time
+        and will not populate the accumulator.
+
     Yields:
         RenderAccumulator that will be populated during render
 
     Example:
+        env = Environment(loader=..., enable_profiling=True)
+        template = env.get_template("page.html")
         with profiled_render() as metrics:
             html = template.render(ctx)
             print(metrics.summary())

@@ -109,6 +109,19 @@ def safe_getattr(obj: object, name: str) -> object:
     """
     if obj is None:
         return UNDEFINED
+    # Fast path: plain dicts (the common case — template ctx is always dict).
+    # type() is dict skips the isinstance MRO probe; dict subclasses fall
+    # through to the isinstance branch which preserves subscript-first order.
+    if type(obj) is dict:
+        try:
+            val = obj[name]
+            return "" if val is None else val
+        except KeyError:
+            try:
+                val = getattr(obj, name)
+                return "" if val is None else val
+            except AttributeError:
+                return UNDEFINED
     if isinstance(obj, dict):
         try:
             val = obj[name]  # ty: ignore[invalid-argument-type]
@@ -243,15 +256,17 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
     early, improving debugging experience.
 
     Performance:
-        - Fast path (defined var): O(1) dict lookup
+        - Fast path (defined var): O(1) dict lookup, no imports
         - Error path: Raises UndefinedError with template context
     """
-    from kida.environment.exceptions import UndefinedError, build_source_snippet
-    from kida.render_context import get_render_context
-
     try:
         return ctx[var_name]
     except KeyError:
+        # Defer imports to error path — avoids ~4 dict lookups per call
+        # on the hot path (sys.modules + getattr per import).
+        from kida.environment.exceptions import UndefinedError, build_source_snippet
+        from kida.render_context import get_render_context
+
         # Get template context from RenderContext for better error messages
         render_ctx = get_render_context()
         template_name = render_ctx.template_name if render_ctx else None

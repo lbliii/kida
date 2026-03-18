@@ -27,6 +27,9 @@ class TemplateStructureMixin:
     # Cross-mixin dependencies (type-check only)
     # ─────────────────────────────────────────────────────────────────────────
     if TYPE_CHECKING:
+        from kida.environment import Environment
+
+        _env: Environment
         _async_mode: bool
         _streaming: bool
         _loop_vars: set[str]
@@ -137,13 +140,8 @@ class TemplateStructureMixin:
             stmts = self._yield_from_or_async_for(block_call)
             return self._wrap_block_condition(node, stmts)
 
-        # StringBuilder mode with profiling instrumentation:
-        #   if _acc is not None:
-        #       _t0 = _perf_counter()
-        #       _append(_blocks.get('name', _block_name)(ctx, _blocks))
-        #       _acc.record_block('name', (_perf_counter() - _t0) * 1000)
-        #   else:
-        #       _append(_blocks.get('name', _block_name)(ctx, _blocks))
+        # StringBuilder mode: emit profiling instrumentation only when enabled.
+        # When profiling is off, emit bare _append (no timing, no _acc check).
 
         def _make_block_append() -> ast.Expr:
             """Generate _append(_blocks.get('name', _block_name)(ctx, _blocks))."""
@@ -175,55 +173,63 @@ class TemplateStructureMixin:
                 ),
             )
 
-        stmts = [
-            ast.If(
-                test=ast.Compare(
-                    left=ast.Name(id="_acc", ctx=ast.Load()),
-                    ops=[ast.IsNot()],
-                    comparators=[ast.Constant(value=None)],
-                ),
-                body=[
-                    # _t0 = _perf_counter()
-                    ast.Assign(
-                        targets=[ast.Name(id="_t0", ctx=ast.Store())],
-                        value=ast.Call(
-                            func=ast.Name(id="_perf_counter", ctx=ast.Load()),
-                            args=[],
-                            keywords=[],
-                        ),
+        # Check if the host compiler has profiling enabled
+        profiling = getattr(self, "_env", None) and self._env.enable_profiling
+
+        if profiling:
+            stmts = [
+                ast.If(
+                    test=ast.Compare(
+                        left=ast.Name(id="_acc", ctx=ast.Load()),
+                        ops=[ast.IsNot()],
+                        comparators=[ast.Constant(value=None)],
                     ),
-                    _make_block_append(),
-                    # _acc.record_block('name', (_perf_counter() - _t0) * 1000)
-                    ast.Expr(
-                        value=ast.Call(
-                            func=ast.Attribute(
-                                value=ast.Name(id="_acc", ctx=ast.Load()),
-                                attr="record_block",
-                                ctx=ast.Load(),
+                    body=[
+                        # _t0 = _perf_counter()
+                        ast.Assign(
+                            targets=[ast.Name(id="_t0", ctx=ast.Store())],
+                            value=ast.Call(
+                                func=ast.Name(id="_perf_counter", ctx=ast.Load()),
+                                args=[],
+                                keywords=[],
                             ),
-                            args=[
-                                ast.Constant(value=block_name),
-                                ast.BinOp(
-                                    left=ast.BinOp(
-                                        left=ast.Call(
-                                            func=ast.Name(id="_perf_counter", ctx=ast.Load()),
-                                            args=[],
-                                            keywords=[],
-                                        ),
-                                        op=ast.Sub(),
-                                        right=ast.Name(id="_t0", ctx=ast.Load()),
-                                    ),
-                                    op=ast.Mult(),
-                                    right=ast.Constant(value=1000),
-                                ),
-                            ],
-                            keywords=[],
                         ),
-                    ),
-                ],
-                orelse=[_make_block_append()],
-            )
-        ]
+                        _make_block_append(),
+                        # _acc.record_block('name', (_perf_counter() - _t0) * 1000)
+                        ast.Expr(
+                            value=ast.Call(
+                                func=ast.Attribute(
+                                    value=ast.Name(id="_acc", ctx=ast.Load()),
+                                    attr="record_block",
+                                    ctx=ast.Load(),
+                                ),
+                                args=[
+                                    ast.Constant(value=block_name),
+                                    ast.BinOp(
+                                        left=ast.BinOp(
+                                            left=ast.Call(
+                                                func=ast.Name(id="_perf_counter", ctx=ast.Load()),
+                                                args=[],
+                                                keywords=[],
+                                            ),
+                                            op=ast.Sub(),
+                                            right=ast.Name(id="_t0", ctx=ast.Load()),
+                                        ),
+                                        op=ast.Mult(),
+                                        right=ast.Constant(value=1000),
+                                    ),
+                                ],
+                                keywords=[],
+                            ),
+                        ),
+                    ],
+                    orelse=[_make_block_append()],
+                )
+            ]
+        else:
+            # No profiling: bare block append, no timing overhead
+            stmts = [_make_block_append()]
+
         return self._wrap_block_condition(node, stmts)
 
     def _wrap_block_condition(self, node: Block, stmts: list[ast.stmt]) -> list[ast.stmt]:
