@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - TBD
+
 ### Added
 
+- **`{% yield %}` directive** — Context-independent slot rendering for nested `{% def %}` / `{% call %}` chains. `{% yield %}` renders the caller's default slot; `{% yield name %}` renders a named slot. Replaces the fragile `{% slot x %}{% slot x %}{% end %}` double-nesting workaround with clear, unambiguous syntax.
 - **Region default expressions** — Optional region parameters now support arbitrary expressions as defaults (e.g. `meta=page.metadata`, `count=items | length`, `title=page?.title ?? "Default"`). Previously only simple variable names worked; complex expressions leaked an internal sentinel. Defaults are evaluated at call time from the caller's context. Static analysis (`depends_on`) correctly captures paths from complex defaults.
+- **Region `_blocks` parameter** — Region callables now receive the block dispatch dict, enabling regions to render inherited blocks within `render_block()` flows.
+- **Imported macro namespace injection** — `MacroWrapper` now injects the defining template's namespace so imported macros can call sibling macros (e.g. `article_card` calling `tag_list` from the same import) without the caller importing every dependency.
+- **Regions example** — New `examples/regions/` with a working app, templates, and test suite demonstrating parameterized region blocks.
+
+### Changed
+
+- **mtime-based `auto_reload` stale checks** — `get_template()` now checks file mtime (`st_mtime_ns`) before reading and hashing source. Skips the slow hash-comparison path when the file hasn't been modified, reducing per-call overhead for `auto_reload=True` environments.
+- **Pre-computed block wrappers** — `CachedBlocksDict` builds wrapper functions once at init instead of creating a new closure on every `.get()`, `.setdefault()`, or `[]` access.
+- **Single-pass context merge** — `_build_render_context` uses `{**globals, **args, **kwargs}` dict unpacking instead of filtering `UNDEFINED` values and calling `.update()` multiple times.
+- **`lookup_scope` fast path** — Skips the `reversed()` iterator when `scope_stack` is empty (the common case at template top level).
+- **Single-pass tag counting** — `estimate_template_weight` scans template source once instead of four separate `str.count()` calls.
+- **Compiler node dispatch table** — Built once at `__init__` instead of being reconstructed per compilation pass.
 
 ## [0.2.7] - 2026-03-12
 
@@ -339,6 +354,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.8]: https://github.com/lbliii/kida/releases/tag/v0.2.8
 [0.2.7]: https://github.com/lbliii/kida/releases/tag/v0.2.7
 [0.2.6]: https://github.com/lbliii/kida/releases/tag/v0.2.6
 [0.2.5]: https://github.com/lbliii/kida/releases/tag/v0.2.5
