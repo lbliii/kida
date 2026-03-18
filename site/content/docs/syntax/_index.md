@@ -68,7 +68,7 @@ composition.
 :icon: function
 :link: /docs/syntax/functions/
 :description: Define reusable template functions and regions
-`{% def greet(name) %}`, `{% region sidebar(path) %}`, `{% macro %}`
+`{% def %}`, `{% region %}`, `{% yield %}`, `{% macro %}`
 :::{/card}
 
 :::{card} Inheritance

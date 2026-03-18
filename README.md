@@ -82,7 +82,7 @@ Requires Python 3.14+
 | **Streaming** | Statement-level generator rendering via `render_stream()` | [Streaming →](https://lbliii.github.io/kida/docs/usage/streaming/) |
 | **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
 | **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
-| **Components & Slots** | `{% def %}`, `{% call %}`, default + named `{% slot %}` | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/) |
+| **Components & Slots** | `{% def %}`, `{% call %}`, `{% slot %}`, `{% yield %}` | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/) |
 | **Regions** | `{% region name(params) %}...{% end %}` — parameterized blocks for render_block | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/#regions) |
 | **Block Rendering** | `render_block()`, `render_with_blocks()` for fragments and layout composition | [Framework Integration →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
 | **Introspection** | `template_metadata()`, `block_metadata()`, `validate_context()` for frameworks | [Analysis →](https://lbliii.github.io/kida/docs/advanced/analysis/) |

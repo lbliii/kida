@@ -144,6 +144,7 @@ Kida has native block-level caching (no extensions needed):
 | Pipeline `\|>` | Left-to-right filter chains |
 | `{% match %}` | Pattern matching for cleaner branching |
 | `{% region %}` | Parameterized blocks for `render_block()` and OOB (no Jinja2 equivalent) |
+| `{% yield %}` | Explicit slot forwarding in nested macro composition |
 | `{% cache %}` | Built-in block-level output caching |
 | `{% let %}` / `{% export %}` | Explicit variable scoping |
 | Native async | `{% async for %}`, `{{ await expr }}` |
