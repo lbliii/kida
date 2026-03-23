@@ -155,7 +155,7 @@ class FStringCoalescingMixin:
         """Recursively check if expression is simple enough for f-string.
 
         Simple expressions:
-            - Constants (strings, numbers, booleans)
+            - Constants (strings, numbers, booleans) without backslashes
             - Names (variable references)
             - Attribute access (name.attr, name.attr.subattr)
             - Item access (name[key], name["key"])
@@ -167,7 +167,10 @@ class FStringCoalescingMixin:
             - Function calls (may have side effects)
             - Ternary expressions (complex control flow)
             - Binary/unary ops (complex evaluation)
-            - Expressions containing backslashes
+            - Expressions containing backslashes in string constants
+
+        Backslash detection is integrated into this single-pass traversal
+        rather than using a separate _expr_contains_backslash() walk.
         """
         from kida.nodes import (
             Const,
@@ -181,13 +184,10 @@ class FStringCoalescingMixin:
             Pipeline,
         )
 
-        # Check for backslashes in string constants
-        if self._expr_contains_backslash(expr):
-            return False
-
-        # Base cases: constants and names are always simple
+        # Base case: constants are simple unless they contain backslashes
+        # (f-strings cannot contain backslashes in expression parts)
         if isinstance(expr, Const):
-            return True
+            return not (isinstance(expr.value, str) and "\\" in expr.value)
 
         if isinstance(expr, Name):
             return True
@@ -240,62 +240,6 @@ class FStringCoalescingMixin:
         # Function calls are NOT coalesceable (may have side effects)
         # Ternary expressions are NOT coalesceable (complex control flow)
         # Binary/unary ops are NOT coalesceable (complex evaluation)
-        return False
-
-    def _expr_contains_backslash(self, expr: Node) -> bool:
-        """Check if expression would generate code with backslashes.
-
-        F-strings cannot contain backslashes in expression parts.
-        This is a Python syntax limitation.
-        """
-        from kida.nodes import (
-            Const,
-            Filter,
-            Getattr,
-            Getitem,
-            InlinedFilter,
-            Name,
-            OptionalGetattr,
-            OptionalGetitem,
-            Pipeline,
-        )
-
-        if isinstance(expr, Const):
-            return bool(isinstance(expr.value, str) and "\\" in expr.value)
-
-        if isinstance(expr, Name):
-            return False
-
-        if isinstance(expr, (Getattr, OptionalGetattr)):
-            return self._expr_contains_backslash(expr.obj)
-
-        if isinstance(expr, (Getitem, OptionalGetitem)):
-            return self._expr_contains_backslash(expr.obj) or self._expr_contains_backslash(
-                expr.key
-            )
-
-        if isinstance(expr, InlinedFilter):
-            if self._expr_contains_backslash(expr.value):
-                return True
-            return any(self._expr_contains_backslash(arg) for arg in expr.args)
-
-        if isinstance(expr, Filter):
-            if self._expr_contains_backslash(expr.value):
-                return True
-            if any(self._expr_contains_backslash(arg) for arg in expr.args):
-                return True
-            return bool(any(self._expr_contains_backslash(v) for v in expr.kwargs.values()))
-
-        if isinstance(expr, Pipeline):
-            if self._expr_contains_backslash(expr.value):
-                return True
-            for _name, args, kwargs in expr.steps:
-                if any(self._expr_contains_backslash(arg) for arg in args):
-                    return True
-                if any(self._expr_contains_backslash(v) for v in kwargs.values()):
-                    return True
-            return False
-
         return False
 
     def _compile_coalesced_output(self, nodes: list[Any]) -> ast.stmt:
@@ -390,9 +334,8 @@ class FStringCoalescingMixin:
                 # Single node - use normal compilation
                 for node in coalesceable:
                     stmts.extend(self._compile_node(node))
-
-            # Compile non-coalesceable node normally
-            if i < len(nodes) and not self._is_coalesceable(nodes[i]):
+            elif i < len(nodes):
+                # Inner loop collected nothing — current node is non-coalesceable
                 stmts.extend(self._compile_node(nodes[i]))
                 i += 1
 
