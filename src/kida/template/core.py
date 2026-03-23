@@ -283,7 +283,17 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         ancestors run before ``render_block`` / ``render_with_blocks`` body, matching
         full ``render()`` scope for HTMX fragments.
         """
-        for tmpl in reversed(self._inheritance_chain()):
+        # Reuse ``_inheritance_chain_cache`` when populated (e.g. after
+        # ``_effective_block_map`` in ``render_block``) so we do not call
+        # ``_inheritance_chain()`` again per render — same cost model as before
+        # globals-setup chaining.
+        if not self._env.auto_reload:
+            chain = self._inheritance_chain_cache
+            if chain is None:
+                chain = self._inheritance_chain()
+        else:
+            chain = self._inheritance_chain()
+        for tmpl in reversed(chain):
             gs = tmpl._namespace.get("_globals_setup")
             if gs is not None:
                 gs(ctx)
