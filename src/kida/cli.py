@@ -8,6 +8,7 @@ from pathlib import Path
 
 from kida import Environment, FileSystemLoader
 from kida.analysis.analyzer import BlockAnalyzer
+from kida.environment.exceptions import TemplateSyntaxError
 from kida.lexer import Lexer
 from kida.parser import Parser
 
@@ -45,18 +46,27 @@ def _cmd_check(
             continue
 
         if strict:
-            source = path.read_text(encoding="utf-8")
-            lexer = Lexer(source, env._lexer_config)
-            tokens = list(lexer.tokenize())
-            should_escape = env.autoescape(rel) if callable(env.autoescape) else env.autoescape
-            sparser = Parser(
-                tokens,
-                name=rel,
-                filename=str(path),
-                source=source,
-                autoescape=should_escape,
-            )
-            sparser.parse()
+            try:
+                source = path.read_text(encoding="utf-8")
+                lexer = Lexer(source, env._lexer_config)
+                tokens = list(lexer.tokenize())
+                should_escape = env.autoescape(rel) if callable(env.autoescape) else env.autoescape
+                sparser = Parser(
+                    tokens,
+                    name=rel,
+                    filename=str(path),
+                    source=source,
+                    autoescape=should_escape,
+                )
+                sparser.parse()
+            except OSError as e:
+                print(f"{rel}: {e}", file=sys.stderr)
+                errors += 1
+                continue
+            except TemplateSyntaxError as e:
+                print(f"{rel}: {e}", file=sys.stderr)
+                errors += 1
+                continue
             for lineno, _col, closing in sparser._unified_end_closures:
                 want = _explicit_close_suggestion(closing)
                 print(

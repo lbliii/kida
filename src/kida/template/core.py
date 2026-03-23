@@ -277,11 +277,15 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         return dict(env_globals) if env_globals else {}
 
     def _run_globals_setup_chain(self, ctx: dict[str, Any]) -> None:
-        """Apply ``_globals_setup`` from root template through ``{% extends %}`` chain.
+        """Apply ``_globals_setup`` along the ``{% extends %}`` chain.
 
-        Ensures top-level ``{% from %}`` / ``{% import %}`` / ``{% globals %}`` from
-        ancestors run before ``render_block`` / ``render_with_blocks`` body, matching
-        full ``render()`` scope for HTMX fragments.
+        ``_inheritance_chain()`` is ``[leaf, parent, …, root]``. Full ``render()``
+        runs each template's top-level statements (imports, defs, ``{% let %}``, …)
+        before calling ``_extends``, so effective order is **leaf → root**; later
+        templates win on ``ctx`` name clashes, matching full-page render.
+
+        ``render_block`` / ``render_with_blocks`` must mirror that order so fragment
+        scope matches a full page render for HTMX partials.
         """
         # Reuse ``_inheritance_chain_cache`` when populated (e.g. after
         # ``_effective_block_map`` in ``render_block``) so we do not call
@@ -293,7 +297,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 chain = self._inheritance_chain()
         else:
             chain = self._inheritance_chain()
-        for tmpl in reversed(chain):
+        for tmpl in chain:
             gs = tmpl._namespace.get("_globals_setup")
             if gs is not None:
                 gs(ctx)
@@ -453,7 +457,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             max_include_depth=max_include,
         ) as render_ctx:
             try:
-                # Run {% globals %}, {% imports %}, {% from %} (root → leaf) so
+                # Run {% globals %}, {% imports %}, {% from %} (leaf → root) so
                 # render_block matches full-page scope for inherited templates.
                 self._run_globals_setup_chain(ctx)
 

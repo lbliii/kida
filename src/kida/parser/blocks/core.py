@@ -36,6 +36,7 @@ class BlockStackMixin:
         _block_stack: list[tuple[str, int, int]]
         _source: str | None
         _filename: str | None
+        _unified_end_closures: list[tuple[int, int, str]]
 
         # From TokenNavigationMixin (ParserCoreProtocol members)
         @property
