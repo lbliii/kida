@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.8] - TBD
+## [0.2.9] - 2026-03-23
+
+### Added
+
+- **`kida check` CLI** — `kida check <dir>` loads and parses every `*.html` template under a directory (syntax plus loader resolution). Optional `--strict` flags unified `{% end %}` closers with suggestions for explicit `{% endblock %}`, `{% enddef %}`, etc. Optional `--validate-calls` checks macro call sites against defs via `BlockAnalyzer` (unknown params, missing required, duplicates).
+- **Parser unified-end tracking** — Parser records unified `{% end %}` closures for strict-mode diagnostics.
+
+### Changed
+
+- **`render_block()` ancestor macro imports** — Block-only renders resolve macro imports from ancestor templates consistently with full-template loads.
+- **Globals setup** — Reuses the cached inheritance chain instead of rebuilding it.
+- **Compiler traversal reductions** — Fewer redundant AST walks during f-string coalescing and post-compile validation; consolidated `saved_blocks` iteration; `_analyze_for_cse` deduplicates CSE analysis call sites.
+- **Benchmark matrix** — `benchmarks/RESULTS.md` refreshed for Python 3.14t free-threading.
+
+### Documentation
+
+- End-tag guidance for unified `{% end %}` versus explicit block closers.
+
+## [0.2.8] - 2026-03-18
 
 ### Added
 
@@ -354,6 +372,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.2.9]: https://github.com/lbliii/kida/releases/tag/v0.2.9
 [0.2.8]: https://github.com/lbliii/kida/releases/tag/v0.2.8
 [0.2.7]: https://github.com/lbliii/kida/releases/tag/v0.2.7
 [0.2.6]: https://github.com/lbliii/kida/releases/tag/v0.2.6
