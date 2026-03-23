@@ -36,6 +36,7 @@ class BlockStackMixin:
         _block_stack: list[tuple[str, int, int]]
         _source: str | None
         _filename: str | None
+        _unified_end_closures: list[tuple[int, int, str]]
 
         # From TokenNavigationMixin (ParserCoreProtocol members)
         @property
@@ -188,8 +189,12 @@ class BlockStackMixin:
 
         # Accept unified {% end %} or specific {% endXXX %}
         if keyword == "end":
+            closing = self._block_stack[-1][0]
+            end_lineno = self._current.lineno
+            end_col = self._current.col_offset
             self._advance()  # consume 'end'
             self._pop_block()  # Pop without type checking - unified end
+            self._unified_end_closures.append((end_lineno, end_col, closing))
         elif keyword == f"end{block_type}":
             self._advance()  # consume 'endXXX'
             self._pop_block(block_type)  # Pop with type validation

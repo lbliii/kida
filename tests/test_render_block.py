@@ -126,6 +126,28 @@ class TestRenderBlockInheritance:
         result = template.render_block("oob", data="fragment")
         assert "fragment" in result
 
+    def test_render_block_includes_ancestor_from_imports(self) -> None:
+        """{% from %} on a parent is in scope when rendering a block on the child."""
+        env = _env(
+            macros="{% def badge(t) %}<b>{{ t }}</b>{% end %}",
+            base='{% from "macros" import badge %}{% block content %}{{ badge("base") }}{% endblock %}',
+            child='{% extends "base" %}{% block content %}{{ badge("leaf") }}{% endblock %}',
+        )
+        template = env.get_template("child")
+        result = template.render_block("content")
+        assert "<b>leaf</b>" in result
+
+    def test_globals_setup_chain_matches_full_render_shadowing(self) -> None:
+        """Leaf runs before root in full render; parent wins on duplicate ``{% let %}`` bindings."""
+        env = _env(
+            base='{% let x = "base" %}{% block content %}{{ x }}{% endblock %}',
+            child='{% extends "base" %}{% let x = "leaf" %}{% block content %}{{ x }}{% endblock %}',
+        )
+        template = env.get_template("child")
+        full = template.render().strip()
+        block = template.render_block("content").strip()
+        assert full == block == "base"
+
     @pytest.mark.asyncio
     async def test_inherited_block_stream_async(self) -> None:
         """render_block_stream_async supports inherited blocks."""

@@ -28,6 +28,7 @@ Kida is a modern template engine for Python 3.14t. It works for static site gene
 - **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703). All public APIs are thread-safe.
 - **Dual-mode rendering** — `render()` uses StringBuilder for maximum throughput. `render_stream()` yields chunks for streaming HTTP and SSE.
 - **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`, null coalescing, optional chaining.
+- **Explicit block closers** — Prefer `{% endif %}`, `{% endcall %}`, `{% endfor %}`, `{% endblock %}`, `{% enddef %}` over bare `{% end %}` when nesting depth is 3+ (both styles are valid; explicit tags match Jinja2 muscle memory and ease code review).
 - **Zero dependencies** — Pure Python, includes native `Markup` implementation.
 
 ## Use Kida For
@@ -157,6 +158,16 @@ print(template.render(title="Hello", content="World"))
     Unknown status
 {% end %}
 ```
+
+You may close blocks with **explicit end keywords** instead of `{% end %}` — for example `{% endif %}`, `{% endfor %}`, `{% endblock %}`, `{% endcall %}`, `{% enddef %}`. Deeply nested templates (roughly three or more levels) are easier to read and review with explicit closers.
+
+```kida
+{% if user.is_admin %}
+  <span class="badge">Admin</span>
+{% endif %}
+```
+
+Run `kida check <template_dir>` to parse every `*.html` file under a directory (CI-friendly syntax and import resolution checks).
 
 </details>
 

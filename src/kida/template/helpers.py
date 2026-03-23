@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from time import perf_counter as _perf_counter
-from typing import Any
+from typing import Any, cast
 
 from kida.render_accumulator import RenderAccumulator
 from kida.render_accumulator import get_accumulator as _get_accumulator
@@ -116,7 +116,8 @@ def safe_getattr(obj: object, name: str) -> object:
     # type() is dict skips the isinstance MRO probe; dict subclasses fall
     # through to the isinstance branch which preserves subscript-first order.
     if type(obj) is dict:
-        val = obj.get(name, _MISS)
+        d = cast(dict[str, Any], obj)
+        val = d.get(name, _MISS)
         if val is not _MISS:
             return "" if val is None else val
         # Fallback to getattr for dict methods (items, keys, etc.)
@@ -156,7 +157,8 @@ def getattr_preserve_none(obj: object, name: str) -> object:
     Complexity: O(1)
     """
     if type(obj) is dict:
-        val = obj.get(name, _MISS)
+        d = cast(dict[str, Any], obj)
+        val = d.get(name, _MISS)
         if val is not _MISS:
             return val
         # Fallback to getattr for dict methods (items, keys, etc.)

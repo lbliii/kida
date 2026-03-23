@@ -123,7 +123,7 @@ class MacroWrapper:
         if self._needs_outer_ctx:
             kwargs_to_use = {**kwargs, "_outer_ctx": self._defining_namespace}
         else:
-            kwargs_to_use = kwargs  # type: ignore[assignment]
+            kwargs_to_use = kwargs
         try:
             return self._fn(*args, **kwargs_to_use)
         finally:
