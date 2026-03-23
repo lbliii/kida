@@ -25,8 +25,10 @@ description: Write correct Kida templates from scratch. Use when creating templa
     <span class="badge">Mod</span>
 {% else %}
     <span class="badge">User</span>
-{% end %}
+{% endif %}
 ```
+
+You can always use the unified `{% end %}`, or use explicit closers (`{% endif %}`, `{% endfor %}`, `{% endblock %}`, `{% endcall %}`, `{% enddef %}`) — especially when nesting is deep (3+ levels), explicit tags improve readability.
 
 ### Loops
 

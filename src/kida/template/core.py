@@ -276,6 +276,18 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         env_globals = self._env.globals
         return dict(env_globals) if env_globals else {}
 
+    def _run_globals_setup_chain(self, ctx: dict[str, Any]) -> None:
+        """Apply ``_globals_setup`` from root template through ``{% extends %}`` chain.
+
+        Ensures top-level ``{% from %}`` / ``{% import %}`` / ``{% globals %}`` from
+        ancestors run before ``render_block`` / ``render_with_blocks`` body, matching
+        full ``render()`` scope for HTMX fragments.
+        """
+        for tmpl in reversed(self._inheritance_chain()):
+            gs = tmpl._namespace.get("_globals_setup")
+            if gs is not None:
+                gs(ctx)
+
     @property
     def name(self) -> str | None:
         """Template name."""
@@ -431,10 +443,9 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             max_include_depth=max_include,
         ) as render_ctx:
             try:
-                # Run {% globals %} setup if present — injects macros/variables into ctx
-                globals_setup = self._namespace.get("_globals_setup")
-                if globals_setup is not None:
-                    globals_setup(ctx)
+                # Run {% globals %}, {% imports %}, {% from %} (root → leaf) so
+                # render_block matches full-page scope for inherited templates.
+                self._run_globals_setup_chain(ctx)
 
                 result: str = block_func(ctx, effective)
                 return result
@@ -514,10 +525,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             max_include_depth=max_include,
         ) as render_ctx:
             try:
-                # Run {% globals %} setup if present
-                globals_setup = self._namespace.get("_globals_setup")
-                if globals_setup is not None:
-                    globals_setup(ctx)
+                self._run_globals_setup_chain(ctx)
 
                 result: str = render_func(ctx, _blocks)
                 return result

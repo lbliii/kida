@@ -126,6 +126,17 @@ class TestRenderBlockInheritance:
         result = template.render_block("oob", data="fragment")
         assert "fragment" in result
 
+    def test_render_block_includes_ancestor_from_imports(self) -> None:
+        """{% from %} on a parent is in scope when rendering a block on the child."""
+        env = _env(
+            macros="{% def badge(t) %}<b>{{ t }}</b>{% end %}",
+            base='{% from "macros" import badge %}{% block content %}{{ badge("base") }}{% endblock %}',
+            child='{% extends "base" %}{% block content %}{{ badge("leaf") }}{% endblock %}',
+        )
+        template = env.get_template("child")
+        result = template.render_block("content")
+        assert "<b>leaf</b>" in result
+
     @pytest.mark.asyncio
     async def test_inherited_block_stream_async(self) -> None:
         """render_block_stream_async supports inherited blocks."""

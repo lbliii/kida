@@ -26,6 +26,9 @@ dependencies = [] # Pure Python, zero runtime dependencies
 docs = ["bengal>=0.2.0"]
 perf = ["markupsafe"]
 
+[project.scripts]
+kida = "kida.cli:main"
+
 [project.urls]
 Homepage = "https://lbliii.github.io/kida/"
 Documentation = "https://lbliii.github.io/kida/"
