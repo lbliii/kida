@@ -23,12 +23,15 @@ features:
 # When links are shared on Twitter, Slack, Discord, etc., users see
 # branded preview cards with the page title, description, and site branding.
 #
-# Generated images are 1200x630px PNGs placed in /social/
+# Generated images are 1200x630px PNGs (default under assets/social/).
 # Per-page control: set `social_card: false` in frontmatter to disable
 #                   set `image: /path.png` in frontmatter to use custom image
+#
+# Bengal runs social card generation sequentially on full non-incremental
+# builds. If anything misbehaves on free-threaded Python, set enabled: false.
 
 social_cards:
-  enabled: false  # Disabled: Pillow not thread-safe in Python 3.14 free-threading
+  enabled: true
   template: "default"           # "default" (branded) or "minimal" (centered)
   background_color: "#0f172a"   # Slate-900 - matches dark theme
   text_color: "#f8fafc"         # Slate-50 - high contrast text
