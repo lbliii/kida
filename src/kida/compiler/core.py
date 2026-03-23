@@ -428,14 +428,31 @@ class Compiler(
         if globals_setup is not None:
             module_body.append(globals_setup)
 
+        # Generate all three block function variants (sync, stream, async stream)
+        # in a single iteration over saved_blocks.
+        sync_blocks: list[ast.stmt] = []
+        stream_blocks: list[ast.stmt] = []
+        async_stream_blocks: list[ast.stmt] = []
+
         for block_name, block_node in saved_blocks.items():
-            module_body.append(self._make_block_function(block_name, block_node))
+            sync_blocks.append(self._make_block_function(block_name, block_node))
+
+            self._streaming = True
+            stream_blocks.append(self._make_block_function_stream(block_name, block_node))
+
+            self._async_mode = True
+            async_stream_blocks.append(
+                self._make_block_function_stream_async(block_name, block_node)
+            )
+            self._async_mode = False
+            self._streaming = False
+
+        module_body.extend(sync_blocks)
         module_body.append(render_func)
 
-        # Generate render_stream + _block_*_stream (generator mode)
+        # Streaming render function
         self._streaming = True
-        for block_name, block_node in saved_blocks.items():
-            module_body.append(self._make_block_function_stream(block_name, block_node))
+        module_body.extend(stream_blocks)
         module_body.append(self._make_render_function_stream(node, saved_blocks))
         self._streaming = False
 
@@ -451,14 +468,13 @@ class Compiler(
                 )
             )
 
-        # Generate async streaming functions for ALL templates.
-        # For sync templates, these wrap sync code in async def (no yield from).
+        # Async streaming render function (generated for ALL templates).
+        # For sync templates, these wrap sync code in async def.
         # This ensures every parent template has render_stream_async for
         # inheritance chains where a child introduces async constructs.
         self._streaming = True
         self._async_mode = True
-        for block_name, block_node in saved_blocks.items():
-            module_body.append(self._make_block_function_stream_async(block_name, block_node))
+        module_body.extend(async_stream_blocks)
         module_body.append(self._make_render_function_stream_async(node, saved_blocks))
         self._async_mode = False
         self._streaming = False
@@ -804,6 +820,22 @@ class Compiler(
         )
         return any(not isinstance(n, skip) for n in body)
 
+    def _analyze_for_cse(self, body_nodes: Sequence) -> set[str]:
+        """Combined CSE analysis: returns cacheable variable names.
+
+        Performs the fast unconditional-expression guard check followed by
+        the full variable reference collection in a single call, deduplicating
+        the pattern used across _make_block_function and _make_render_direct_body.
+        """
+        if not self._has_unconditional_exprs(body_nodes):
+            return set()
+        ref_counts, mutated = self._collect_var_refs(body_nodes)
+        return {
+            n
+            for n, count in ref_counts.items()
+            if count >= 2 and n not in mutated and n not in self._locals
+        }
+
     @staticmethod
     def _collect_var_refs(nodes: Any) -> tuple[dict[str, int], set[str]]:
         """Collect variable reference counts and mutated names from Kida AST nodes.
@@ -1024,14 +1056,7 @@ class Compiler(
 
         # --- CSE: analyse Kida AST before compilation ---
         body_nodes = list(block_node.body)
-        cacheable: set[str] = set()
-        if self._has_unconditional_exprs(body_nodes):
-            ref_counts, mutated = self._collect_var_refs(body_nodes)
-            cacheable = {
-                n
-                for n, count in ref_counts.items()
-                if count >= 2 and n not in mutated and n not in self._locals
-            }
+        cacheable = self._analyze_for_cse(body_nodes)
         saved_cached = self._cached_vars
         self._cached_vars = cacheable
 
@@ -1039,21 +1064,30 @@ class Compiler(
         compiled_stmts = self._compile_body_with_coalescing(body_nodes)
         self._cached_vars = saved_cached
 
+        # --- Single-pass post-compile analysis ---
+        # Classify compiled statements in one loop: track constants for the
+        # constant-block optimisation, separate line-tracking from meaningful
+        # statements for the single-expression optimisation.
+        constant_parts: list[str] = []
+        all_constant = True
+        non_tracking: list[ast.stmt] = []
+        tracking: list[ast.stmt] = []
+
+        for stmt in compiled_stmts:
+            if self._is_line_tracking(stmt):
+                tracking.append(stmt)
+                continue
+            non_tracking.append(stmt)
+            if all_constant:
+                part = self._is_append_constant(stmt)
+                if part is not None:
+                    constant_parts.append(part)
+                else:
+                    all_constant = False
+
         # --- Constant block return optimisation ---
         # If every meaningful statement is _append(<string constant>), concatenate
         # them and emit a single ``return "..."`` with no preamble at all.
-        constant_parts: list[str] = []
-        all_constant = True
-        for stmt in compiled_stmts:
-            part = self._is_append_constant(stmt)
-            if part is not None:
-                constant_parts.append(part)
-            elif self._is_line_tracking(stmt):
-                continue  # ignore line-tracking for the constant check
-            else:
-                all_constant = False
-                break
-
         if all_constant and constant_parts:
             merged = "".join(constant_parts)
             return ast.FunctionDef(
@@ -1075,7 +1109,6 @@ class Compiler(
         # --- Single-expression return optimisation ---
         # If there is exactly one _append(expr) (ignoring line-tracking stmts),
         # skip buf/join and return the expression directly with a minimal preamble.
-        non_tracking = [s for s in compiled_stmts if not self._is_line_tracking(s)]
         if len(non_tracking) == 1:
             expr = self._is_single_append_expr(non_tracking[0])
             if expr is not None:
@@ -1090,8 +1123,6 @@ class Compiler(
                     include_acc=profiling,
                     include_render_ctx=True,
                 )
-                # Preserve any line-tracking statements before the append
-                tracking = [s for s in compiled_stmts if self._is_line_tracking(s)]
                 cache_stmts = self._emit_cache_assignments(cacheable)
                 body: list[ast.stmt] = preamble + cache_stmts + tracking + [ast.Return(value=expr)]
                 return ast.FunctionDef(
@@ -1217,14 +1248,7 @@ class Compiler(
         """No-extends path: buf setup (if not streaming), body compile, return vs yield."""
         # CSE: analyse Kida AST before compilation
         render_body_nodes = list(node.body)
-        cacheable: set[str] = set()
-        if self._has_unconditional_exprs(render_body_nodes):
-            ref_counts, mutated = self._collect_var_refs(render_body_nodes)
-            cacheable = {
-                n
-                for n, count in ref_counts.items()
-                if count >= 2 and n not in mutated and n not in self._locals
-            }
+        cacheable = self._analyze_for_cse(render_body_nodes)
         saved_cached = self._cached_vars
         self._cached_vars = cacheable
 
