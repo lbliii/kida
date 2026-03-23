@@ -20,6 +20,20 @@ def test_check_reports_bad_template(tmp_path: Path) -> None:
     assert main(["check", str(tmp_path)]) != 0
 
 
+def test_check_strict_rejects_unified_end(tmp_path: Path) -> None:
+    from kida.cli import main
+
+    (tmp_path / "t.html").write_text("{% if x %}y{% end %}", encoding="utf-8")
+    assert main(["check", "--strict", str(tmp_path)]) == 1
+
+
+def test_check_strict_allows_explicit_endif(tmp_path: Path) -> None:
+    from kida.cli import main
+
+    (tmp_path / "t.html").write_text("{% if x %}y{% endif %}", encoding="utf-8")
+    assert main(["check", "--strict", str(tmp_path)]) == 0
+
+
 def test_module_invocation() -> None:
     root = Path(__file__).resolve().parents[1] / "examples" / "htmx_partials" / "templates"
     proc = subprocess.run(

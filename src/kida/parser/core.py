@@ -93,7 +93,16 @@ class Parser(
 
     """
 
-    __slots__ = ("_autoescape", "_block_stack", "_filename", "_name", "_pos", "_source", "_tokens")
+    __slots__ = (
+        "_autoescape",
+        "_block_stack",
+        "_filename",
+        "_name",
+        "_pos",
+        "_source",
+        "_tokens",
+        "_unified_end_closures",
+    )
 
     def __init__(
         self,
@@ -110,6 +119,8 @@ class Parser(
         self._source = source
         self._autoescape = autoescape
         self._block_stack: list[tuple[str, int, int]] = []  # (block_type, lineno, col)
+        # Populated when ``{% end %}`` closes a block (not ``{% endif %}`` / ``{% endcall %}``).
+        self._unified_end_closures: list[tuple[int, int, str]] = []
 
     def parse(self) -> Template:
         """Parse tokens into Template AST."""

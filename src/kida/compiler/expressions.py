@@ -54,6 +54,8 @@ class ExpressionCompilationMixin:
         _block_counter: int
         _def_names: set[str]
         _blocks: dict[str, Block | Region]
+        _cached_vars: set[str]
+        _def_caller_stack: list[ast.expr]
 
         # From OperatorUtilsMixin
         def _get_binop(self, op: str) -> ast.operator: ...
