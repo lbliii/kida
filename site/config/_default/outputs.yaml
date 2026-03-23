@@ -2,6 +2,11 @@
 # =====================
 # Controls what files get GENERATED during postprocessing.
 # These are build outputs: feeds, indexes, and per-page data files.
+#
+# For the full Bengal 0.2.6+ machine-readable surface (per-page index.json /
+# index.txt, site-wide llm-full.txt, llms.txt, agent.json, changelog.json,
+# Lunr prebuild, structured data, content signals), see `seo.yaml`.
+#
 # Note: The `features:` key will be renamed to `outputs:` in a future release.
 
 features:
