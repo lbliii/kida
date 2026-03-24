@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -57,6 +58,75 @@ if TYPE_CHECKING:
 #     cached blocks).  1000 covers aggressive block-level caching.
 #   - FRAGMENT_TTL: 5 minutes balances freshness against cache hit rate for
 #     development hot-reload; production sites can raise this.
+
+
+@dataclass(frozen=True, slots=True)
+class TerminalCaps:
+    """Detected terminal capabilities."""
+
+    is_tty: bool = True
+    color: str = "basic"  # "none" | "basic" | "256" | "truecolor"
+    unicode: bool = True
+    width: int = 80
+    height: int = 24
+
+
+def _detect_terminal_caps() -> TerminalCaps:
+    """Detect terminal capabilities from the environment."""
+    is_tty = sys.stdout.isatty()
+
+    # Color detection
+    if os.environ.get("NO_COLOR") is not None:
+        color = "none"
+    elif os.environ.get("FORCE_COLOR") is not None:
+        color = "basic"
+    elif os.environ.get("COLORTERM", "") in ("truecolor", "24bit"):
+        color = "truecolor"
+    elif "256color" in os.environ.get("TERM", ""):
+        color = "256"
+    elif is_tty:
+        color = "basic"
+    else:
+        color = "none"
+
+    # Unicode detection from locale
+    lang = os.environ.get("LANG", "")
+    unicode_support = "UTF" in lang.upper()
+
+    # Terminal size
+    try:
+        size = os.get_terminal_size()
+        width, height = size.columns, size.lines
+    except ValueError, OSError:
+        width, height = 80, 24
+
+    return TerminalCaps(
+        is_tty=is_tty,
+        color=color,
+        unicode=unicode_support,
+        width=width,
+        height=height,
+    )
+
+
+def _make_hr_func(width: int, unicode: bool) -> Callable:
+    """Create an ``hr()`` function for terminal templates."""
+    default_char = "\u2500" if unicode else "-"
+
+    def hr(w: int | None = None, char: str | None = None, title: str | None = None) -> str:
+        c = char or default_char
+        total = w or width
+        if title:
+            # ── Title ──────────
+            padding = total - len(title) - 4
+            left = 2
+            right = max(0, padding - left)
+            return f"{c * left} {title} {c * right}"
+        return c * total
+
+    return hr
+
+
 DEFAULT_TEMPLATE_CACHE_SIZE = 400
 DEFAULT_FRAGMENT_CACHE_SIZE = 1000
 DEFAULT_FRAGMENT_TTL = 300.0  # seconds
@@ -135,7 +205,7 @@ class Environment:
 
     # Configuration
     loader: Loader | None = None
-    autoescape: bool | Callable[[str | None], bool] = True
+    autoescape: bool | str | Callable[[str | None], bool] = True
     auto_reload: bool = True
     strict_none: bool = False  # When True, sorting with None values raises detailed errors
 
@@ -214,6 +284,11 @@ class Environment:
     # Disable if you're not using HTMX or want to register manually
     enable_htmx_helpers: bool = True
 
+    # Terminal mode overrides (only used when autoescape="terminal")
+    terminal_color: str | None = None  # Override: "none", "basic", "256", "truecolor"
+    terminal_width: int | None = None  # Override terminal width
+    terminal_unicode: bool | None = None  # Override Unicode support
+
     # Globals (available in all templates)
     # Includes Python builtins commonly used in templates
     globals: dict[str, Any] = field(
@@ -260,6 +335,7 @@ class Environment:
         default_factory=dict,
     )
     _cache_lock: threading.RLock = field(init=False, default_factory=threading.RLock)
+    _terminal_caps: TerminalCaps | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize derived configuration."""
@@ -293,6 +369,64 @@ class Environment:
             from kida.environment.globals import HTMX_GLOBALS
 
             self.globals.update(HTMX_GLOBALS)
+
+        # Terminal mode initialization
+        if self.autoescape == "terminal":
+            caps = _detect_terminal_caps()
+            # Apply overrides
+            color = self.terminal_color or caps.color
+            width = self.terminal_width or caps.width
+            unicode = self.terminal_unicode if self.terminal_unicode is not None else caps.unicode
+
+            # Store resolved caps
+            self._terminal_caps = TerminalCaps(
+                is_tty=caps.is_tty,
+                color=color,
+                unicode=unicode,
+                width=width,
+                height=caps.height,
+            )
+
+            # Register terminal filters
+            from kida.environment.filters._terminal import make_terminal_filters
+
+            terminal_filters = make_terminal_filters(
+                color=(color != "none"),
+                unicode=unicode,
+            )
+            self._filters.update(terminal_filters)
+
+            # Override existing filters with ANSI-aware versions
+            from kida.utils.ansi_width import ansi_center, ansi_truncate, ansi_wrap
+
+            def _terminal_wordwrap(value, width=79, break_long_words=True):
+                return ansi_wrap(str(value), width)
+
+            def _terminal_truncate(value, length=255, killwords=False, end="\u2026", leeway=None):
+                return ansi_truncate(str(value), length, suffix=end)
+
+            def _terminal_center(value, width=80):
+                return ansi_center(str(value), width)
+
+            self._filters["wordwrap"] = _terminal_wordwrap
+            self._filters["wrap"] = _terminal_wordwrap  # Alias for terminal templates
+            self._filters["truncate"] = _terminal_truncate
+            self._filters["center"] = _terminal_center
+
+            # Inject terminal globals
+            from kida.utils.terminal_boxes import BoxSet
+            from kida.utils.terminal_icons import IconSet
+
+            self.globals.update(
+                {
+                    "columns": width,
+                    "rows": self._terminal_caps.height,
+                    "tty": caps.is_tty,
+                    "icons": IconSet(unicode=unicode),
+                    "box": BoxSet(unicode=unicode),
+                    "hr": _make_hr_func(width, unicode),
+                }
+            )
 
     def _resolve_bytecode_cache(self) -> BytecodeCache | None:
         """Resolve bytecode cache from configuration.
@@ -562,9 +696,7 @@ class Environment:
                 if self.preserve_ast:
                     lexer = Lexer(source, self._lexer_config)
                     tokens = list(lexer.tokenize())
-                    should_escape = (
-                        self.autoescape(name) if callable(self.autoescape) else self.autoescape
-                    )
+                    should_escape = self.select_autoescape(name)
                     parser = Parser(tokens, name, filename, source, autoescape=should_escape)
                     optimized_ast = parser.parse()
 
@@ -582,7 +714,13 @@ class Environment:
         tokens = list(lexer.tokenize())
 
         # Determine autoescape setting for this template
-        should_escape = self.autoescape(name) if callable(self.autoescape) else self.autoescape
+        # Terminal mode uses its own escape function; the parser just needs a bool
+        if isinstance(self.autoescape, str):
+            should_escape = self.autoescape != "false"
+        elif callable(self.autoescape):
+            should_escape = self.autoescape(name)
+        else:
+            should_escape = self.autoescape
 
         # Parse (pass source for rich error messages)
         parser = Parser(tokens, name, filename, source, autoescape=should_escape)
@@ -840,6 +978,8 @@ class Environment:
         Returns:
             True if autoescape should be enabled
         """
+        if isinstance(self.autoescape, str):
+            return self.autoescape != "false"
         if callable(self.autoescape):
             return self.autoescape(name)
         return self.autoescape

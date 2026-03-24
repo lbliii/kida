@@ -1,0 +1,159 @@
+{#- Terminal component templates for Kida.
+
+    Import with:
+        {% from "components.txt" import box, banner, two_col, dl %}
+
+    Or via the terminal environment:
+        {% from "kida/terminal/components.txt" import box, banner, two_col, dl %}
+
+    All components respect the `columns` global (terminal width) and degrade
+    gracefully when box-drawing characters or color are unavailable.
+-#}
+
+{#- Capture the box-drawing character set global before our `box` def
+    shadows the name. The `box` global is a BoxSet proxy; we save a
+    reference so the box component can look up styles by name. -#}
+{%- let _box_set = box if box is defined else none -%}
+
+
+{#- ═══════════════════════════════════════════════════════════════════════════
+    box — Draw a bordered box around caller content.
+
+    Parameters:
+        title    : Optional title displayed in the top section.
+        width    : Total box width (0 = auto from `columns` global, else 80).
+        style    : Box-drawing style name: "round", "light", "heavy", "double", "ascii".
+        padding  : Horizontal padding inside the box walls.
+
+    Usage:
+        {% call box(title="Results", style="round") %}
+        Line one
+        Line two
+        {% endcall %}
+    ═══════════════════════════════════════════════════════════════════════════ -#}
+
+{% def box(title="", width=0, style="round", padding=1) %}
+{%- let w = width if width > 0 else (columns if columns is defined else 80) -%}
+{%- let b = _box_set | attr(style) -%}
+{%- let inner = w - 2 -%}
+{%- let pad_str = " " * padding -%}
+{%- let content_width = inner - padding * 2 -%}
+{{ b.tl }}{{ b.h * inner }}{{ b.tr }}
+{% if title -%}
+{{ b.v }}{{ pad_str }}{{ title | bold | pad(content_width) }}{{ pad_str }}{{ b.v }}
+{{ b.lj }}{{ b.h * inner }}{{ b.rj }}
+{% end -%}
+{% for line in caller().split("\n") -%}
+{% if line or not loop.last -%}
+{{ b.v }}{{ pad_str }}{{ line | pad(content_width) }}{{ pad_str }}{{ b.v }}
+{% end -%}
+{% endfor -%}
+{{ b.bl }}{{ b.h * inner }}{{ b.br }}
+{% end %}
+
+
+{#- ═══════════════════════════════════════════════════════════════════════════
+    banner — Full-width banner with centered text between border lines.
+
+    Parameters:
+        text     : The banner text to display.
+        width    : Total banner width (0 = auto from `columns` global, else 80).
+        char     : Border character (default "═").
+        padding  : Horizontal padding around the text.
+
+    Usage:
+        {{ banner("DEPLOYMENT REPORT") }}
+        {{ banner("Build Log", char="─", width=60) }}
+    ═══════════════════════════════════════════════════════════════════════════ -#}
+
+{% def banner(text, width=0, char="═", padding=1) %}
+{%- let w = width if width > 0 else (columns if columns is defined else 80) -%}
+{%- let inner = w - 4 -%}
+{%- let pad_str = " " * padding -%}
+{%- let text_width = inner - padding * 2 -%}
+{{ char * w }}
+{{ char }}{{ pad_str }} {{ text | bold | pad(text_width) }}{{ pad_str }}{{ char }}
+{{ char * w }}
+{% end %}
+
+
+{#- ═══════════════════════════════════════════════════════════════════════════
+    two_col — Two-column layout with caller content split on "|||".
+
+    The caller's content is split on the literal string "|||". Everything
+    before it becomes the left column; everything after becomes the right
+    column. Each column is independently word-wrapped to fit.
+
+    Parameters:
+        left_width : Explicit left column width (0 = auto-calculate as half).
+        sep        : Column separator string (default " │ ").
+
+    Usage:
+        {% call two_col() %}
+        Left column content here.
+        It can span multiple lines.
+        |||
+        Right column content here.
+        Also multi-line.
+        {% endcall %}
+    ═══════════════════════════════════════════════════════════════════════════ -#}
+
+{% def two_col(left_width=0, sep=" │ ") %}
+{%- let total = columns if columns is defined else 80 -%}
+{%- let sep_len = sep | length -%}
+{%- let parts = caller().split("|||") -%}
+{%- let lw = left_width if left_width > 0 else ((total - sep_len) // 2) -%}
+{%- let rw = total - lw - sep_len -%}
+{%- let left_text = parts[0] | trim -%}
+{%- let right_text = parts[1] | trim if parts | length > 1 else "" -%}
+{%- let left_lines = (left_text | wrap(lw)).split("\n") if left_text else [] -%}
+{%- let right_lines = (right_text | wrap(rw)).split("\n") if right_text else [] -%}
+{%- let left_count = left_lines | length -%}
+{%- let right_count = right_lines | length -%}
+{%- let max_lines = left_count if left_count > right_count else right_count -%}
+{% for i in 0...max_lines %}
+{%- let ll = left_lines[i] if i < left_count else "" -%}
+{%- let rl = right_lines[i] if i < right_count else "" -%}
+{{ ll | pad(lw) }}{{ sep }}{{ rl | pad(rw) }}
+{% endfor -%}
+{% end %}
+
+
+{#- ═══════════════════════════════════════════════════════════════════════════
+    dl — Definition list with aligned label-value pairs.
+
+    Parameters:
+        items       : List of (label, value) tuples.
+        label_width : Width to reserve for labels (default 20).
+        sep         : Separator between label and value (default " : ").
+        color       : Color filter name applied to labels (default "cyan").
+
+    Usage:
+        {{ dl([
+            ("Version", "2.4.1"),
+            ("Uptime", "3h 42m"),
+            ("Status", "running"),
+        ]) }}
+    ═══════════════════════════════════════════════════════════════════════════ -#}
+
+{% def dl(items, label_width=20, sep=" : ", color="cyan") %}
+{% for label, value in items -%}
+{% if color == "red" -%}
+{{ label | red | pad(label_width, "right") }}{{ sep }}{{ value }}
+{% elif color == "green" -%}
+{{ label | green | pad(label_width, "right") }}{{ sep }}{{ value }}
+{% elif color == "blue" -%}
+{{ label | blue | pad(label_width, "right") }}{{ sep }}{{ value }}
+{% elif color == "yellow" -%}
+{{ label | yellow | pad(label_width, "right") }}{{ sep }}{{ value }}
+{% elif color == "magenta" -%}
+{{ label | magenta | pad(label_width, "right") }}{{ sep }}{{ value }}
+{% elif color == "dim" -%}
+{{ label | dim | pad(label_width, "right") }}{{ sep }}{{ value }}
+{% elif color == "bold" -%}
+{{ label | bold | pad(label_width, "right") }}{{ sep }}{{ value }}
+{% else -%}
+{{ label | cyan | pad(label_width, "right") }}{{ sep }}{{ value }}
+{% end -%}
+{% endfor -%}
+{% end %}

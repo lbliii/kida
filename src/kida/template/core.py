@@ -42,7 +42,7 @@ Complexity:
 from __future__ import annotations
 
 import weakref
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
@@ -190,13 +190,28 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         # Import RenderContext getter for generated code
         from kida.render_context import NULL_RENDER_CONTEXT, get_render_context
 
+        # Select escape function based on autoescape mode
+        _autoescape = env.autoescape
+        if _autoescape == "terminal":
+            from kida.utils.terminal_escape import ansi_sanitize
+
+            escape_func = ansi_sanitize
+        elif callable(_autoescape):
+            # Per-template callable — resolve for this template name
+            _autoescape_fn: Callable[[str | None], bool] = _autoescape  # type: ignore[assignment]
+            escape_func = html_escape if _autoescape_fn(name) else str
+        elif _autoescape:
+            escape_func = html_escape
+        else:
+            escape_func = str
+
         # Add per-template dynamic entries
         namespace.update(
             {
                 "_env": env,
                 "_filters": env._filters,
                 "_tests": env._tests,
-                "_escape": html_escape,
+                "_escape": escape_func,
                 "_getattr": safe_getattr,
                 "_getattr_none": getattr_preserve_none,
                 "_lookup": lookup,

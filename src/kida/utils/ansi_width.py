@@ -1,0 +1,392 @@
+"""ANSI-aware string width operations for Kida template engine.
+
+ANSI escape sequences are zero-width but occupy bytes. Any padding,
+truncation, or wrapping must count *visible* characters, not raw string
+length. This module provides width-correct alternatives to str.ljust,
+str.rjust, str.center, and basic truncation/word-wrap.
+
+All operations are pure Python with no dependencies outside stdlib.
+"""
+
+from __future__ import annotations
+
+import re
+
+# Pre-compiled regex matching SGR, OSC, and CSI escape sequences.
+# Covers the vast majority of terminal escape codes:
+#   - SGR: \033[...m  (colors, bold, underline, etc.)
+#   - OSC: \033]...\033\\  (operating system commands)
+#   - CSI: \033[...<letter>  (cursor movement, erase, etc.)
+_ANSI_RE = re.compile(r"\033\[[^m]*m|\033\].*?\033\\|\033\[[^a-zA-Z]*[a-zA-Z]")
+
+
+# =============================================================================
+# Visible Length
+# =============================================================================
+
+
+def visible_len(s: str) -> int:
+    """Return the visible character count, ignoring ANSI escape sequences.
+
+    Uses a pre-compiled regex to strip all ANSI escapes before measuring.
+
+    Args:
+        s: String potentially containing ANSI escape sequences.
+
+    Returns:
+        Number of visible characters.
+
+    Example:
+        >>> visible_len("\\033[31mhello\\033[0m")
+        5
+        >>> visible_len("plain text")
+        10
+
+    """
+    if "\033" not in s:
+        return len(s)
+    return len(_ANSI_RE.sub("", s))
+
+
+# =============================================================================
+# Padding / Justification
+# =============================================================================
+
+
+def ansi_ljust(s: str, width: int, fillchar: str = " ") -> str:
+    """Left-justify (right-pad) to *width* visible characters.
+
+    If the visible length already meets or exceeds *width*, return as-is.
+
+    Args:
+        s: String potentially containing ANSI escape sequences.
+        width: Target visible width.
+        fillchar: Character used for padding (default space).
+
+    Returns:
+        Padded string.
+
+    """
+    vlen = visible_len(s)
+    if vlen >= width:
+        return s
+    return s + fillchar * (width - vlen)
+
+
+def ansi_rjust(s: str, width: int, fillchar: str = " ") -> str:
+    """Right-justify (left-pad) to *width* visible characters.
+
+    If the visible length already meets or exceeds *width*, return as-is.
+
+    Args:
+        s: String potentially containing ANSI escape sequences.
+        width: Target visible width.
+        fillchar: Character used for padding (default space).
+
+    Returns:
+        Padded string.
+
+    """
+    vlen = visible_len(s)
+    if vlen >= width:
+        return s
+    return fillchar * (width - vlen) + s
+
+
+def ansi_center(s: str, width: int, fillchar: str = " ") -> str:
+    """Center within *width* visible characters.
+
+    If the visible length already meets or exceeds *width*, return as-is.
+    When the padding is odd, the extra character goes on the right.
+
+    Args:
+        s: String potentially containing ANSI escape sequences.
+        width: Target visible width.
+        fillchar: Character used for padding (default space).
+
+    Returns:
+        Centered string.
+
+    """
+    vlen = visible_len(s)
+    if vlen >= width:
+        return s
+    total_pad = width - vlen
+    left_pad = total_pad // 2
+    right_pad = total_pad - left_pad
+    return fillchar * left_pad + s + fillchar * right_pad
+
+
+# =============================================================================
+# Truncation
+# =============================================================================
+
+
+def ansi_truncate(s: str, width: int, suffix: str = "\u2026") -> str:
+    """Truncate to *width* visible characters.
+
+    Walks the string character by character, tracking visible count while
+    preserving ANSI sequences that appear before the cutoff point. If
+    truncation occurs, appends *suffix* and a reset code (``\\033[0m``)
+    to close any open styles.
+
+    Args:
+        s: String potentially containing ANSI escape sequences.
+        width: Maximum visible width.
+        suffix: String appended when truncation occurs (default ellipsis).
+
+    Returns:
+        Truncated string, or the original if it already fits.
+
+    """
+    # Fast path: no ANSI codes
+    if "\033" not in s:
+        if len(s) <= width:
+            return s
+        suffix_len = len(suffix)
+        if width <= suffix_len:
+            return suffix[:width]
+        return s[: width - suffix_len] + suffix
+
+    # Check if truncation is even needed
+    if visible_len(s) <= width:
+        return s
+
+    suffix_len = visible_len(suffix)
+    if width <= suffix_len:
+        return suffix[:width]
+
+    target = width - suffix_len
+    result: list[str] = []
+    visible = 0
+    i = 0
+    length = len(s)
+
+    while i < length and visible < target:
+        # Check for ANSI escape sequence
+        if s[i] == "\033":
+            m = _ANSI_RE.match(s, i)
+            if m:
+                result.append(m.group())
+                i = m.end()
+                continue
+        # Visible character
+        result.append(s[i])
+        visible += 1
+        i += 1
+
+    return "".join(result) + suffix + "\033[0m"
+
+
+# =============================================================================
+# Word Wrap
+# =============================================================================
+
+
+def ansi_wrap(s: str, width: int) -> str:
+    """Word-wrap at *width* visible characters.
+
+    Tracks active ANSI style state and re-applies it at the start of each
+    new line after a break. Words are split on spaces. Lines already
+    shorter than *width* are left as-is.
+
+    Args:
+        s: String potentially containing ANSI escape sequences.
+        width: Maximum visible width per line.
+
+    Returns:
+        Wrapped string with newlines inserted.
+
+    """
+    # Fast path: no ANSI codes
+    if "\033" not in s:
+        return _wrap_plain(s, width)
+
+    # Tokenize: split into (token, is_ansi) pairs
+    tokens = _tokenize(s)
+
+    # Build words by splitting on spaces, preserving ANSI sequences
+    # attached to adjacent visible characters.
+    words: list[str] = []
+    current_word: list[str] = []
+    active_styles: list[str] = []
+
+    for token, is_ansi in tokens:
+        if is_ansi:
+            current_word.append(token)
+            active_styles.append(token)
+        elif token == " ":
+            if current_word:
+                words.append("".join(current_word))
+                current_word = []
+            words.append(" ")
+        else:
+            # Regular visible characters — add one at a time
+            for ch in token:
+                current_word.append(ch)
+
+    if current_word:
+        words.append("".join(current_word))
+
+    # Now wrap: walk words, tracking line width and active styles
+    lines: list[str] = []
+    line_parts: list[str] = []
+    line_width = 0
+    style_state: list[str] = []
+
+    for word in words:
+        if word == " ":
+            # Space: add if room
+            if line_width + 1 <= width:
+                line_parts.append(" ")
+                line_width += 1
+            continue
+
+        word_vlen = visible_len(word)
+
+        # Collect ANSI codes from this word to track style
+        word_styles = _ANSI_RE.findall(word)
+
+        if line_width + word_vlen <= width:
+            # Word fits on current line
+            line_parts.append(word)
+            line_width += word_vlen
+            style_state.extend(word_styles)
+        elif word_vlen > width:
+            # Word itself is wider than width — force-break it
+            _force_break_word(word, width, line_parts, line_width, lines, style_state)
+            line_width = visible_len("".join(line_parts)) if line_parts else 0
+        else:
+            # Start a new line
+            lines.append("".join(line_parts))
+            # Re-apply active style state on new line
+            prefix = _collapse_styles(style_state)
+            line_parts = [prefix] if prefix else []
+            line_parts.append(word)
+            line_width = word_vlen
+            style_state.extend(word_styles)
+
+    if line_parts:
+        lines.append("".join(line_parts))
+
+    return "\n".join(lines)
+
+
+# =============================================================================
+# Internal Helpers
+# =============================================================================
+
+
+def _wrap_plain(s: str, width: int) -> str:
+    """Word-wrap a plain string (no ANSI codes) at *width* characters."""
+    words = s.split(" ")
+    lines: list[str] = []
+    line: list[str] = []
+    line_len = 0
+
+    for word in words:
+        wlen = len(word)
+        if not line:
+            line.append(word)
+            line_len = wlen
+        elif line_len + 1 + wlen <= width:
+            line.append(word)
+            line_len += 1 + wlen
+        else:
+            lines.append(" ".join(line))
+            line = [word]
+            line_len = wlen
+
+    if line:
+        lines.append(" ".join(line))
+
+    return "\n".join(lines)
+
+
+def _tokenize(s: str) -> list[tuple[str, bool]]:
+    """Split *s* into (text, is_ansi) token pairs.
+
+    ANSI escape sequences are returned as single tokens with ``is_ansi=True``.
+    Non-ANSI text runs are returned with ``is_ansi=False``.
+    """
+    tokens: list[tuple[str, bool]] = []
+    pos = 0
+    for m in _ANSI_RE.finditer(s):
+        start, end = m.start(), m.end()
+        if pos < start:
+            tokens.append((s[pos:start], False))
+        tokens.append((m.group(), True))
+        pos = end
+    if pos < len(s):
+        tokens.append((s[pos:], False))
+    return tokens
+
+
+def _collapse_styles(styles: list[str]) -> str:
+    """Collapse a list of ANSI style codes into the minimal active state.
+
+    If a reset (``\\033[0m``) is present, only codes after the last reset
+    are relevant.
+    """
+    if not styles:
+        return ""
+    # Find last reset
+    last_reset = -1
+    for i, code in enumerate(styles):
+        if code == "\033[0m":
+            last_reset = i
+    active = styles[last_reset + 1 :] if last_reset >= 0 else styles
+    return "".join(active)
+
+
+def _force_break_word(
+    word: str,
+    width: int,
+    line_parts: list[str],
+    line_width: int,
+    lines: list[str],
+    style_state: list[str],
+) -> None:
+    """Break a word that is wider than *width* across multiple lines.
+
+    Mutates *line_parts*, *lines*, and *style_state* in place.
+    """
+    i = 0
+    length = len(word)
+    current_width = line_width
+    word_styles: list[str] = []
+
+    while i < length:
+        if word[i] == "\033":
+            m = _ANSI_RE.match(word, i)
+            if m:
+                line_parts.append(m.group())
+                word_styles.append(m.group())
+                style_state.append(m.group())
+                i = m.end()
+                continue
+        # Visible character
+        if current_width >= width:
+            lines.append("".join(line_parts))
+            prefix = _collapse_styles(style_state)
+            line_parts.clear()
+            if prefix:
+                line_parts.append(prefix)
+            current_width = 0
+        line_parts.append(word[i])
+        current_width += 1
+        i += 1
+
+
+# =============================================================================
+# Public API
+# =============================================================================
+
+__all__ = [
+    "ansi_center",
+    "ansi_ljust",
+    "ansi_rjust",
+    "ansi_truncate",
+    "ansi_wrap",
+    "visible_len",
+]

@@ -50,7 +50,7 @@ def _cmd_check(
                 source = path.read_text(encoding="utf-8")
                 lexer = Lexer(source, env._lexer_config)
                 tokens = list(lexer.tokenize())
-                should_escape = env.autoescape(rel) if callable(env.autoescape) else env.autoescape
+                should_escape = env.select_autoescape(rel)
                 sparser = Parser(
                     tokens,
                     name=rel,
