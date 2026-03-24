@@ -11,13 +11,27 @@ All operations are pure Python with no dependencies outside stdlib.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # Pre-compiled regex matching SGR, OSC, and CSI escape sequences.
 # Covers the vast majority of terminal escape codes:
 #   - SGR: \033[...m  (colors, bold, underline, etc.)
 #   - OSC: \033]...\033\\  (operating system commands)
 #   - CSI: \033[...<letter>  (cursor movement, erase, etc.)
-_ANSI_RE = re.compile(r"\033\[[^m]*m|\033\].*?\033\\|\033\[[^a-zA-Z]*[a-zA-Z]")
+_ANSI_RE = re.compile(r"\033\[[^m]*m|\033\].*?(?:\007|\033\\)|\033\[[^a-zA-Z]*[a-zA-Z]")
+
+
+def _char_width(c: str) -> int:
+    """Return the terminal display width of a single character."""
+    eaw = unicodedata.east_asian_width(c)
+    if eaw in ("W", "F"):  # Wide or Fullwidth
+        return 2
+    return 1
+
+
+def _str_width(s: str) -> int:
+    """Return the total display width of a string (no ANSI)."""
+    return sum(_char_width(c) for c in s)
 
 
 # =============================================================================
@@ -44,8 +58,8 @@ def visible_len(s: str) -> int:
 
     """
     if "\033" not in s:
-        return len(s)
-    return len(_ANSI_RE.sub("", s))
+        return _str_width(s)
+    return _str_width(_ANSI_RE.sub("", s))
 
 
 # =============================================================================
@@ -141,12 +155,30 @@ def ansi_truncate(s: str, width: int, suffix: str = "\u2026") -> str:
     """
     # Fast path: no ANSI codes
     if "\033" not in s:
-        if len(s) <= width:
+        if _str_width(s) <= width:
             return s
-        suffix_len = len(suffix)
+        suffix_len = _str_width(suffix)
         if width <= suffix_len:
-            return suffix[:width]
-        return s[: width - suffix_len] + suffix
+            # Truncate suffix itself to fit
+            out: list[str] = []
+            w = 0
+            for c in suffix:
+                cw = _char_width(c)
+                if w + cw > width:
+                    break
+                out.append(c)
+                w += cw
+            return "".join(out)
+        target_w = width - suffix_len
+        out = []
+        w = 0
+        for c in s:
+            cw = _char_width(c)
+            if w + cw > target_w:
+                break
+            out.append(c)
+            w += cw
+        return "".join(out) + suffix
 
     # Check if truncation is even needed
     if visible_len(s) <= width:
@@ -171,8 +203,11 @@ def ansi_truncate(s: str, width: int, suffix: str = "\u2026") -> str:
                 i = m.end()
                 continue
         # Visible character
+        cw = _char_width(s[i])
+        if visible + cw > target:
+            break
         result.append(s[i])
-        visible += 1
+        visible += cw
         i += 1
 
     return "".join(result) + suffix + "\033[0m"
@@ -209,12 +244,10 @@ def ansi_wrap(s: str, width: int) -> str:
     # attached to adjacent visible characters.
     words: list[str] = []
     current_word: list[str] = []
-    active_styles: list[str] = []
 
     for token, is_ansi in tokens:
         if is_ansi:
             current_word.append(token)
-            active_styles.append(token)
         elif token == " ":
             if current_word:
                 words.append("".join(current_word))
@@ -285,7 +318,7 @@ def _wrap_plain(s: str, width: int) -> str:
     line_len = 0
 
     for word in words:
-        wlen = len(word)
+        wlen = _str_width(word)
         if not line:
             line.append(word)
             line_len = wlen
@@ -366,7 +399,8 @@ def _force_break_word(
                 i = m.end()
                 continue
         # Visible character
-        if current_width >= width:
+        cw = _char_width(word[i])
+        if current_width + cw > width:
             lines.append("".join(line_parts))
             prefix = _collapse_styles(style_state)
             line_parts.clear()
@@ -374,7 +408,7 @@ def _force_break_word(
                 line_parts.append(prefix)
             current_width = 0
         line_parts.append(word[i])
-        current_width += 1
+        current_width += cw
         i += 1
 
 

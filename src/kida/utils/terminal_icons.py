@@ -40,7 +40,7 @@ _ICONS: dict[str, tuple[str, str]] = {
     "arrow_u": ("↑", "^"),
     "arrow_d": ("↓", "v"),
     "fat_arrow": ("⇒", "=>"),
-    "ret": ("↵", "<-'"),
+    "ret": ("↵", "<-"),
     # Progress / activity
     "play": ("▶", ">"),
     "pause": ("⏸", "||"),

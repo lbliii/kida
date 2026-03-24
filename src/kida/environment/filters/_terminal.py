@@ -20,7 +20,7 @@ from kida.utils.ansi_width import (
     visible_len,
 )
 from kida.utils.terminal_boxes import _STYLES, BoxChars
-from kida.utils.terminal_escape import Styled
+from kida.utils.terminal_escape import Styled, ansi_sanitize
 
 # =============================================================================
 # ANSI SGR Code Tables
@@ -92,7 +92,7 @@ _ICON_CHARS: dict[str, tuple[str, str]] = {
 
 def _sgr(code: int, text: str) -> Styled:
     """Wrap *text* in an SGR escape pair and return as Styled."""
-    return Styled(f"\033[{code}m{text}{_RESET}")
+    return Styled(f"\033[{code}m{ansi_sanitize(text)}{_RESET}")
 
 
 def _parse_color_arg(color: Any) -> tuple[str, int | tuple[int, int, int]]:
@@ -108,6 +108,10 @@ def _parse_color_arg(color: Any) -> tuple[str, int | tuple[int, int, int]]:
         return ("rgb", (int(color[0]), int(color[1]), int(color[2])))
     if isinstance(color, str):
         s = color.strip().lstrip("#")
+        # Check for named color first
+        lower = s.lower()
+        if lower in _FG_CODES:
+            return ("sgr", _FG_CODES[lower])
         if len(s) == 6:
             r, g, b = int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
             return ("rgb", (r, g, b))
@@ -147,7 +151,7 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
         else:
 
             def _fg_noop(value: Any) -> Styled:
-                return Styled(str(value))
+                return Styled(ansi_sanitize(value))
 
             filters[name] = _fg_noop
 
@@ -165,7 +169,7 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
         else:
 
             def _deco_noop(value: Any) -> Styled:
-                return Styled(str(value))
+                return Styled(ansi_sanitize(value))
 
             filters[name] = _deco_noop
 
@@ -176,7 +180,9 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
 
         def _filter_fg(value: Any, color_arg: Any) -> Styled:
             mode, val = _parse_color_arg(color_arg)
-            s = str(value)
+            s = ansi_sanitize(value)
+            if mode == "sgr":
+                return Styled(f"\033[{val}m{s}{_RESET}")
             if mode == "256":
                 return Styled(f"\033[38;5;{val}m{s}{_RESET}")
             r, g, b = val  # type: ignore[misc]
@@ -184,7 +190,10 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
 
         def _filter_bg(value: Any, color_arg: Any) -> Styled:
             mode, val = _parse_color_arg(color_arg)
-            s = str(value)
+            s = ansi_sanitize(value)
+            if mode == "sgr":
+                assert isinstance(val, int)
+                return Styled(f"\033[{val + 10}m{s}{_RESET}")
             if mode == "256":
                 return Styled(f"\033[48;5;{val}m{s}{_RESET}")
             r, g, b = val  # type: ignore[misc]
@@ -193,10 +202,10 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
     else:
 
         def _filter_fg(value: Any, color_arg: Any) -> Styled:
-            return Styled(str(value))
+            return Styled(ansi_sanitize(value))
 
         def _filter_bg(value: Any, color_arg: Any) -> Styled:
-            return Styled(str(value))
+            return Styled(ansi_sanitize(value))
 
     filters["fg"] = _filter_fg
     filters["bg"] = _filter_bg
@@ -246,11 +255,10 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
             return Styled(ic)
 
         # Unknown status: use provided icon/color or plain text
-        text = str(value)
+        text = ansi_sanitize(value)
         if icon:
             pair = _ICON_CHARS.get(icon)
-            if pair:
-                text = (pair[0] if unicode else pair[1]) + " " + text
+            text = (pair[0] if unicode else pair[1]) + " " + text if pair else f"{icon} {text}"
         if badge_color and color and badge_color in _FG_CODES:
             code = _FG_CODES[badge_color]
             return Styled(f"\033[{code}m{text}{_RESET}")
@@ -292,8 +300,8 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
         sep: str = " ",
         fill: str = "\u00b7",
     ) -> Styled:
-        lbl = str(label)
-        val = str(value)
+        lbl = ansi_sanitize(label)
+        val = ansi_sanitize(value)
         lbl_len = visible_len(lbl)
         val_len = visible_len(val)
         sep_len = len(sep)
@@ -314,6 +322,7 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
         align: dict[str, str] | None = None,
         max_width: int | None = None,
     ) -> Styled:
+        data = list(data)
         if not data:
             return Styled("")
 
@@ -447,7 +456,17 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
         for line in diff_lines:
             # Strip trailing newline for consistent output
             line = line.rstrip("\n")
-            if line.startswith("+"):
+            if line.startswith(("+++", "---")):
+                if color:
+                    result.append(f"\033[2m{line}{_RESET}")
+                else:
+                    result.append(line)
+            elif line.startswith("@@"):
+                if color:
+                    result.append(f"\033[36m{line}{_RESET}")
+                else:
+                    result.append(line)
+            elif line.startswith("+"):
                 if color:
                     result.append(f"\033[32m+ {line[1:]}{_RESET}")
                 else:

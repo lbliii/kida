@@ -38,7 +38,7 @@ _SGR_RE = re.compile(r"\033\[[\d;]*m")
 _ANSI_RE = re.compile(
     r"\033"
     r"(?:"
-    r"\[[\d;]*[A-Za-z~]"  # CSI sequences (includes SGR)
+    r"\[[0-?]*[ -/]*[@-~]"  # CSI sequences (includes SGR, private-mode params)
     r"|\][^\007\033]*(?:\007|\033\\)?"  # OSC sequences
     r"|[A-Z@-_]"  # Two-character sequences
     r")"
@@ -173,11 +173,11 @@ class Styled(str):
             escaped_args = _sanitize_arg(args)
         return self.__class__(super().__mod__(escaped_args))
 
-    def __format__(self, format_spec: str) -> str:
+    def __format__(self, format_spec: str) -> Self:
         """Support format() built-in, preserving Styled type."""
-        if format_spec:
-            return self.__class__(format(str(self), format_spec))
-        return str(self)
+        if not format_spec:
+            return self
+        return self.__class__(format(str(self), format_spec))
 
     def format(self, *args: Any, **kwargs: Any) -> Self:  # type: ignore[override]
         """Format string, sanitizing non-Styled arguments."""

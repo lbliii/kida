@@ -118,10 +118,12 @@ def _make_hr_func(width: int, unicode: bool) -> Callable:
         total = w or width
         if title:
             # ── Title ──────────
-            padding = total - len(title) - 4
+            max_title_len = max(0, total - 4)  # 4 = 2 chars padding + 2 spaces
+            t = title[:max_title_len]
+            padding = total - len(t) - 4
             left = 2
             right = max(0, padding - left)
-            return f"{c * left} {title} {c * right}"
+            return f"{c * left} {t} {c * right}"
         return c * total
 
     return hr
@@ -145,7 +147,9 @@ class Environment:
 
     Attributes:
         loader: Template source provider (FileSystemLoader, DictLoader, etc.)
-        autoescape: HTML auto-escaping. True, False, or callable(name) → bool
+        autoescape: HTML auto-escaping. True, False, callable(name) → bool,
+            or a string: "terminal" (enable, ANSI-aware mode), "true" (enable),
+            or "false" (disable). Any other string raises ValueError.
         auto_reload: Check template modification times (default: True)
         strict_none: Fail early on None comparisons during sorting (default: False)
         cache_size: Maximum compiled templates to cache (default: 400)
@@ -399,10 +403,19 @@ class Environment:
             # Override existing filters with ANSI-aware versions
             from kida.utils.ansi_width import ansi_center, ansi_truncate, ansi_wrap
 
+            # Save references to the original filters before overriding so we can
+            # delegate to them when callers use non-default semantics.
+            _orig_wordwrap = self._filters.get("wordwrap")
+            _orig_truncate = self._filters.get("truncate")
+
             def _terminal_wordwrap(value, width=79, break_long_words=True):
+                if not break_long_words and _orig_wordwrap is not None:
+                    return _orig_wordwrap(value, width, break_long_words=False)
                 return ansi_wrap(str(value), width)
 
             def _terminal_truncate(value, length=255, killwords=False, end="\u2026", leeway=None):
+                if not killwords and _orig_truncate is not None:
+                    return _orig_truncate(value, length, killwords=False, end=end, leeway=leeway)
                 return ansi_truncate(str(value), length, suffix=end)
 
             def _terminal_center(value, width=80):
@@ -979,7 +992,13 @@ class Environment:
             True if autoescape should be enabled
         """
         if isinstance(self.autoescape, str):
-            return self.autoescape != "false"
+            mode = self.autoescape.strip().lower()
+            if mode == "false":
+                return False
+            if mode in {"true", "terminal"}:
+                return True
+            msg = f"Unknown autoescape mode: {self.autoescape!r}"
+            raise ValueError(msg)
         if callable(self.autoescape):
             return self.autoescape(name)
         return self.autoescape

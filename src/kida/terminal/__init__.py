@@ -1,6 +1,6 @@
 """Kida terminal components.
 
-Provides a PackageLoader for terminal component templates, and a convenience
+Provides a FileSystemLoader for terminal component templates, and a convenience
 function to create a terminal-configured Environment.
 """
 

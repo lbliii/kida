@@ -4,7 +4,7 @@
         {% from "components.txt" import box, banner, two_col, dl %}
 
     Or via the terminal environment:
-        {% from "kida/terminal/components.txt" import box, banner, two_col, dl %}
+        {% from "components.txt" import box, banner, two_col, dl %}
 
     All components respect the `columns` global (terminal width) and degrade
     gracefully when box-drawing characters or color are unavailable.
@@ -72,7 +72,7 @@
 {%- let pad_str = " " * padding -%}
 {%- let text_width = inner - padding * 2 -%}
 {{ char * w }}
-{{ char }}{{ pad_str }} {{ text | bold | pad(text_width) }}{{ pad_str }}{{ char }}
+{{ char }}{{ pad_str }}{{ text | bold | pad(text_width) }}{{ pad_str }}{{ char }}
 {{ char * w }}
 {% end %}
 
