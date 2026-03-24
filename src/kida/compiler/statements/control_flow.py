@@ -54,7 +54,8 @@ class ControlFlowMixin:
             _scope_stack.pop()
         """
         if not body_stmts:
-            return [ast.Pass()]
+            _pass: list[ast.stmt] = [ast.Pass()]
+            return _pass
 
         # Skip scope push/pop when the body has no block-scoped assignments
         if source_nodes is not None:
@@ -127,7 +128,8 @@ class ControlFlowMixin:
         for child in node.body:
             body.extend(self._compile_node(child))
         # Wrap body with scope for block-scoped variables
-        body = self._wrap_with_scope(body, source_nodes=node.body) if body else [ast.Pass()]
+        _while_pass: list[ast.stmt] = [ast.Pass()]
+        body = self._wrap_with_scope(body, source_nodes=node.body) if body else _while_pass
 
         return [
             ast.While(
@@ -144,7 +146,8 @@ class ControlFlowMixin:
         for child in node.body:
             body.extend(self._compile_node(child))
         # Wrap body with scope for block-scoped variables
-        body = self._wrap_with_scope(body, source_nodes=node.body) if body else [ast.Pass()]
+        _if_pass: list[ast.stmt] = [ast.Pass()]
+        body = self._wrap_with_scope(body, source_nodes=node.body) if body else _if_pass
 
         orelse: list[ast.stmt] = []
         innermost_elif: ast.If | None = None
@@ -155,13 +158,12 @@ class ControlFlowMixin:
             for child in elif_body:
                 elif_stmts.extend(self._compile_node(child))
             # Wrap elif body with scope
+            _elif_pass: list[ast.stmt] = [ast.Pass()]
             elif_stmts = (
                 self._wrap_with_scope(elif_stmts, source_nodes=elif_body)
                 if elif_stmts
-                else [ast.Pass()]
+                else _elif_pass
             )
-            if not elif_stmts:
-                elif_stmts = [ast.Pass()]
             new_if = ast.If(
                 test=self._compile_expr(elif_test),
                 body=elif_stmts,
@@ -177,10 +179,11 @@ class ControlFlowMixin:
             for child in node.else_:
                 else_stmts.extend(self._compile_node(child))
             # Wrap else body with scope
+            _else_pass: list[ast.stmt] = [ast.Pass()]
             else_stmts = (
                 self._wrap_with_scope(else_stmts, source_nodes=node.else_)
                 if else_stmts
-                else [ast.Pass()]
+                else _else_pass
             )
             if innermost_elif is not None:
                 innermost_elif.orelse = else_stmts
@@ -310,18 +313,20 @@ class ControlFlowMixin:
         for child in node.body:
             body.extend(self._compile_node(child))
         # Wrap body with scope for block-scoped variables (each iteration gets its own scope)
-        body = self._wrap_with_scope(body, source_nodes=node.body) if body else [ast.Pass()]
+        _for_pass: list[ast.stmt] = [ast.Pass()]
+        body = self._wrap_with_scope(body, source_nodes=node.body) if body else _for_pass
 
         # Handle inline test condition: {% for x in items if x.visible %}
         # Part of RFC: kida-modern-syntax-features
         if node.test:
-            body = [
+            _filter_body: list[ast.stmt] = [
                 ast.If(
                     test=self._compile_expr(node.test),
                     body=body,
                     orelse=[],
                 )
             ]
+            body = _filter_body
 
         if uses_loop:
             # ── Path A: loop.* used — must materialize list for LoopContext ──
@@ -581,17 +586,19 @@ class ControlFlowMixin:
         body = []
         for child in node.body:
             body.extend(self._compile_node(child))
-        body = self._wrap_with_scope(body, source_nodes=node.body) if body else [ast.Pass()]
+        _async_for_pass: list[ast.stmt] = [ast.Pass()]
+        body = self._wrap_with_scope(body, source_nodes=node.body) if body else _async_for_pass
 
         # Handle inline test condition: {% async for x in items if x.visible %}
         if node.test:
-            body = [
+            _async_filter_body: list[ast.stmt] = [
                 ast.If(
                     test=self._compile_expr(node.test),
                     body=body,
                     orelse=[],
                 )
             ]
+            body = _async_filter_body
 
         loop_body.extend(body)
 

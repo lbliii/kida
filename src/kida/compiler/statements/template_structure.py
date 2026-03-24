@@ -177,7 +177,7 @@ class TemplateStructureMixin:
         profiling = getattr(self, "_env", None) and self._env.enable_profiling
 
         if profiling:
-            stmts = [
+            stmts: list[ast.stmt] = [
                 ast.If(
                     test=ast.Compare(
                         left=ast.Name(id="_acc", ctx=ast.Load()),
@@ -228,7 +228,7 @@ class TemplateStructureMixin:
             ]
         else:
             # No profiling: bare block append, no timing overhead
-            stmts = [_make_block_append()]
+            stmts: list[ast.stmt] = [_make_block_append()]
 
         return self._wrap_block_condition(node, stmts)
 

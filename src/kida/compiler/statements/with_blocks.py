@@ -175,7 +175,7 @@ class WithBlockMixin:
         # we check if all elements are truthy for better nil-resilience.
         if isinstance(node.expr, KidaTuple):
             # val_N[0] and val_N[1] and ...
-            truth_checks = [
+            truth_checks: list[ast.expr] = [
                 ast.Subscript(
                     value=ast.Name(id=val_name, ctx=ast.Load()),
                     slice=ast.Constant(value=i),
