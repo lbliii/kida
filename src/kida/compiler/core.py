@@ -575,7 +575,7 @@ class Compiler(
                 kw_defaults=[],
                 defaults=[],
             ),
-            body=body_stmts or [ast.Pass()],
+            body=cast(list[ast.stmt], body_stmts or [ast.Pass()]),
             decorator_list=[],
         )
 

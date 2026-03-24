@@ -1,0 +1,21 @@
+{{ "SYSTEM DASHBOARD" | bold | cyan }}
+{{ hr() }}
+
+{% for service in services %}
+{{ service.name | bold | pad(20) }} {{ service.status | badge }}  {{ service.uptime | dim }}
+{% endfor %}
+
+{{ hr(title="Resource Usage") }}
+
+{% for resource in resources %}
+{{ resource.name | pad(12) }} {{ resource.usage | bar(width=30) }}  {{ resource.detail | dim }}
+{% endfor %}
+
+{{ hr(title="Recent Events") }}
+
+{% for event in events %}
+{{ event.time | dim | pad(12) }} {{ event.level | badge }}  {{ event.message }}
+{% endfor %}
+
+{{ hr() }}
+{{ "Last updated: " | dim }}{{ updated | dim }}

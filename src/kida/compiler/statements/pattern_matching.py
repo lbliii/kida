@@ -291,7 +291,7 @@ class PatternMatchingMixin:
             )
 
             all_bindings = []
-            sub_tests = [type_check, len_check]
+            sub_tests: list[ast.expr] = [type_check, len_check]
 
             for i, item in enumerate(pattern.items):
                 # subject[i]

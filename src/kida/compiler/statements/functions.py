@@ -484,7 +484,7 @@ class FunctionCompilationMixin:
         # def _caller(slot="default"):
         #     f = _caller_slots.get(slot)
         #     return f(_scope_stack) if f else _Markup("")
-        wrapper_body = [
+        wrapper_body: list[ast.stmt] = [
             ast.Assign(
                 targets=[ast.Name(id="_f", ctx=ast.Store())],
                 value=ast.Call(
@@ -618,7 +618,7 @@ class FunctionCompilationMixin:
         func_name = f"_region_{name}"
         param_names = [p.name for p in node.params]
         ctx_keys: list[ast.expr | None] = [ast.Constant(value=n) for n in param_names]
-        ctx_values = [ast.Name(id=n, ctx=ast.Load()) for n in param_names]
+        ctx_values: list[ast.expr] = [ast.Name(id=n, ctx=ast.Load()) for n in param_names]
         if node.vararg:
             ctx_keys.append(ast.Constant(value=node.vararg))
             ctx_values.append(ast.Name(id=node.vararg, ctx=ast.Load()))
@@ -636,7 +636,9 @@ class FunctionCompilationMixin:
         # Use _REGION_DEFAULT for param defaults: Python evaluates defaults at def time,
         # but region defaults reference ctx/_scope_stack which don't exist during exec().
         # We resolve them at call time in the function body.
-        defaults = [ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()) for _ in node.defaults]
+        defaults: list[ast.expr] = [
+            ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()) for _ in node.defaults
+        ]
         from kida.nodes.expressions import Name
 
         default_resolvers: list[tuple[str, str]] = []  # (param_name, lookup_key)
