@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated_at": "2026-03-18T13:42:21.081785+00:00",
+  "updated_at": "2026-03-25T17:58:47.493177+00:00",
   "files": {
     "src/kida/compiler/core.py": {
       "skills_applied": [
@@ -14,6 +14,18 @@
           "skill": "layered-review",
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
           "source": "explicit"
         }
       ],
@@ -33,6 +45,12 @@
           "skill": "layered-review",
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
           "source": "explicit"
         }
       ],
@@ -85,6 +103,12 @@
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -103,6 +127,18 @@
           "skill": "layered-review",
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
           "source": "explicit"
         }
       ],
@@ -123,6 +159,12 @@
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -142,6 +184,12 @@
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -154,6 +202,12 @@
           "skill": "layered-review",
           "command": "::lr",
           "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
           "source": "explicit"
         }
       ],
@@ -174,6 +228,18 @@
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -193,6 +259,12 @@
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -205,6 +277,12 @@
           "skill": "layered-review",
           "command": "::lr",
           "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
           "source": "explicit"
         }
       ],
@@ -258,6 +336,12 @@
           "command": "::lr",
           "at": "2026-03-17T21:09:59.925243+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -270,6 +354,12 @@
           "skill": "layered-review",
           "command": "::lr",
           "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
           "source": "explicit"
         }
       ],
@@ -297,6 +387,12 @@
           "command": "::lr",
           "at": "2026-03-17T21:09:59.925243+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -323,6 +419,18 @@
           "command": "::lr",
           "at": "2026-03-17T21:09:59.925243+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -342,6 +450,12 @@
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -355,6 +469,12 @@
           "command": "::lr",
           "at": "2026-03-17T21:09:59.925243+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -367,6 +487,12 @@
           "skill": "layered-review",
           "command": "::lr",
           "at": "2026-03-17T21:09:59.925243+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
           "source": "explicit"
         }
       ],
@@ -420,6 +546,18 @@
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
           "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
         }
       ],
       "last_revised": null,
@@ -445,6 +583,200 @@
           "skill": "layered-review",
           "command": "::lr",
           "at": "2026-03-18T13:42:21.026924+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/compiler/partial_eval.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/compiler/block_recompile.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/parser/core.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        },
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/parser/expressions.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/analysis/visitor.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/analysis/metadata.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/utils/html.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/nodes/": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T15:06:27.455615+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/compiler/stream_transform.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/coverage.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/parser/blocks/core.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/analysis/node_visitor.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/nodes/base.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
+          "source": "explicit"
+        }
+      ],
+      "last_revised": null,
+      "last_audited": null,
+      "last_polished": null
+    },
+    "src/kida/utils/csp.py": {
+      "skills_applied": [
+        {
+          "skill": "layered-review",
+          "command": "::lr",
+          "at": "2026-03-25T17:58:47.465231+00:00",
           "source": "explicit"
         }
       ],

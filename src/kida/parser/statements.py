@@ -41,6 +41,7 @@ _BLOCK_PARSERS: dict[str, str] = {
     "let": "_parse_let",
     "export": "_parse_export",
     # Template structure
+    "template": "_parse_template_context",
     "block": "_parse_block_tag",
     "fragment": "_parse_fragment_tag",
     "globals": "_parse_globals_tag",
@@ -65,6 +66,9 @@ _BLOCK_PARSERS: dict[str, str] = {
     "match": "_parse_match",
     "spaceless": "_parse_spaceless",  # RFC: kida-modern-syntax-features
     "embed": "_parse_embed",  # RFC: kida-modern-syntax-features
+    # Content stacks (deferred content injection)
+    "push": "_parse_push",
+    "stack": "_parse_stack",
 }
 
 # Continuation keywords that are invalid outside their block context
@@ -91,6 +95,7 @@ _END_KEYWORDS: frozenset[str] = frozenset(
         "endfragment",
         "endglobals",
         "endimports",
+        "endpush",
     }
 )
 
@@ -140,6 +145,8 @@ class StatementParsingMixin:
     # Class-level constants (accessed by methods below)
     _END_KEYWORDS: frozenset[str] = _END_KEYWORDS
     _CONTINUATION_KEYWORDS: frozenset[str] = _CONTINUATION_KEYWORDS
+    # Instance-level end keywords (set in Parser.__init__, may include extension keywords)
+    _end_keywords: frozenset[str]
 
     def _parse_body(
         self,
@@ -170,7 +177,7 @@ class StatementParsingMixin:
                 next_tok = self._peek(1)
                 if next_tok.type == TokenType.NAME:
                     # Stop on ANY end keyword - this is the key to unified {% end %}
-                    if next_tok.value in self._END_KEYWORDS:
+                    if next_tok.value in self._end_keywords:
                         # Don't consume the BLOCK_BEGIN, let parent handle closing
                         break
 
@@ -269,10 +276,22 @@ class StatementParsingMixin:
             self._handle_end_keyword(keyword)
             return None
 
+        # Check extension-registered end keywords
+        ext_end_kw = getattr(self, "_extension_end_keywords", frozenset())
+        if keyword in ext_end_kw:
+            self._handle_end_keyword(keyword)
+            return None
+
+        # Extension tags (registered via Extension.tags)
+        ext_tags = getattr(self, "_extension_tags", {})
+        ext = ext_tags.get(keyword)
+        if ext is not None:
+            return ext.parse(self, keyword)
+
         # Unknown keyword
         raise self._error(
             f"Unknown block keyword: {keyword}",
-            suggestion=f"Valid keywords: {', '.join(sorted(_VALID_KEYWORDS))}",
+            suggestion=f"Valid keywords: {', '.join(sorted(_VALID_KEYWORDS | set(ext_tags.keys())))}",
         )
 
     def _handle_end_keyword(self, keyword: str) -> None:

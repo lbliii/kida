@@ -33,6 +33,8 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, Any
 
+from kida.utils.constants import PURE_FILTERS_COALESCEABLE
+
 if TYPE_CHECKING:
     from kida.environment import Environment
     from kida.nodes import Node, Output
@@ -40,57 +42,8 @@ if TYPE_CHECKING:
 # Coalescing threshold - minimum nodes to trigger f-string generation
 COALESCE_MIN_NODES = 2
 
-# Built-in filters known to be pure (no side effects, deterministic)
-# These filters can be safely coalesced into f-strings
-_BUILTIN_PURE_FILTERS: frozenset[str] = frozenset(
-    {
-        # String case transformations
-        "upper",
-        "lower",
-        "title",
-        "capitalize",
-        "swapcase",
-        # Whitespace handling
-        "trim",
-        "strip",
-        "lstrip",
-        "rstrip",
-        # HTML escaping
-        "escape",
-        "e",
-        "forceescape",
-        # Default values
-        "default",
-        "d",
-        # Type conversion
-        "int",
-        "float",
-        "string",
-        "str",
-        "bool",
-        # Collection info
-        "length",
-        "count",
-        # Collection access
-        "first",
-        "last",
-        # String operations
-        "join",
-        "center",
-        "ljust",
-        "rjust",
-        # Formatting
-        "truncate",
-        "wordwrap",
-        "indent",
-        # URL encoding
-        "urlencode",
-        # Formatting (pure)
-        "date",
-        "slug",
-        "pluralize",
-    }
-)
+# Backward-compat alias — external code may import this symbol.
+_BUILTIN_PURE_FILTERS = PURE_FILTERS_COALESCEABLE
 
 
 class FStringCoalescingMixin:
@@ -117,11 +70,23 @@ class FStringCoalescingMixin:
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
+    _cached_pure_filters: frozenset[str] | None
+
     def _get_pure_filters(self) -> frozenset[str]:
-        """Get combined set of built-in and user-defined pure filters."""
+        """Get combined set of built-in and user-defined pure filters.
+
+        Cached per Compiler instance so the union is computed once per
+        ``compile()`` call, not once per Filter/Pipeline node.
+        """
+        cached = self._cached_pure_filters
+        if cached is not None:
+            return cached
         if self._env.pure_filters:
-            return _BUILTIN_PURE_FILTERS | frozenset(self._env.pure_filters)
-        return _BUILTIN_PURE_FILTERS
+            result = PURE_FILTERS_COALESCEABLE | frozenset(self._env.pure_filters)
+        else:
+            result = PURE_FILTERS_COALESCEABLE
+        self._cached_pure_filters = result
+        return result
 
     def _is_coalesceable(self, node: Node) -> bool:
         """Check if node can be coalesced into an f-string.

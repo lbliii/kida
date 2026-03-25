@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from kida.environment import Environment
-from kida.environment.core import TerminalCaps, _detect_terminal_caps, _make_hr_func
+from kida.environment.terminal import TerminalCaps, _detect_terminal_caps, _make_hr_func
 from kida.terminal import terminal_env
 
 # ---------------------------------------------------------------------------

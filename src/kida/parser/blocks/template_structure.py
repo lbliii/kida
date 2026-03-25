@@ -13,7 +13,16 @@ from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
 from kida.environment.exceptions import ErrorCode
-from kida.nodes import Block, Extends, FromImport, Globals, Import, Imports, Include
+from kida.nodes import (
+    Block,
+    Extends,
+    FromImport,
+    Globals,
+    Import,
+    Imports,
+    Include,
+    TemplateContext,
+)
 
 if TYPE_CHECKING:
     from kida.nodes import Expr, Node
@@ -59,6 +68,39 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
 
         # From ExpressionParsingMixin
         def _parse_expression(self) -> Expr: ...
+
+    def _parse_template_context(self) -> TemplateContext:
+        """Parse {% template name: Type, name: Type, ... %}.
+
+        Type declarations for template context variables. Used by the
+        type checker (``kida check --typed``) to validate that templates
+        receive the expected variables.
+
+        Example::
+
+            {% template page: Page, site: Site %}
+            {% template items: list, count: int %}
+        """
+        start = self._advance()  # consume 'template'
+
+        declarations: list[tuple[str, str]] = []
+        while self._current.type == TokenType.NAME:
+            name = self._advance().value
+            self._expect(TokenType.COLON)
+            if self._current.type != TokenType.NAME:
+                raise self._error("Expected type name after ':'")
+            type_name = self._advance().value
+            declarations.append((name, type_name))
+            if not self._match(TokenType.COMMA):
+                break
+            self._advance()  # consume ','
+
+        self._expect(TokenType.BLOCK_END)
+        return TemplateContext(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            declarations=tuple(declarations),
+        )
 
     def _parse_block_tag(self) -> Block:
         """Parse {% block name [if expr] %}...{% end %} or {% endblock %}.

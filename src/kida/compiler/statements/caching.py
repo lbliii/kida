@@ -48,6 +48,7 @@ class CachingMixin:
         Fragment caching. In streaming mode: collect into buffer, cache,
         then yield. Body always uses StringBuilder mode for caching.
         """
+        self._block_has_append_rebind = True
         stmts: list[ast.stmt] = []
 
         # _cache_key = str(key)
@@ -185,6 +186,7 @@ class CachingMixin:
         Apply a filter to an entire block of content.
         In streaming mode: collect into buffer, apply filter, yield result.
         """
+        self._block_has_append_rebind = True
         self._block_counter += 1
         suffix = str(self._block_counter)
         buf_name = f"_filter_buf_{suffix}"

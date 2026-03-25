@@ -901,10 +901,9 @@ def partial_evaluate(
     if not static_context:
         return template
 
-    from kida.compiler.coalescing import _BUILTIN_PURE_FILTERS
-    from kida.utils.constants import MAX_PARTIAL_EVAL_DEPTH
+    from kida.utils.constants import MAX_PARTIAL_EVAL_DEPTH, PURE_FILTERS_COALESCEABLE
 
-    all_pure = _BUILTIN_PURE_FILTERS | pure_filters
+    all_pure = PURE_FILTERS_COALESCEABLE | pure_filters
 
     evaluator = PartialEvaluator(
         static_context,

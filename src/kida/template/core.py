@@ -240,6 +240,12 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 "_null_rc": NULL_RENDER_CONTEXT,
             }
         )
+        # Apply sandbox restrictions if environment is sandboxed
+        from kida.sandbox import SandboxedEnvironment, patch_template_namespace
+
+        if isinstance(env, SandboxedEnvironment):
+            patch_template_namespace(namespace, env._get_sandbox_policy())
+
         exec(code, namespace)
         self._render_func = namespace.get("render")
         self._render_stream_func = namespace.get("render_stream")
@@ -317,6 +323,89 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             if gs is not None:
                 gs(ctx)
 
+    # ------------------------------------------------------------------
+    # Render scaffold — shared setup for all render variants
+    # ------------------------------------------------------------------
+
+    from contextlib import contextmanager as _contextmanager
+
+    @_contextmanager
+    def _render_scaffold(
+        self,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        method_name: str,
+        *,
+        use_cached_blocks: bool = False,
+        enhance_errors: bool = True,
+    ) -> Iterator[tuple[dict[str, Any], Any, Any]]:
+        """Common setup for sync render methods.
+
+        Builds context, sets up RenderContext, prepares blocks arg, and
+        optionally enhances exceptions.
+
+        Yields:
+            (ctx, render_ctx, blocks_arg) tuple
+        """
+        from kida.render_context import get_render_context, render_context
+
+        ctx = self._build_context(args, kwargs, method_name)
+
+        cached_blocks: dict[str, str] = {}
+        cache_stats: dict[str, int] | None = None
+        if use_cached_blocks:
+            cached_blocks = ctx.pop("_cached_blocks", {})
+            cache_stats = ctx.pop("_cached_stats", None)
+
+        parent_ctx = get_render_context()
+        parent_meta = parent_ctx._meta if parent_ctx else None
+        max_extends, max_include = self._get_env_limits()
+
+        with render_context(
+            template_name=self._name,
+            filename=self._filename,
+            source=self._source,
+            cached_blocks=cached_blocks,
+            cache_stats=cache_stats,
+            parent_meta=parent_meta,
+            max_extends_depth=max_extends,
+            max_include_depth=max_include,
+        ) as render_ctx:
+            blocks_arg = None
+            if use_cached_blocks and render_ctx.cached_blocks:
+                cached_block_names = render_ctx.cached_block_names
+                if cached_block_names:
+                    blocks_arg = CachedBlocksDict(
+                        None,
+                        render_ctx.cached_blocks,
+                        cached_block_names,
+                        stats=render_ctx.cache_stats,
+                    )
+
+            if not enhance_errors:
+                yield ctx, render_ctx, blocks_arg
+                return
+
+            from kida.environment.exceptions import (
+                TemplateNotFoundError,
+                TemplateRuntimeError,
+                TemplateSyntaxError,
+                UndefinedError,
+            )
+
+            try:
+                yield ctx, render_ctx, blocks_arg
+            except TemplateRuntimeError:
+                raise
+            except Exception as e:
+                from kida.sandbox import SecurityError
+
+                if isinstance(
+                    e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError, SecurityError)
+                ):
+                    raise
+                raise enhance_template_error(e, render_ctx, self._source) from e
+
     @property
     def name(self) -> str | None:
         """Template name."""
@@ -351,7 +440,6 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             'Hello, World!'
         """
         from kida.environment.exceptions import TemplateRuntimeError
-        from kida.render_context import render_context
 
         # Guard: async templates must use render_stream_async()
         if self.is_async:
@@ -362,61 +450,16 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 template_name=self._name,
             )
 
-        ctx = self._build_context(args, kwargs, "render")
-        cached_blocks = ctx.pop("_cached_blocks", {})
-        cache_stats = ctx.pop("_cached_stats", None)
-
         render_func = self._render_func
-
         if render_func is None:
             raise RuntimeError(f"Template '{self._name or '(inline)'}' not properly compiled")
 
-        # Check if we're already inside a RenderContext (e.g., from framework or parent template)
-        # If so, inherit its metadata for framework integration (HTMX headers, CSRF tokens, etc.)
-        from kida.render_context import get_render_context
-
-        parent_ctx = get_render_context()
-        parent_meta = parent_ctx._meta if parent_ctx else None
-        max_extends, max_include = self._get_env_limits()
-
-        with render_context(
-            template_name=self._name,
-            filename=self._filename,
-            source=self._source,
-            cached_blocks=cached_blocks,
-            cache_stats=cache_stats,
-            parent_meta=parent_meta,  # Inherit metadata from parent context
-            max_extends_depth=max_extends,
-            max_include_depth=max_include,
-        ) as render_ctx:
-            # Prepare blocks dictionary (inject cache wrapper if site-scoped blocks exist)
-            blocks_arg = None
-            if render_ctx.cached_blocks:
-                cached_block_names = render_ctx.cached_block_names
-                if cached_block_names:
-                    blocks_arg = CachedBlocksDict(
-                        None,
-                        render_ctx.cached_blocks,
-                        cached_block_names,
-                        stats=render_ctx.cache_stats,
-                    )
-
-            # Render with error enhancement
-            try:
-                result: str = render_func(ctx, blocks_arg)
-                return result
-            except TemplateRuntimeError:
-                raise
-            except Exception as e:
-                from kida.environment.exceptions import (
-                    TemplateNotFoundError,
-                    TemplateSyntaxError,
-                    UndefinedError,
-                )
-
-                if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
-                    raise
-                raise enhance_template_error(e, render_ctx, self._source) from e
+        with self._render_scaffold(args, kwargs, "render", use_cached_blocks=True) as (
+            ctx,
+            _render_ctx,
+            blocks_arg,
+        ):
+            return render_func(ctx, blocks_arg)
 
     def render_block(self, block_name: str, *args: Any, **kwargs: Any) -> str:
         """Render a single block from the template.
@@ -442,9 +485,6 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             KeyError: If block doesn't exist in template
             RuntimeError: If template not properly compiled
         """
-        from kida.environment.exceptions import TemplateRuntimeError
-        from kida.render_context import render_context
-
         effective = self._effective_block_map("sync")
         block_func = effective.get(block_name)
 
@@ -454,42 +494,13 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 f"Available blocks: {list(effective.keys())}"
             )
 
-        ctx = self._build_context(args, kwargs, "render_block")
-
-        # Inherit metadata from parent context if present
-        from kida.render_context import get_render_context
-
-        parent_ctx = get_render_context()
-        parent_meta = parent_ctx._meta if parent_ctx else None
-        max_extends, max_include = self._get_env_limits()
-
-        with render_context(
-            template_name=self._name,
-            filename=self._filename,
-            source=self._source,
-            parent_meta=parent_meta,
-            max_extends_depth=max_extends,
-            max_include_depth=max_include,
-        ) as render_ctx:
-            try:
-                # Run {% globals %}, {% imports %}, {% from %} (leaf → root) so
-                # render_block matches full-page scope for inherited templates.
-                self._run_globals_setup_chain(ctx)
-
-                result: str = block_func(ctx, effective)
-                return result
-            except TemplateRuntimeError:
-                raise
-            except Exception as e:
-                from kida.environment.exceptions import (
-                    TemplateNotFoundError,
-                    TemplateSyntaxError,
-                    UndefinedError,
-                )
-
-                if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
-                    raise
-                raise enhance_template_error(e, render_ctx, self._source) from e
+        with self._render_scaffold(args, kwargs, "render_block") as (
+            ctx,
+            _render_ctx,
+            _blocks_arg,
+        ):
+            self._run_globals_setup_chain(ctx)
+            return block_func(ctx, effective)
 
     def render_with_blocks(
         self,
@@ -522,11 +533,6 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             >>> inner = "<h1>Hello</h1>"
             >>> layout.render_with_blocks({"content": inner}, title="Home")
         """
-        from kida.environment.exceptions import TemplateRuntimeError
-        from kida.render_context import render_context
-
-        ctx = self._build_context(args, kwargs, "render_with_blocks")
-
         render_func = self._render_func
         if render_func is None:
             raise RuntimeError(f"Template '{self._name or '(inline)'}' not properly compiled")
@@ -534,42 +540,17 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         # Build _blocks dict with callables matching the compiled signature:
         # block_func(ctx, _blocks) -> str
         _blocks: dict[str, Any] = {}
-        for name, html in block_overrides.items():
+        for bname, html in block_overrides.items():
             # Use default arg to capture html by value (avoid closure over loop var)
-            _blocks[name] = lambda ctx, _blocks, _html=html: _html
+            _blocks[bname] = lambda ctx, _blocks, _html=html: _html
 
-        # Inherit metadata from parent context if present
-        from kida.render_context import get_render_context
-
-        parent_ctx = get_render_context()
-        parent_meta = parent_ctx._meta if parent_ctx else None
-        max_extends, max_include = self._get_env_limits()
-
-        with render_context(
-            template_name=self._name,
-            filename=self._filename,
-            source=self._source,
-            parent_meta=parent_meta,
-            max_extends_depth=max_extends,
-            max_include_depth=max_include,
-        ) as render_ctx:
-            try:
-                self._run_globals_setup_chain(ctx)
-
-                result: str = render_func(ctx, _blocks)
-                return result
-            except TemplateRuntimeError:
-                raise
-            except Exception as e:
-                from kida.environment.exceptions import (
-                    TemplateNotFoundError,
-                    TemplateSyntaxError,
-                    UndefinedError,
-                )
-
-                if isinstance(e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError)):
-                    raise
-                raise enhance_template_error(e, render_ctx, self._source) from e
+        with self._render_scaffold(args, kwargs, "render_with_blocks") as (
+            ctx,
+            _render_ctx,
+            _blocks_arg,
+        ):
+            self._run_globals_setup_chain(ctx)
+            return render_func(ctx, _blocks)
 
     def render_stream(self, *args: Any, **kwargs: Any) -> Iterator[str]:
         """Render template as a generator of HTML chunks.
@@ -589,7 +570,6 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             ...     send(chunk)
         """
         from kida.environment.exceptions import TemplateRuntimeError
-        from kida.render_context import render_context
 
         # Guard: async templates must use render_stream_async()
         if self.is_async:
@@ -600,45 +580,15 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 template_name=self._name,
             )
 
-        ctx = self._build_context(args, kwargs, "render_stream")
-        cached_blocks = ctx.pop("_cached_blocks", {})
-        cache_stats = ctx.pop("_cached_stats", None)
-
         stream_func = self._render_stream_func
         if stream_func is None:
             raise RuntimeError(
                 f"Template '{self._name or '(inline)'}' has no render_stream function"
             )
 
-        # Inherit metadata from parent context if present
-        from kida.render_context import get_render_context
-
-        parent_ctx = get_render_context()
-        parent_meta = parent_ctx._meta if parent_ctx else None
-        max_extends, max_include = self._get_env_limits()
-
-        with render_context(
-            template_name=self._name,
-            filename=self._filename,
-            source=self._source,
-            cached_blocks=cached_blocks,
-            cache_stats=cache_stats,
-            parent_meta=parent_meta,
-            max_extends_depth=max_extends,
-            max_include_depth=max_include,
-        ) as render_ctx:
-            blocks_arg = None
-            if render_ctx.cached_blocks:
-                cached_block_names = render_ctx.cached_block_names
-                if cached_block_names:
-                    blocks_arg = CachedBlocksDict(
-                        None,
-                        render_ctx.cached_blocks,
-                        cached_block_names,
-                        stats=render_ctx.cache_stats,
-                    )
-
-            # Yield non-None chunks from the generator
+        with self._render_scaffold(
+            args, kwargs, "render_stream", use_cached_blocks=True, enhance_errors=False
+        ) as (ctx, _render_ctx, blocks_arg):
             for chunk in stream_func(ctx, blocks_arg):
                 if chunk is not None:
                     yield chunk

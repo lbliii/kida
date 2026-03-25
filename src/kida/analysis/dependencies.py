@@ -8,7 +8,7 @@ excludes paths that are actually used.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from kida.analysis.visitor import visit_children
 from kida.nodes import (
@@ -147,16 +147,32 @@ class DependencyWalker:
 
     """
 
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        cls._dispatch = cls._build_dispatch()
+
+    @classmethod
+    def _build_dispatch(cls) -> dict[str, Callable[..., None]]:
+        """Build dispatch table from _visit_* methods (once per class)."""
+        dispatch: dict[str, Callable[..., None]] = {}
+        for name in dir(cls):
+            if name.startswith("_visit_") and name != "_visit_children":
+                method = getattr(cls, name)
+                if callable(method):
+                    dispatch[name[7:]] = method
+        return dispatch
+
+    # Class-level dispatch table — built once, not per-instance via dir(self)
+    _dispatch: ClassVar[dict[str, Callable[..., None]]] = {}
+
     def __init__(self) -> None:
         """Initialize walker (stateless until analyze() is called)."""
         self._scope_stack: list[set[str]] = []
+        self._all_locals: set[str] = set()
         self._dependencies: set[str] = set()
-        self._dispatch: dict[str, Callable[..., None]] = {}
-        for name in dir(self):
-            if name.startswith("_visit_") and name != "_visit_children":
-                method = getattr(self, name)
-                if callable(method):
-                    self._dispatch[name[7:]] = method
+        # Build dispatch on first instantiation if not yet built by __init_subclass__
+        if not type(self)._dispatch:
+            type(self)._dispatch = type(self)._build_dispatch()
 
     def analyze(self, node: Node) -> frozenset[str]:
         """Analyze a node and return all context dependencies.
@@ -169,6 +185,7 @@ class DependencyWalker:
         """
         # Reset state for each analysis
         self._scope_stack = [set()]
+        self._all_locals = set()
         self._dependencies = set()
         self._visit(node)
         return frozenset(self._dependencies)
@@ -180,10 +197,10 @@ class DependencyWalker:
 
         node_type = type(node).__name__
 
-        # O(1) dispatch to specific handlers
+        # O(1) dispatch to specific handlers (class-level dict, not per-instance)
         handler = self._dispatch.get(node_type.lower())
         if handler:
-            handler(node)
+            handler(self, node)
         else:
             visit_children(node, self._visit)
 
@@ -256,12 +273,12 @@ class DependencyWalker:
         # Visit optional filter condition with loop var in scope
         test = getattr(node, "test", None)
         if test:
-            self._scope_stack.append(loop_vars | {"loop"})
+            self._push_scope(loop_vars | {"loop"})
             self._visit(test)
-            self._scope_stack.pop()
+            self._pop_scope()
 
         # Push loop variable(s) into scope with implicit 'loop' variable
-        self._scope_stack.append(loop_vars | {"loop"})
+        self._push_scope(loop_vars | {"loop"})
 
         # Visit body with loop var in scope
         for child in node.body:
@@ -274,7 +291,7 @@ class DependencyWalker:
                 self._visit(child)
 
         # Pop scope
-        self._scope_stack.pop()
+        self._pop_scope()
 
     def _visit_asyncfor(self, node: AsyncFor) -> None:
         """Handle async for loop (same as regular for)."""
@@ -295,14 +312,14 @@ class DependencyWalker:
             bindings.add(name)
 
         # Push bindings into scope
-        self._scope_stack.append(bindings)
+        self._push_scope(bindings)
 
         # Visit body
         for child in node.body:
             self._visit(child)
 
         # Pop scope
-        self._scope_stack.pop()
+        self._pop_scope()
 
     def _visit_withconditional(self, node: WithConditional) -> None:
         """Handle conditional with: {% with expr as target %}"""
@@ -311,14 +328,14 @@ class DependencyWalker:
 
         # Extract targets and push into scope
         targets = self._extract_targets(node.target)
-        self._scope_stack.append(targets)
+        self._push_scope(targets)
 
         # Visit body
         for child in node.body:
             self._visit(child)
 
         # Pop scope
-        self._scope_stack.pop()
+        self._pop_scope()
 
     def _visit_def(self, node: Def) -> None:
         """Handle function definition: push args into scope."""
@@ -327,13 +344,13 @@ class DependencyWalker:
             self._visit(default)
 
         # Push function parameter names into scope
-        self._scope_stack.append({p.name for p in node.params})
+        self._push_scope({p.name for p in node.params})
 
         # Visit body
         for child in node.body:
             self._visit(child)
 
-        self._scope_stack.pop()
+        self._pop_scope()
 
     def _visit_region(self, node: Region) -> None:
         """Handle region: push params into scope, visit body (same as def)."""
@@ -342,13 +359,13 @@ class DependencyWalker:
             self._visit(default)
 
         # Push region parameter names into scope
-        self._scope_stack.append({p.name for p in node.params})
+        self._push_scope({p.name for p in node.params})
 
         # Visit body
         for child in node.body:
             self._visit(child)
 
-        self._scope_stack.pop()
+        self._pop_scope()
 
     def _visit_macro(self, node: Node) -> None:
         """Handle macro definition (same as def)."""
@@ -720,6 +737,17 @@ class DependencyWalker:
 
         return set()
 
+    def _push_scope(self, names: set[str]) -> None:
+        """Push a new scope and update the flat locals set."""
+        self._scope_stack.append(names)
+        self._all_locals |= names
+
+    def _pop_scope(self) -> None:
+        """Pop the top scope and rebuild the flat locals set."""
+        self._scope_stack.pop()
+        # Rebuild flat set from remaining scopes
+        self._all_locals = set().union(*self._scope_stack) if self._scope_stack else set()
+
     def _is_local(self, name: str) -> bool:
-        """Check if a name is in local scope."""
-        return any(name in scope for scope in self._scope_stack)
+        """Check if a name is in local scope (O(1) via flat set)."""
+        return name in self._all_locals

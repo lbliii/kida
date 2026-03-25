@@ -13,7 +13,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Capture, Embed, Flush, Node, Raw, Spaceless
+    from kida.nodes import Capture, Embed, Flush, Node, Push, Raw, Spaceless, Stack
 
 
 class SpecialBlockMixin:
@@ -66,6 +66,7 @@ class SpecialBlockMixin:
         In streaming mode, body is compiled in StringBuilder mode (captures
         into a buffer, not the output stream), then result is assigned to ctx.
         """
+        self._block_has_append_rebind = True
         stmts: list[ast.stmt] = [
             # _capture_buf = []
             ast.Assign(
@@ -153,6 +154,7 @@ class SpecialBlockMixin:
         Removes whitespace between HTML tags.
         In streaming mode: collect into buffer, transform, yield result.
         """
+        self._block_has_append_rebind = True
         self._block_counter += 1
         suffix = str(self._block_counter)
         buf_name = f"_spaceless_buf_{suffix}"
@@ -230,6 +232,154 @@ class SpecialBlockMixin:
             stmts.append(self._emit_output(result_expr))
 
         return stmts
+
+    def _compile_push(self, node: Push) -> list[ast.stmt]:
+        """Compile {% push "name" %}...{% end %}.
+
+        Captures body content into a buffer, then appends the result
+        to the named stack on the RenderContext.
+
+        Generates:
+            _push_buf_N = []
+            _push_append_N = _push_buf_N.append
+            <save/redirect _append>
+            <body>
+            <restore _append>
+            _rc._stacks.setdefault("name", []).append("".join(_push_buf_N))
+        """
+        self._block_has_append_rebind = True
+        self._block_counter += 1
+        suffix = str(self._block_counter)
+        buf_name = f"_push_buf_{suffix}"
+        append_name = f"_push_append_{suffix}"
+
+        stmts: list[ast.stmt] = [
+            ast.Assign(
+                targets=[ast.Name(id=buf_name, ctx=ast.Store())],
+                value=ast.List(elts=[], ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id=append_name, ctx=ast.Store())],
+                value=ast.Attribute(
+                    value=ast.Name(id=buf_name, ctx=ast.Load()),
+                    attr="append",
+                    ctx=ast.Load(),
+                ),
+            ),
+        ]
+
+        if self._streaming:
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id=append_name, ctx=ast.Load()),
+                )
+            )
+            self._streaming = False
+            for child in node.body:
+                stmts.extend(self._compile_node(child))
+            self._streaming = True
+        else:
+            save_name = f"_save_append_{suffix}"
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id=save_name, ctx=ast.Store())],
+                    value=ast.Name(id="_append", ctx=ast.Load()),
+                )
+            )
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id=append_name, ctx=ast.Load()),
+                )
+            )
+            for child in node.body:
+                stmts.extend(self._compile_node(child))
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_append", ctx=ast.Store())],
+                    value=ast.Name(id=save_name, ctx=ast.Load()),
+                )
+            )
+
+        # _rc._stacks.setdefault("name", []).append("".join(_push_buf_N))
+        stmts.append(
+            ast.Expr(
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Attribute(
+                                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                                    attr="_stacks",
+                                    ctx=ast.Load(),
+                                ),
+                                attr="setdefault",
+                                ctx=ast.Load(),
+                            ),
+                            args=[
+                                ast.Constant(value=node.stack_name),
+                                ast.List(elts=[], ctx=ast.Load()),
+                            ],
+                            keywords=[],
+                        ),
+                        attr="append",
+                        ctx=ast.Load(),
+                    ),
+                    args=[
+                        ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Constant(value=""),
+                                attr="join",
+                                ctx=ast.Load(),
+                            ),
+                            args=[ast.Name(id=buf_name, ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                    ],
+                    keywords=[],
+                ),
+            )
+        )
+
+        return stmts
+
+    def _compile_stack(self, node: Stack) -> list[ast.stmt]:
+        """Compile {% stack "name" %}.
+
+        Emits all content pushed to the named stack.
+
+        Generates:
+            for _stack_item_N in _rc._stacks.get("name", ()):
+                _append(_stack_item_N)
+        """
+        self._block_counter += 1
+        suffix = str(self._block_counter)
+        item_name = f"_stack_item_{suffix}"
+
+        return [
+            ast.For(
+                target=ast.Name(id=item_name, ctx=ast.Store()),
+                iter=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Attribute(
+                            value=ast.Name(id="_rc", ctx=ast.Load()),
+                            attr="_stacks",
+                            ctx=ast.Load(),
+                        ),
+                        attr="get",
+                        ctx=ast.Load(),
+                    ),
+                    args=[
+                        ast.Constant(value=node.stack_name),
+                        ast.Tuple(elts=[], ctx=ast.Load()),
+                    ],
+                    keywords=[],
+                ),
+                body=[self._emit_output(ast.Name(id=item_name, ctx=ast.Load()))],
+                orelse=[],
+            ),
+        ]
 
     def _compile_embed(self, node: Embed) -> list[ast.stmt]:
         """Compile {% embed 'template.html' %}...{% end %}.

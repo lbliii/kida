@@ -15,7 +15,7 @@ from typing import Any
 from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.dependencies import DependencyWalker
-from kida.analysis.landmarks import LandmarkDetector
+from kida.analysis.landmarks import _LANDMARK_ELEMENTS, _TAG_RE, LandmarkDetector
 from kida.analysis.metadata import BlockMetadata, CallValidation, TemplateMetadata
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
@@ -142,27 +142,24 @@ class BlockAnalyzer:
         # Purity analysis
         is_pure = self._purity_analyzer.analyze(block_node)
 
-        # Landmark detection
-        landmarks = self._landmark_detector.detect(block_node)
+        # Merged surface scan: landmarks + emits_html + block_hash in one walk
+        scan = _surface_scan(block_node)
 
         # Role classification
-        inferred_role = classify_role(block_node.name, landmarks)
+        inferred_role = classify_role(block_node.name, scan.landmarks)
 
         # Cache scope inference
         cache_scope = infer_cache_scope(depends_on, is_pure, self._config)
 
-        # Check if block emits any HTML
-        emits_html = self._check_emits_html(block_node)
-
         return BlockMetadata(
             name=block_node.name,
-            emits_html=emits_html,
-            emits_landmarks=landmarks,
+            emits_html=scan.emits_html,
+            emits_landmarks=scan.landmarks,
             inferred_role=inferred_role,
             depends_on=depends_on,
             is_pure=is_pure,
             cache_scope=cache_scope,
-            block_hash=_compute_block_hash(block_node),
+            block_hash=scan.block_hash,
             is_region=isinstance(block_node, Region),
             region_params=region_params,
         )
@@ -276,31 +273,6 @@ class BlockAnalyzer:
                 except (AttributeError, TypeError) as e:
                     # Expected for some node types that don't support dependency analysis
                     logger.debug(f"Skipping node analysis: {type(node).__name__}: {e}")
-
-    def _check_emits_html(self, node: Node) -> bool:
-        """Check if a node produces any output."""
-        if isinstance(node, Data) and node.value.strip():
-            return True
-        if isinstance(node, Output):
-            return True
-
-        for attr in ("body", "else_", "empty"):
-            if hasattr(node, attr):
-                children = getattr(node, attr)
-                if children:
-                    for child in children:
-                        if hasattr(child, "lineno") and self._check_emits_html(child):
-                            return True
-
-        # Handle elif
-        elif_ = getattr(node, "elif_", None)
-        if elif_:
-            for _test, body in elif_:
-                for child in body:
-                    if hasattr(child, "lineno") and self._check_emits_html(child):
-                        return True
-
-        return False
 
     # ─────────────────────────────────────────────────────────────────────────
     # Call-site validation
@@ -502,18 +474,49 @@ class _DefSignature:
         )
 
 
-def _compute_block_hash(block_node: Block | Region) -> str:
-    """Compute deterministic structural hash for a block AST."""
-    parts: list[str] = []
+@dataclass(frozen=True, slots=True)
+class _SurfaceScanResult:
+    """Result of a merged surface scan (landmarks + emits_html + block_hash)."""
+
+    landmarks: frozenset[str]
+    emits_html: bool
+    block_hash: str
+
+
+def _surface_scan(block_node: Block | Region) -> _SurfaceScanResult:
+    """Single-pass surface scan collecting landmarks, emits_html, and block_hash.
+
+    Replaces three separate AST traversals (LandmarkDetector, _check_emits_html,
+    _compute_block_hash) with one walk.
+    """
+    landmarks: set[str] = set()
+    emits_html = False
+    hash_parts: list[str] = []
 
     def visit(node: Node) -> None:
-        parts.append(type(node).__name__)
+        nonlocal emits_html
 
+        node_type = type(node).__name__
+        hash_parts.append(node_type)
+
+        # Hash: capture identifying attributes
         for attr in ("name", "value", "data"):
             raw_value = getattr(node, attr, None)
             if raw_value is not None:
-                parts.append(repr(raw_value))
+                hash_parts.append(repr(raw_value))
 
+        # Landmark + emits_html: check Data and Output nodes
+        if isinstance(node, Data):
+            if node.value.strip():
+                emits_html = True
+            for match in _TAG_RE.finditer(node.value):
+                tag = match.group(1).lower()
+                if tag in _LANDMARK_ELEMENTS:
+                    landmarks.add(tag)
+        elif isinstance(node, Output):
+            emits_html = True
+
+        # Recurse into children (shared traversal)
         for attr in ("body", "else_", "empty"):
             children = getattr(node, attr, None)
             if children:
@@ -535,6 +538,18 @@ def _compute_block_hash(block_node: Block | Region) -> str:
                     if isinstance(child, Node):
                         visit(child)
 
+        # Handle embed blocks
+        if hasattr(node, "blocks") and isinstance(getattr(node, "blocks", None), dict):
+            for block in node.blocks.values():  # type: ignore[union-attr]
+                if isinstance(block, Node):
+                    visit(block)
+
     visit(block_node)
-    payload = "|".join(parts)
-    return sha256(payload.encode("utf-8")).hexdigest()[:16]
+    payload = "|".join(hash_parts)
+    block_hash = sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+    return _SurfaceScanResult(
+        landmarks=frozenset(landmarks),
+        emits_html=emits_html,
+        block_hash=block_hash,
+    )

@@ -54,6 +54,9 @@ class BlockStackMixin:
         # From StatementParsingMixin
         def _get_eof_error_suggestion(self, block_type: str) -> str: ...
 
+    # Instance-level end keywords (set in Parser.__init__)
+    _end_keywords: frozenset[str]
+
     # All keywords that close blocks - used for universal end detection
     _END_KEYWORDS: frozenset[str] = frozenset(
         {

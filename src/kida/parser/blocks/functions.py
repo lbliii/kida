@@ -401,7 +401,7 @@ class FunctionBlockParsingMixin(BlockStackMixin):
         while self._current.type != TokenType.EOF:
             if self._current.type == TokenType.BLOCK_BEGIN:
                 next_tok = self._peek(1)
-                if next_tok.type == TokenType.NAME and next_tok.value in self._END_KEYWORDS:
+                if next_tok.type == TokenType.NAME and next_tok.value in self._end_keywords:
                     break
                 if (
                     next_tok.type == TokenType.NAME

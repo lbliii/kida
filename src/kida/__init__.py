@@ -72,6 +72,7 @@ from collections.abc import Callable
 from importlib.metadata import version
 
 from kida._types import Token, TokenType
+from kida.coverage import CoverageCollector, CoverageResult
 from kida.environment import (
     ChoiceLoader,
     DictLoader,
@@ -89,6 +90,7 @@ from kida.environment import (
     UndefinedError,
     build_source_snippet,
 )
+from kida.extensions import Extension
 from kida.render_accumulator import (
     RenderAccumulator,
     get_accumulator,
@@ -102,6 +104,7 @@ from kida.render_context import (
     get_render_context_required,
     render_context,
 )
+from kida.sandbox import SandboxedEnvironment, SandboxPolicy, SecurityError
 from kida.template import AsyncLoopContext, LoopContext, Markup, RenderedTemplate, Template
 from kida.utils.html import html_escape
 from kida.utils.workers import (
@@ -131,9 +134,12 @@ __all__ = [
     "AsyncLoopContext",
     "BlockMetadata",
     "ChoiceLoader",
+    "CoverageCollector",
+    "CoverageResult",
     "DictLoader",
     "Environment",
     "ErrorCode",
+    "Extension",
     "FileSystemLoader",
     "FunctionLoader",
     "LoopContext",
@@ -143,6 +149,9 @@ __all__ = [
     "RenderAccumulator",
     "RenderContext",
     "RenderedTemplate",
+    "SandboxPolicy",
+    "SandboxedEnvironment",
+    "SecurityError",
     "SourceSnippet",
     "Template",
     "TemplateError",

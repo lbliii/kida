@@ -28,7 +28,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from kida._types import Token, TokenType
-from kida.nodes import Template
+from kida.nodes import Template, TemplateContext
 from kida.parser.blocks import BlockParsingMixin
 from kida.parser.expressions import ExpressionParsingMixin
 from kida.parser.statements import StatementParsingMixin
@@ -96,6 +96,9 @@ class Parser(
     __slots__ = (
         "_autoescape",
         "_block_stack",
+        "_end_keywords",
+        "_extension_end_keywords",
+        "_extension_tags",
         "_filename",
         "_name",
         "_pos",
@@ -111,6 +114,7 @@ class Parser(
         filename: str | None = None,
         source: str | None = None,
         autoescape: bool = True,
+        extension_tags: dict | None = None,
     ):
         self._tokens = tokens
         self._pos = 0
@@ -121,6 +125,19 @@ class Parser(
         self._block_stack: list[tuple[str, int, int]] = []  # (block_type, lineno, col)
         # Populated when ``{% end %}`` closes a block (not ``{% endif %}`` / ``{% endcall %}``).
         self._unified_end_closures: list[tuple[int, int, str]] = []
+        # Extension tag handlers: {tag_name: Extension instance}
+        self._extension_tags: dict = extension_tags or {}
+        # Instance-level end keywords (starts from class attribute, may be extended)
+        self._end_keywords: frozenset[str] = self._END_KEYWORDS
+        self._extension_end_keywords: frozenset[str] = frozenset()
+        # Merge extension end keywords so _parse_body sees them
+        if extension_tags:
+            ext_end_kw: set[str] = set()
+            for ext in extension_tags.values():
+                ext_end_kw.update(ext.end_keywords)
+            if ext_end_kw:
+                self._end_keywords = self._end_keywords | ext_end_kw
+                self._extension_end_keywords = frozenset(ext_end_kw)
 
     def parse(self) -> Template:
         """Parse tokens into Template AST."""
@@ -140,7 +157,7 @@ class Parser(
         # open blocks, that's an orphan end tag
         if self._current.type == TokenType.BLOCK_BEGIN:
             next_tok = self._peek(1)
-            if next_tok.type == TokenType.NAME and next_tok.value in self._END_KEYWORDS:
+            if next_tok.type == TokenType.NAME and next_tok.value in self._end_keywords:
                 raise self._error(
                     f"Unexpected '{{% {next_tok.value} %}}' - no open block to close",
                     suggestion="Remove this tag or add a matching opening tag",
@@ -152,9 +169,25 @@ class Parser(
                     suggestion=f"'{next_tok.value}' can only appear inside an 'if' or 'for' block",
                 )
 
+        # Extract TemplateContext declaration if present (at most one allowed)
+        context_type = None
+        for node in body:
+            if isinstance(node, TemplateContext):
+                if context_type is not None:
+                    raise self._error(
+                        "Multiple {% template %} declarations found",
+                        suggestion="A template may only have one {% template %} declaration",
+                    )
+                context_type = node
+
+        # Filter TemplateContext from body (it's metadata, not output)
+        if context_type is not None:
+            body = [n for n in body if not isinstance(n, TemplateContext)]
+
         return Template(
             lineno=1,
             col_offset=0,
             body=tuple(body),
             extends=None,
+            context_type=context_type,
         )
