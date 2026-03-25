@@ -1,14 +1,23 @@
-"""Terminal color utilities for rich error messages.
+"""Terminal capabilities, color utilities, and rich error messages.
 
-Provides ANSI color codes with automatic TTY detection and NO_COLOR support.
-Simple, zero-dependency implementation for beautiful error output.
+Provides:
+- ``TerminalCaps``: Detected terminal capabilities (color, size, unicode)
+- ``_detect_terminal_caps()``: Auto-detect capabilities from the environment
+- ``_make_hr_func()``: Factory for ``hr()`` horizontal-rule template global
+- ``_init_terminal_mode()``: Configure Environment for ``autoescape="terminal"``
+- ANSI color codes with automatic TTY detection and NO_COLOR support
 """
 
 from __future__ import annotations
 
 import os
 import sys
-from typing import Literal
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    pass  # Environment import avoided to prevent circular deps
 
 # ANSI color codes
 _COLORS = {
@@ -219,3 +228,154 @@ def format_source_line(
     num_colored = line_number(num_str)
     content_colored = error_line(content) if is_error else dim_text(content)
     return f"{num_colored} | {content_colored}"
+
+
+# ---------------------------------------------------------------------------
+# Terminal capability detection (moved from environment/core.py)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class TerminalCaps:
+    """Detected terminal capabilities."""
+
+    is_tty: bool = True
+    color: str = "basic"  # "none" | "basic" | "256" | "truecolor"
+    unicode: bool = True
+    width: int = 80
+    height: int = 24
+
+
+def _detect_terminal_caps() -> TerminalCaps:
+    """Detect terminal capabilities from the environment."""
+    is_tty = sys.stdout.isatty()
+
+    # Color detection
+    if os.environ.get("NO_COLOR") is not None:
+        color = "none"
+    elif os.environ.get("FORCE_COLOR") is not None:
+        color = "basic"
+    elif os.environ.get("COLORTERM", "") in ("truecolor", "24bit"):
+        color = "truecolor"
+    elif "256color" in os.environ.get("TERM", ""):
+        color = "256"
+    elif is_tty:
+        color = "basic"
+    else:
+        color = "none"
+
+    # Unicode detection from locale
+    lang = os.environ.get("LANG", "")
+    unicode_support = "UTF" in lang.upper()
+
+    # Terminal size
+    try:
+        size = os.get_terminal_size()
+        width, height = size.columns, size.lines
+    except ValueError, OSError:
+        width, height = 80, 24
+
+    return TerminalCaps(
+        is_tty=is_tty,
+        color=color,
+        unicode=unicode_support,
+        width=width,
+        height=height,
+    )
+
+
+def _make_hr_func(width: int, unicode: bool) -> Callable:
+    """Create an ``hr()`` function for terminal templates."""
+    default_char = "\u2500" if unicode else "-"
+
+    def hr(w: int | None = None, char: str | None = None, title: str | None = None) -> str:
+        c = char or default_char
+        total = w or width
+        if title:
+            # ── Title ──────────
+            max_title_len = max(0, total - 4)  # 4 = 2 chars padding + 2 spaces
+            t = title[:max_title_len]
+            padding = total - len(t) - 4
+            left = 2
+            right = max(0, padding - left)
+            return f"{c * left} {t} {c * right}"
+        return c * total
+
+    return hr
+
+
+def _init_terminal_mode(
+    env: Any,
+    terminal_color: str | None,
+    terminal_width: int | None,
+    terminal_unicode: bool | None,
+) -> TerminalCaps:
+    """Configure Environment for ``autoescape="terminal"`` mode.
+
+    Detects terminal capabilities, applies user overrides, registers
+    terminal-specific filters and globals.  Returns the resolved
+    ``TerminalCaps`` so the caller can store it.
+    """
+    caps = _detect_terminal_caps()
+    # Apply overrides
+    color = terminal_color or caps.color
+    width = terminal_width or caps.width
+    unicode = terminal_unicode if terminal_unicode is not None else caps.unicode
+
+    resolved = TerminalCaps(
+        is_tty=caps.is_tty,
+        color=color,
+        unicode=unicode,
+        width=width,
+        height=caps.height,
+    )
+
+    # Register terminal filters
+    from kida.environment.filters._terminal import make_terminal_filters
+
+    terminal_filters = make_terminal_filters(
+        color=(color != "none"),
+        unicode=unicode,
+    )
+    env._filters.update(terminal_filters)
+
+    # Override existing filters with ANSI-aware versions
+    from kida.utils.ansi_width import ansi_center, ansi_truncate, ansi_wrap
+
+    _orig_wordwrap = env._filters.get("wordwrap")
+    _orig_truncate = env._filters.get("truncate")
+
+    def _terminal_wordwrap(value, width=79, break_long_words=True):
+        if not break_long_words and _orig_wordwrap is not None:
+            return _orig_wordwrap(value, width, break_long_words=False)
+        return ansi_wrap(str(value), width)
+
+    def _terminal_truncate(value, length=255, killwords=False, end="\u2026", leeway=None):
+        if not killwords and _orig_truncate is not None:
+            return _orig_truncate(value, length, killwords=False, end=end, leeway=leeway)
+        return ansi_truncate(str(value), length, suffix=end)
+
+    def _terminal_center(value, width=80):
+        return ansi_center(str(value), width)
+
+    env._filters["wordwrap"] = _terminal_wordwrap
+    env._filters["wrap"] = _terminal_wordwrap
+    env._filters["truncate"] = _terminal_truncate
+    env._filters["center"] = _terminal_center
+
+    # Inject terminal globals
+    from kida.utils.terminal_boxes import BoxSet
+    from kida.utils.terminal_icons import IconSet
+
+    env.globals.update(
+        {
+            "columns": width,
+            "rows": resolved.height,
+            "tty": caps.is_tty,
+            "icons": IconSet(unicode=unicode),
+            "box": BoxSet(unicode=unicode),
+            "hr": _make_hr_func(width, unicode),
+        }
+    )
+
+    return resolved

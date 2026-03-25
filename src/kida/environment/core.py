@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -38,6 +37,7 @@ from kida.environment.exceptions import (
 from kida.environment.filters import DEFAULT_FILTERS
 from kida.environment.protocols import Loader
 from kida.environment.registry import FilterRegistry
+from kida.environment.terminal import TerminalCaps
 from kida.environment.tests import DEFAULT_TESTS
 from kida.lexer import Lexer, LexerConfig
 from kida.template import Template
@@ -58,75 +58,6 @@ if TYPE_CHECKING:
 #     cached blocks).  1000 covers aggressive block-level caching.
 #   - FRAGMENT_TTL: 5 minutes balances freshness against cache hit rate for
 #     development hot-reload; production sites can raise this.
-
-
-@dataclass(frozen=True, slots=True)
-class TerminalCaps:
-    """Detected terminal capabilities."""
-
-    is_tty: bool = True
-    color: str = "basic"  # "none" | "basic" | "256" | "truecolor"
-    unicode: bool = True
-    width: int = 80
-    height: int = 24
-
-
-def _detect_terminal_caps() -> TerminalCaps:
-    """Detect terminal capabilities from the environment."""
-    is_tty = sys.stdout.isatty()
-
-    # Color detection
-    if os.environ.get("NO_COLOR") is not None:
-        color = "none"
-    elif os.environ.get("FORCE_COLOR") is not None:
-        color = "basic"
-    elif os.environ.get("COLORTERM", "") in ("truecolor", "24bit"):
-        color = "truecolor"
-    elif "256color" in os.environ.get("TERM", ""):
-        color = "256"
-    elif is_tty:
-        color = "basic"
-    else:
-        color = "none"
-
-    # Unicode detection from locale
-    lang = os.environ.get("LANG", "")
-    unicode_support = "UTF" in lang.upper()
-
-    # Terminal size
-    try:
-        size = os.get_terminal_size()
-        width, height = size.columns, size.lines
-    except ValueError, OSError:
-        width, height = 80, 24
-
-    return TerminalCaps(
-        is_tty=is_tty,
-        color=color,
-        unicode=unicode_support,
-        width=width,
-        height=height,
-    )
-
-
-def _make_hr_func(width: int, unicode: bool) -> Callable:
-    """Create an ``hr()`` function for terminal templates."""
-    default_char = "\u2500" if unicode else "-"
-
-    def hr(w: int | None = None, char: str | None = None, title: str | None = None) -> str:
-        c = char or default_char
-        total = w or width
-        if title:
-            # ── Title ──────────
-            max_title_len = max(0, total - 4)  # 4 = 2 chars padding + 2 spaces
-            t = title[:max_title_len]
-            padding = total - len(t) - 4
-            left = 2
-            right = max(0, padding - left)
-            return f"{c * left} {t} {c * right}"
-        return c * total
-
-    return hr
 
 
 DEFAULT_TEMPLATE_CACHE_SIZE = 400
@@ -288,6 +219,11 @@ class Environment:
     # Disable if you're not using HTMX or want to register manually
     enable_htmx_helpers: bool = True
 
+    # Extensions (plugin architecture)
+    # List of Extension subclasses (not instances) to register.
+    # Each class is instantiated with this Environment on __post_init__.
+    extensions: list[type] = field(default_factory=list)
+
     # Terminal mode overrides (only used when autoescape="terminal")
     terminal_color: str | None = None  # Override: "none", "basic", "256", "truecolor"
     terminal_width: int | None = None  # Override terminal width
@@ -340,6 +276,15 @@ class Environment:
     )
     _cache_lock: threading.RLock = field(init=False, default_factory=threading.RLock)
     _terminal_caps: TerminalCaps | None = field(init=False, default=None, repr=False)
+    # Instantiated extensions and their tag/compiler registrations
+    _extension_instances: list[Any] = field(init=False, default_factory=list)
+    _extension_tags: dict[str, Any] = field(
+        init=False, default_factory=dict
+    )  # tag_name -> Extension
+    _extension_compilers: dict[str, Any] = field(
+        init=False, default_factory=dict
+    )  # node_type -> Extension
+    _extension_end_keywords: frozenset[str] = field(init=False, default_factory=frozenset)
 
     def __post_init__(self) -> None:
         """Initialize derived configuration."""
@@ -376,70 +321,44 @@ class Environment:
 
         # Terminal mode initialization
         if self.autoescape == "terminal":
-            caps = _detect_terminal_caps()
-            # Apply overrides
-            color = self.terminal_color or caps.color
-            width = self.terminal_width or caps.width
-            unicode = self.terminal_unicode if self.terminal_unicode is not None else caps.unicode
+            from kida.environment.terminal import _init_terminal_mode
 
-            # Store resolved caps
-            self._terminal_caps = TerminalCaps(
-                is_tty=caps.is_tty,
-                color=color,
-                unicode=unicode,
-                width=width,
-                height=caps.height,
+            self._terminal_caps = _init_terminal_mode(
+                self,
+                self.terminal_color,
+                self.terminal_width,
+                self.terminal_unicode,
             )
 
-            # Register terminal filters
-            from kida.environment.filters._terminal import make_terminal_filters
+        # Extension initialization
+        if self.extensions:
+            self._init_extensions()
 
-            terminal_filters = make_terminal_filters(
-                color=(color != "none"),
-                unicode=unicode,
-            )
-            self._filters.update(terminal_filters)
+    def _init_extensions(self) -> None:
+        """Initialize registered extensions."""
+        from kida.extensions import Extension
 
-            # Override existing filters with ANSI-aware versions
-            from kida.utils.ansi_width import ansi_center, ansi_truncate, ansi_wrap
+        tag_map: dict[str, Extension] = {}
+        end_kw: set[str] = set()
 
-            # Save references to the original filters before overriding so we can
-            # delegate to them when callers use non-default semantics.
-            _orig_wordwrap = self._filters.get("wordwrap")
-            _orig_truncate = self._filters.get("truncate")
+        for ext_cls in self.extensions:
+            ext = ext_cls(self)
+            self._extension_instances.append(ext)
 
-            def _terminal_wordwrap(value, width=79, break_long_words=True):
-                if not break_long_words and _orig_wordwrap is not None:
-                    return _orig_wordwrap(value, width, break_long_words=False)
-                return ansi_wrap(str(value), width)
+            # Register filters, tests, globals
+            for name, func in ext.get_filters().items():
+                self._filters[name] = func
+            for name, func in ext.get_tests().items():
+                self._tests[name] = func
+            self.globals.update(ext.get_globals())
 
-            def _terminal_truncate(value, length=255, killwords=False, end="\u2026", leeway=None):
-                if not killwords and _orig_truncate is not None:
-                    return _orig_truncate(value, length, killwords=False, end=end, leeway=leeway)
-                return ansi_truncate(str(value), length, suffix=end)
+            # Register tags
+            for tag in ext.tags:
+                tag_map[tag] = ext
+            end_kw.update(ext.end_keywords)
 
-            def _terminal_center(value, width=80):
-                return ansi_center(str(value), width)
-
-            self._filters["wordwrap"] = _terminal_wordwrap
-            self._filters["wrap"] = _terminal_wordwrap  # Alias for terminal templates
-            self._filters["truncate"] = _terminal_truncate
-            self._filters["center"] = _terminal_center
-
-            # Inject terminal globals
-            from kida.utils.terminal_boxes import BoxSet
-            from kida.utils.terminal_icons import IconSet
-
-            self.globals.update(
-                {
-                    "columns": width,
-                    "rows": self._terminal_caps.height,
-                    "tty": caps.is_tty,
-                    "icons": IconSet(unicode=unicode),
-                    "box": BoxSet(unicode=unicode),
-                    "hr": _make_hr_func(width, unicode),
-                }
-            )
+        self._extension_tags = tag_map
+        self._extension_end_keywords = frozenset(end_kw)
 
     def _resolve_bytecode_cache(self) -> BytecodeCache | None:
         """Resolve bytecode cache from configuration.
@@ -710,7 +629,14 @@ class Environment:
                     lexer = Lexer(source, self._lexer_config)
                     tokens = list(lexer.tokenize())
                     should_escape = self.select_autoescape(name)
-                    parser = Parser(tokens, name, filename, source, autoescape=should_escape)
+                    parser = Parser(
+                        tokens,
+                        name,
+                        filename,
+                        source,
+                        autoescape=should_escape,
+                        extension_tags=self._extension_tags or None,
+                    )
                     optimized_ast = parser.parse()
 
                 return Template(
@@ -736,7 +662,14 @@ class Environment:
             should_escape = self.autoescape
 
         # Parse (pass source for rich error messages)
-        parser = Parser(tokens, name, filename, source, autoescape=should_escape)
+        parser = Parser(
+            tokens,
+            name,
+            filename,
+            source,
+            autoescape=should_escape,
+            extension_tags=self._extension_tags or None,
+        )
         ast = parser.parse()
 
         # Dead code elimination: remove const-only dead branches (always runs)

@@ -37,6 +37,7 @@ from kida.environment.filters._collections import (
 )
 from kida.environment.filters._debug import _filter_debug, _filter_pprint
 from kida.environment.filters._html_security import (
+    _filter_csp_nonce,
     _filter_escape,
     _filter_safe,
     _filter_striptags,
@@ -163,6 +164,8 @@ DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {
     # Randomization filters (impure - non-deterministic)
     "random": _filter_random,
     "shuffle": _filter_shuffle,
+    # CSP nonce injection
+    "csp_nonce": _filter_csp_nonce,
 }
 
 # Re-exports for kida.environment.filters public API

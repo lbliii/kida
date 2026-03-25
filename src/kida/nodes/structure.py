@@ -124,3 +124,25 @@ class Embed(Node):
     template: Expr
     blocks: dict[str, Block]
     with_context: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class Push(Node):
+    """Push content to a named stack: {% push "scripts" %}...{% end %}
+
+    Content is collected during rendering and emitted where the
+    corresponding ``{% stack "scripts" %}`` appears.
+    """
+
+    stack_name: str
+    body: Sequence[Node]
+
+
+@dataclass(frozen=True, slots=True)
+class Stack(Node):
+    """Emit collected stack content: {% stack "scripts" %}
+
+    Outputs all content pushed to the named stack via ``{% push %}``.
+    """
+
+    stack_name: str

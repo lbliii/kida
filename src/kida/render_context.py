@@ -27,6 +27,14 @@ if TYPE_CHECKING:
     pass
 
 
+# Coverage collection hook — when set (via CoverageCollector.start()),
+# RenderContext.__setattr__ records line hits into this dict.
+_coverage_data: ContextVar[dict[str, set[int]] | None] = ContextVar(
+    "_coverage_data",
+    default=None,
+)
+
+
 class _NullRenderContext:
     """Lightweight stub used when generated code runs outside a render context.
 
@@ -109,10 +117,22 @@ class RenderContext:
     # Shared across child contexts; mutated during _import_macros
     import_stack: list[str] = field(default_factory=list)
 
+    # Content stacks ({% push "name" %} / {% stack "name" %})
+    # Shared across child contexts so pushes in included/extended templates
+    # are visible to the stack emission point.
+    _stacks: dict[str, list[str]] = field(default_factory=dict)
+
     # Framework metadata (for HTMX, CSRF, etc.)
     # Well-known keys: hx_request, hx_target, hx_trigger, hx_boosted, csrf_token.
     # Frameworks (e.g. Chirp) populate _meta; templates access via get_meta().
     _meta: dict[str, object] = field(default_factory=dict)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        object.__setattr__(self, name, value)
+        if name == "line" and value:  # skip line=0 (default, not a real template line)
+            cov = _coverage_data.get(None)
+            if cov is not None and self.template_name:
+                cov.setdefault(self.template_name, set()).add(value)  # type: ignore[arg-type]
 
     def get_meta(self, key: str, default: object = None) -> object:
         """Get framework-specific metadata.
@@ -243,6 +263,7 @@ class RenderContext:
             cached_block_names=self.cached_block_names,
             cache_stats=self.cache_stats,
             import_stack=import_stack,
+            _stacks=self._stacks,  # Share content stacks with child templates
             _meta=self._meta,  # Share metadata with child templates
             template_stack=new_stack,  # Pass stack to child
         )
@@ -280,6 +301,7 @@ class RenderContext:
             cached_block_names=self.cached_block_names,
             cache_stats=self.cache_stats,
             import_stack=list(self.import_stack),
+            _stacks=self._stacks,  # Share content stacks with parent templates
             _meta=self._meta,
             template_stack=new_stack,
         )

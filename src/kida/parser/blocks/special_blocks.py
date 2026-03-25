@@ -22,8 +22,10 @@ from kida.nodes import (
     Filter,
     FilterBlock,
     Flush,
+    Push,
     Raw,
     Spaceless,
+    Stack,
     With,
     WithConditional,
 )
@@ -591,4 +593,64 @@ class SpecialBlockParsingMixin(BlockStackMixin):
             template=template,
             blocks=blocks,
             with_context=with_context,
+        )
+
+    def _parse_push(self) -> Push:
+        """Parse {% push "stack_name" %}...{% end %}.
+
+        Push rendered content onto a named stack for deferred output.
+
+        Example::
+
+            {% push "scripts" %}
+                <script src="widget.js"></script>
+            {% end %}
+        """
+        start = self._advance()  # consume 'push'
+        self._push_block("push", start)
+
+        # Stack name must be a string literal
+        if self._current.type != TokenType.STRING:
+            raise self._error(
+                "Expected string literal for stack name",
+                suggestion='Push syntax: {% push "scripts" %}...{% end %}',
+            )
+        stack_name = self._advance().value
+
+        self._expect(TokenType.BLOCK_END)
+
+        body = self._parse_body()
+        self._consume_end_tag("push")
+
+        return Push(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            stack_name=stack_name,
+            body=tuple(body),
+        )
+
+    def _parse_stack(self) -> Stack:
+        """Parse {% stack "stack_name" %}.
+
+        Emit all content previously pushed to the named stack.
+
+        Example::
+
+            {% stack "scripts" %}
+        """
+        start = self._advance()  # consume 'stack'
+
+        if self._current.type != TokenType.STRING:
+            raise self._error(
+                "Expected string literal for stack name",
+                suggestion='Stack syntax: {% stack "scripts" %}',
+            )
+        stack_name = self._advance().value
+
+        self._expect(TokenType.BLOCK_END)
+
+        return Stack(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            stack_name=stack_name,
         )

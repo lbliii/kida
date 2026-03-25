@@ -24,6 +24,8 @@ def _cmd_check(
     *,
     strict: bool,
     validate_calls: bool,
+    a11y: bool,
+    typed: bool,
 ) -> int:
     """Parse every ``*.html`` under *template_dir*; exit non-zero on failure."""
     root = template_dir.resolve()
@@ -101,9 +103,100 @@ def _cmd_check(
         print(f"kida check: {call_issues} call-site issue(s)", file=sys.stderr)
         errors += call_issues
 
+    type_issues = 0
+    if typed:
+        from kida.analysis.type_checker import check_types
+
+        for path in sorted(root.rglob("*.html")):
+            rel = path.relative_to(root).as_posix()
+            try:
+                tpl = env.get_template(rel)
+            except Exception:
+                continue
+            if tpl._optimized_ast is not None:
+                issues = check_types(tpl._optimized_ast)
+                for issue in issues:
+                    sev = issue.severity.upper()
+                    print(
+                        f"{rel}:{issue.lineno}: type/{issue.rule} [{sev}]: {issue.message}",
+                        file=sys.stderr,
+                    )
+                    type_issues += 1
+        if type_issues:
+            print(f"kida check: {type_issues} type issue(s)", file=sys.stderr)
+            errors += type_issues
+
+    a11y_issues = 0
+    if a11y:
+        from kida.analysis.a11y import check_a11y
+
+        for path in sorted(root.rglob("*.html")):
+            rel = path.relative_to(root).as_posix()
+            try:
+                tpl = env.get_template(rel)
+            except Exception:
+                continue  # already reported above
+            if tpl._optimized_ast is not None:
+                issues = check_a11y(tpl._optimized_ast)
+                for issue in issues:
+                    sev = issue.severity.upper()
+                    print(
+                        f"{rel}:{issue.lineno}: a11y/{issue.rule} [{sev}]: {issue.message}",
+                        file=sys.stderr,
+                    )
+                    a11y_issues += 1
+        if a11y_issues:
+            print(f"kida check: {a11y_issues} accessibility issue(s)", file=sys.stderr)
+            errors += a11y_issues
+
     if errors:
         print(f"kida check: {errors} problem(s)", file=sys.stderr)
         return 1
+    return 0
+
+
+def _cmd_fmt(
+    paths: list[Path],
+    *,
+    indent: int,
+    check_only: bool,
+) -> int:
+    """Format template files."""
+    from kida.formatter import format_template
+
+    changed = 0
+    total = 0
+
+    for path in paths:
+        if path.is_dir():
+            files = sorted(path.rglob("*.html"))
+        elif path.is_file():
+            files = [path]
+        else:
+            print(f"kida fmt: not found: {path}", file=sys.stderr)
+            continue
+
+        for file in files:
+            total += 1
+            try:
+                source = file.read_text(encoding="utf-8")
+                formatted = format_template(source, indent=indent)
+                if source != formatted:
+                    changed += 1
+                    if check_only:
+                        print(f"would reformat {file}")
+                    else:
+                        file.write_text(formatted, encoding="utf-8")
+                        print(f"reformatted {file}")
+            except Exception as e:
+                print(f"kida fmt: {file}: {e}", file=sys.stderr)
+
+    if check_only and changed:
+        print(f"{changed} file(s) would be reformatted", file=sys.stderr)
+        return 1
+    if not check_only:
+        unchanged = total - changed
+        print(f"{changed} file(s) reformatted, {unchanged} already formatted.")
     return 0
 
 
@@ -133,6 +226,38 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Validate macro call sites against def signatures in each template",
     )
+    p_check.add_argument(
+        "--a11y",
+        action="store_true",
+        help="Check templates for accessibility issues (missing alt, heading order, etc.)",
+    )
+    p_check.add_argument(
+        "--typed",
+        action="store_true",
+        help="Type-check templates against {%% template %%} declarations",
+    )
+
+    p_fmt = sub.add_parser(
+        "fmt",
+        help="Auto-format Kida template files",
+    )
+    p_fmt.add_argument(
+        "paths",
+        nargs="+",
+        type=Path,
+        help="Files or directories to format",
+    )
+    p_fmt.add_argument(
+        "--indent",
+        type=int,
+        default=2,
+        help="Spaces per indentation level (default: 2)",
+    )
+    p_fmt.add_argument(
+        "--check",
+        action="store_true",
+        help="Check formatting without modifying files (exit 1 if changes needed)",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "check":
@@ -140,7 +265,11 @@ def main(argv: list[str] | None = None) -> int:
             args.template_dir,
             strict=args.strict,
             validate_calls=args.validate_calls,
+            a11y=args.a11y,
+            typed=args.typed,
         )
+    if args.command == "fmt":
+        return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)
     return 2
 
 

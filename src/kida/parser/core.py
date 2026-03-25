@@ -28,7 +28,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from kida._types import Token, TokenType
-from kida.nodes import Template
+from kida.nodes import Template, TemplateContext
 from kida.parser.blocks import BlockParsingMixin
 from kida.parser.expressions import ExpressionParsingMixin
 from kida.parser.statements import StatementParsingMixin
@@ -96,6 +96,7 @@ class Parser(
     __slots__ = (
         "_autoescape",
         "_block_stack",
+        "_extension_tags",
         "_filename",
         "_name",
         "_pos",
@@ -111,6 +112,7 @@ class Parser(
         filename: str | None = None,
         source: str | None = None,
         autoescape: bool = True,
+        extension_tags: dict | None = None,
     ):
         self._tokens = tokens
         self._pos = 0
@@ -121,6 +123,16 @@ class Parser(
         self._block_stack: list[tuple[str, int, int]] = []  # (block_type, lineno, col)
         # Populated when ``{% end %}`` closes a block (not ``{% endif %}`` / ``{% endcall %}``).
         self._unified_end_closures: list[tuple[int, int, str]] = []
+        # Extension tag handlers: {tag_name: Extension instance}
+        self._extension_tags: dict = extension_tags or {}
+        # Merge extension end keywords into the class-level set so _parse_body sees them
+        if extension_tags:
+            ext_end_kw: set[str] = set()
+            for ext in extension_tags.values():
+                ext_end_kw.update(ext.end_keywords)
+            if ext_end_kw:
+                self._END_KEYWORDS = self._END_KEYWORDS | ext_end_kw
+                self._extension_end_keywords = frozenset(ext_end_kw)
 
     def parse(self) -> Template:
         """Parse tokens into Template AST."""
@@ -152,9 +164,21 @@ class Parser(
                     suggestion=f"'{next_tok.value}' can only appear inside an 'if' or 'for' block",
                 )
 
+        # Extract TemplateContext declaration if present
+        context_type = None
+        for node in body:
+            if isinstance(node, TemplateContext):
+                context_type = node
+                break
+
+        # Filter TemplateContext from body (it's metadata, not output)
+        if context_type is not None:
+            body = [n for n in body if not isinstance(n, TemplateContext)]
+
         return Template(
             lineno=1,
             col_offset=0,
             body=tuple(body),
             extends=None,
+            context_type=context_type,
         )

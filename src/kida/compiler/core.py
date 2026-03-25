@@ -141,12 +141,15 @@ class Compiler(
         "_async_mode",
         "_block_counter",
         "_blocks",
+        "_cached_pure_filters",
         "_ctx_override",
         "_def_caller_stack",
         "_def_names",
         "_env",
+        "_extension_compilers",
         "_filename",
         "_has_async",
+        "_last_block_compiled_stmts",
         "_locals",
         "_loop_vars",
         "_name",
@@ -158,6 +161,8 @@ class Compiler(
 
     def __init__(self, env: Environment):
         self._env = env
+        self._cached_pure_filters: frozenset[str] | None = None
+        self._last_block_compiled_stmts: list[ast.stmt] | None = None
         self._name: str | None = None
         self._filename: str | None = None
         # Track local variables (loop variables, etc.) for O(1) direct access
@@ -185,6 +190,10 @@ class Compiler(
         self._scope_override: str | None = None
         # Variable caching / CSE: names cached as locals to avoid repeated _ls() calls
         self._cached_vars: set[str] = set()
+        # Extension compiler handlers: {node_type_name: Extension instance}
+        self._extension_compilers: dict[str, object] = getattr(
+            env, "_extension_tags", {}
+        )  # tag→ext reused
         # Node dispatch table - built once, reused for all node compilations
         self._node_dispatch: dict[str, Callable] = {
             "Data": self._compile_data,
@@ -218,6 +227,9 @@ class Compiler(
             "Spaceless": self._compile_spaceless,
             "Flush": self._compile_flush,
             "Embed": self._compile_embed,
+            "Push": self._compile_push,
+            "Stack": self._compile_stack,
+            "TemplateContext": lambda _node: [],  # Declaration-only, no codegen
         }
 
     def _get_literal_extends_target(self, node: TemplateNode) -> str | None:
@@ -428,8 +440,13 @@ class Compiler(
         if globals_setup is not None:
             module_body.append(globals_setup)
 
-        # Generate all three block function variants (sync, stream, async stream)
-        # in a single iteration over saved_blocks.
+        # Generate all three block function variants (sync, stream, async stream).
+        # Regular blocks compile the Kida body once (sync), then derive stream
+        # variants via Python AST transformation (_append → yield), eliminating
+        # 2 redundant Kida AST compilations per block.
+        # Region blocks use their own delegation path and are unaffected.
+        from kida.compiler.stream_transform import sync_body_to_stream
+
         sync_blocks: list[ast.stmt] = []
         stream_blocks: list[ast.stmt] = []
         async_stream_blocks: list[ast.stmt] = []
@@ -437,15 +454,79 @@ class Compiler(
         for block_name, block_node in saved_blocks.items():
             sync_blocks.append(self._make_block_function(block_name, block_node))
 
-            self._streaming = True
-            stream_blocks.append(self._make_block_function_stream(block_name, block_node))
+            if isinstance(block_node, Region):
+                # Region blocks: compile separately (they delegate, not compile body)
+                self._streaming = True
+                stream_blocks.append(self._make_block_function_stream(block_name, block_node))
+                self._async_mode = True
+                async_stream_blocks.append(
+                    self._make_block_function_stream_async(block_name, block_node)
+                )
+                self._async_mode = False
+                self._streaming = False
+            else:
+                # Regular blocks: reuse sync body compilation saved by
+                # _make_block_function, transform for streaming.
+                compiled_stmts = self._last_block_compiled_stmts or []
+                stream_stmts = sync_body_to_stream(compiled_stmts)
 
-            self._async_mode = True
-            async_stream_blocks.append(
-                self._make_block_function_stream_async(block_name, block_node)
-            )
-            self._async_mode = False
-            self._streaming = False
+                # Build stream block function
+                stream_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
+                stream_body.extend(stream_stmts)
+                stream_body.append(ast.Return(value=None))
+                stream_body.append(ast.Expr(value=ast.Yield(value=None)))
+                stream_blocks.append(
+                    ast.FunctionDef(
+                        name=f"_block_{block_name}_stream",
+                        args=ast.arguments(
+                            posonlyargs=[],
+                            args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                            vararg=None,
+                            kwonlyargs=[],
+                            kw_defaults=[],
+                            kwarg=None,
+                            defaults=[],
+                        ),
+                        body=stream_body,
+                        decorator_list=[],
+                        returns=None,
+                    )
+                )
+
+                # Async stream: if template has async constructs, must compile
+                # separately (AsyncFor → ast.AsyncFor requires _async_mode=True).
+                # Otherwise, derive from sync body transform.
+                if self._has_async:
+                    self._streaming = True
+                    self._async_mode = True
+                    async_stream_blocks.append(
+                        self._make_block_function_stream_async(block_name, block_node)
+                    )
+                    self._async_mode = False
+                    self._streaming = False
+                else:
+                    async_stmts = sync_body_to_stream(compiled_stmts)
+                    async_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
+                    async_body.extend(async_stmts)
+                    async_body.append(ast.Return(value=None))
+                    async_body.append(ast.Expr(value=ast.Yield(value=None)))
+                    async_stream_blocks.append(
+                        ast.AsyncFunctionDef(
+                            name=f"_block_{block_name}_stream_async",
+                            args=ast.arguments(
+                                posonlyargs=[],
+                                args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                                vararg=None,
+                                kwonlyargs=[],
+                                kw_defaults=[],
+                                kwarg=None,
+                                defaults=[],
+                            ),
+                            body=async_body,
+                            decorator_list=[],
+                            returns=None,
+                        )
+                    )
 
         module_body.extend(sync_blocks)
         module_body.append(render_func)
@@ -1049,8 +1130,16 @@ class Compiler(
             return stmt.value.args[0]
         return None
 
+    # Stores compiled stmts from the last _make_block_function call for stream reuse
+    _last_block_compiled_stmts: list[ast.stmt] | None
+
     def _make_block_function(self, name: str, block_node: Block | Region) -> ast.FunctionDef:
-        """Generate a block function: _block_name(ctx, _blocks) -> str."""
+        """Generate a block function: _block_name(ctx, _blocks) -> str.
+
+        Also stores the raw compiled stmts in ``_last_block_compiled_stmts``
+        so the stream variant can be derived without recompiling the Kida AST.
+        """
+        self._last_block_compiled_stmts = None
         if isinstance(block_node, Region):
             return self._make_region_block_function(name, block_node)
 
@@ -1063,6 +1152,9 @@ class Compiler(
         # Compile block body with f-string coalescing
         compiled_stmts = self._compile_body_with_coalescing(body_nodes)
         self._cached_vars = saved_cached
+
+        # Save for stream derivation
+        self._last_block_compiled_stmts = compiled_stmts
 
         # --- Single-pass post-compile analysis ---
         # Classify compiled statements in one loop: track constants for the
@@ -1628,6 +1720,16 @@ class Compiler(
         handler = self._node_dispatch.get(node_type)
         if handler:
             stmts.extend(handler(node))
+        elif self._extension_compilers:
+            # Check extension-registered compilers
+            for ext in set(self._extension_compilers.values()):
+                # Extension compile() handles all its node types
+                try:
+                    result = ext.compile(self, node)  # type: ignore[union-attr]
+                    stmts.extend(result)
+                    break
+                except NotImplementedError:
+                    pass
 
         return stmts
 

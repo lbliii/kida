@@ -239,6 +239,13 @@ def csrf_token() -> Markup:
     return Markup(f'<input type="hidden" name="csrf_token" value="{escaped_token}">')
 
 
+def _csp_nonce_global() -> str:
+    """CSP nonce global — lazy import to avoid circular deps."""
+    from kida.utils.csp import csp_nonce_global
+
+    return csp_nonce_global()
+
+
 # Default globals dictionary
 # These are registered in Environment.__init__ when enable_htmx_helpers=True
 HTMX_GLOBALS = {
@@ -247,6 +254,7 @@ HTMX_GLOBALS = {
     "hx_trigger": hx_trigger,
     "hx_boosted": hx_boosted,
     "csrf_token": csrf_token,
+    "csp_nonce": _csp_nonce_global,
 }
 
 

@@ -51,3 +51,20 @@ def _filter_xmlattr(value: dict[str, Any]) -> Markup:
 
     """
     return xmlattr(value)
+
+
+def _filter_csp_nonce(value: Any, nonce: str | None = None) -> str:
+    """Inject CSP nonce into <script> and <style> tags.
+
+    If no nonce is provided, reads from RenderContext metadata
+    (``ctx.set_meta("csp_nonce", value)``).
+
+    Example::
+
+        {{ content | csp_nonce }}
+        {{ content | csp_nonce("explicit-nonce") }}
+
+    """
+    from kida.utils.csp import csp_nonce_filter
+
+    return csp_nonce_filter(value, nonce)

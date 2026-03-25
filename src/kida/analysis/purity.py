@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from kida.environment.exceptions import TemplateNotFoundError, TemplateSyntaxError
 from kida.nodes import Const as _Const
 from kida.nodes import Name as _Name
+from kida.utils.constants import IMPURE_FILTERS, PURE_FILTERS_ALL, PURE_FUNCTIONS
 
 if TYPE_CHECKING:
     from kida.nodes import (
@@ -78,143 +79,10 @@ def _combine_purity(a: PurityLevel, b: PurityLevel) -> PurityLevel:
     return "pure"
 
 
-# Filters known to be pure (deterministic, no side effects)
-_KNOWN_PURE_FILTERS = frozenset(
-    {
-        # String manipulation
-        "upper",
-        "lower",
-        "title",
-        "capitalize",
-        "swapcase",
-        "strip",
-        "lstrip",
-        "rstrip",
-        "trim",
-        "replace",
-        "truncate",
-        "wordwrap",
-        "center",
-        "indent",
-        "striptags",
-        "urlize",
-        "wordcount",
-        # Collections
-        "first",
-        "last",
-        "length",
-        "count",
-        "sort",
-        "reverse",
-        "unique",
-        "batch",
-        "slice",
-        "list",
-        "map",
-        "select",
-        "reject",
-        "selectattr",
-        "rejectattr",
-        "groupby",
-        "join",
-        "pprint",
-        # Type conversion
-        "string",
-        "int",
-        "float",
-        "bool",
-        "tojson",
-        "safe",
-        "escape",
-        "e",
-        # Defaults
-        "default",
-        "d",
-        # Math
-        "abs",
-        "round",
-        "sum",
-        "min",
-        "max",
-        # Format
-        "filesizeformat",
-        "format",
-        # Path/URL
-        "basename",
-        "dirname",
-        "splitext",
-        # Kida-specific
-        "take",
-        "skip",
-        "where",
-        "sort_by",
-        # SSG-specific (deterministic for a build)
-        "dateformat",
-        "date_iso",
-        "date",
-        "absolute_url",
-        "relative_url",
-        "meta_keywords",
-        "jsonify",
-        "markdownify",
-        "slugify",
-        "plainify",
-        "humanize",
-        "titlecase",
-        "words",
-    }
-)
-
-# Filters known to be impure (non-deterministic)
-_KNOWN_IMPURE_FILTERS = frozenset(
-    {
-        "random",
-        "shuffle",
-    }
-)
-
-# Functions known to be pure
-_KNOWN_PURE_FUNCTIONS = frozenset(
-    {
-        # Python builtins
-        "len",
-        "str",
-        "int",
-        "float",
-        "bool",
-        "list",
-        "dict",
-        "set",
-        "tuple",
-        "frozenset",
-        "min",
-        "max",
-        "sum",
-        "abs",
-        "round",
-        "pow",
-        "sorted",
-        "reversed",
-        "enumerate",
-        "zip",
-        "map",
-        "filter",
-        "any",
-        "all",
-        "range",
-        "hasattr",
-        "getattr",
-        "isinstance",
-        "type",
-        "ord",
-        "chr",
-        "hex",
-        "oct",
-        "bin",
-        "repr",
-        "hash",
-    }
-)
+# Backward-compat aliases — canonical definitions live in utils.constants
+_KNOWN_PURE_FILTERS = PURE_FILTERS_ALL
+_KNOWN_IMPURE_FILTERS = IMPURE_FILTERS
+_KNOWN_PURE_FUNCTIONS = PURE_FUNCTIONS
 
 
 class PurityAnalyzer:
