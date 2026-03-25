@@ -102,7 +102,7 @@ class CoverageCollector:
             self._token = None
             CoverageCollector._active_count -= 1
             if CoverageCollector._active_count == 0 and "__setattr__" in RenderContext.__dict__:
-                del RenderContext.__setattr__  # type: ignore[misc]
+                del RenderContext.__setattr__
 
     def __enter__(self) -> CoverageCollector:
         self.start()

@@ -145,6 +145,8 @@ class StatementParsingMixin:
     # Class-level constants (accessed by methods below)
     _END_KEYWORDS: frozenset[str] = _END_KEYWORDS
     _CONTINUATION_KEYWORDS: frozenset[str] = _CONTINUATION_KEYWORDS
+    # Instance-level end keywords (set in Parser.__init__, may include extension keywords)
+    _end_keywords: frozenset[str]
 
     def _parse_body(
         self,
@@ -175,7 +177,7 @@ class StatementParsingMixin:
                 next_tok = self._peek(1)
                 if next_tok.type == TokenType.NAME:
                     # Stop on ANY end keyword - this is the key to unified {% end %}
-                    if next_tok.value in self._END_KEYWORDS:
+                    if next_tok.value in self._end_keywords:
                         # Don't consume the BLOCK_BEGIN, let parent handle closing
                         break
 

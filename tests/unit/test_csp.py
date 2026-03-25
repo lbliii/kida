@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from kida.utils.csp import csp_nonce_filter, csp_nonce_global, inject_csp_nonce
+from kida.utils.html import Markup
 
 # ---------------------------------------------------------------------------
 # inject_csp_nonce
@@ -75,6 +76,23 @@ class TestInjectCspNonce:
         assert 'media="screen"' in result
         assert 'nonce="n"' in result
 
+    def test_returns_markup_when_input_is_markup(self) -> None:
+        html = Markup("<script>x</script>")
+        result = inject_csp_nonce(html, "abc")
+        assert isinstance(result, Markup)
+        assert 'nonce="abc"' in result
+
+    def test_returns_plain_str_when_input_is_plain_str(self) -> None:
+        html = "<script>x</script>"
+        result = inject_csp_nonce(html, "abc")
+        assert type(result) is str
+        assert 'nonce="abc"' in result
+
+    def test_preserves_markup_when_nonce_empty(self) -> None:
+        html = Markup("<script>x</script>")
+        result = inject_csp_nonce(html, "")
+        assert isinstance(result, Markup)
+
 
 # ---------------------------------------------------------------------------
 # csp_nonce_filter
@@ -123,6 +141,31 @@ class TestCspNonceFilter:
             ctx.set_meta("csp_nonce", "")
             result = csp_nonce_filter("<script>x</script>")
         assert "nonce" not in result
+
+    def test_returns_markup_with_explicit_nonce(self) -> None:
+        result = csp_nonce_filter("<script>x</script>", nonce="abc")
+        assert isinstance(result, Markup)
+
+    def test_returns_markup_without_nonce(self) -> None:
+        """Even when no nonce is applied, the filter returns Markup."""
+        result = csp_nonce_filter("<script>x</script>")
+        assert isinstance(result, Markup)
+
+    def test_preserves_existing_markup_input(self) -> None:
+        """If input is already Markup, output stays Markup without re-wrapping."""
+        value = Markup("<b>safe</b>")
+        result = csp_nonce_filter(value)
+        assert isinstance(result, Markup)
+        assert result == "<b>safe</b>"
+
+    def test_returns_markup_from_render_context(self) -> None:
+        from kida.render_context import render_context
+
+        with render_context() as ctx:
+            ctx.set_meta("csp_nonce", "ctx-nonce")
+            result = csp_nonce_filter("<script>x</script>")
+        assert isinstance(result, Markup)
+        assert 'nonce="ctx-nonce"' in result
 
 
 # ---------------------------------------------------------------------------

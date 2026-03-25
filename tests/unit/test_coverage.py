@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+import pathlib
 import xml.etree.ElementTree as ET
-
-import pytest
 
 from kida.coverage import CoverageCollector, CoverageResult
 from kida.render_context import RenderContext
@@ -237,10 +236,10 @@ class TestCoverageCollectorLcov:
         assert "LF:2" in lcov
         assert "end_of_record" in lcov
 
-    def test_write_lcov(self, tmp_path: pytest.TempPathFactory) -> None:
+    def test_write_lcov(self, tmp_path: pathlib.Path) -> None:
         with CoverageCollector() as cov:
             _simulate_render(cov, "t.html", [1])
-        path = str(tmp_path / "coverage.lcov")  # type: ignore[operator]
+        path = str(tmp_path / "coverage.lcov")
         cov.write_lcov(path)
         with open(path) as f:
             content = f.read()
@@ -291,10 +290,10 @@ class TestCoverageCollectorCobertura:
         names = sorted(c.get("name", "") for c in classes)
         assert names == ["a.html", "b.html"]
 
-    def test_write_cobertura(self, tmp_path: pytest.TempPathFactory) -> None:
+    def test_write_cobertura(self, tmp_path: pathlib.Path) -> None:
         with CoverageCollector() as cov:
             _simulate_render(cov, "t.html", [1])
-        path = str(tmp_path / "coverage.xml")  # type: ignore[operator]
+        path = str(tmp_path / "coverage.xml")
         cov.write_cobertura(path)
         with open(path) as f:
             content = f.read()

@@ -2,7 +2,6 @@
 
 Static analysis to detect common accessibility issues:
 - ``<img>`` without ``alt`` attribute
-- ``<a>`` with empty text content (icon-only links without aria-label)
 - ``<input>``/``<select>``/``<textarea>`` without associated ``<label>`` or ``aria-label``
 - Heading hierarchy violations (skipping levels)
 - Missing ``lang`` attribute on ``<html>``

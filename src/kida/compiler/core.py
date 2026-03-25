@@ -192,8 +192,8 @@ class Compiler(
         self._cached_vars: set[str] = set()
         # Extension compiler handlers: {node_type_name: Extension instance}
         self._extension_compilers: dict[str, object] = getattr(
-            env, "_extension_tags", {}
-        )  # tag→ext reused
+            env, "_extension_compilers", getattr(env, "_extension_tags", {})
+        )  # node_type→ext dispatch
         # Node dispatch table - built once, reused for all node compilations
         self._node_dispatch: dict[str, Callable] = {
             "Data": self._compile_data,
@@ -447,6 +447,28 @@ class Compiler(
         # Region blocks use their own delegation path and are unaffected.
         from kida.compiler.stream_transform import sync_body_to_stream
 
+        def _has_append_rebind(stmts: list[ast.stmt]) -> bool:
+            """Check if any statement rebinds ``_append`` (capture/cache/spaceless/push).
+
+            When ``_append`` is reassigned inside a block, the
+            ``_append(x) → yield x`` stream transform would leak captured
+            content into the output stream.  Detecting this lets the compiler
+            fall back to the dedicated streaming compilation path.
+            """
+            for stmt in stmts:
+                for node in ast.walk(stmt):
+                    if isinstance(node, ast.Assign):
+                        for target in node.targets:
+                            if isinstance(target, ast.Name) and target.id == "_append":
+                                return True
+                    elif (
+                        isinstance(node, ast.AugAssign)
+                        and isinstance(node.target, ast.Name)
+                        and node.target.id == "_append"
+                    ):
+                        return True
+            return False
+
         sync_blocks: list[ast.stmt] = []
         stream_blocks: list[ast.stmt] = []
         async_stream_blocks: list[ast.stmt] = []
@@ -468,36 +490,13 @@ class Compiler(
                 # Regular blocks: reuse sync body compilation saved by
                 # _make_block_function, transform for streaming.
                 compiled_stmts = self._last_block_compiled_stmts or []
-                stream_stmts = sync_body_to_stream(compiled_stmts)
 
-                # Build stream block function
-                stream_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
-                stream_body.extend(stream_stmts)
-                stream_body.append(ast.Return(value=None))
-                stream_body.append(ast.Expr(value=ast.Yield(value=None)))
-                stream_blocks.append(
-                    ast.FunctionDef(
-                        name=f"_block_{block_name}_stream",
-                        args=ast.arguments(
-                            posonlyargs=[],
-                            args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
-                            vararg=None,
-                            kwonlyargs=[],
-                            kw_defaults=[],
-                            kwarg=None,
-                            defaults=[],
-                        ),
-                        body=stream_body,
-                        decorator_list=[],
-                        returns=None,
-                    )
-                )
-
-                # Async stream: if template has async constructs, must compile
-                # separately (AsyncFor → ast.AsyncFor requires _async_mode=True).
-                # Otherwise, derive from sync body transform.
-                if self._has_async:
+                if _has_append_rebind(compiled_stmts):
+                    # Block rebinds _append (capture/cache/spaceless/push) —
+                    # fall back to dedicated stream compilation so that the
+                    # _append → yield transform does not leak captured content.
                     self._streaming = True
+                    stream_blocks.append(self._make_block_function_stream(block_name, block_node))
                     self._async_mode = True
                     async_stream_blocks.append(
                         self._make_block_function_stream_async(block_name, block_node)
@@ -505,14 +504,16 @@ class Compiler(
                     self._async_mode = False
                     self._streaming = False
                 else:
-                    async_stmts = sync_body_to_stream(compiled_stmts)
-                    async_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
-                    async_body.extend(async_stmts)
-                    async_body.append(ast.Return(value=None))
-                    async_body.append(ast.Expr(value=ast.Yield(value=None)))
-                    async_stream_blocks.append(
-                        ast.AsyncFunctionDef(
-                            name=f"_block_{block_name}_stream_async",
+                    stream_stmts = sync_body_to_stream(compiled_stmts)
+
+                    # Build stream block function
+                    stream_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
+                    stream_body.extend(stream_stmts)
+                    stream_body.append(ast.Return(value=None))
+                    stream_body.append(ast.Expr(value=ast.Yield(value=None)))
+                    stream_blocks.append(
+                        ast.FunctionDef(
+                            name=f"_block_{block_name}_stream",
                             args=ast.arguments(
                                 posonlyargs=[],
                                 args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
@@ -522,11 +523,46 @@ class Compiler(
                                 kwarg=None,
                                 defaults=[],
                             ),
-                            body=async_body,
+                            body=stream_body,
                             decorator_list=[],
                             returns=None,
                         )
                     )
+
+                    # Async stream: if template has async constructs, must compile
+                    # separately (AsyncFor → ast.AsyncFor requires _async_mode=True).
+                    # Otherwise, derive from sync body transform.
+                    if self._has_async:
+                        self._streaming = True
+                        self._async_mode = True
+                        async_stream_blocks.append(
+                            self._make_block_function_stream_async(block_name, block_node)
+                        )
+                        self._async_mode = False
+                        self._streaming = False
+                    else:
+                        async_stmts = sync_body_to_stream(compiled_stmts)
+                        async_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
+                        async_body.extend(async_stmts)
+                        async_body.append(ast.Return(value=None))
+                        async_body.append(ast.Expr(value=ast.Yield(value=None)))
+                        async_stream_blocks.append(
+                            ast.AsyncFunctionDef(
+                                name=f"_block_{block_name}_stream_async",
+                                args=ast.arguments(
+                                    posonlyargs=[],
+                                    args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                                    vararg=None,
+                                    kwonlyargs=[],
+                                    kw_defaults=[],
+                                    kwarg=None,
+                                    defaults=[],
+                                ),
+                                body=async_body,
+                                decorator_list=[],
+                                returns=None,
+                            )
+                        )
 
         module_body.extend(sync_blocks)
         module_body.append(render_func)
@@ -1721,15 +1757,11 @@ class Compiler(
         if handler:
             stmts.extend(handler(node))
         elif self._extension_compilers:
-            # Check extension-registered compilers
-            for ext in set(self._extension_compilers.values()):
-                # Extension compile() handles all its node types
-                try:
-                    result = ext.compile(self, node)  # type: ignore[union-attr]
-                    stmts.extend(result)
-                    break
-                except NotImplementedError:
-                    pass
+            # Direct node_type→extension dispatch (O(1) lookup)
+            ext = self._extension_compilers.get(node_type)
+            if ext is not None:
+                result = ext.compile(self, node)  # type: ignore[union-attr]
+                stmts.extend(result)
 
         return stmts
 

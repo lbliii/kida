@@ -29,6 +29,8 @@ import html
 import re
 from typing import Any
 
+from kida.utils.html import Markup
+
 # Match opening <script> and <style> tags (case-insensitive)
 # Captures: tag name, existing attributes, self-closing slash
 _TAG_RE = re.compile(
@@ -49,12 +51,17 @@ def inject_csp_nonce(html_content: str, nonce: str) -> str:
     doesn't already have a nonce attribute. The nonce value is HTML-escaped
     for safety.
 
+    If *html_content* is already a :class:`~kida.utils.html.Markup` instance
+    the return value is also ``Markup`` so autoescaped templates won't
+    double-escape the result.
+
     Args:
         html_content: Rendered HTML string.
         nonce: CSP nonce value (typically base64-encoded random bytes).
 
     Returns:
-        HTML with nonce attributes injected.
+        HTML with nonce attributes injected (``Markup`` when *html_content*
+        is ``Markup``, plain ``str`` otherwise).
 
     Example::
 
@@ -67,6 +74,8 @@ def inject_csp_nonce(html_content: str, nonce: str) -> str:
     """
     if not nonce:
         return html_content
+
+    was_markup = isinstance(html_content, Markup)
 
     escaped_nonce = html.escape(nonce, quote=True)
     nonce_attr = f' nonce="{escaped_nonce}"'
@@ -82,14 +91,18 @@ def inject_csp_nonce(html_content: str, nonce: str) -> str:
 
         return f"{tag_open}{attrs}{nonce_attr}{close}"
 
-    return _TAG_RE.sub(_inject, html_content)
+    result = _TAG_RE.sub(_inject, html_content)
+    return Markup(result) if was_markup else result
 
 
-def csp_nonce_filter(value: Any, nonce: str | None = None) -> str:
+def csp_nonce_filter(value: Any, nonce: str | None = None) -> Markup:
     """Template filter: inject CSP nonce into HTML content.
 
     If no nonce is provided, reads from the current RenderContext metadata
     (set by the framework via ``ctx.set_meta("csp_nonce", value)``).
+
+    Always returns :class:`~kida.utils.html.Markup` so autoescaped templates
+    don't double-escape the injected HTML.
 
     Usage in templates::
 
@@ -105,9 +118,12 @@ def csp_nonce_filter(value: Any, nonce: str | None = None) -> str:
             nonce = ctx.get_meta("csp_nonce", None)  # type: ignore[assignment]
 
     if not nonce:
-        return str(value)
+        return Markup(value) if not isinstance(value, Markup) else value
 
-    return inject_csp_nonce(str(value), nonce)
+    # Pass through as Markup so inject_csp_nonce preserves the type
+    markup_value = Markup(value) if not isinstance(value, Markup) else value
+    result = inject_csp_nonce(markup_value, nonce)
+    return result if isinstance(result, Markup) else Markup(result)
 
 
 def csp_nonce_global() -> str:

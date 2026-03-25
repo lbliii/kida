@@ -7,7 +7,7 @@ Rules:
 - Consistent spacing inside tags: ``{% if x %}`` not ``{%if x%}``
 - Consistent spacing in output: ``{{ expr }}`` not ``{{expr}}``
 - Indent block bodies by configured amount (default 2 spaces)
-- Normalize blank lines (max 2 consecutive)
+- Normalize blank lines (max 1 consecutive)
 - Trim trailing whitespace
 - Ensure final newline
 

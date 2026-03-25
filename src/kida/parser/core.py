@@ -96,6 +96,8 @@ class Parser(
     __slots__ = (
         "_autoescape",
         "_block_stack",
+        "_end_keywords",
+        "_extension_end_keywords",
         "_extension_tags",
         "_filename",
         "_name",
@@ -125,13 +127,16 @@ class Parser(
         self._unified_end_closures: list[tuple[int, int, str]] = []
         # Extension tag handlers: {tag_name: Extension instance}
         self._extension_tags: dict = extension_tags or {}
-        # Merge extension end keywords into the class-level set so _parse_body sees them
+        # Instance-level end keywords (starts from class attribute, may be extended)
+        self._end_keywords: frozenset[str] = self._END_KEYWORDS
+        self._extension_end_keywords: frozenset[str] = frozenset()
+        # Merge extension end keywords so _parse_body sees them
         if extension_tags:
             ext_end_kw: set[str] = set()
             for ext in extension_tags.values():
                 ext_end_kw.update(ext.end_keywords)
             if ext_end_kw:
-                self._END_KEYWORDS = self._END_KEYWORDS | ext_end_kw
+                self._end_keywords = self._end_keywords | ext_end_kw
                 self._extension_end_keywords = frozenset(ext_end_kw)
 
     def parse(self) -> Template:
@@ -152,7 +157,7 @@ class Parser(
         # open blocks, that's an orphan end tag
         if self._current.type == TokenType.BLOCK_BEGIN:
             next_tok = self._peek(1)
-            if next_tok.type == TokenType.NAME and next_tok.value in self._END_KEYWORDS:
+            if next_tok.type == TokenType.NAME and next_tok.value in self._end_keywords:
                 raise self._error(
                     f"Unexpected '{{% {next_tok.value} %}}' - no open block to close",
                     suggestion="Remove this tag or add a matching opening tag",

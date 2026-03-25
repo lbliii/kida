@@ -68,7 +68,13 @@ class NodeVisitor:
                     func = klass.__dict__[method_name]
                     break
             else:
-                func = NodeVisitor.generic_visit
+                # Find generic_visit via MRO to honor subclass overrides
+                for klass in type(self).__mro__:
+                    if "generic_visit" in klass.__dict__:
+                        func = klass.__dict__["generic_visit"]
+                        break
+                else:
+                    func = NodeVisitor.generic_visit
             self._dispatch_cache[node_type] = func
         return func(self, node)
 
@@ -106,7 +112,13 @@ class NodeTransformer:
                     func = klass.__dict__[method_name]
                     break
             else:
-                func = NodeTransformer.generic_visit
+                # Find generic_visit via MRO to honor subclass overrides
+                for klass in type(self).__mro__:
+                    if "generic_visit" in klass.__dict__:
+                        func = klass.__dict__["generic_visit"]
+                        break
+                else:
+                    func = NodeTransformer.generic_visit
             self._dispatch_cache[node_type] = func
         return func(self, node)
 
