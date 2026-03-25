@@ -94,32 +94,28 @@ _BLOCKED_ATTRS = frozenset(
     }
 )
 
-# Method names safe on common collection types
+# Read-only method names safe on common collection/string types.
+# Mutating methods (append, pop, clear, etc.) are excluded by default to
+# prevent untrusted templates from modifying application state.
 _SAFE_COLLECTION_METHODS = frozenset(
     {
+        # dict read-only
         "items",
         "keys",
         "values",
         "get",
         "copy",
+        # sequence read-only
         "count",
         "index",
-        "append",
-        "extend",
-        "insert",
-        "pop",
-        "remove",
-        "sort",
-        "reverse",
-        "clear",
-        "update",
-        "add",
-        "discard",
+        # set read-only
         "union",
         "intersection",
         "difference",
         "issubset",
         "issuperset",
+        "symmetric_difference",
+        # string methods (all non-mutating)
         "startswith",
         "endswith",
         "strip",
@@ -136,6 +132,27 @@ _SAFE_COLLECTION_METHODS = frozenset(
         "format",
         "encode",
         "decode",
+        "find",
+        "rfind",
+        "removeprefix",
+        "removesuffix",
+    }
+)
+
+# Mutating methods that are allowed only when the policy opts in.
+_MUTATING_COLLECTION_METHODS = frozenset(
+    {
+        "append",
+        "extend",
+        "insert",
+        "pop",
+        "remove",
+        "sort",
+        "reverse",
+        "clear",
+        "update",
+        "add",
+        "discard",
     }
 )
 
@@ -153,6 +170,11 @@ class SandboxPolicy:
         blocked_types: Object types that cannot be accessed at all.
             Default blocks function, type, and code objects.
         allow_import: Whether ``__import__`` is available. Default: False.
+        allow_mutating_methods: Whether mutating collection methods (append,
+            pop, clear, etc.) are accessible. Default: False.
+        allow_calling: Set of type names whose instances may be called.
+            If None (default), all callables obtained via attribute access
+            are allowed. Pass an empty frozenset to block all calls.
         max_output_size: Maximum render output length in characters.
             None means unlimited.
         max_range: Maximum range() size. Default: 10000.
@@ -162,6 +184,8 @@ class SandboxPolicy:
     blocked_attributes: frozenset[str] = frozenset()
     blocked_types: frozenset[type] = frozenset()
     allow_import: bool = False
+    allow_mutating_methods: bool = False
+    allow_calling: frozenset[str] | None = None
     max_output_size: int | None = None
     max_range: int = 10000
 
@@ -187,6 +211,9 @@ def _is_attr_blocked(name: str, policy: SandboxPolicy) -> bool:
             "__str__",
             "__repr__",
         }
+    # Check mutating methods — blocked unless policy opts in
+    if name in _MUTATING_COLLECTION_METHODS:
+        return not policy.allow_mutating_methods
     if policy.allowed_attributes is not None:
         return name not in policy.allowed_attributes and name not in _SAFE_COLLECTION_METHODS
     return False
@@ -332,6 +359,33 @@ class SandboxedEnvironment(Environment):
         return DEFAULT_POLICY
 
 
+def _make_sandboxed_call(policy: SandboxPolicy):
+    """Create a call interceptor that blocks unsafe callables.
+
+    When ``policy.allow_calling`` is None, all callables are permitted
+    (attribute-level checks are still enforced).  When set to a
+    frozenset of type names, only instances of those types may be called.
+    Blocked types (function, type, code) are always denied.
+    """
+
+    def sandboxed_call(func: Any, *args: Any, **kwargs: Any) -> Any:
+        # Always block calls to fundamentally unsafe types
+        if _is_type_blocked(func, policy):
+            raise SecurityError(
+                f"Calling objects of type {type(func).__name__!r} is blocked by sandbox policy"
+            )
+        # If allow_calling is set, enforce the allowlist
+        if policy.allow_calling is not None:
+            type_name = type(func).__name__
+            if type_name not in policy.allow_calling:
+                raise SecurityError(
+                    f"Calling objects of type {type_name!r} is not permitted by sandbox policy"
+                )
+        return func(*args, **kwargs)
+
+    return sandboxed_call
+
+
 def patch_template_namespace(namespace: dict[str, Any], policy: SandboxPolicy) -> None:
     """Patch a template namespace dict to enforce sandbox restrictions.
 
@@ -341,6 +395,9 @@ def patch_template_namespace(namespace: dict[str, Any], policy: SandboxPolicy) -
     # Replace attribute access functions
     namespace["_getattr"] = _make_sandboxed_getattr(policy)
     namespace["_getattr_none"] = _make_sandboxed_getattr_none(policy)
+
+    # Replace call helper with sandboxed version that blocks unsafe callables
+    namespace["_sandboxed_call"] = _make_sandboxed_call(policy)
 
     # Restrict builtins
     if policy.allow_import:

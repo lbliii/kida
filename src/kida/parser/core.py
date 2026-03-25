@@ -169,12 +169,16 @@ class Parser(
                     suggestion=f"'{next_tok.value}' can only appear inside an 'if' or 'for' block",
                 )
 
-        # Extract TemplateContext declaration if present
+        # Extract TemplateContext declaration if present (at most one allowed)
         context_type = None
         for node in body:
             if isinstance(node, TemplateContext):
+                if context_type is not None:
+                    raise self._error(
+                        "Multiple {% template %} declarations found",
+                        suggestion="A template may only have one {% template %} declaration",
+                    )
                 context_type = node
-                break
 
         # Filter TemplateContext from body (it's metadata, not output)
         if context_type is not None:

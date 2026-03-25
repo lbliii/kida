@@ -339,6 +339,7 @@ class Environment:
         from kida.extensions import Extension
 
         tag_map: dict[str, Extension] = {}
+        compiler_map: dict[str, Extension] = {}
         end_kw: set[str] = set()
 
         for ext_cls in self.extensions:
@@ -352,12 +353,17 @@ class Environment:
                 self._tests[name] = func
             self.globals.update(ext.get_globals())
 
-            # Register tags
+            # Register tags (parser dispatch: tag name → extension)
             for tag in ext.tags:
                 tag_map[tag] = ext
             end_kw.update(ext.end_keywords)
 
+            # Register node types (compiler dispatch: node type name → extension)
+            for node_type_name in ext.node_types:
+                compiler_map[node_type_name] = ext
+
         self._extension_tags = tag_map
+        self._extension_compilers = compiler_map
         self._extension_end_keywords = frozenset(end_kw)
 
     def _resolve_bytecode_cache(self) -> BytecodeCache | None:

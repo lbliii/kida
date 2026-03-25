@@ -60,6 +60,7 @@ class Extension:
 
     tags: ClassVar[set[str]] = set()
     end_keywords: ClassVar[set[str]] = set()
+    node_types: ClassVar[set[str]] = set()  # Node class names this extension compiles
 
     def __init__(self, environment: Any) -> None:
         self.environment = environment

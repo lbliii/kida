@@ -26,6 +26,7 @@ Usage::
 
 from __future__ import annotations
 
+import threading
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from io import StringIO
@@ -35,6 +36,10 @@ from kida.render_context import RenderContext, _coverage_data
 
 if TYPE_CHECKING:
     from contextvars import Token
+
+# Guards _active_count and RenderContext.__setattr__ patching under
+# concurrent start()/stop() calls (e.g. parallel test runners).
+_patch_lock = threading.Lock()
 
 
 @dataclass
@@ -91,18 +96,20 @@ class CoverageCollector:
         if self._token is not None:
             return
         self._token = _coverage_data.set(self._data)
-        CoverageCollector._active_count += 1
-        if CoverageCollector._active_count == 1:
-            RenderContext.__setattr__ = _coverage_setattr  # type: ignore[assignment]
+        with _patch_lock:
+            CoverageCollector._active_count += 1
+            if CoverageCollector._active_count == 1:
+                RenderContext.__setattr__ = _coverage_setattr  # type: ignore[assignment]
 
     def stop(self) -> None:
         """Stop collecting coverage data."""
         if self._token is not None:
             _coverage_data.reset(self._token)
             self._token = None
-            CoverageCollector._active_count -= 1
-            if CoverageCollector._active_count == 0 and "__setattr__" in RenderContext.__dict__:
-                del RenderContext.__setattr__
+            with _patch_lock:
+                CoverageCollector._active_count -= 1
+                if CoverageCollector._active_count == 0 and "__setattr__" in RenderContext.__dict__:
+                    del RenderContext.__setattr__
 
     def __enter__(self) -> CoverageCollector:
         self.start()
