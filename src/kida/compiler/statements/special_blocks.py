@@ -66,6 +66,7 @@ class SpecialBlockMixin:
         In streaming mode, body is compiled in StringBuilder mode (captures
         into a buffer, not the output stream), then result is assigned to ctx.
         """
+        self._block_has_append_rebind = True
         stmts: list[ast.stmt] = [
             # _capture_buf = []
             ast.Assign(
@@ -153,6 +154,7 @@ class SpecialBlockMixin:
         Removes whitespace between HTML tags.
         In streaming mode: collect into buffer, transform, yield result.
         """
+        self._block_has_append_rebind = True
         self._block_counter += 1
         suffix = str(self._block_counter)
         buf_name = f"_spaceless_buf_{suffix}"
@@ -245,6 +247,7 @@ class SpecialBlockMixin:
             <restore _append>
             _rc._stacks.setdefault("name", []).append("".join(_push_buf_N))
         """
+        self._block_has_append_rebind = True
         self._block_counter += 1
         suffix = str(self._block_counter)
         buf_name = f"_push_buf_{suffix}"

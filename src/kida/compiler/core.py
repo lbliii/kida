@@ -39,7 +39,7 @@ from __future__ import annotations
 import ast
 import re
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
@@ -140,6 +140,7 @@ class Compiler(
     __slots__ = (
         "_async_mode",
         "_block_counter",
+        "_block_has_append_rebind",
         "_blocks",
         "_cached_pure_filters",
         "_ctx_override",
@@ -158,6 +159,62 @@ class Compiler(
         "_scope_override",
         "_streaming",
     )
+
+    # Class-level dispatch table: node type name → unbound method name.
+    # Resolved to actual functions once per class (see _ensure_dispatch).
+    _NODE_DISPATCH_NAMES: ClassVar[dict[str, str]] = {
+        "Data": "_compile_data",
+        "Output": "_compile_output",
+        "If": "_compile_if",
+        "For": "_compile_for",
+        "AsyncFor": "_compile_async_for",
+        "While": "_compile_while",
+        "Match": "_compile_match",
+        "Set": "_compile_set",
+        "Let": "_compile_let",
+        "Export": "_compile_export",
+        "Import": "_compile_import",
+        "Include": "_compile_include",
+        "Block": "_compile_block",
+        "Globals": "_compile_globals",
+        "Imports": "_compile_imports",
+        "Def": "_compile_def",
+        "Region": "_compile_region",
+        "CallBlock": "_compile_call_block",
+        "Slot": "_compile_slot",
+        "FromImport": "_compile_from_import",
+        "With": "_compile_with",
+        "WithConditional": "_compile_with_conditional",
+        "Raw": "_compile_raw",
+        "Capture": "_compile_capture",
+        "Cache": "_compile_cache",
+        "FilterBlock": "_compile_filter_block",
+        "Break": "_compile_break",
+        "Continue": "_compile_continue",
+        "Spaceless": "_compile_spaceless",
+        "Flush": "_compile_flush",
+        "Embed": "_compile_embed",
+        "Push": "_compile_push",
+        "Stack": "_compile_stack",
+        "TemplateContext": "_compile_template_context",
+    }
+
+    # Resolved dispatch table (unbound functions, built once per class)
+    _class_dispatch: ClassVar[dict[str, Callable] | None] = None
+
+    @classmethod
+    def _ensure_dispatch(cls) -> dict[str, Callable]:
+        """Build and cache the class-level dispatch table of unbound functions."""
+        if cls._class_dispatch is None:
+            cls._class_dispatch = {
+                type_name: getattr(cls, method_name)
+                for type_name, method_name in cls._NODE_DISPATCH_NAMES.items()
+            }
+        return cls._class_dispatch
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls._class_dispatch = None  # Reset so subclasses rebuild dispatch
 
     def __init__(self, env: Environment):
         self._env = env
@@ -194,43 +251,11 @@ class Compiler(
         self._extension_compilers: dict[str, object] = getattr(
             env, "_extension_compilers", getattr(env, "_extension_tags", {})
         )  # node_type→ext dispatch
-        # Node dispatch table - built once, reused for all node compilations
-        self._node_dispatch: dict[str, Callable] = {
-            "Data": self._compile_data,
-            "Output": self._compile_output,
-            "If": self._compile_if,
-            "For": self._compile_for,
-            "AsyncFor": self._compile_async_for,
-            "While": self._compile_while,
-            "Match": self._compile_match,
-            "Set": self._compile_set,
-            "Let": self._compile_let,
-            "Export": self._compile_export,
-            "Import": self._compile_import,
-            "Include": self._compile_include,
-            "Block": self._compile_block,
-            "Globals": self._compile_globals,
-            "Imports": self._compile_imports,
-            "Def": self._compile_def,
-            "Region": self._compile_region,
-            "CallBlock": self._compile_call_block,
-            "Slot": self._compile_slot,
-            "FromImport": self._compile_from_import,
-            "With": self._compile_with,
-            "WithConditional": self._compile_with_conditional,
-            "Raw": self._compile_raw,
-            "Capture": self._compile_capture,
-            "Cache": self._compile_cache,
-            "FilterBlock": self._compile_filter_block,
-            "Break": self._compile_break,
-            "Continue": self._compile_continue,
-            "Spaceless": self._compile_spaceless,
-            "Flush": self._compile_flush,
-            "Embed": self._compile_embed,
-            "Push": self._compile_push,
-            "Stack": self._compile_stack,
-            "TemplateContext": lambda _node: [],  # Declaration-only, no codegen
-        }
+        # Tracks whether current block compilation has _append rebinding
+        # (set by _compile_capture, _compile_cache, etc.)
+        self._block_has_append_rebind: bool = False
+        # Node dispatch table — shared class-level unbound functions, resolved once
+        self._node_dispatch: dict[str, Callable] = type(self)._ensure_dispatch()
 
     def _get_literal_extends_target(self, node: TemplateNode) -> str | None:
         """Return literal extends target if template uses {% extends "literal" %}, else None."""
@@ -447,33 +472,13 @@ class Compiler(
         # Region blocks use their own delegation path and are unaffected.
         from kida.compiler.stream_transform import sync_body_to_stream
 
-        def _has_append_rebind(stmts: list[ast.stmt]) -> bool:
-            """Check if any statement rebinds ``_append`` (capture/cache/spaceless/push).
-
-            When ``_append`` is reassigned inside a block, the
-            ``_append(x) → yield x`` stream transform would leak captured
-            content into the output stream.  Detecting this lets the compiler
-            fall back to the dedicated streaming compilation path.
-            """
-            for stmt in stmts:
-                for node in ast.walk(stmt):
-                    if isinstance(node, ast.Assign):
-                        for target in node.targets:
-                            if isinstance(target, ast.Name) and target.id == "_append":
-                                return True
-                    elif (
-                        isinstance(node, ast.AugAssign)
-                        and isinstance(node.target, ast.Name)
-                        and node.target.id == "_append"
-                    ):
-                        return True
-            return False
-
         sync_blocks: list[ast.stmt] = []
         stream_blocks: list[ast.stmt] = []
         async_stream_blocks: list[ast.stmt] = []
 
         for block_name, block_node in saved_blocks.items():
+            # Reset per-block flag before sync compilation
+            self._block_has_append_rebind = False
             sync_blocks.append(self._make_block_function(block_name, block_node))
 
             if isinstance(block_node, Region):
@@ -491,7 +496,7 @@ class Compiler(
                 # _make_block_function, transform for streaming.
                 compiled_stmts = self._last_block_compiled_stmts or []
 
-                if _has_append_rebind(compiled_stmts):
+                if self._block_has_append_rebind:
                     # Block rebinds _append (capture/cache/spaceless/push) —
                     # fall back to dedicated stream compilation so that the
                     # _append → yield transform does not leak captured content.
@@ -1736,6 +1741,11 @@ class Compiler(
             value=ast.Constant(value=lineno),
         )
 
+    @staticmethod
+    def _compile_template_context(_node: Node) -> list[ast.stmt]:
+        """No-op: TemplateContext is a declaration, not code."""
+        return []
+
     def _compile_node(self, node: Node) -> list[ast.stmt]:
         """Compile a single AST node to Python statements.
 
@@ -1747,15 +1757,15 @@ class Compiler(
         """
         node_type = type(node).__name__
 
-        # Inject line marker for risky nodes (only if they have lineno)
+        # Inject line marker for risky nodes
         stmts: list[ast.stmt] = []
-        if node_type in self._LINE_TRACKED_NODES and hasattr(node, "lineno"):
+        if node_type in self._LINE_TRACKED_NODES:
             stmts.append(self._make_line_marker(node.lineno))
 
-        # Dispatch table - O(1) lookup instead of isinstance chain
+        # Dispatch table — O(1) lookup, unbound functions called with self
         handler = self._node_dispatch.get(node_type)
         if handler:
-            stmts.extend(handler(node))
+            stmts.extend(handler(self, node))
         elif self._extension_compilers:
             # Direct node_type→extension dispatch (O(1) lookup)
             ext = self._extension_compilers.get(node_type)
