@@ -127,13 +127,6 @@ class RenderContext:
     # Frameworks (e.g. Chirp) populate _meta; templates access via get_meta().
     _meta: dict[str, object] = field(default_factory=dict)
 
-    def __setattr__(self, name: str, value: object) -> None:
-        object.__setattr__(self, name, value)
-        if name == "line" and value:  # skip line=0 (default, not a real template line)
-            cov = _coverage_data.get(None)
-            if cov is not None and self.template_name:
-                cov.setdefault(self.template_name, set()).add(value)  # type: ignore[arg-type]
-
     def get_meta(self, key: str, default: object = None) -> object:
         """Get framework-specific metadata.
 

@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from io import StringIO
 from typing import TYPE_CHECKING
 
-from kida.render_context import _coverage_data
+from kida.render_context import RenderContext, _coverage_data
 
 if TYPE_CHECKING:
     from contextvars import Token
@@ -64,13 +64,23 @@ class CoverageResult:
         return (self.hit_count / self.total_count) * 100.0
 
 
+def _coverage_setattr(self: RenderContext, name: str, value: object) -> None:
+    """Patched __setattr__ that records line hits for coverage."""
+    object.__setattr__(self, name, value)
+    if name == "line" and value:
+        cov = _coverage_data.get(None)
+        if cov is not None and self.template_name:
+            cov.setdefault(self.template_name, set()).add(value)  # type: ignore[arg-type]
+
+
 class CoverageCollector:
     """Collects template line coverage during rendering.
 
-    Uses RenderContext's ``__setattr__`` hook on ``line`` to record
-    which template lines are executed. The hook checks a ContextVar
-    that is only set while the collector is active.
+    Dynamically patches ``RenderContext.__setattr__`` while active so
+    there is zero overhead when coverage is disabled (the normal case).
     """
+
+    _active_count: int = 0  # ref-count for nested collectors
 
     def __init__(self) -> None:
         self._data: dict[str, set[int]] = {}
@@ -81,12 +91,18 @@ class CoverageCollector:
         if self._token is not None:
             return
         self._token = _coverage_data.set(self._data)
+        CoverageCollector._active_count += 1
+        if CoverageCollector._active_count == 1:
+            RenderContext.__setattr__ = _coverage_setattr  # type: ignore[assignment]
 
     def stop(self) -> None:
         """Stop collecting coverage data."""
         if self._token is not None:
             _coverage_data.reset(self._token)
             self._token = None
+            CoverageCollector._active_count -= 1
+            if CoverageCollector._active_count == 0 and "__setattr__" in RenderContext.__dict__:
+                del RenderContext.__setattr__  # type: ignore[misc]
 
     def __enter__(self) -> CoverageCollector:
         self.start()
