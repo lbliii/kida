@@ -64,7 +64,7 @@ A GitHub Action that renders reports and posts them as PR comments or step summa
     post-to: pr-comment
 ```
 
-Six built-in templates ship with the action: **pytest**, **coverage**, **ruff**, **ty**, **jest**, and **go test**. Users can also point to custom templates in their repo.
+Six built-in templates ship with the action: **pytest**, **coverage**, **ruff**, **ty**, **jest**, and **gotest**. Users can also point to custom templates in their repo.
 
 **Value**: One line in a workflow file gets you formatted test reports on every PR. No accounts, no API keys, no external services.
 

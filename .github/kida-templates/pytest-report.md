@@ -1,4 +1,4 @@
-## {{ "pass" | badge }} Test Results
+## {{ "pass" | badge if summary.failed == 0 and summary.errors == 0 else "fail" | badge }} Test Results
 
 **{{ summary.total }}** tests ran in **{{ summary.time }}s** — {{ summary.passed }} passed, {{ summary.failed }} failed, {{ summary.errors }} errors, {{ summary.skipped }} skipped
 

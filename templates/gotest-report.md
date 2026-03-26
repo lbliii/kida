@@ -1,8 +1,8 @@
-## {{ "pass" | badge if summary.failed == 0 else "fail" | badge }} Go Test Results
+## {{ "pass" | badge if summary.failed == 0 and summary.errors == 0 else "fail" | badge }} Go Test Results
 
-**{{ summary.total }}** tests ran in **{{ summary.time }}s** — {{ summary.passed }} passed, {{ summary.failed }} failed, {{ summary.skipped }} skipped
+**{{ summary.total }}** tests ran in **{{ summary.time }}s** — {{ summary.passed }} passed, {{ summary.failed }} failed, {{ summary.errors }} errors, {{ summary.skipped }} skipped
 
-{% if summary.failed > 0 -%}
+{% if summary.failed > 0 or summary.errors > 0 -%}
 ### Failed Tests
 
 {% for suite in testsuites -%}

@@ -9,8 +9,8 @@ branding:
 inputs:
   template:
     description: >
-      Built-in template name (pytest, coverage, ruff, ty) or path to a custom
-      template file in your repository.
+      Built-in template name (pytest, coverage, ruff, ty, jest, gotest) or
+      path to a custom template file in your repository.
     required: true
   data:
     description: 'Path to the data file (JSON, JUnit XML, etc.)'
@@ -69,7 +69,7 @@ runs:
     - name: Install kida
       if: inputs.install == 'true'
       shell: bash
-      run: pip install --quiet kida-templates
+      run: python -m pip install --quiet kida-templates
 
     - name: Resolve template
       id: resolve
@@ -121,6 +121,8 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
       run: |
+        set -euo pipefail
+
         OUTPUT_FILE="${{ steps.render.outputs.output_file }}"
         POST_TO="${{ inputs.post-to }}"
         TEMPLATE="${{ inputs.template }}"
@@ -140,6 +142,11 @@ runs:
 
         # --- pr-comment ---
         if echo "$POST_TO" | grep -q "pr-comment"; then
+          if ! command -v gh &>/dev/null; then
+            echo "::error::post-to includes pr-comment but the GitHub CLI (gh) is not installed."
+            exit 1
+          fi
+
           # Find the PR number
           PR_NUMBER=""
           if [[ "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
@@ -153,11 +160,11 @@ runs:
             BODY="${MARKER}
         $(cat "$OUTPUT_FILE")"
 
-            # Look for an existing comment with our marker
+            # Look for an existing comment with our marker (use --arg for safe interpolation)
             EXISTING_ID=$(gh api \
               "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-              --paginate --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" \
-              2>/dev/null | head -1)
+              --paginate --jq '.[] | {id, body}' \
+              2>/dev/null | jq -r --arg marker "$MARKER" 'select(.body | startswith($marker)) | .id' | head -1)
 
             if [[ -n "$EXISTING_ID" ]]; then
               # Update existing comment
