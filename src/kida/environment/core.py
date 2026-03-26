@@ -331,6 +331,10 @@ class Environment:
                 self.terminal_unicode,
                 self.ambiguous_width,
             )
+        elif self.autoescape == "markdown":
+            from kida.environment.markdown import _init_markdown_mode
+
+            _init_markdown_mode(self)
 
         # Extension initialization
         if self.extensions:
@@ -936,7 +940,7 @@ class Environment:
             mode = self.autoescape.strip().lower()
             if mode == "false":
                 return False
-            if mode in {"true", "terminal"}:
+            if mode in {"true", "terminal", "markdown"}:
                 return True
             msg = f"Unknown autoescape mode: {self.autoescape!r}"
             raise ValueError(msg)

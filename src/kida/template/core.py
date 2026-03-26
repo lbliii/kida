@@ -196,6 +196,11 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             from kida.utils.terminal_escape import ansi_sanitize
 
             escape_func = ansi_sanitize
+        elif _autoescape == "markdown":
+            from kida.utils.markdown_escape import Marked, markdown_escape
+
+            escape_func = markdown_escape
+            namespace["_Markup"] = Marked
         elif callable(_autoescape):
             # Per-template callable — resolve for this template name
             _autoescape_fn: Callable[[str | None], bool] = _autoescape  # type: ignore[assignment]

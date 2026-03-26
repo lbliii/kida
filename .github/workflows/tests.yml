@@ -48,13 +48,34 @@ jobs:
         run: |
           uv run pytest -n auto -q --tb=short --dist worksteal
 
-      - name: Run tests with coverage
+      - name: Run tests with reports
         if: matrix.python-version == '3.14t'
         env:
           CI: true
           PYTHON_GIL: "0"
         run: |
-          uv run pytest -n 0 -q --tb=short --cov=kida --cov-report=xml
+          mkdir -p reports
+          uv run pytest -n 0 -q --tb=short --cov=kida \
+            --cov-report=xml \
+            --cov-report=json:reports/coverage.json \
+            --junitxml=reports/pytest.xml
+        continue-on-error: true
+
+      - name: Render test report
+        if: always()
+        run: |
+          uv run kida render .github/kida-templates/pytest-report.md \
+            --data reports/pytest.xml --data-format junit-xml --mode markdown \
+            >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+      - name: Render coverage report
+        if: always()
+        run: |
+          uv run kida render .github/kida-templates/coverage-report.md \
+            --data reports/coverage.json --mode markdown \
+            >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.14t'
@@ -89,6 +110,20 @@ jobs:
         run: |
           uv run ty check src/kida
 
+      - name: Run ty (report)
+        if: always()
+        run: |
+          mkdir -p reports
+          uv run ty check src/kida --output-format junit > reports/ty.xml || true
+
+      - name: Render ty report
+        if: always()
+        run: |
+          uv run kida render .github/kida-templates/ty-report.md \
+            --data reports/ty.xml --data-format junit-xml --mode markdown \
+            >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
   # Linting
   lint:
     runs-on: ubuntu-latest
@@ -114,6 +149,21 @@ jobs:
       - name: Run ruff check
         run: |
           uv run ruff check src/kida tests/ benchmarks/ scripts/
+
+      - name: Run ruff (report)
+        if: always()
+        run: |
+          mkdir -p reports
+          uv run ruff check src/kida tests/ benchmarks/ scripts/ \
+            --output-format json > reports/ruff.json || true
+
+      - name: Render ruff report
+        if: always()
+        run: |
+          uv run kida render .github/kida-templates/ruff-report.md \
+            --data reports/ruff.json --mode markdown \
+            >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
 
       - name: Run ruff format check
         run: |

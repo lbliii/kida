@@ -205,6 +205,7 @@ def _cmd_render(
     *,
     data_file: Path | None,
     data_str: str | None,
+    data_format: str,
     width: int | None,
     color: str | None,
     mode: str,
@@ -222,11 +223,20 @@ def _cmd_render(
     # Build context from --data / --data-str
     context: dict[str, object] = {}
     if data_file is not None:
-        try:
-            context = json.loads(data_file.read_text(encoding="utf-8"))
-        except Exception as e:
-            print(f"kida render: invalid JSON in {data_file}: {e}", file=sys.stderr)
-            return 2
+        if data_format == "junit-xml":
+            from kida.utils.junit_xml import junit_to_dict
+
+            try:
+                context = junit_to_dict(data_file)
+            except Exception as e:
+                print(f"kida render: invalid JUnit XML in {data_file}: {e}", file=sys.stderr)
+                return 2
+        else:
+            try:
+                context = json.loads(data_file.read_text(encoding="utf-8"))
+            except Exception as e:
+                print(f"kida render: invalid JSON in {data_file}: {e}", file=sys.stderr)
+                return 2
     elif data_str is not None:
         try:
             context = json.loads(data_str)
@@ -250,6 +260,10 @@ def _cmd_render(
             term_kwargs["terminal_color"] = color
 
         env = terminal_env(**term_kwargs)
+    elif mode == "markdown":
+        from kida.markdown import markdown_env
+
+        env = markdown_env(loader=FileSystemLoader(str(template_dir)))
     else:
         env = Environment(loader=FileSystemLoader(str(template_dir)))
 
@@ -334,7 +348,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_render.add_argument(
         "--mode",
-        choices=["html", "terminal"],
+        choices=["html", "terminal", "markdown"],
         default="terminal",
         help="Rendering mode (default: terminal)",
     )
@@ -349,6 +363,12 @@ def main(argv: list[str] | None = None) -> int:
         choices=["none", "basic", "256", "truecolor"],
         default=None,
         help="Override color depth (terminal mode only)",
+    )
+    p_render.add_argument(
+        "--data-format",
+        choices=["json", "junit-xml"],
+        default="json",
+        help="Format of the data file (default: json)",
     )
     p_render.add_argument(
         "--stream",
@@ -399,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
             args.template,
             data_file=args.data,
             data_str=args.data_str,
+            data_format=args.data_format,
             width=args.width,
             color=args.color,
             mode=args.mode,
