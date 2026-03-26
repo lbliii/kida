@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 
 on:
   push:
@@ -11,12 +11,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: tests-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   # Fast check: unit tests for quick PR feedback
   test:
+    name: Pytest + Coverage
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -95,6 +96,7 @@ jobs:
 
   # Type checking
   typecheck:
+    name: Type Check (ty)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -140,6 +142,7 @@ jobs:
 
   # Linting
   lint:
+    name: Lint (ruff)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -189,6 +192,7 @@ jobs:
 
   # Thread safety tests
   thread-safety:
+    name: Thread Safety
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -218,6 +222,7 @@ jobs:
 
   # Async tests
   async-tests:
+    name: Async Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -247,6 +252,7 @@ jobs:
 
   # Slow/comprehensive tests (weekly/manual only)
   slow-tests:
+    name: Full Test Suite
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -277,6 +283,7 @@ jobs:
 
   # Benchmark regression check (runs on PR and main; fails if >threshold slower than baseline)
   benchmark-regression:
+    name: Benchmark Regression
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -307,6 +314,7 @@ jobs:
 
   # Full benchmark suite (weekly/manual only; uploads results)
   benchmarks:
+    name: Full Benchmarks
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:

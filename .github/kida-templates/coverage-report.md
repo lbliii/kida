@@ -13,7 +13,7 @@
 | File | Coverage | Missing Lines |
 | --- | --- | --- |
 {% for f in files | sort(attribute="summary.percent_covered") -%}
-{% set fpct = f.summary.percent_covered | round(1) -%}
+{% set fpct = f.summary.percent_covered | default(0) | round(1) -%}
 | `{{ f.filename }}` | {{ fpct }}% | {{ f.summary.missing_lines | default("", true) }} |
 {% endfor -%}
 {% endif -%}
