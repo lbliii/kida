@@ -39,17 +39,22 @@ def probe_ambiguous_width(timeout: float = 0.1) -> int | None:
     if not (sys.stdout.isatty() and sys.stdin.isatty()):
         return None
 
-    if os.name != "posix":
+    if os.name != "posix":  # pragma: no cover
         return None
 
     try:
         import select
         import termios
         import tty
-    except ImportError:
+    except ImportError:  # pragma: no cover
         return None
 
-    # Test character: ★ (U+2605) — East Asian Width "A" (Ambiguous).
+    return _probe_tty(select, termios, tty, timeout)
+
+
+def _probe_tty(select, termios, tty, timeout: float) -> int | None:  # pragma: no cover
+    """TTY-dependent probe internals. Requires a real terminal to exercise."""
+    # Test character: U+2605 (BLACK STAR) - East Asian Width "A" (Ambiguous).
     # Renders as width 1 on Western terminals, width 2 on CJK terminals.
     test_char = "\u2605"
 
@@ -67,8 +72,6 @@ def probe_ambiguous_width(timeout: float = 0.1) -> int | None:
         tty.setraw(stdin_fd)
 
         # Move to column 1, write test char, query position
-        # \033[1G = move to column 1
-        # \033[6n = Device Status Report (cursor position)
         os.write(stdout_fd, b"\033[s")  # save cursor
         os.write(stdout_fd, b"\033[1G")  # move to column 1
         os.write(stdout_fd, f"{test_char}".encode())  # write test char
