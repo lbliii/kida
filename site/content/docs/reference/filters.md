@@ -1,6 +1,6 @@
 ---
 title: Filters Reference
-description: All built-in filters with examples
+description: All built-in filters with examples, including terminal color, style, layout, and data display filters
 draft: false
 weight: 20
 lang: en
@@ -11,6 +11,10 @@ tags:
 keywords:
 - filters
 - reference
+- terminal filters
+- ansi
+- color
+- style
 icon: filter
 ---
 
@@ -660,7 +664,164 @@ Return shuffled copy.
 {{ items | shuffle }}
 ```
 
+---
+
+## Terminal Filters
+
+Terminal filters are available when using `Environment(autoescape="terminal")` or `terminal_env()`. They produce `Styled` strings with ANSI escape sequences and degrade gracefully when color or Unicode is unavailable.
+
+### Color & Style
+
+#### Named Colors
+
+Apply a foreground color directly by name. Available colors: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `bright_red`, `bright_green`, `bright_yellow`, `bright_blue`, `bright_magenta`, `bright_cyan`.
+
+```kida
+{{ "Error" | red }}
+{{ "OK" | green }}
+{{ "Note" | bright_cyan }}
+```
+
+#### fg
+
+Set foreground color by name, hex, 256-color index, or RGB tuple. Degrades across color depths (truecolor -> 256 -> basic -> none).
+
+```kida
+{{ "Hello" | fg("red") }}
+{{ "Hello" | fg("#ff5733") }}
+{{ "Hello" | fg(196) }}
+```
+
+#### bg
+
+Set background color. Same argument formats as `fg`.
+
+```kida
+{{ "Alert" | bg("yellow") }}
+{{ "Highlight" | bg("#333333") }}
+```
+
+#### Decoration Filters
+
+Apply text decoration. Each degrades to plain text when color is disabled.
+
+| Filter | Effect |
+|--------|--------|
+| `bold` | Bold / bright |
+| `dim` | Dimmed / faint |
+| `italic` | Italic |
+| `underline` | Underlined |
+| `strike` | Strikethrough |
+| `blink` | Blinking (terminal support varies) |
+| `inverse` | Swap foreground and background |
+
+```kida
+{{ "Important" | bold }}
+{{ "Secondary" | dim }}
+{{ "Title" | underline }}
+{{ title | bold | fg("cyan") }}
+```
+
+### Layout
+
+#### pad
+
+Pad a value to a fixed visible width, respecting ANSI escape sequences.
+
+```kida
+{{ name | pad(30) }}
+{{ name | pad(30, align="right") }}
+{{ name | pad(30, align="center", fill=".") }}
+```
+
+**Parameters:** `width` (int), `align` ("left", "right", "center"), `fill` (str, default " ").
+
+#### table
+
+Render a list of dicts (or list of lists) as a bordered table.
+
+```kida
+{{ users | table }}
+{{ users | table(headers=["Name", "Role"], border="heavy") }}
+{{ users | table(align={"score": "right"}, max_width=80) }}
+```
+
+**Parameters:** `headers` (list, optional), `border` ("light", "heavy", "double", "ascii"), `align` (dict mapping column name to "left"/"right"/"center"), `max_width` (int, optional).
+
+#### tree
+
+Render a nested dict as an indented tree with box-drawing connectors.
+
+```kida
+{{ file_tree | tree }}
+{{ file_tree | tree(indent=4) }}
+```
+
+**Parameters:** `indent` (int, default 2).
+
+Output:
+
+```
+├── src
+│   ├── main.py
+│   └── utils.py
+└── tests
+    └── test_main.py
+```
+
+### Data Display
+
+#### badge
+
+Render a status value as a colored icon badge. Recognizes common statuses: `pass`, `success`, `ok`, `fail`, `error`, `warn`, `warning`, `skip`, `info`.
+
+```kida
+{{ "pass" | badge }}
+{{ "fail" | badge }}
+{{ "Custom" | badge(icon="info", badge_color="blue") }}
+```
+
+**Parameters:** `icon` (str, optional — icon name or literal character), `badge_color` (str, optional — named color).
+
+#### bar
+
+Render a progress bar from a 0.0–1.0 value.
+
+```kida
+{{ 0.75 | bar }}
+{{ 0.75 | bar(width=30, show_pct=false) }}
+```
+
+**Parameters:** `width` (int, default 20), `show_pct` (bool, default true).
+
+Output: `████████████████░░░░ 75%`
+
+#### kv
+
+Render a key-value pair with dot-fill alignment.
+
+```kida
+{{ "Status" | kv("Running") }}
+{{ "CPU" | kv("42%", width=50) }}
+```
+
+**Parameters:** `value` (any), `width` (int, default 40), `sep` (str, default " "), `fill` (str, default "·").
+
+Output: `Status ······················· Running`
+
+#### diff
+
+Render a unified diff between two strings with color-coded additions and removals.
+
+```kida
+{{ old_config | diff(new_config) }}
+{{ old_config | diff(new_config, context=5) }}
+```
+
+**Parameters:** `new` (any), `context` (int, default 3).
+
 ## See Also
 
 - [[docs/syntax/filters|Filter Syntax]] — Using filters
 - [[docs/extending/custom-filters|Custom Filters]] — Create filters
+- [[docs/usage/terminal-rendering|Terminal Rendering]] — Full terminal mode guide

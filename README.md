@@ -5,7 +5,7 @@
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://pypi.org/project/kida-templates/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**A Python template engine and Jinja2 alternative for HTML templates, streaming, and framework integration**
+**A Python template engine for HTML, terminal, and streaming — with framework integration**
 
 ```python
 from kida import Environment
@@ -34,9 +34,10 @@ Kida is a modern template engine for Python 3.14t. It works for static site gene
 ## Use Kida For
 
 - **HTML template rendering** — Pages, partials, emails, and reusable components
+- **Terminal/CLI output** — `autoescape="terminal"` with ANSI colors, tables, trees, panels, and live rendering
 - **Jinja2-style migration paths** — Familiar syntax with new features and different internals
 - **Streaming interfaces** — Chunked HTML, SSE, and progressive rendering
-- **Framework integration** — Block rendering, introspection, and template analysis for app frameworks
+- **Framework integration** — Drop-in adapters for Flask, Starlette/FastAPI, and Django
 - **Python 3.14+ template stacks** — Async rendering and free-threading-friendly execution
 
 ---
@@ -89,7 +90,11 @@ Requires Python 3.14+
 | **Introspection** | `template_metadata()`, `block_metadata()`, `validate_context()` for frameworks | [Analysis →](https://lbliii.github.io/kida/docs/advanced/analysis/) |
 | **Partial Evaluation** | Compile-time evaluation via `static_context` | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
 | **Block Recompilation** | Recompile only changed blocks in live templates | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
-| **Extensibility** | Custom filters, tests, globals, loaders | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
+| **Terminal Rendering** | `autoescape="terminal"` with 30+ filters, components, live rendering | [Terminal →](https://lbliii.github.io/kida/docs/usage/terminal/) |
+| **Framework Adapters** | Drop-in Flask, Starlette/FastAPI, and Django integration | [Contrib →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
+| **Sandbox** | `SandboxedEnvironment` for untrusted templates with security policies | [Security →](https://lbliii.github.io/kida/docs/advanced/security/) |
+| **Coverage** | Template line coverage with LCOV/Cobertura export | [Coverage →](https://lbliii.github.io/kida/docs/advanced/coverage/) |
+| **Extensibility** | Custom filters, tests, globals, loaders, extension plugins | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
 | **T-Strings (PEP 750)** | `k()` auto-escaping, `r()` composable regex (Python 3.14+) | [T-Strings →](https://lbliii.github.io/kida/docs/advanced/t-strings/) |
 | **HTMX Helpers** | `hx_request()`, `hx_target()`, `csrf_token()` for partials | [Custom Globals →](https://lbliii.github.io/kida/docs/extending/custom-globals/) |
 | **Worker Auto-Tuning** | `get_optimal_workers()`, `should_parallelize()` for parallel render | [Workers →](https://lbliii.github.io/kida/docs/advanced/workers/) |
@@ -271,6 +276,30 @@ Works with inheritance (`{% extends %}`), includes, and all control flow. Blocks
 </details>
 
 <details>
+<summary><strong>Terminal Rendering</strong> — CLI/TUI output with ANSI colors</summary>
+
+```python
+from kida.environment.terminal import terminal_env
+
+env = terminal_env()
+template = env.from_string("""
+{{ "Deploy Status" | fg("cyan") | bold }}
+{{ "=" * 40 | fg("dim") }}
+{% for svc in services %}
+{{ svc.name | ljust(20) }}{{ svc.status | badge }}
+{% end %}
+""")
+print(template.render(services=[
+    {"name": "api", "status": "running"},
+    {"name": "worker", "status": "stopped"},
+]))
+```
+
+Built-in components for panels, tables, trees, and more. Use `kida render template.txt --data ctx.json` from the CLI.
+
+</details>
+
+<details>
 <summary><strong>Fragment Caching</strong> — Cache expensive blocks</summary>
 
 ```kida
@@ -305,6 +334,7 @@ html = layout.render_with_blocks({"content": inner_html}, title="Page")
 |----------|----------|---------|
 | **Static sites** | `render()`, fragment cache, bytecode cache | [Bengal](https://github.com/lbliii/bengal) |
 | **Dynamic web** | `render_block()`, `render_stream()`, `render_with_blocks()` | [Chirp](https://github.com/lbliii/chirp) |
+| **Terminal / CLI** | `terminal_env()`, `LiveRenderer`, `kida render` | Dashboards, deploy scripts, reports |
 | **Streaming / SSE** | `render_stream()`, `render_stream_async()` | Chunked HTTP, LLM streaming |
 | **Framework integration** | `template_metadata()`, `validate_block_exists()`, `get_structure()` | Build adapters, validate routes |
 
