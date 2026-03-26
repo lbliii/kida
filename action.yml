@@ -1,0 +1,181 @@
+name: 'Kida Report'
+description: 'Render CI reports from structured data using kida templates. Turn pytest, coverage, ruff, and other tool output into formatted GitHub step summaries and PR comments.'
+author: 'lbliii'
+
+branding:
+  icon: 'file-text'
+  color: 'blue'
+
+inputs:
+  template:
+    description: >
+      Built-in template name (pytest, coverage, ruff, ty) or path to a custom
+      template file in your repository.
+    required: true
+  data:
+    description: 'Path to the data file (JSON, JUnit XML, etc.)'
+    required: true
+  data-format:
+    description: 'Format of the data file'
+    required: false
+    default: 'json'
+  post-to:
+    description: >
+      Where to post the rendered report. Comma-separated list of targets:
+      step-summary, pr-comment. Default: step-summary.
+    required: false
+    default: 'step-summary'
+  comment-header:
+    description: >
+      Header text used to identify the PR comment for updates. When posting
+      to pr-comment, existing comments with this header are replaced instead
+      of creating duplicates. Defaults to the template name.
+    required: false
+    default: ''
+  token:
+    description: 'GitHub token for posting PR comments. Only needed when post-to includes pr-comment.'
+    required: false
+    default: ${{ github.token }}
+  python-version:
+    description: 'Python version to use (must be 3.14+). Set to "skip" to skip Python setup.'
+    required: false
+    default: '3.14'
+  install:
+    description: 'Whether to install kida via pip. Set to "false" if kida is already available.'
+    required: false
+    default: 'true'
+  kida-command:
+    description: 'Command to invoke kida (e.g., "uv run kida" for local dev). Default: "kida".'
+    required: false
+    default: 'kida'
+
+outputs:
+  report:
+    description: 'The rendered markdown report content'
+    value: ${{ steps.render.outputs.report }}
+  comment-id:
+    description: 'The ID of the created/updated PR comment (if post-to includes pr-comment)'
+    value: ${{ steps.post.outputs.comment-id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      if: inputs.python-version != 'skip'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install kida
+      if: inputs.install == 'true'
+      shell: bash
+      run: pip install --quiet kida-templates
+
+    - name: Resolve template
+      id: resolve
+      shell: bash
+      run: |
+        TEMPLATE="${{ inputs.template }}"
+
+        # If it's a file path that exists, use it directly
+        if [[ -f "$TEMPLATE" ]]; then
+          echo "template=$TEMPLATE" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Check built-in templates (strip -report suffix if present)
+        NAME="${TEMPLATE%-report}"
+        BUILTIN="${{ github.action_path }}/templates/${NAME}-report.md"
+        if [[ -f "$BUILTIN" ]]; then
+          echo "template=$BUILTIN" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        echo "::error::Template not found: $TEMPLATE (looked for file and built-in '${NAME}')"
+        exit 1
+
+    - name: Render report
+      id: render
+      shell: bash
+      run: |
+        OUTPUT_FILE="$(mktemp)"
+
+        ${{ inputs.kida-command }} render "${{ steps.resolve.outputs.template }}" \
+          --data "${{ inputs.data }}" \
+          --data-format "${{ inputs.data-format }}" \
+          --mode markdown \
+          > "$OUTPUT_FILE"
+
+        # Set output (handle multiline)
+        {
+          echo "report<<KIDA_EOF"
+          cat "$OUTPUT_FILE"
+          echo "KIDA_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+        echo "output_file=$OUTPUT_FILE" >> "$GITHUB_OUTPUT"
+
+    - name: Post report
+      id: post
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        OUTPUT_FILE="${{ steps.render.outputs.output_file }}"
+        POST_TO="${{ inputs.post-to }}"
+        TEMPLATE="${{ inputs.template }}"
+        HEADER="${{ inputs.comment-header }}"
+
+        # Default header to template name
+        if [[ -z "$HEADER" ]]; then
+          HEADER="${TEMPLATE%-report}"
+          HEADER="${HEADER##*/}"  # strip path
+        fi
+
+        # --- step-summary ---
+        if echo "$POST_TO" | grep -q "step-summary"; then
+          cat "$OUTPUT_FILE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Posted to step summary"
+        fi
+
+        # --- pr-comment ---
+        if echo "$POST_TO" | grep -q "pr-comment"; then
+          # Find the PR number
+          PR_NUMBER=""
+          if [[ "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          fi
+
+          if [[ -z "$PR_NUMBER" ]]; then
+            echo "::warning::post-to includes pr-comment but this is not a pull request event. Skipping."
+          else
+            MARKER="<!-- kida-report: ${HEADER} -->"
+            BODY="${MARKER}
+        $(cat "$OUTPUT_FILE")"
+
+            # Look for an existing comment with our marker
+            EXISTING_ID=$(gh api \
+              "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+              --paginate --jq ".[] | select(.body | startswith(\"${MARKER}\")) | .id" \
+              2>/dev/null | head -1)
+
+            if [[ -n "$EXISTING_ID" ]]; then
+              # Update existing comment
+              gh api \
+                "repos/${{ github.repository }}/issues/comments/${EXISTING_ID}" \
+                -X PATCH -f body="$BODY" --silent
+              echo "Updated PR comment $EXISTING_ID"
+              echo "comment-id=$EXISTING_ID" >> "$GITHUB_OUTPUT"
+            else
+              # Create new comment
+              COMMENT_ID=$(gh api \
+                "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+                -f body="$BODY" --jq '.id')
+              echo "Created PR comment $COMMENT_ID"
+              echo "comment-id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+        fi
+
+        # Clean up
+        rm -f "$OUTPUT_FILE"

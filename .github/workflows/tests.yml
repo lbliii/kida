@@ -63,18 +63,27 @@ jobs:
 
       - name: Render test report
         if: always()
-        run: |
-          uv run kida render .github/kida-templates/pytest-report.md \
-            --data reports/pytest.xml --data-format junit-xml --mode markdown \
-            >> $GITHUB_STEP_SUMMARY
+        uses: ./
+        with:
+          template: pytest
+          data: reports/pytest.xml
+          data-format: junit-xml
+          post-to: step-summary
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
         continue-on-error: true
 
       - name: Render coverage report
         if: always()
-        run: |
-          uv run kida render .github/kida-templates/coverage-report.md \
-            --data reports/coverage.json --mode markdown \
-            >> $GITHUB_STEP_SUMMARY
+        uses: ./
+        with:
+          template: coverage
+          data: reports/coverage.json
+          post-to: step-summary
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
         continue-on-error: true
 
       - name: Upload coverage to Codecov
@@ -118,10 +127,15 @@ jobs:
 
       - name: Render ty report
         if: always()
-        run: |
-          uv run kida render .github/kida-templates/ty-report.md \
-            --data reports/ty.xml --data-format junit-xml --mode markdown \
-            >> $GITHUB_STEP_SUMMARY
+        uses: ./
+        with:
+          template: ty
+          data: reports/ty.xml
+          data-format: junit-xml
+          post-to: step-summary
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
         continue-on-error: true
 
   # Linting
@@ -159,10 +173,14 @@ jobs:
 
       - name: Render ruff report
         if: always()
-        run: |
-          uv run kida render .github/kida-templates/ruff-report.md \
-            --data reports/ruff.json --mode markdown \
-            >> $GITHUB_STEP_SUMMARY
+        uses: ./
+        with:
+          template: ruff
+          data: reports/ruff.json
+          post-to: step-summary
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
         continue-on-error: true
 
       - name: Run ruff format check
