@@ -37,24 +37,34 @@ This already works. It's part of kida's terminal rendering mode. Supports color 
 
 **Value**: Developers can format any CI output locally or in scripts. Zero dependencies beyond kida.
 
-### Layer 2: GitHub Action (free, drives adoption)
+### Layer 2: GitHub Action (free, drives adoption) ✅
 
-A GitHub Action that renders reports and posts them as PR comments or check run summaries:
+A GitHub Action that renders reports and posts them as PR comments or step summaries:
 
 ```yaml
 # .github/workflows/test.yml
 - name: Run tests
-  run: pytest --json-report --json-report-file=results.json
+  run: pytest --junitxml=results.xml
 
 - name: Post report
-  uses: lbliii/kida-report@v1
+  uses: lbliii/kida@v1
   with:
-    template: pytest        # built-in template name
-    data: results.json
-    post-to: pr-comment     # or: check-summary, step-summary, artifact
+    template: pytest           # built-in template name
+    data: results.xml
+    data-format: junit-xml
+    post-to: step-summary      # or: pr-comment, or both
+
+# PR comment (updates in place, no duplicates)
+- name: Post report to PR
+  uses: lbliii/kida@v1
+  with:
+    template: pytest
+    data: results.xml
+    data-format: junit-xml
+    post-to: pr-comment
 ```
 
-Built-in templates for common tools ship with the action. Users can also point to custom templates in their repo.
+Six built-in templates ship with the action: **pytest**, **coverage**, **ruff**, **ty**, **jest**, and **gotest**. Users can also point to custom templates in their repo.
 
 **Value**: One line in a workflow file gets you formatted test reports on every PR. No accounts, no API keys, no external services.
 

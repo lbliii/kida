@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 
 on:
   push:
@@ -11,27 +11,28 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: tests-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   # Fast check: unit tests for quick PR feedback
   test:
+    name: Pytest + Coverage
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.14t"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
@@ -63,40 +64,50 @@ jobs:
 
       - name: Render test report
         if: always()
-        run: |
-          uv run kida render .github/kida-templates/pytest-report.md \
-            --data reports/pytest.xml --data-format junit-xml --mode markdown \
-            >> $GITHUB_STEP_SUMMARY
+        uses: ./
+        with:
+          template: pytest
+          data: reports/pytest.xml
+          data-format: junit-xml
+          post-to: step-summary
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
         continue-on-error: true
 
       - name: Render coverage report
         if: always()
-        run: |
-          uv run kida render .github/kida-templates/coverage-report.md \
-            --data reports/coverage.json --mode markdown \
-            >> $GITHUB_STEP_SUMMARY
+        uses: ./
+        with:
+          template: coverage
+          data: reports/coverage.json
+          post-to: step-summary
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
         continue-on-error: true
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.14t'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
           fail_ci_if_error: false
 
   # Type checking
   typecheck:
+    name: Type Check (ty)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.14t"
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
@@ -118,25 +129,31 @@ jobs:
 
       - name: Render ty report
         if: always()
-        run: |
-          uv run kida render .github/kida-templates/ty-report.md \
-            --data reports/ty.xml --data-format junit-xml --mode markdown \
-            >> $GITHUB_STEP_SUMMARY
+        uses: ./
+        with:
+          template: ty
+          data: reports/ty.xml
+          data-format: junit-xml
+          post-to: step-summary
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
         continue-on-error: true
 
   # Linting
   lint:
+    name: Lint (ruff)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.14t"
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
@@ -159,10 +176,14 @@ jobs:
 
       - name: Render ruff report
         if: always()
-        run: |
-          uv run kida render .github/kida-templates/ruff-report.md \
-            --data reports/ruff.json --mode markdown \
-            >> $GITHUB_STEP_SUMMARY
+        uses: ./
+        with:
+          template: ruff
+          data: reports/ruff.json
+          post-to: step-summary
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
         continue-on-error: true
 
       - name: Run ruff format check
@@ -171,17 +192,18 @@ jobs:
 
   # Thread safety tests
   thread-safety:
+    name: Thread Safety
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.14t"
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
@@ -200,17 +222,18 @@ jobs:
 
   # Async tests
   async-tests:
+    name: Async Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.14t"
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
@@ -229,18 +252,19 @@ jobs:
 
   # Slow/comprehensive tests (weekly/manual only)
   slow-tests:
+    name: Full Test Suite
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.14t"
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
@@ -259,17 +283,18 @@ jobs:
 
   # Benchmark regression check (runs on PR and main; fails if >threshold slower than baseline)
   benchmark-regression:
+    name: Benchmark Regression
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.14t"
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
@@ -289,18 +314,19 @@ jobs:
 
   # Full benchmark suite (weekly/manual only; uploads results)
   benchmarks:
+    name: Full Benchmarks
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.14t"
 
       - name: Cache uv dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
@@ -315,7 +341,7 @@ jobs:
           uv run pytest benchmarks/ --benchmark-only --benchmark-json=benchmark-results.json -q
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: benchmark-results-${{ github.sha }}
           path: benchmark-results.json
