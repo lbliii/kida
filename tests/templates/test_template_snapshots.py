@@ -37,7 +37,7 @@ def template_name(request):
 def test_template_snapshot(template_name, request):
     """Render a template and compare to golden snapshot."""
     fixture_path = FIXTURES_DIR / f"{template_name}.json"
-    context = json.loads(fixture_path.read_text())
+    context = json.loads(fixture_path.read_text(encoding="utf-8"))
 
     env = markdown_env(loader=FileSystemLoader(str(TEMPLATES_DIR)))
     tpl = env.get_template(f"{template_name}-report.md")
@@ -50,14 +50,14 @@ def test_template_snapshot(template_name, request):
     normalized = output.rstrip() + "\n"
 
     if update or not snapshot_path.exists():
-        snapshot_path.write_text(normalized)
+        snapshot_path.write_text(normalized, encoding="utf-8")
         if not update:
             pytest.fail(
                 f"Snapshot created at {snapshot_path.relative_to(Path.cwd())} — review and re-run"
             )
         return
 
-    expected = snapshot_path.read_text()
+    expected = snapshot_path.read_text(encoding="utf-8")
     assert normalized == expected, (
         f"Snapshot mismatch for {template_name}-report.md.\n"
         f"Run with --update-snapshots to regenerate."

@@ -74,6 +74,19 @@ def lcov_to_dict(path: str | Path) -> dict[str, Any]:
                 total_hit += file_hit
             current_file = None
 
+    # Flush the last file if the LCOV input is missing a trailing end_of_record.
+    if current_file is not None:
+        pct = (file_hit / file_found * 100) if file_found > 0 else 100.0
+        files[current_file] = {
+            "summary": {
+                "percent_covered": round(pct, 2),
+                "lines_found": file_found,
+                "lines_hit": file_hit,
+            }
+        }
+        total_found += file_found
+        total_hit += file_hit
+
     total_pct = (total_hit / total_found * 100) if total_found > 0 else 100.0
 
     return {

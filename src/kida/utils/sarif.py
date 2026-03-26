@@ -49,46 +49,57 @@ def sarif_to_dict(path: str | Path) -> dict[str, Any]:
     if not runs:
         return _empty_result(version)
 
-    run = runs[0]
-    tool_name = run.get("tool", {}).get("driver", {}).get("name", "unknown")
-
     results: list[dict[str, Any]] = []
     errors = 0
     warnings = 0
     notes = 0
+    tool_names: list[str] = []
 
-    for r in run.get("results", []):
-        level = r.get("level", "warning")
-        message = r.get("message", {}).get("text", "")
-        rule_id = r.get("ruleId", "")
+    for run in runs:
+        name = run.get("tool", {}).get("driver", {}).get("name")
+        if name and name not in tool_names:
+            tool_names.append(name)
 
-        # Extract first physical location
-        file = ""
-        line = 0
-        locations = r.get("locations", [])
-        if locations:
-            phys = locations[0].get("physicalLocation", {})
-            artifact = phys.get("artifactLocation", {})
-            file = artifact.get("uri", "")
-            region = phys.get("region", {})
-            line = region.get("startLine", 0)
+        for r in run.get("results", []):
+            level = r.get("level", "warning")
+            message = r.get("message", {}).get("text", "")
+            rule_id = r.get("ruleId", "")
 
-        if level == "error":
-            errors += 1
-        elif level == "warning":
-            warnings += 1
-        else:
-            notes += 1
+            # Extract first physical location
+            file = ""
+            line = 0
+            locations = r.get("locations", [])
+            if locations:
+                phys = locations[0].get("physicalLocation", {})
+                artifact = phys.get("artifactLocation", {})
+                file = artifact.get("uri", "")
+                region = phys.get("region", {})
+                line = region.get("startLine", 0)
 
-        results.append(
-            {
-                "rule_id": rule_id,
-                "level": level,
-                "message": message,
-                "file": file,
-                "line": line,
-            }
-        )
+            if level == "error":
+                errors += 1
+            elif level == "warning":
+                warnings += 1
+            elif level == "note":
+                notes += 1
+            # "none" level results are counted in total but not as problems
+
+            results.append(
+                {
+                    "rule_id": rule_id,
+                    "level": level,
+                    "message": message,
+                    "file": file,
+                    "line": line,
+                }
+            )
+
+    if not tool_names:
+        tool_name = "unknown"
+    elif len(tool_names) == 1:
+        tool_name = tool_names[0]
+    else:
+        tool_name = ", ".join(tool_names)
 
     total = len(results)
 

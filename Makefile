@@ -125,10 +125,21 @@ gh-release:
 	echo "✓ GitHub release v$$VERSION created (PyPI publish will run via workflow)"; \
 	$(MAKE) action-tag
 
-# Move the v0 floating tag so `uses: lbliii/kida@v0` always points to the latest release
+# Move the floating major action tag so `uses: lbliii/kida@v0` tracks the latest release.
+# Requires a clean working tree. Skips if the tag already points to the target.
 action-tag:
-	@VERSION=$$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/'); \
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Error: working tree is not clean. Commit or stash changes first."; \
+		exit 1; \
+	fi; \
+	VERSION=$$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/'); \
 	MAJOR=$$(echo $$VERSION | cut -d. -f1); \
+	CURRENT=$$(git rev-parse v$$MAJOR 2>/dev/null || echo ""); \
+	TARGET=$$(git rev-parse v$$VERSION 2>/dev/null || echo ""); \
+	if [ "$$CURRENT" = "$$TARGET" ] && [ -n "$$CURRENT" ]; then \
+		echo "✓ v$$MAJOR already points to v$$VERSION"; \
+		exit 0; \
+	fi; \
 	echo "Moving action tag v$$MAJOR → v$$VERSION..."; \
 	git tag -f v$$MAJOR v$$VERSION; \
 	git push -f origin v$$MAJOR; \
