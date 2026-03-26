@@ -551,6 +551,11 @@ Available icons (Unicode / ASCII fallback):
 | `heart` | ♥ | `<3` | | `spark` | ✦ | `*` |
 | `lock` | 🔒 | `[L]` | | `folder` | 📁 | `[D]` |
 | `key` | 🔑 | `[K]` | | `file` | 📄 | `[F]` |
+| `fat_arrow` | ⇒ | `=>` | | | | |
+
+There is no generic `icons.arrow` — use a directional variant (`arrow_r`, `arrow_l`,
+`arrow_u`, `arrow_d`) or `fat_arrow` (⇒). If you reference an unknown icon name, Kida
+raises `AttributeError` with "did you mean?" suggestions.
 
 Several icons append VS15 (U+FE0E, Variation Selector 15) to force text presentation and prevent emoji rendering in terminals that would otherwise display them as double-width color emoji.
 

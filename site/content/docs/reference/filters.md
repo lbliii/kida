@@ -64,14 +64,17 @@ Format string with arguments using Python `str.format()` and `{}` placeholders.
 ```kida
 {{ "Hello, {}!" | format(name) }}
 {{ "{} + {} = {}" | format(1, 2, 3) }}
-```
-
-Use `format_number` for numeric formatting helpers. `%`-style format strings are not supported by
-this filter:
-
-```kida
 {{ "{:.2f}" | format(price) }}
 ```
+
+> **`%`-style format strings are not supported.** Using `"%.2f" | format(x)` raises a
+> `ValueError` with a helpful message. For numeric formatting, prefer `decimal` or
+> `format_number`:
+>
+> ```kida
+> {{ price | decimal(2) }}           → 19.99
+> {{ amount | format_number(2) }}    → 1,234.57
+> ```
 
 ### indent
 
