@@ -149,26 +149,52 @@ Kida adds `{% match %}` for cleaner branching:
 
 ## Variables
 
-### set
-
-Assign a variable in the current scope:
-
-```kida
-{% set name = "Alice" %}
-{% set items = [1, 2, 3] %}
-{% set total = price * quantity %}
-```
+Kida has three scoping keywords. Understanding the difference is critical when migrating
+from Jinja2.
 
 ### let
 
-Block-scoped variable (new in Kida):
+Template-wide variable — visible everywhere after assignment:
 
 ```kida
-{% let temp = calculate_value() %}
-{{ temp }}
-{% end %}
-{# temp is not accessible here #}
+{% let name = "Alice" %}
+{% let items = [1, 2, 3] %}
+{% let total = price * quantity %}
+{{ name }}  → Alice
 ```
+
+This is the closest equivalent to Jinja2's `{% set %}`.
+
+### set
+
+Block-scoped variable — **does not leak** out of `{% if %}`, `{% for %}`, or other blocks:
+
+```kida
+{% let x = "outer" %}
+{% if true %}
+    {% set x = "inner" %}
+    {{ x }}  → inner
+{% end %}
+{{ x }}  → outer   {# set did not modify the outer variable #}
+```
+
+> **Coming from Jinja2?** This is the biggest scoping difference. In Jinja2, `set`
+> inside a block modifies the outer variable. In Kida, `set` is block-scoped. Use
+> `let` for template-wide variables or `export` to push values out of blocks.
+
+### export
+
+Promotes a variable from the current block to the parent scope:
+
+```kida
+{% let total = 0 %}
+{% for item in items %}
+    {% export total = total + item.price %}
+{% end %}
+{{ total }}  → sum of all prices
+```
+
+This replaces Jinja2's `namespace()` pattern for accumulating values inside loops.
 
 ## Whitespace Control
 

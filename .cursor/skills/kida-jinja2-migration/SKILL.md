@@ -51,9 +51,29 @@ env.add_test('prime', is_prime)
 
 | Keyword | Scope |
 |---------|-------|
-| `{% set x = ... %}` | Current scope (like Jinja2) |
-| `{% let x = ... %}` | Block-local, does not leak out |
-| `{% export x = ... %}` | Exports to parent scope |
+| `{% let x = ... %}` | Template-wide (like Jinja2's `set`) |
+| `{% set x = ... %}` | Block-scoped — does **not** leak out of `{% if %}`, `{% for %}`, etc. |
+| `{% export x = ... %}` | Promotes variable from inner scope to parent scope |
+
+> **⚠ Key difference from Jinja2:** In Jinja2, `{% set %}` inside `{% if %}` modifies
+> the outer variable. In Kida, `{% set %}` is block-scoped — the value stays inside the
+> block. Use `{% let %}` for template-wide variables, or `{% export %}` to push a value
+> out of a block.
+>
+> ```kida
+> {# Kida: set is block-scoped #}
+> {% let name = "outer" %}
+> {% if true %}
+>     {% set name = "inner" %}  {# does NOT change the outer 'name' #}
+> {% end %}
+> {{ name }}  → outer
+>
+> {# To modify outer scope from inside a block, use export: #}
+> {% if true %}
+>     {% export name = "inner" %}
+> {% end %}
+> {{ name }}  → inner
+> ```
 
 ## Pipeline Operator `|>`
 
@@ -75,19 +95,61 @@ Replace chained `{% if %}`/`{% elif %}` with `{% match %}`:
 {% end %}
 ```
 
-## Strict Mode
+## Strict Mode (Undefined Variables)
 
-Undefined variables raise `UndefinedError` instead of returning empty string. Use `| default()` for optional values:
+Kida raises `UndefinedError` for any undefined variable — it never silently returns an empty
+string like Jinja2. This is the default and cannot be disabled.
 
 ```kida
-{{ user.nickname | default("Anonymous") }}
+{# This raises UndefinedError if 'nickname' is not in the context #}
+{{ nickname }}
+
+{# Use | default() for optional values #}
+{{ nickname | default("Anonymous") }}
+
+{# Use 'is defined' test for conditional logic #}
+{% if nickname is defined %}
+    Hello, {{ nickname }}
+{% end %}
 ```
+
+> **Migration tip:** Audit every variable in your Jinja2 templates. Any variable that
+> might not be passed to `render()` needs `| default(...)` or an `is defined` guard.
 
 ## New Kida Features
 
 - **`{% cache key %}...{% end %}`** — Built-in block caching
 - **Native async** — `{% async for %}`, `{{ await expr }}`
 - **Streaming** — `template.render_stream()` for HTMX/SSE
+
+## No `namespace()` Support
+
+Jinja2's `namespace()` object does not exist in Kida. Use the scoping keywords instead:
+
+| Jinja2 pattern | Kida equivalent |
+|---------------|-----------------|
+| `{% set ns = namespace(count=0) %}` | `{% let count = 0 %}` |
+| `{% set ns.count = ns.count + 1 %}` (inside loop) | `{% export count = count + 1 %}` |
+
+## `format` Filter Uses `str.format()`
+
+The `format` filter uses Python's `str.format()` with `{}` placeholders — **not** `%`-style:
+
+```kida
+{# Correct — str.format() style #}
+{{ "Hello, {}!" | format(name) }}
+{{ "{:.2f}" | format(price) }}
+
+{# WRONG — %-style will raise an error #}
+{{ "%.2f" | format(price) }}
+```
+
+For numeric formatting, prefer the dedicated filters:
+
+```kida
+{{ price | decimal(2) }}           → 19.99
+{{ amount | format_number(2) }}    → 1,234.57
+```
 
 ## Common Migration Errors
 
@@ -96,6 +158,10 @@ Undefined variables raise `UndefinedError` instead of returning empty string. Us
 | `ImportError: Markup from markupsafe` | Import `Markup` from `kida` |
 | `FilterRegistry does not support item assignment` | Use `env.add_filter(name, func)` |
 | `Unexpected tag 'endif'` | Use `{% end %}` not `{% endif %}` |
+| `UndefinedError: 'varname' is not defined` | Add `| default("")` or pass it to `render()` |
+| `format filter uses str.format()` | Use `{}` placeholders, not `%s`/`%.2f` |
+| `Unknown icon 'arrow'` | Use directional variant: `icons.arrow_r`, `arrow_l`, `arrow_u`, `arrow_d` |
+| Variable doesn't update outside `{% if %}` | `{% set %}` is block-scoped — use `{% let %}` or `{% export %}` |
 
 ## Verification
 
