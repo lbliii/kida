@@ -46,11 +46,11 @@ def test_template_snapshot(template_name, request):
     snapshot_path = SNAPSHOTS_DIR / f"{template_name}-report.md"
     update = request.config.getoption("--update-snapshots")
 
-    # Ensure snapshot files end with newline (satisfies end-of-file-fixer hook)
-    snapshot_content = output if output.endswith("\n") else output + "\n"
+    # Normalize: strip trailing whitespace, add single newline (end-of-file-fixer compat)
+    normalized = output.rstrip() + "\n"
 
     if update or not snapshot_path.exists():
-        snapshot_path.write_text(snapshot_content)
+        snapshot_path.write_text(normalized)
         if not update:
             pytest.fail(
                 f"Snapshot created at {snapshot_path.relative_to(Path.cwd())} — review and re-run"
@@ -58,7 +58,7 @@ def test_template_snapshot(template_name, request):
         return
 
     expected = snapshot_path.read_text()
-    assert snapshot_content == expected, (
+    assert normalized == expected, (
         f"Snapshot mismatch for {template_name}-report.md.\n"
         f"Run with --update-snapshots to regenerate."
     )
