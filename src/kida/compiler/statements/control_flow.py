@@ -277,6 +277,9 @@ class ControlFlowMixin:
         """
         # Get the loop variable name(s) and register as locals + loop_vars
         var_names = self._extract_names(node.target)
+        # Snapshot which names are already locals (from an outer loop) so we
+        # don't discard them during cleanup — only discard what *this* loop added.
+        prev_local_vars = {v for v in var_names if v in self._locals}
         for var_name in var_names:
             self._locals.add(var_name)
             self._loop_vars.add(var_name)
@@ -284,6 +287,11 @@ class ControlFlowMixin:
         # Check if loop.* properties are used in the body or test
         # This determines whether we need LoopContext or can iterate directly
         uses_loop = self._uses_loop_variable(node.body) or self._uses_loop_variable(node.test)
+
+        # Track whether 'loop' was already registered by an enclosing for-loop.
+        # If so, we must save/restore it at runtime and keep it in _locals after
+        # this loop's cleanup so outer references still compile as LOAD_FAST.
+        loop_was_local = "loop" in self._locals
 
         # Only register 'loop' as a local if it's actually used
         if uses_loop:
@@ -295,9 +303,11 @@ class ControlFlowMixin:
 
         stmts: list[ast.stmt] = []
 
-        # Use unique variable name to avoid conflicts with nested loops
+        # Use unique variable name to avoid conflicts with nested loops.
+        # Capture the counter value now — body compilation may increment it further.
         self._block_counter += 1
-        iter_var = f"_iter_source_{self._block_counter}"
+        my_counter = self._block_counter
+        iter_var = f"_iter_source_{my_counter}"
         has_empty = bool(node.empty)
 
         # _iter_source_N = iterable
@@ -330,7 +340,7 @@ class ControlFlowMixin:
 
         if uses_loop:
             # ── Path A: loop.* used — must materialize list for LoopContext ──
-            loop_items_var = f"_loop_items_{self._block_counter}"
+            loop_items_var = f"_loop_items_{my_counter}"
 
             # _loop_items_N = list(_iter_source_N) if _iter_source_N is not None else []
             stmts.append(
@@ -352,24 +362,49 @@ class ControlFlowMixin:
                 )
             )
 
-            loop_body_stmts: list[ast.stmt] = [
-                # loop = _LoopContext(_loop_items_N)
-                ast.Assign(
-                    targets=[ast.Name(id="loop", ctx=ast.Store())],
-                    value=ast.Call(
-                        func=ast.Name(id="_LoopContext", ctx=ast.Load()),
-                        args=[ast.Name(id=loop_items_var, ctx=ast.Load())],
-                        keywords=[],
+            loop_body_stmts: list[ast.stmt] = []
+
+            # If an outer loop already owns 'loop', save it before we overwrite.
+            # _loop_save_N = loop
+            loop_save_var = f"_loop_save_{my_counter}"
+            if loop_was_local:
+                loop_body_stmts.append(
+                    ast.Assign(
+                        targets=[ast.Name(id=loop_save_var, ctx=ast.Store())],
+                        value=ast.Name(id="loop", ctx=ast.Load()),
+                    )
+                )
+
+            loop_body_stmts.extend(
+                [
+                    # loop = _LoopContext(_loop_items_N)
+                    ast.Assign(
+                        targets=[ast.Name(id="loop", ctx=ast.Store())],
+                        value=ast.Call(
+                            func=ast.Name(id="_LoopContext", ctx=ast.Load()),
+                            args=[ast.Name(id=loop_items_var, ctx=ast.Load())],
+                            keywords=[],
+                        ),
                     ),
-                ),
-                # for item in loop:
-                ast.For(
-                    target=target,
-                    iter=ast.Name(id="loop", ctx=ast.Load()),
-                    body=body,
-                    orelse=[],
-                ),
-            ]
+                    # for item in loop:
+                    ast.For(
+                        target=target,
+                        iter=ast.Name(id="loop", ctx=ast.Load()),
+                        body=body,
+                        orelse=[],
+                    ),
+                ]
+            )
+
+            # Restore outer loop after inner loop finishes.
+            # loop = _loop_save_N
+            if loop_was_local:
+                loop_body_stmts.append(
+                    ast.Assign(
+                        targets=[ast.Name(id="loop", ctx=ast.Store())],
+                        value=ast.Name(id=loop_save_var, ctx=ast.Load()),
+                    )
+                )
 
             # Compile the empty block
             orelse = []
@@ -386,7 +421,7 @@ class ControlFlowMixin:
         elif has_empty:
             # ── Path B: no loop.*, has {% empty %} — sentinel pattern ──
             # Avoids list() materialization; uses _had_items flag like async for.
-            had_items_var = f"_had_items_{self._block_counter}"
+            had_items_var = f"_had_items_{my_counter}"
 
             # _had_items_N = False
             stmts.append(
@@ -469,11 +504,14 @@ class ControlFlowMixin:
                 )
             )
 
-        # Remove loop variables from locals and loop_vars after the loop
+        # Remove loop variables from locals and loop_vars after the loop.
+        # Only discard names that *this* loop introduced — preserve names that
+        # were already locals from an enclosing loop.
         for var_name in var_names:
-            self._locals.discard(var_name)
-            self._loop_vars.discard(var_name)
-        if uses_loop:
+            if var_name not in prev_local_vars:
+                self._locals.discard(var_name)
+                self._loop_vars.discard(var_name)
+        if uses_loop and not loop_was_local:
             self._locals.discard("loop")
             self._loop_vars.discard("loop")
 
@@ -513,12 +551,15 @@ class ControlFlowMixin:
             return [ast.Pass()]
         # Get the loop variable name(s) and register as locals + loop_vars
         var_names = self._extract_names(node.target)
+        prev_local_vars = {v for v in var_names if v in self._locals}
         for var_name in var_names:
             self._locals.add(var_name)
             self._loop_vars.add(var_name)
 
         # Check if loop.* properties are used in the body or test
         uses_loop = self._uses_loop_variable(node.body) or self._uses_loop_variable(node.test)
+
+        loop_was_local = "loop" in self._locals
 
         if uses_loop:
             self._locals.add("loop")
@@ -529,9 +570,11 @@ class ControlFlowMixin:
 
         stmts: list[ast.stmt] = []
 
-        # Use unique variable names to avoid conflicts with nested loops
+        # Use unique variable names to avoid conflicts with nested loops.
+        # Capture the counter value now — body compilation may increment it further.
         self._block_counter += 1
-        had_items_var = f"_had_items_{self._block_counter}"
+        my_counter = self._block_counter
+        had_items_var = f"_had_items_{my_counter}"
 
         # _had_items_N = False  (for {% empty %} detection)
         stmts.append(
@@ -552,7 +595,18 @@ class ControlFlowMixin:
             )
         )
 
+        loop_save_var = f"_loop_save_{my_counter}"
+
         if uses_loop:
+            # Save outer loop if present
+            if loop_was_local:
+                stmts.append(
+                    ast.Assign(
+                        targets=[ast.Name(id=loop_save_var, ctx=ast.Store())],
+                        value=ast.Name(id="loop", ctx=ast.Load()),
+                    )
+                )
+
             # loop = _AsyncLoopContext()  (before the async for)
             stmts.append(
                 ast.Assign(
@@ -612,6 +666,15 @@ class ControlFlowMixin:
             )
         )
 
+        # Restore outer loop after inner async loop finishes
+        if uses_loop and loop_was_local:
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="loop", ctx=ast.Store())],
+                    value=ast.Name(id=loop_save_var, ctx=ast.Load()),
+                )
+            )
+
         # Compile the empty block (for empty iterable)
         orelse = []
         for child in node.empty:
@@ -630,11 +693,14 @@ class ControlFlowMixin:
                 )
             )
 
-        # Remove loop variables from locals and loop_vars after the loop
+        # Remove loop variables from locals and loop_vars after the loop.
+        # Only discard names that *this* loop introduced — preserve names that
+        # were already locals from an enclosing loop.
         for var_name in var_names:
-            self._locals.discard(var_name)
-            self._loop_vars.discard(var_name)
-        if uses_loop:
+            if var_name not in prev_local_vars:
+                self._locals.discard(var_name)
+                self._loop_vars.discard(var_name)
+        if uses_loop and not loop_was_local:
             self._locals.discard("loop")
             self._loop_vars.discard("loop")
 

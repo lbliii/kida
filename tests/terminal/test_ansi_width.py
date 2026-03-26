@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
+
 from kida.utils.ansi_width import (
+    WidthStrategy,
     ansi_center,
     ansi_ljust,
     ansi_rjust,
     ansi_truncate,
     ansi_wrap,
+    configure_width,
     visible_len,
 )
 
@@ -266,3 +270,71 @@ class TestAnsiWrap:
         lines = result.split("\n")
         for line in lines:
             assert visible_len(line) <= 3
+
+
+# ===================================================================
+# WidthStrategy / configure_width
+# ===================================================================
+
+
+@pytest.fixture(autouse=False)
+def _reset_width_strategy():
+    """Reset the module-level width strategy after each test."""
+    yield
+    configure_width(ambiguous_width=1, use_wcwidth=False)
+
+
+class TestWidthStrategy:
+    """Tests for WidthStrategy and configure_width."""
+
+    def test_default_strategy_narrow(self, _reset_width_strategy) -> None:
+        configure_width(ambiguous_width=1, use_wcwidth=False)
+        # ★ (U+2605) is East Asian Width "A" (Ambiguous) → width 1
+        assert visible_len("\u2605") == 1
+        # ⚙ (U+2699) is EAW "N" but a symbol above U+2000 → width 1
+        assert visible_len("\u2699") == 1
+
+    def test_wide_strategy(self, _reset_width_strategy) -> None:
+        configure_width(ambiguous_width=2, use_wcwidth=False)
+        # ★ (U+2605) → now width 2
+        assert visible_len("\u2605") == 2
+        # ⚙ (U+2699) → now width 2
+        assert visible_len("\u2699") == 2
+        # ▶ (U+25B6) is EAW "A" → width 2
+        assert visible_len("\u25b6") == 2
+
+    def test_ascii_unaffected_by_strategy(self, _reset_width_strategy) -> None:
+        configure_width(ambiguous_width=2, use_wcwidth=False)
+        assert visible_len("hello") == 5
+        assert visible_len("A") == 1
+
+    def test_wide_fullwidth_always_2(self, _reset_width_strategy) -> None:
+        configure_width(ambiguous_width=1, use_wcwidth=False)
+        # ⚡ (U+26A1) is EAW "W" → always 2 regardless of strategy
+        assert visible_len("\u26a1") == 2
+        # Fullwidth A (U+FF21) is EAW "F" → always 2
+        assert visible_len("\uff21") == 2
+
+    def test_strategy_affects_padding(self, _reset_width_strategy) -> None:
+        configure_width(ambiguous_width=2, use_wcwidth=False)
+        # ★ is now width 2, so "★x" is 3 visible chars
+        s = "\u2605x"
+        assert visible_len(s) == 3
+        padded = ansi_ljust(s, 6)
+        assert visible_len(padded) == 6
+        assert padded == s + "   "
+
+    def test_strategy_affects_ansi_content(self, _reset_width_strategy) -> None:
+        configure_width(ambiguous_width=2, use_wcwidth=False)
+        colored_star = f"{RED}\u2605{RESET}"
+        assert visible_len(colored_star) == 2
+
+    def test_configure_returns_strategy(self, _reset_width_strategy) -> None:
+        s = configure_width(ambiguous_width=2, use_wcwidth=False)
+        assert isinstance(s, WidthStrategy)
+        assert s.ambiguous_width == 2
+        assert s._wcwidth_fn is None
+
+    def test_configure_without_wcwidth(self, _reset_width_strategy) -> None:
+        s = configure_width(ambiguous_width=1, use_wcwidth=False)
+        assert s._wcwidth_fn is None

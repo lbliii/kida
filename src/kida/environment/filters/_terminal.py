@@ -125,16 +125,30 @@ def _parse_color_arg(color: Any) -> tuple[str, int | tuple[int, int, int]]:
 # =============================================================================
 
 
-def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str, Any]:
+def make_terminal_filters(
+    color: bool = True,
+    unicode: bool = True,
+    color_depth: str | None = None,
+) -> dict[str, Any]:
     """Build terminal filter dict with closures bound to capability flags.
 
     Args:
         color: Whether ANSI color codes should be emitted.
         unicode: Whether Unicode box-drawing / icon characters are available.
+        color_depth: Terminal color depth: ``"none"``, ``"basic"``, ``"256"``,
+            or ``"truecolor"``.  When provided, ``fg()`` and ``bg()`` degrade
+            gracefully — e.g. RGB values are mapped to the nearest 256-color
+            or basic-16 code when the terminal doesn't support truecolor.
+            If *None*, falls back to ``"truecolor"`` when *color* is True.
 
     Returns:
         Dict mapping filter name to callable, ready for environment registration.
     """
+    # Resolve color_depth from the bool flag if not explicitly provided
+    if color_depth is None:
+        color_depth = "truecolor" if color else "none"
+    color = color_depth != "none"
+
     filters: dict[str, Any] = {}
 
     # -----------------------------------------------------------------
@@ -174,30 +188,64 @@ def make_terminal_filters(color: bool = True, unicode: bool = True) -> dict[str,
             filters[name] = _deco_noop
 
     # -----------------------------------------------------------------
-    # Extended color: fg / bg
+    # Extended color: fg / bg (with color depth fallback)
     # -----------------------------------------------------------------
+    _depth = color_depth  # capture for closures
+
     if color:
+        from kida.utils.color_convert import (
+            index256_to_basic_fg,
+            rgb_to_256,
+            rgb_to_basic_fg,
+        )
 
         def _filter_fg(value: Any, color_arg: Any) -> Styled:
             mode, val = _parse_color_arg(color_arg)
             s = ansi_sanitize(value)
+
             if mode == "sgr":
+                # Named colors always work at basic depth
                 return Styled(f"\033[{val}m{s}{_RESET}")
-            if mode == "256":
+
+            if mode == "rgb":
+                r, g, b = val  # type: ignore[misc]
+                if _depth == "truecolor":
+                    return Styled(f"\033[38;2;{r};{g};{b}m{s}{_RESET}")
+                if _depth == "256":
+                    return Styled(f"\033[38;5;{rgb_to_256(r, g, b)}m{s}{_RESET}")
+                # basic — map to nearest 16-color
+                return Styled(f"\033[{rgb_to_basic_fg(r, g, b)}m{s}{_RESET}")
+
+            # mode == "256"
+            assert isinstance(val, int)
+            if _depth in ("truecolor", "256"):
                 return Styled(f"\033[38;5;{val}m{s}{_RESET}")
-            r, g, b = val  # type: ignore[misc]
-            return Styled(f"\033[38;2;{r};{g};{b}m{s}{_RESET}")
+            # basic — map 256 index to nearest 16-color
+            return Styled(f"\033[{index256_to_basic_fg(val)}m{s}{_RESET}")
 
         def _filter_bg(value: Any, color_arg: Any) -> Styled:
             mode, val = _parse_color_arg(color_arg)
             s = ansi_sanitize(value)
+
             if mode == "sgr":
                 assert isinstance(val, int)
                 return Styled(f"\033[{val + 10}m{s}{_RESET}")
-            if mode == "256":
+
+            if mode == "rgb":
+                r, g, b = val  # type: ignore[misc]
+                if _depth == "truecolor":
+                    return Styled(f"\033[48;2;{r};{g};{b}m{s}{_RESET}")
+                if _depth == "256":
+                    return Styled(f"\033[48;5;{rgb_to_256(r, g, b)}m{s}{_RESET}")
+                # basic — map to nearest 16-color bg (fg code + 10)
+                return Styled(f"\033[{rgb_to_basic_fg(r, g, b) + 10}m{s}{_RESET}")
+
+            # mode == "256"
+            assert isinstance(val, int)
+            if _depth in ("truecolor", "256"):
                 return Styled(f"\033[48;5;{val}m{s}{_RESET}")
-            r, g, b = val  # type: ignore[misc]
-            return Styled(f"\033[48;2;{r};{g};{b}m{s}{_RESET}")
+            # basic — map 256 index to nearest 16-color bg
+            return Styled(f"\033[{index256_to_basic_fg(val) + 10}m{s}{_RESET}")
 
     else:
 

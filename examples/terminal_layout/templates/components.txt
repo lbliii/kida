@@ -1,0 +1,88 @@
+{#- ─── COMPONENT LAYER ─────────────────────────────────────────────────────
+    Self-contained panels built from primitives. Each captures its caller
+    content, splits on newlines, and wraps every line in borders.
+─────────────────────────────────────────────────────────────────────────── -#}
+
+{% from "primitives.txt" import row, cols, rule %}
+
+{%- let _box_set = box if box is defined else none -%}
+
+
+{#- panel — Bordered box with optional title bar and padding.
+    The workhorse component. All content lines get ANSI-aware padding.
+
+    Usage:
+        {% call panel(title="CPU Usage", width=60) %}
+        Core 0   ████████░░░░ 67%
+        Core 1   ███░░░░░░░░░ 25%
+        {% endcall %}
+-#}
+{% def panel(title="", width=0, style="round", padding=1) %}
+{%- set w = width if width > 0 else (columns if columns is defined else 80) -%}
+{%- set b = _box_set | attr(style) -%}
+{%- set inner = w - 2 -%}
+{%- set ps = " " * padding -%}
+{%- set cw = inner - padding * 2 -%}
+{%- if title -%}
+{{ b.tl }}{{ b.h }} {{ title | bold | cyan }} {{ b.h * (inner - (title | length) - 4) }}{{ b.tr }}
+{%- else -%}
+{{ b.tl }}{{ b.h * inner }}{{ b.tr }}
+{%- endif %}
+{% for line in caller().split("\n") -%}
+{% if line.strip() or not loop.last -%}
+{{ b.v }}{{ ps }}{{ line | pad(cw) }}{{ ps }}{{ b.v }}
+{% endif -%}
+{% endfor -%}
+{{ b.bl }}{{ b.h * inner }}{{ b.br }}
+{%- end %}
+
+{#- header — Prominent top banner with double borders.
+    Use for the app-shell title bar.
+
+    Usage:
+        {% call header(width=60) %}
+        ⚙ SYSTEM MONITOR          prod-01      up 42d
+        {% endcall %}
+-#}
+{% def header(width=0, style="double") %}
+{%- set w = width if width > 0 else (columns if columns is defined else 80) -%}
+{%- set b = _box_set | attr(style) -%}
+{%- set inner = w - 2 -%}
+{{ b.tl }}{{ b.h * inner }}{{ b.tr }}
+{% for line in caller().split("\n") -%}
+{% if line.strip() or not loop.last -%}
+{{ b.v }} {{ line | pad(inner - 2) }} {{ b.v }}
+{% endif -%}
+{% endfor -%}
+{{ b.bl }}{{ b.h * inner }}{{ b.br }}
+{%- end %}
+
+{#- footer — Heavy-bordered summary bar.
+    Use for final status / verdict banners.
+
+    Usage:
+        {% call footer(width=60) %}
+        ✓ ALL TESTS PASSED
+        {% endcall %}
+-#}
+{% def footer(width=0, style="heavy") %}
+{%- set w = width if width > 0 else (columns if columns is defined else 80) -%}
+{%- set b = _box_set | attr(style) -%}
+{%- set inner = w - 2 -%}
+{{ b.tl }}{{ b.h * inner }}{{ b.tr }}
+{% for line in caller().split("\n") -%}
+{% if line.strip() or not loop.last -%}
+{{ b.v }} {{ line | pad(inner - 2) }} {{ b.v }}
+{% endif -%}
+{% endfor -%}
+{{ b.bl }}{{ b.h * inner }}{{ b.br }}
+{%- end %}
+
+{#- connector — Vertical pipe between panels. Visual continuity.
+
+    Usage:
+        {{ connector() }}
+-#}
+{% def connector(indent=2) %}
+{{- " " * indent }}{{ box.light.v if _box_set else "|" }}
+{%- end %}

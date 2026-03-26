@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
+from typing import Any
 
 # Pre-compiled regex matching SGR, OSC, and CSI escape sequences.
 # Covers the vast majority of terminal escape codes:
@@ -21,17 +23,128 @@ import unicodedata
 _ANSI_RE = re.compile(r"\033\[[^m]*m|\033\].*?(?:\007|\033\\)|\033\[[^a-zA-Z]*[a-zA-Z]")
 
 
+# =============================================================================
+# Width Strategy — configurable character width measurement
+# =============================================================================
+
+
+@dataclass(frozen=True, slots=True)
+class WidthStrategy:
+    """Controls how ambiguous-width characters are measured.
+
+    Attributes:
+        ambiguous_width: Width to assign East Asian Ambiguous ("A") characters
+            and symbol characters above U+2000 with Neutral ("N") width.
+            Use 1 for most Western terminals, 2 for CJK-locale terminals
+            or terminals that render these symbols at double width.
+        _wcwidth_fn: Optional ``wcwidth.wcwidth`` function. When set, this
+            takes precedence over the heuristic for non-wide characters.
+    """
+
+    ambiguous_width: int = 1
+    _wcwidth_fn: Any = None  # Callable[[str], int] | None
+
+
+# Module-level singleton — configured once, used by all width functions.
+_strategy: WidthStrategy = WidthStrategy()
+
+
+def configure_width(
+    ambiguous_width: int = 1,
+    use_wcwidth: bool = True,
+) -> WidthStrategy:
+    """Configure the global character width measurement strategy.
+
+    Called by ``_init_terminal_mode()`` during Environment setup. The resolved
+    strategy is stored at module level and automatically used by all width
+    functions (``visible_len``, ``ansi_ljust``, ``pad`` filter, etc.).
+
+    Args:
+        ambiguous_width: Width for ambiguous characters (1 or 2).
+        use_wcwidth: If True, attempt to import ``wcwidth`` for precise
+            per-character widths. Falls back gracefully if not installed.
+
+    Returns:
+        The resolved ``WidthStrategy``.
+    """
+    global _strategy
+
+    wcwidth_fn = None
+    if use_wcwidth:
+        try:
+            from wcwidth import wcwidth as _wcwidth  # type: ignore[import-not-found]
+
+            wcwidth_fn = _wcwidth
+        except ImportError:
+            pass
+
+    _strategy = WidthStrategy(
+        ambiguous_width=ambiguous_width,
+        _wcwidth_fn=wcwidth_fn,
+    )
+    return _strategy
+
+
 def _char_width(c: str) -> int:
-    """Return the terminal display width of a single character."""
+    """Return the terminal display width of a single character.
+
+    Consults the module-level ``_strategy`` for ambiguous character handling:
+    1. If ``wcwidth`` is available, uses it (returns 1 or 2 per character).
+    2. Otherwise, uses ``unicodedata.east_asian_width`` with the configured
+       ``ambiguous_width`` for "A" (Ambiguous) and high-range "N" (Neutral)
+       symbols that many terminals render as double-width.
+    """
+    # Fast path for ASCII (the vast majority of template text)
+    o = ord(c)
+    if o < 0x7F:
+        return 1
+
+    # Variation selectors (VS1-VS16, VS17-VS256) are zero-width.
+    # VS15 (U+FE0E) forces text presentation; VS16 (U+FE0F) forces emoji.
+    # Both are invisible combining characters.
+    if 0xFE00 <= o <= 0xFE0F or 0xE0100 <= o <= 0xE01EF:
+        return 0
+
+    # wcwidth, when available, is the most accurate per-terminal match
+    if _strategy._wcwidth_fn is not None:
+        w = _strategy._wcwidth_fn(c)
+        if w >= 0:
+            return w
+        return 1  # Control characters / unassigned → treat as 1
+
     eaw = unicodedata.east_asian_width(c)
-    if eaw in ("W", "F"):  # Wide or Fullwidth
+    if eaw in ("W", "F"):  # Wide or Fullwidth — always 2
         return 2
+    if eaw == "A":  # Ambiguous — terminal-dependent
+        return _strategy.ambiguous_width
+    # Neutral symbols above U+2000 (miscellaneous symbols, dingbats, etc.)
+    # are often rendered as double-width in emoji-capable terminals even
+    # though Unicode classifies them as Neutral.
+    if o >= 0x2000 and eaw == "N" and unicodedata.category(c).startswith(("S", "So")):
+        return _strategy.ambiguous_width
     return 1
 
 
 def _str_width(s: str) -> int:
-    """Return the total display width of a string (no ANSI)."""
-    return sum(_char_width(c) for c in s)
+    """Return the total display width of a string (no ANSI).
+
+    Handles VS15 (U+FE0E) text presentation selector: when a character
+    is followed by VS15, the terminal renders it at width 1 regardless
+    of its normal East Asian Width. The VS15 itself is zero-width.
+    """
+    total = 0
+    chars = list(s)
+    i = 0
+    while i < len(chars):
+        c = chars[i]
+        # Check if next char is VS15 (text presentation selector)
+        if i + 1 < len(chars) and chars[i + 1] == "\ufe0e":
+            total += 1  # VS15 forces width 1
+            i += 2  # skip both the char and VS15
+        else:
+            total += _char_width(c)
+            i += 1
+    return total
 
 
 # =============================================================================
@@ -417,10 +530,12 @@ def _force_break_word(
 # =============================================================================
 
 __all__ = [
+    "WidthStrategy",
     "ansi_center",
     "ansi_ljust",
     "ansi_rjust",
     "ansi_truncate",
     "ansi_wrap",
+    "configure_width",
     "visible_len",
 ]

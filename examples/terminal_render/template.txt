@@ -1,0 +1,52 @@
+{#- Service status dashboard — designed for `kida render`.
+
+    Run with:
+        kida render examples/terminal_render/template.txt --data examples/terminal_render/data.json
+        kida render examples/terminal_render/template.txt --data examples/terminal_render/data.json --width 60
+        kida render examples/terminal_render/template.txt --data examples/terminal_render/data.json --color basic
+        kida render examples/terminal_render/template.txt --data examples/terminal_render/data.json --color 256
+
+    Demonstrates:
+        - CLI render command (kida render)
+        - Color depth fallback (RGB hex -> 256 -> basic 16)
+        - Responsive layout (stack component)
+-#}
+{% from "components.txt" import header, panel, footer, stack %}
+{% set w = columns if columns is defined else 80 -%}
+
+{% call header(width=w) -%}
+{{ icons.gear | fg("#00ccff") }} {{ app | bold | fg("#00ccff") | pad(20) }}{{ ("v" ~ version) | dim | pad(12) }}{{ environment | fg("#44cc44") | pad(14) }}{{ region | dim }}
+{% endcall %}
+
+{% call panel(title="Services", width=w) -%}
+
+  {{ "SERVICE" | underline | pad(18) }} {{ "STATUS" | underline | pad(10) }} {{ "LATENCY" | underline | pad(10, align="right") }} {{ "REQ/S" | underline | pad(10, align="right") }}
+{% for svc in services -%}
+  {{ svc.name | fg(svc.color) | pad(18) }} {{ svc.status | badge | pad(10) }} {{ svc.latency | dim | pad(10, align="right") }} {{ (svc.rps ~ "") | bold | pad(10, align="right") }}
+{% endfor %}
+
+{% endcall %}
+
+{% call panel(title="Metrics", width=w) -%}
+
+{% call stack(threshold=50, sep="   ") %}
+{{ icons.star | fg("#ffaa00") }} {{ "Latency" | bold }}
+  p50 {{ metrics.p50 | pad(8, align="right") }}
+  p95 {{ metrics.p95 | pad(8, align="right") }}
+  p99 {{ metrics.p99 | pad(8, align="right") }}
+|||
+{{ icons.zap | fg("#ff4444") }} {{ "Health" | bold }}
+  Uptime     {{ metrics.uptime }}
+  Error Rate {{ metrics.error_rate }}
+  Active     {{ metrics.active_conns }}
+{% endcall %}
+
+{% endcall %}
+
+{% call panel(title="Recent Deploys", width=w) -%}
+
+{% for d in recent_deploys -%}
+  {{ d.version | bold | pad(12) }} {{ d.time | dim | pad(10) }} {{ d.status | badge }}
+{% endfor %}
+
+{% endcall -%}

@@ -1,0 +1,42 @@
+{#- ─── PRIMITIVE LAYER ─────────────────────────────────────────────────────
+    Low-level building blocks. These produce single lines or simple values.
+    Everything above is built from these.
+─────────────────────────────────────────────────────────────────────────── -#}
+
+{%- let _box_set = box if box is defined else none -%}
+
+
+{#- row — ANSI-aware bordered line. The single most important primitive.
+    Pads content to exact visible width, then wraps in border characters.
+
+    Usage:
+        {{ row("  Name: " ~ (name | bold), w) }}
+        {{ row("", w) }}                          {# blank bordered line #}
+-#}
+{% def row(content, width, border="│") %}
+{{- border }} {{ content | pad(width - 4) }} {{ border -}}
+{% end %}
+
+
+{#- cols — Multi-column layout in a single ANSI-aware string.
+    Takes a list of (content, width) pairs. Pads each cell independently.
+
+    Usage:
+        {{ cols([("Name" | bold, 20), (status | badge, 8), (time | dim, 12)]) }}
+-#}
+{% def cols(cells, sep=" ") %}
+{%- for content, width in cells -%}
+{{ content | pad(width) }}{% if not loop.last %}{{ sep }}{% endif -%}
+{%- endfor -%}
+{% end %}
+
+
+{#- rule — Horizontal rule with optional title. Thin wrapper around hr().
+
+    Usage:
+        {{ rule(w) }}
+        {{ rule(w, title="Section") }}
+-#}
+{% def rule(width, title="", char="─") %}
+{{- hr(width, char=char, title=title) -}}
+{% end %}

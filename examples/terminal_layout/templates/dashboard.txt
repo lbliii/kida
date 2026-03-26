@@ -1,0 +1,33 @@
+{#- ─── DASHBOARD — built from components ──────────────────────────────────
+    Demonstrates the full layer stack:
+      primitives  →  row(), cols(), rule()
+      components  →  header(), panel(), footer(), connector()
+      this file   →  application-level layout using all of the above
+─────────────────────────────────────────────────────────────────────────── -#}
+{%- from "components.txt" import header, panel, footer, connector -%}
+{%- from "primitives.txt" import cols, rule -%}
+
+{#- ─── APP SHELL ─── -#}
+{%- call header(width=w) -%}
+{{ icons.gear | bright_cyan }} {{ "DEPLOY PIPELINE" | bold | bright_cyan | pad(24) }}{{ version | dim | pad(12) }}{{ target | yellow | pad(w - 46) }}
+{{ "Triggered by" | dim }} {{ author | bold | pad(14) }}{{ branch | cyan }}{{ " @ " | dim }}{{ sha | yellow | pad(w - 40 - (branch | length)) }}
+{%- endcall %}
+{% for stage in stages -%}
+{% call panel(title=stage.name, width=w) -%}
+{% set si = icons.check | green if stage.status == "pass" else (icons.play | cyan if stage.status == "running" else icons.cross | red) -%}
+{{ cols([(si ~ " " ~ (stage.name | bold), 28), (stage.status | badge, 10), (stage.duration | dim, w - 48)]) }}
+{{ rule(w - 6) }}
+{% for step in stage.steps -%}
+{% set icon = icons.check | green if step.status == "pass" else (icons.play | cyan if step.status == "running" else (icons.cross | red if step.status == "fail" else icons.circle | dim)) -%}
+{{ cols([("  " ~ icon ~ " " ~ step.name, 30), (step.status | badge, 10), (step.duration | dim, w - 50)]) }}
+{% endfor -%}
+{%- endcall %}
+{% if not loop.last -%}
+{{ connector() }}
+{% endif -%}
+{% endfor -%}
+{% call footer(width=w) -%}
+{{ icons.zap | yellow }} {{ "SUMMARY" | bold | yellow | pad(16) }}{{ "Duration" | kv(total_duration, width=w - 26) }}
+{{ " " * 19 }}{{ "Stages" | kv(stages | length ~ " / " ~ stages | length, width=w - 26) }}
+{{ " " * 19 }}{{ "Status" | kv(final_status, width=w - 26) }}
+{%- endcall %}

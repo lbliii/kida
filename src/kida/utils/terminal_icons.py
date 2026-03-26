@@ -22,17 +22,23 @@ from kida.utils.terminal_escape import Styled
 # Icon Definitions — (unicode, ascii_fallback)
 # =============================================================================
 
+# VS15 (U+FE0E) — Variation Selector 15 — forces text presentation.
+# Without it, terminals may render certain codepoints as color emoji
+# (double-width, misaligned, wrong style). Appending VS15 says
+# "render this as a monospace text glyph, not an emoji."
+_VS15 = "\ufe0e"
+
 _ICONS: dict[str, tuple[str, str]] = {
     # Status
     "check": ("✓", "[ok]"),
     "cross": ("✗", "[FAIL]"),
-    "warn": ("⚠", "[!]"),
+    "warn": (f"⚠{_VS15}", "[!]"),
     "info": ("ℹ", "[i]"),  # noqa: RUF001
     "dot": ("●", "*"),
     "circle": ("○", "o"),
     "diamond": ("◆", "*"),
-    "star": ("★", "*"),
-    "heart": ("♥", "<3"),
+    "star": (f"★{_VS15}", "*"),
+    "heart": (f"♥{_VS15}", "<3"),
     "flag": ("⚑", "[F]"),
     # Arrows
     "arrow_r": ("→", "->"),
@@ -42,10 +48,10 @@ _ICONS: dict[str, tuple[str, str]] = {
     "fat_arrow": ("⇒", "=>"),
     "ret": ("↵", "<-"),
     # Progress / activity
-    "play": ("▶", ">"),
-    "pause": ("⏸", "||"),
+    "play": (f"▶{_VS15}", ">"),
+    "pause": (f"⏸{_VS15}", "||"),
     "stop": ("■", "[]"),
-    "record": ("⏺", "(o)"),
+    "record": (f"⏺{_VS15}", "(o)"),
     "reload": ("⟳", "(R)"),
     "ellipsis": ("…", "..."),
     # Bullets / list markers
@@ -61,9 +67,9 @@ _ICONS: dict[str, tuple[str, str]] = {
     "clip": ("📎", "[@]"),
     "folder": ("📁", "[D]"),
     "file": ("📄", "[F]"),
-    "gear": ("⚙", "[G]"),
+    "gear": (f"⚙{_VS15}", "[G]"),
     "spark": ("✦", "*"),
-    "zap": ("⚡", "!"),
+    "zap": (f"⚡{_VS15}", "!"),
 }
 
 
