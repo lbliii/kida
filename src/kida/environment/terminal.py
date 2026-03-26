@@ -244,6 +244,7 @@ class TerminalCaps:
     unicode: bool = True
     width: int = 80
     height: int = 24
+    ambiguous_width: int = 1  # 1 for most Western terminals, 2 for CJK
 
 
 def _detect_terminal_caps() -> TerminalCaps:
@@ -304,11 +305,54 @@ def _make_hr_func(width: int, unicode: bool) -> Callable:
     return hr
 
 
+def _resolve_ambiguous_width(explicit: int | None, is_tty: bool) -> int:
+    """Resolve the ambiguous character width using a fallback chain.
+
+    Resolution order:
+    1. Explicit user override (``Environment(ambiguous_width=2)``)
+    2. Terminal probe (queries the actual terminal for rendered width)
+    3. ``wcwidth`` library (if installed)
+    4. Locale heuristic (CJK locale → 2)
+    5. Default: 1
+    """
+    # 1. Explicit override wins
+    if explicit is not None:
+        return explicit
+
+    # 2. Terminal probe — most accurate, but only on TTY
+    if is_tty:
+        from kida.utils.terminal_probe import probe_ambiguous_width
+
+        probed = probe_ambiguous_width()
+        if probed is not None:
+            return probed
+
+    # 3. wcwidth library
+    try:
+        from wcwidth import wcwidth  # type: ignore[import-not-found]
+
+        w = wcwidth("\u2605")  # ★ — Ambiguous
+        if w in (1, 2):
+            return w
+    except ImportError:
+        pass
+
+    # 4. Locale heuristic — CJK locales typically render ambiguous as wide
+    lang = os.environ.get("LANG", "") + os.environ.get("LC_ALL", "")
+    for prefix in ("ja", "ko", "zh"):
+        if lang.lower().startswith(prefix):
+            return 2
+
+    # 5. Default
+    return 1
+
+
 def _init_terminal_mode(
     env: Any,
     terminal_color: str | None,
     terminal_width: int | None,
     terminal_unicode: bool | None,
+    ambiguous_width: int | None = None,
 ) -> TerminalCaps:
     """Configure Environment for ``autoescape="terminal"`` mode.
 
@@ -322,12 +366,20 @@ def _init_terminal_mode(
     width = terminal_width or caps.width
     unicode = terminal_unicode if terminal_unicode is not None else caps.unicode
 
+    # Resolve and configure ambiguous character width
+    resolved_aw = _resolve_ambiguous_width(ambiguous_width, caps.is_tty)
+
+    from kida.utils.ansi_width import configure_width
+
+    configure_width(ambiguous_width=resolved_aw)
+
     resolved = TerminalCaps(
         is_tty=caps.is_tty,
         color=color,
         unicode=unicode,
         width=width,
         height=caps.height,
+        ambiguous_width=resolved_aw,
     )
 
     # Register terminal filters
@@ -336,6 +388,7 @@ def _init_terminal_mode(
     terminal_filters = make_terminal_filters(
         color=(color != "none"),
         unicode=unicode,
+        color_depth=color,
     )
     env._filters.update(terminal_filters)
 
@@ -351,8 +404,9 @@ def _init_terminal_mode(
         return ansi_wrap(str(value), width)
 
     def _terminal_truncate(value, length=255, killwords=False, end="\u2026", leeway=None):
-        if not killwords and _orig_truncate is not None:
-            return _orig_truncate(value, length, killwords=False, end=end, leeway=leeway)
+        # In terminal mode, always use the ANSI-aware truncate.
+        # The non-ANSI truncate counts escape bytes as visible characters,
+        # which causes premature truncation and broken escape sequences.
         return ansi_truncate(str(value), length, suffix=end)
 
     def _terminal_center(value, width=80):

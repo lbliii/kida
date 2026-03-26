@@ -200,6 +200,78 @@ def _cmd_fmt(
     return 0
 
 
+def _cmd_render(
+    template_path: Path,
+    *,
+    data_file: Path | None,
+    data_str: str | None,
+    width: int | None,
+    color: str | None,
+    mode: str,
+    stream: bool = False,
+    stream_delay: float = 0.02,
+) -> int:
+    """Render a single template to stdout."""
+    import json
+
+    template_path = template_path.resolve()
+    if not template_path.is_file():
+        print(f"kida render: not a file: {template_path}", file=sys.stderr)
+        return 2
+
+    # Build context from --data / --data-str
+    context: dict[str, object] = {}
+    if data_file is not None:
+        try:
+            context = json.loads(data_file.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"kida render: invalid JSON in {data_file}: {e}", file=sys.stderr)
+            return 2
+    elif data_str is not None:
+        try:
+            context = json.loads(data_str)
+        except Exception as e:
+            print(f"kida render: invalid JSON: {e}", file=sys.stderr)
+            return 2
+
+    # Build environment
+    template_dir = template_path.parent
+    template_name = template_path.name
+
+    if mode == "terminal":
+        from kida.terminal import terminal_env
+
+        term_kwargs: dict[str, object] = {
+            "loader": FileSystemLoader(str(template_dir)),
+        }
+        if width is not None:
+            term_kwargs["terminal_width"] = width
+        if color is not None:
+            term_kwargs["terminal_color"] = color
+
+        env = terminal_env(**term_kwargs)
+    else:
+        env = Environment(loader=FileSystemLoader(str(template_dir)))
+
+    tpl = env.get_template(template_name)
+
+    try:
+        if stream:
+            from kida.terminal.live import stream_to_terminal
+
+            stream_to_terminal(tpl, context, delay=stream_delay)
+        else:
+            output = tpl.render(**context)
+            sys.stdout.write(output)
+            if not output.endswith("\n"):
+                sys.stdout.write("\n")
+    except Exception as e:
+        print(f"kida render: {e}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for ``python -m kida`` / the ``kida`` console script."""
     parser = argparse.ArgumentParser(prog="kida", description="Kida template engine CLI")
@@ -237,6 +309,60 @@ def main(argv: list[str] | None = None) -> int:
         help="Type-check templates against {%% template %%} declarations",
     )
 
+    p_render = sub.add_parser(
+        "render",
+        help="Render a template to stdout",
+    )
+    p_render.add_argument(
+        "template",
+        type=Path,
+        help="Path to the template file to render",
+    )
+    p_render.add_argument(
+        "--data",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="JSON file providing template context variables",
+    )
+    p_render.add_argument(
+        "--data-str",
+        type=str,
+        default=None,
+        metavar="JSON",
+        help="Inline JSON string providing template context variables",
+    )
+    p_render.add_argument(
+        "--mode",
+        choices=["html", "terminal"],
+        default="terminal",
+        help="Rendering mode (default: terminal)",
+    )
+    p_render.add_argument(
+        "--width",
+        type=int,
+        default=None,
+        help="Override terminal width (terminal mode only)",
+    )
+    p_render.add_argument(
+        "--color",
+        choices=["none", "basic", "256", "truecolor"],
+        default=None,
+        help="Override color depth (terminal mode only)",
+    )
+    p_render.add_argument(
+        "--stream",
+        action="store_true",
+        help="Progressive output: reveal template chunks with a brief delay",
+    )
+    p_render.add_argument(
+        "--stream-delay",
+        type=float,
+        default=0.02,
+        metavar="SECONDS",
+        help="Delay between stream chunks (default: 0.02s, requires --stream)",
+    )
+
     p_fmt = sub.add_parser(
         "fmt",
         help="Auto-format Kida template files",
@@ -267,6 +393,17 @@ def main(argv: list[str] | None = None) -> int:
             validate_calls=args.validate_calls,
             a11y=args.a11y,
             typed=args.typed,
+        )
+    if args.command == "render":
+        return _cmd_render(
+            args.template,
+            data_file=args.data,
+            data_str=args.data_str,
+            width=args.width,
+            color=args.color,
+            mode=args.mode,
+            stream=args.stream,
+            stream_delay=args.stream_delay,
         )
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)

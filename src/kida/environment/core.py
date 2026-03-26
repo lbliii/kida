@@ -228,6 +228,7 @@ class Environment:
     terminal_color: str | None = None  # Override: "none", "basic", "256", "truecolor"
     terminal_width: int | None = None  # Override terminal width
     terminal_unicode: bool | None = None  # Override Unicode support
+    ambiguous_width: int | None = None  # Override: 1 (narrow) or 2 (wide) for ambiguous chars
 
     # Globals (available in all templates)
     # Includes Python builtins commonly used in templates
@@ -328,6 +329,7 @@ class Environment:
                 self.terminal_color,
                 self.terminal_width,
                 self.terminal_unicode,
+                self.ambiguous_width,
             )
 
         # Extension initialization

@@ -1,13 +1,15 @@
 {#- Terminal component templates for Kida.
 
     Import with:
-        {% from "components.txt" import box, banner, two_col, dl %}
-
-    Or via the terminal environment:
-        {% from "components.txt" import box, banner, two_col, dl %}
+        {% from "components.txt" import box, banner, two_col, dl, panel, header, footer, row, cols, rule, connector, stack %}
 
     All components respect the `columns` global (terminal width) and degrade
     gracefully when box-drawing characters or color are unavailable.
+
+    Component layers:
+        Primitives : row, cols, rule — single-line building blocks
+        Components : box, panel, header, footer, connector — bordered panels
+        Layout     : banner, two_col, dl — content arrangement
 -#}
 
 {#- Capture the box-drawing character set global before our `box` def
@@ -17,7 +19,59 @@
 
 
 {#- ═══════════════════════════════════════════════════════════════════════════
-    box — Draw a bordered box around caller content.
+    PRIMITIVES — Low-level building blocks that produce single lines.
+    ═══════════════════════════════════════════════════════════════════════════ -#}
+
+
+{#- row — ANSI-aware bordered line. The single most important primitive.
+    Pads content to exact visible width, then wraps in border characters.
+
+    Usage:
+        {{ row("  Name: " ~ (name | bold), w) }}
+        {{ row("", w) }}                          {# blank bordered line #}
+-#}
+{% def row(content, width, border="│") %}
+{{- border }} {{ content | pad(width - 4) }} {{ border -}}
+{% end %}
+
+
+{#- cols — Multi-column layout in a single ANSI-aware string.
+    Takes a list of (content, width) or (content, width, align) tuples.
+    Align is "left" (default), "right", or "center".
+
+    Usage:
+        {{ cols([("Name" | bold, 20), (status, 8, "center"), (time | dim, 12, "right")]) }}
+-#}
+{% def cols(cells, sep=" ") %}
+{%- for cell in cells -%}
+{%- if cell | length >= 3 -%}
+{{ cell[0] | pad(cell[1], cell[2]) }}
+{%- else -%}
+{{ cell[0] | pad(cell[1]) }}
+{%- endif -%}
+{%- if not loop.last %}{{ sep }}{% endif -%}
+{%- endfor -%}
+{% end %}
+
+
+{#- rule — Horizontal rule with optional title. Thin wrapper around hr().
+
+    Usage:
+        {{ rule(w) }}
+        {{ rule(w, title="Section") }}
+-#}
+{% def rule(width, title="", char="─") %}
+{{- hr(width, char=char, title=title) -}}
+{% end %}
+
+
+{#- ═══════════════════════════════════════════════════════════════════════════
+    COMPONENTS — Self-contained bordered panels. Each captures caller
+    content, splits on newlines, and wraps every line with ANSI-aware padding.
+    ═══════════════════════════════════════════════════════════════════════════ -#}
+
+
+{#- box — Draw a bordered box around caller content.
 
     Parameters:
         title    : Optional title displayed in the top section.
@@ -30,7 +84,7 @@
         Line one
         Line two
         {% endcall %}
-    ═══════════════════════════════════════════════════════════════════════════ -#}
+-#}
 
 {% def box(title="", width=0, style="round", padding=1) %}
 {%- let w = width if width > 0 else (columns if columns is defined else 80) -%}
@@ -45,15 +99,114 @@
 {% end -%}
 {% for line in caller().split("\n") -%}
 {% if line or not loop.last -%}
-{{ b.v }}{{ pad_str }}{{ line | pad(content_width) }}{{ pad_str }}{{ b.v }}
+{{ b.v }}{{ pad_str }}{{ line | truncate(content_width, end="") | pad(content_width) }}{{ pad_str }}{{ b.v }}
 {% end -%}
 {% endfor -%}
 {{ b.bl }}{{ b.h * inner }}{{ b.br }}
 {% end %}
 
 
+{#- panel — Bordered box with optional title-in-border and padding.
+    More stylish than `box` — the title appears inline in the top border.
+
+    Parameters:
+        title    : Optional title displayed in the top border.
+        width    : Total panel width (0 = auto from `columns`).
+        style    : Box-drawing style: "round", "light", "heavy", "double", "ascii".
+        padding  : Horizontal padding inside the panel walls.
+
+    Usage:
+        {% call panel(title="CPU Usage", width=60) %}
+        Core 0   ████████░░░░ 67%
+        Core 1   ███░░░░░░░░░ 25%
+        {% endcall %}
+-#}
+
+{% def panel(title="", width=0, style="round", padding=1) %}
+{%- set w = width if width > 0 else (columns if columns is defined else 80) -%}
+{%- set b = _box_set | attr(style) -%}
+{%- set inner = w - 2 -%}
+{%- set ps = " " * padding -%}
+{%- set cw = inner - padding * 2 -%}
+{%- if title -%}
+{{ b.tl }}{{ b.h }} {{ title | bold | cyan }} {{ b.h * (inner - (title | length) - 3) }}{{ b.tr }}
+{%- else -%}
+{{ b.tl }}{{ b.h * inner }}{{ b.tr }}
+{%- endif %}
+{% for line in caller().split("\n") -%}
+{% if line.strip() or not loop.last -%}
+{{ b.v }}{{ ps }}{{ line | truncate(cw, end="") | pad(cw) }}{{ ps }}{{ b.v }}
+{% endif -%}
+{% endfor -%}
+{{ b.bl }}{{ b.h * inner }}{{ b.br }}
+{%- end %}
+
+
+{#- header — Prominent top banner with double borders.
+    Use for the app-shell title bar.
+
+    Usage:
+        {% call header(width=60) %}
+        ⚙ SYSTEM MONITOR          prod-01      up 42d
+        {% endcall %}
+-#}
+
+{% def header(width=0, style="double") %}
+{%- set w = width if width > 0 else (columns if columns is defined else 80) -%}
+{%- set b = _box_set | attr(style) -%}
+{%- set inner = w - 2 -%}
+{%- set cw = inner - 2 -%}
+{{ b.tl }}{{ b.h * inner }}{{ b.tr }}
+{% for line in caller().split("\n") -%}
+{% if line.strip() or not loop.last -%}
+{{ b.v }} {{ line | truncate(cw, end="") | pad(cw) }} {{ b.v }}
+{% endif -%}
+{% endfor -%}
+{{ b.bl }}{{ b.h * inner }}{{ b.br }}
+{%- end %}
+
+
+{#- footer — Heavy-bordered summary bar.
+    Use for final status / verdict banners.
+
+    Usage:
+        {% call footer(width=60) %}
+        ✓ ALL TESTS PASSED
+        {% endcall %}
+-#}
+
+{% def footer(width=0, style="heavy") %}
+{%- set w = width if width > 0 else (columns if columns is defined else 80) -%}
+{%- set b = _box_set | attr(style) -%}
+{%- set inner = w - 2 -%}
+{%- set cw = inner - 2 -%}
+{{ b.tl }}{{ b.h * inner }}{{ b.tr }}
+{% for line in caller().split("\n") -%}
+{% if line.strip() or not loop.last -%}
+{{ b.v }} {{ line | truncate(cw, end="") | pad(cw) }} {{ b.v }}
+{% endif -%}
+{% endfor -%}
+{{ b.bl }}{{ b.h * inner }}{{ b.br }}
+{%- end %}
+
+
+{#- connector — Vertical pipe between panels. Visual continuity.
+
+    Usage:
+        {{ connector() }}
+-#}
+
+{% def connector(indent=2) %}
+{{- " " * indent }}{{ box.light.v if _box_set else "|" }}
+{%- end %}
+
+
 {#- ═══════════════════════════════════════════════════════════════════════════
-    banner — Full-width banner with centered text between border lines.
+    LAYOUT — Content arrangement helpers.
+    ═══════════════════════════════════════════════════════════════════════════ -#}
+
+
+{#- banner — Full-width banner with centered text between border lines.
 
     Parameters:
         text     : The banner text to display.
@@ -64,7 +217,7 @@
     Usage:
         {{ banner("DEPLOYMENT REPORT") }}
         {{ banner("Build Log", char="─", width=60) }}
-    ═══════════════════════════════════════════════════════════════════════════ -#}
+-#}
 
 {% def banner(text, width=0, char="═", padding=1) %}
 {%- let w = width if width > 0 else (columns if columns is defined else 80) -%}
@@ -77,8 +230,7 @@
 {% end %}
 
 
-{#- ═══════════════════════════════════════════════════════════════════════════
-    two_col — Two-column layout with caller content split on "|||".
+{#- two_col — Two-column layout with caller content split on "|||".
 
     The caller's content is split on the literal string "|||". Everything
     before it becomes the left column; everything after becomes the right
@@ -96,7 +248,7 @@
         Right column content here.
         Also multi-line.
         {% endcall %}
-    ═══════════════════════════════════════════════════════════════════════════ -#}
+-#}
 
 {% def two_col(left_width=0, sep=" │ ") %}
 {%- let total = columns if columns is defined else 80 -%}
@@ -119,8 +271,50 @@
 {% end %}
 
 
-{#- ═══════════════════════════════════════════════════════════════════════════
-    dl — Definition list with aligned label-value pairs.
+{#- stack — Responsive stacking helper. Renders content side-by-side
+    (using two_col) when the terminal is wide enough, or stacked vertically
+    when it's narrow. The threshold defaults to 60 columns.
+
+    Parameters:
+        threshold : Minimum terminal width for side-by-side layout (default 60).
+        sep       : Column separator when side-by-side (default " │ ").
+
+    Usage:
+        {% call stack(threshold=80) %}
+        Left content here
+        |||
+        Right content here
+        {% endcall %}
+-#}
+
+{% def stack(threshold=60, sep=" │ ") %}
+{%- let total = columns if columns is defined else 80 -%}
+{%- let parts = caller().split("|||") -%}
+{%- if total >= threshold and parts | length > 1 -%}
+{%- let sep_len = sep | length -%}
+{%- let lw = (total - sep_len) // 2 -%}
+{%- let rw = total - lw - sep_len -%}
+{%- let left_text = parts[0] | trim -%}
+{%- let right_text = parts[1] | trim -%}
+{%- let left_lines = left_text.split("\n") if left_text else [] -%}
+{%- let right_lines = right_text.split("\n") if right_text else [] -%}
+{%- let left_count = left_lines | length -%}
+{%- let right_count = right_lines | length -%}
+{%- let max_lines = left_count if left_count > right_count else right_count -%}
+{% for i in 0...max_lines %}
+{%- let ll = left_lines[i] if i < left_count else "" -%}
+{%- let rl = right_lines[i] if i < right_count else "" -%}
+{{ ll | truncate(lw, end="") | pad(lw) }}{{ sep }}{{ rl | truncate(rw, end="") | pad(rw) }}
+{% endfor -%}
+{%- else -%}
+{%- for part in parts -%}
+{{ part | trim }}
+{% endfor -%}
+{%- endif -%}
+{% end %}
+
+
+{#- dl — Definition list with aligned label-value pairs.
 
     Parameters:
         items       : List of (label, value) tuples.
@@ -134,7 +328,7 @@
             ("Uptime", "3h 42m"),
             ("Status", "running"),
         ]) }}
-    ═══════════════════════════════════════════════════════════════════════════ -#}
+-#}
 
 {% def dl(items, label_width=20, sep=" : ", color="cyan") %}
 {% for label, value in items -%}

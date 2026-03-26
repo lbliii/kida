@@ -1,0 +1,26 @@
+{
+  "app": "kida-api",
+  "version": "3.8.0",
+  "environment": "production",
+  "region": "us-east-1",
+  "services": [
+    {"name": "API Gateway", "status": "pass", "latency": "12ms", "rps": 4821, "color": "#44cc44"},
+    {"name": "Auth Service", "status": "pass", "latency": "8ms", "rps": 2103, "color": "#44cc44"},
+    {"name": "PostgreSQL", "status": "warn", "latency": "45ms", "rps": 892, "color": "#ffaa00"},
+    {"name": "Redis Cache", "status": "pass", "latency": "2ms", "rps": 12400, "color": "#44cc44"},
+    {"name": "Worker Pool", "status": "fail", "latency": "—", "rps": 0, "color": "#ff4444"}
+  ],
+  "metrics": {
+    "uptime": "99.92%",
+    "p50": "14ms",
+    "p95": "89ms",
+    "p99": "210ms",
+    "error_rate": "0.08%",
+    "active_conns": 342
+  },
+  "recent_deploys": [
+    {"version": "v3.8.0", "time": "2h ago", "status": "pass"},
+    {"version": "v3.7.9", "time": "1d ago", "status": "pass"},
+    {"version": "v3.7.8", "time": "3d ago", "status": "fail"}
+  ]
+}

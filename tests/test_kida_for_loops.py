@@ -162,6 +162,64 @@ class TestForLoopNested:
         assert t.render(seq="ab") == "TrueFalse"
 
 
+class TestForLoopNestedLoopVar:
+    """Test that the outer 'loop' variable survives nested for-loops."""
+
+    def test_outer_loop_last_after_inner_loop_uses_loop(self, env):
+        """Outer loop.last must be accessible after an inner loop that also uses loop.*."""
+        t = env.from_string(
+            "{% for x in items %}"
+            "{% for y in x.tags %}{{ y }}{% if not loop.last %},{% endif %}{% endfor %}"
+            "{% if not loop.last %};{% endif %}"
+            "{% endfor %}"
+        )
+        result = t.render(items=[{"tags": ["a", "b"]}, {"tags": ["c"]}])
+        assert result == "a,b;c"
+
+    def test_outer_loop_index_after_inner_loop_uses_loop(self, env):
+        """Outer loop.index must be correct after an inner loop that references loop.*."""
+        t = env.from_string(
+            "{% for x in items %}"
+            "{{ loop.index }}:{% for y in x.sub %}{{ y }}{% if not loop.last %}.{% endif %}{% endfor %}"
+            "-{{ loop.last }}|"
+            "{% endfor %}"
+        )
+        result = t.render(items=[{"sub": ["a", "b"]}, {"sub": ["c"]}])
+        assert result == "1:a.b-False|2:c-True|"
+
+    def test_triple_nested_loops_all_use_loop(self, env):
+        """Three levels of nested for-loops all referencing loop.*."""
+        t = env.from_string(
+            "{% for a in items %}"
+            "{% for b in a.sub %}"
+            "{% for c in b.tags %}"
+            "{{ c }}{% if not loop.last %}.{% endif %}"
+            "{% endfor %}"
+            "{% if not loop.last %},{% endif %}"
+            "{% endfor %}"
+            "{% if not loop.last %};{% endif %}"
+            "{% endfor %}"
+        )
+        result = t.render(
+            items=[
+                {"sub": [{"tags": ["x", "y"]}, {"tags": ["z"]}]},
+                {"sub": [{"tags": ["w"]}]},
+            ]
+        )
+        assert result == "x.y,z;w"
+
+    def test_outer_loop_first_after_inner_loop(self, env):
+        """loop.first on the outer loop remains correct."""
+        t = env.from_string(
+            "{% for x in items %}"
+            "{% for y in x.sub %}{{ loop.index }}{% endfor %}"
+            "{% if loop.first %}FIRST{% endif %}"
+            "{% endfor %}"
+        )
+        result = t.render(items=[{"sub": [1, 2]}, {"sub": [3]}])
+        assert result == "12FIRST1"
+
+
 class TestForLoopWithSet:
     """Test set statement interaction with for loops."""
 
