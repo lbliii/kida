@@ -340,6 +340,73 @@ html = layout.render_with_blocks({"content": inner_html}, title="Page")
 
 ---
 
+## GitHub Action
+
+Use Kida as a GitHub Action to render CI reports as step summaries or PR comments.
+
+### Basic usage
+
+```yaml
+- name: Run tests
+  run: pytest --junitxml=results.xml
+
+- name: Post test report
+  uses: lbliii/kida@v0.3.0
+  with:
+    template: pytest
+    data: results.xml
+    data-format: junit-xml
+```
+
+### PR comments
+
+```yaml
+- name: Post coverage to PR
+  uses: lbliii/kida@v0.3.0
+  with:
+    template: coverage
+    data: coverage.json
+    post-to: step-summary,pr-comment
+```
+
+### Built-in templates
+
+| Template | Data format | Tool |
+|----------|-------------|------|
+| `pytest` | junit-xml | pytest `--junitxml` |
+| `coverage` | json | coverage.py `--json` or lcov |
+| `ruff` | json | ruff `--output-format json` |
+| `ty` | junit-xml | ty `--output-format junit` |
+| `jest` | json | jest `--json` |
+| `gotest` | junit-xml | go-junit-report |
+| `sarif` | sarif | Any SARIF producer (CodeQL, Semgrep, Trivy, ESLint) |
+
+### Custom templates
+
+Point to any template file in your repo:
+
+```yaml
+- uses: lbliii/kida@v0.3.0
+  with:
+    template: .github/kida-templates/my-report.md
+    data: output.json
+```
+
+### Inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `template` | *(required)* | Built-in name or path to template file |
+| `data` | *(required)* | Path to data file |
+| `data-format` | `json` | `json`, `junit-xml`, `sarif`, or `lcov` |
+| `post-to` | `step-summary` | `step-summary`, `pr-comment`, or both (comma-separated) |
+| `comment-header` | template name | Marker for PR comment deduplication |
+| `token` | `github.token` | GitHub token (needed for `pr-comment`) |
+| `python-version` | `3.14` | Python version (`skip` to use existing) |
+| `install` | `true` | Whether to `pip install kida-templates` |
+
+---
+
 ## Architecture
 
 <details>

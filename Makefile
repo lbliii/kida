@@ -4,7 +4,7 @@
 PYTHON_VERSION ?= 3.14t
 VENV_DIR ?= .venv
 
-.PHONY: all help setup install test test-cov test-thread test-async lint lint-fix format ty clean shell docs docs-serve build publish release gh-release
+.PHONY: all help setup install test test-cov test-thread test-async lint lint-fix format ty clean shell docs docs-serve build publish release gh-release action-tag
 
 all: help
 
@@ -30,6 +30,7 @@ help:
 	@echo "  make publish    - Publish to PyPI (uses .env for token)"
 	@echo "  make release    - Build and publish in one step"
 	@echo "  make gh-release - Create GitHub release (triggers PyPI via workflow), uses site release notes"
+	@echo "  make action-tag - Move the v0 floating action tag to the current version"
 	@echo "  make clean      - Remove venv, build artifacts, and caches"
 	@echo "  make shell      - Start a shell with the environment activated"
 
@@ -121,7 +122,28 @@ gh-release:
 	awk '/^---$$/{c++;next}c>=2' "$$NOTES" | gh release create v$$VERSION \
 		--title "$$PROJECT $$VERSION" \
 		-F -; \
-	echo "✓ GitHub release v$$VERSION created (PyPI publish will run via workflow)"
+	echo "✓ GitHub release v$$VERSION created (PyPI publish will run via workflow)"; \
+	$(MAKE) action-tag
+
+# Move the floating major action tag so `uses: lbliii/kida@v0` tracks the latest release.
+# Requires a clean working tree. Skips if the tag already points to the target.
+action-tag:
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Error: working tree is not clean. Commit or stash changes first."; \
+		exit 1; \
+	fi; \
+	VERSION=$$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/'); \
+	MAJOR=$$(echo $$VERSION | cut -d. -f1); \
+	CURRENT=$$(git rev-parse v$$MAJOR 2>/dev/null || echo ""); \
+	TARGET=$$(git rev-parse v$$VERSION 2>/dev/null || echo ""); \
+	if [ "$$CURRENT" = "$$TARGET" ] && [ -n "$$CURRENT" ]; then \
+		echo "✓ v$$MAJOR already points to v$$VERSION"; \
+		exit 0; \
+	fi; \
+	echo "Moving action tag v$$MAJOR → v$$VERSION..."; \
+	git tag -f v$$MAJOR v$$VERSION; \
+	git push -f origin v$$MAJOR; \
+	echo "✓ v$$MAJOR now points to v$$VERSION"
 
 # =============================================================================
 # Cleanup

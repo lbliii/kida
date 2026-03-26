@@ -9,14 +9,14 @@ branding:
 inputs:
   template:
     description: >
-      Built-in template name (pytest, coverage, ruff, ty, jest, gotest) or
+      Built-in template name (pytest, coverage, ruff, ty, jest, gotest, sarif) or
       path to a custom template file in your repository.
     required: true
   data:
     description: 'Path to the data file (JSON, JUnit XML, etc.)'
     required: true
   data-format:
-    description: 'Format of the data file'
+    description: 'Format of the data file (json, junit-xml, sarif, lcov)'
     required: false
     default: 'json'
   post-to:

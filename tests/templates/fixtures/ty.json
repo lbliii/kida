@@ -1,0 +1,46 @@
+{
+  "summary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 0,
+    "time": 1.2
+  },
+  "testsuites": [
+    {
+      "name": "ty",
+      "tests": 3,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "time": 1.2,
+      "testcases": [
+        {
+          "name": "type_check_app",
+          "classname": "src",
+          "time": 0.4,
+          "status": "passed",
+          "message": null,
+          "text": null
+        },
+        {
+          "name": "type_check_models",
+          "classname": "src",
+          "time": 0.5,
+          "status": "failed",
+          "message": "Expected int, got str",
+          "text": "src/models.py:10: error: Incompatible types in assignment"
+        },
+        {
+          "name": "type_check_utils",
+          "classname": "src",
+          "time": 0.3,
+          "status": "passed",
+          "message": null,
+          "text": null
+        }
+      ]
+    }
+  ]
+}

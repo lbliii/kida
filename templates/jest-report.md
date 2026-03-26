@@ -1,6 +1,7 @@
 ## {{ "pass" | badge if numFailedTests == 0 else "fail" | badge }} Test Results
 
-**{{ numTotalTests }}** tests ran in **{{ (testResults | sum(attribute="perfStats.runtime") / 1000) | round(2) }}s** — {{ numPassedTests }} passed, {{ numFailedTests }} failed, {{ numPendingTests }} pending
+{% set runtime_ms = testResults | sum(attribute="perfStats.runtime") -%}
+**{{ numTotalTests }}** tests ran in **{{ (runtime_ms / 1000) | round(2) }}s** — {{ numPassedTests }} passed, {{ numFailedTests }} failed, {{ numPendingTests }} pending
 
 {% if numFailedTests > 0 -%}
 ### Failed Tests
@@ -9,7 +10,8 @@
 {% for tc in suite.testResults -%}
 {% if tc.status == "failed" -%}
 <details>
-<summary>{{ "fail" | badge }} <code>{{ tc.ancestorTitles | join(" > ") }}{{ " > " if tc.ancestorTitles }}{{ tc.title }}</code> ({{ ((tc.duration or 0) / 1000) | round(2) }}s)</summary>
+{% set tc_secs = ((tc.duration or 0) / 1000) | round(2) -%}
+<summary>{{ "fail" | badge }} <code>{{ tc.ancestorTitles | join(" > ") }}{{ " > " if tc.ancestorTitles }}{{ tc.title }}</code> ({{ tc_secs }}s)</summary>
 
 {% for msg in tc.failureMessages -%}
 ```

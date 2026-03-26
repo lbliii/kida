@@ -1,0 +1,41 @@
+{
+  "numTotalTests": 4,
+  "numPassedTests": 2,
+  "numFailedTests": 1,
+  "numPendingTests": 1,
+  "testResults": [
+    {
+      "perfStats": { "runtime": 1500 },
+      "testResults": [
+        {
+          "status": "passed",
+          "title": "renders correctly",
+          "ancestorTitles": ["Button"],
+          "duration": 50,
+          "failureMessages": []
+        },
+        {
+          "status": "passed",
+          "title": "handles click",
+          "ancestorTitles": ["Button"],
+          "duration": 30,
+          "failureMessages": []
+        },
+        {
+          "status": "failed",
+          "title": "validates props",
+          "ancestorTitles": ["Button", "validation"],
+          "duration": 100,
+          "failureMessages": ["Error: expected prop 'size' to be one of: sm, md, lg"]
+        },
+        {
+          "status": "pending",
+          "title": "supports custom themes",
+          "ancestorTitles": ["Button"],
+          "duration": null,
+          "failureMessages": []
+        }
+      ]
+    }
+  ]
+}

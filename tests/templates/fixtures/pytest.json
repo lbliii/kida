@@ -1,0 +1,62 @@
+{
+  "summary": {
+    "total": 5,
+    "passed": 3,
+    "failed": 1,
+    "errors": 1,
+    "skipped": 0,
+    "time": 3.456
+  },
+  "testsuites": [
+    {
+      "name": "pytest",
+      "tests": 5,
+      "failures": 1,
+      "errors": 1,
+      "skipped": 0,
+      "time": 3.456,
+      "testcases": [
+        {
+          "name": "test_add",
+          "classname": "tests.test_math",
+          "time": 0.1,
+          "status": "passed",
+          "message": null,
+          "text": null
+        },
+        {
+          "name": "test_subtract",
+          "classname": "tests.test_math",
+          "time": 0.2,
+          "status": "passed",
+          "message": null,
+          "text": null
+        },
+        {
+          "name": "test_multiply",
+          "classname": "tests.test_math",
+          "time": 0.15,
+          "status": "passed",
+          "message": null,
+          "text": null
+        },
+        {
+          "name": "test_divide_by_zero",
+          "classname": "tests.test_math",
+          "time": 0.5,
+          "status": "failed",
+          "message": "ZeroDivisionError: division by zero",
+          "text": "def test_divide_by_zero():\n    assert divide(1, 0) == 0\nZeroDivisionError: division by zero"
+        },
+        {
+          "name": "test_parse_input",
+          "classname": "tests.test_utils",
+          "time": 0.3,
+          "status": "error",
+          "message": "RuntimeError: connection refused",
+          "text": "RuntimeError: connection refused"
+        }
+      ]
+    }
+  ]
+}
