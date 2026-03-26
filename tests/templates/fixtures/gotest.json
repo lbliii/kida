@@ -1,0 +1,54 @@
+{
+  "summary": {
+    "total": 4,
+    "passed": 2,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 1,
+    "time": 2.1
+  },
+  "testsuites": [
+    {
+      "name": "github.com/example/pkg",
+      "tests": 4,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 1,
+      "time": 2.1,
+      "testcases": [
+        {
+          "name": "TestAdd",
+          "classname": "pkg",
+          "time": 0.5,
+          "status": "passed",
+          "message": null,
+          "text": null
+        },
+        {
+          "name": "TestSubtract",
+          "classname": "pkg",
+          "time": 0.4,
+          "status": "passed",
+          "message": null,
+          "text": null
+        },
+        {
+          "name": "TestDivide",
+          "classname": "pkg",
+          "time": 0.8,
+          "status": "failed",
+          "message": "expected 0.5, got 0",
+          "text": "--- FAIL: TestDivide (0.80s)\n    math_test.go:25: expected 0.5, got 0"
+        },
+        {
+          "name": "TestMultiply",
+          "classname": "pkg",
+          "time": 0.0,
+          "status": "skipped",
+          "message": "not implemented",
+          "text": null
+        }
+      ]
+    }
+  ]
+}

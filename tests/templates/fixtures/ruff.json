@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "code": "E501",
+      "filename": "src/app.py",
+      "location": { "row": 42 },
+      "message": "Line too long (120 > 88)"
+    },
+    {
+      "code": "E501",
+      "filename": "src/models.py",
+      "location": { "row": 15 },
+      "message": "Line too long (95 > 88)"
+    },
+    {
+      "code": "F401",
+      "filename": "src/utils.py",
+      "location": { "row": 1 },
+      "message": "'os' imported but unused"
+    }
+  ]
+}

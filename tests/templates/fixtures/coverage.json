@@ -1,0 +1,22 @@
+{
+  "totals": {
+    "percent_covered": 73.5
+  },
+  "files": {
+    "src/app.py": {
+      "summary": {
+        "percent_covered": 95.0
+      }
+    },
+    "src/models.py": {
+      "summary": {
+        "percent_covered": 62.3
+      }
+    },
+    "src/utils.py": {
+      "summary": {
+        "percent_covered": 45.0
+      }
+    }
+  }
+}

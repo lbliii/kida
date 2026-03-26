@@ -1,0 +1,26 @@
+{
+  "tool": "semgrep",
+  "version": "2.1.0",
+  "summary": {
+    "total": 2,
+    "errors": 1,
+    "warnings": 1,
+    "notes": 0
+  },
+  "results": [
+    {
+      "rule_id": "python.lang.security.exec-detected",
+      "level": "error",
+      "message": "Detected use of exec()",
+      "file": "src/app.py",
+      "line": 42
+    },
+    {
+      "rule_id": "python.lang.best-practice.open-never-closed",
+      "level": "warning",
+      "message": "File opened but never closed",
+      "file": "src/utils.py",
+      "line": 10
+    }
+  ]
+}

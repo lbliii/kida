@@ -231,6 +231,22 @@ def _cmd_render(
             except Exception as e:
                 print(f"kida render: invalid JUnit XML in {data_file}: {e}", file=sys.stderr)
                 return 2
+        elif data_format == "sarif":
+            from kida.utils.sarif import sarif_to_dict
+
+            try:
+                context = sarif_to_dict(data_file)
+            except Exception as e:
+                print(f"kida render: invalid SARIF in {data_file}: {e}", file=sys.stderr)
+                return 2
+        elif data_format == "lcov":
+            from kida.utils.lcov import lcov_to_dict
+
+            try:
+                context = lcov_to_dict(data_file)
+            except Exception as e:
+                print(f"kida render: invalid LCOV in {data_file}: {e}", file=sys.stderr)
+                return 2
         else:
             try:
                 context = json.loads(data_file.read_text(encoding="utf-8"))
@@ -366,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_render.add_argument(
         "--data-format",
-        choices=["json", "junit-xml"],
+        choices=["json", "junit-xml", "sarif", "lcov"],
         default="json",
         help="Format of the data file (default: json)",
     )
