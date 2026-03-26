@@ -53,12 +53,12 @@ env.add_test('prime', is_prime)
 |---------|-------|
 | `{% let x = ... %}` | Template-wide (like Jinja2's `set`) |
 | `{% set x = ... %}` | Block-scoped — does **not** leak out of `{% if %}`, `{% for %}`, etc. |
-| `{% export x = ... %}` | Promotes variable from inner scope to parent scope |
+| `{% export x = ... %}` | Promotes variable to template (outermost) scope; escapes multiple nested blocks |
 
 > **⚠ Key difference from Jinja2:** In Jinja2, `{% set %}` inside `{% if %}` modifies
 > the outer variable. In Kida, `{% set %}` is block-scoped — the value stays inside the
 > block. Use `{% let %}` for template-wide variables, or `{% export %}` to push a value
-> out of a block.
+> out of a block into the template scope (it can cross multiple nested blocks).
 >
 > ```kida
 > {# Kida: set is block-scoped #}
@@ -158,7 +158,7 @@ For numeric formatting, prefer the dedicated filters:
 | `ImportError: Markup from markupsafe` | Import `Markup` from `kida` |
 | `FilterRegistry does not support item assignment` | Use `env.add_filter(name, func)` |
 | `Unexpected tag 'endif'` | Use `{% end %}` not `{% endif %}` |
-| `UndefinedError: 'varname' is not defined` | Add `| default("")` or pass it to `render()` |
+| `UndefinedError: Undefined variable 'varname' in <template>:<line>` | Add `| default("")` or pass it to `render()` |
 | `format filter uses str.format()` | Use `{}` placeholders, not `%s`/`%.2f` |
 | `Unknown icon 'arrow'` | Use directional variant: `icons.arrow_r`, `arrow_l`, `arrow_u`, `arrow_d` |
 | Variable doesn't update outside `{% if %}` | `{% set %}` is block-scoped — use `{% let %}` or `{% export %}` |

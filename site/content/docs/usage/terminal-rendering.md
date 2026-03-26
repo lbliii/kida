@@ -551,6 +551,7 @@ Available icons (Unicode / ASCII fallback):
 | `heart` | ♥ | `<3` | | `spark` | ✦ | `*` |
 | `lock` | 🔒 | `[L]` | | `folder` | 📁 | `[D]` |
 | `key` | 🔑 | `[K]` | | `file` | 📄 | `[F]` |
+| `fat_arrow` | ⇒ | `=>` | | | | |
 
 There is no generic `icons.arrow` — use a directional variant (`arrow_r`, `arrow_l`,
 `arrow_u`, `arrow_d`) or `fat_arrow` (⇒). If you reference an unknown icon name, Kida

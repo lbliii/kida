@@ -184,7 +184,8 @@ Block-scoped variable — **does not leak** out of `{% if %}`, `{% for %}`, or o
 
 ### export
 
-Promotes a variable from the current block to the parent scope:
+Promotes a variable to the template (outermost) scope — it escapes all nested blocks,
+not just the immediate parent:
 
 ```kida
 {% let total = 0 %}
@@ -195,6 +196,9 @@ Promotes a variable from the current block to the parent scope:
 ```
 
 This replaces Jinja2's `namespace()` pattern for accumulating values inside loops.
+
+> **Note:** `export` always writes to the template scope, even from deeply nested blocks.
+> An `export` inside an `if` inside a `for` will escape both.
 
 ## Whitespace Control
 
