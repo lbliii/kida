@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kida-templates"
-version = "0.2.9"
-description = "Python template engine and Jinja2 alternative for HTML templates, streaming, and framework integration"
+version = "0.3.0"
+description = "Python template engine for HTML, terminal, and streaming — with framework integration"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"

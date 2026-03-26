@@ -39,9 +39,9 @@ def main():
   {{ commit.message | bold }}
 
   {{ icons.bullet | dim }} {{ commit.author | cyan | pad(24) }} {{ commit.date | dim | pad(24, align="right") }}
-{% if commit.files -%}
+{% if commit.files %}
   {{ icons.bullet | dim }} {{ (commit.files | length ~ " files changed") | dim | pad(20) }} {{ commit.insertions | green | pad(12) }} {{ commit.deletions | red | pad(14, align="right") }}
-{% endif -%}
+{%- endif -%}
 {% endcall %}
 {% if commit.diff %}
 {{ commit.old_content | diff(commit.new_content) }}

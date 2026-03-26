@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-26
+
+### Added
+
+- **Terminal rendering mode** — `Environment(autoescape="terminal")` activates declarative terminal/CLI output. Includes ANSI-safe escaping, 30+ terminal filters (colors, badges, tables, trees, diffs), icon/box-drawing character sets with Unicode/ASCII degradation, reusable built-in components (panel, header, footer, rule, connector, row, cols), and TTY/NO_COLOR-aware graceful fallbacks.
+- **S-tier terminal enhancements** — Configurable character width (`WidthStrategy`) with terminal probe auto-detection and wcwidth support; VS15 text presentation selectors; `fg()`/`bg()` color depth fallback (truecolor → 256 → basic → none); `LiveRenderer` for in-place terminal re-rendering with `Spinner` animation; `stream_to_terminal()` for progressive chunk-by-chunk output; responsive `stack()` component (side-by-side when wide, stacked when narrow).
+- **`kida render` CLI** — `kida render template.txt --data context.json [--stream]` for rendering templates from the command line.
+- **Framework integrations** — `kida.contrib.flask`, `kida.contrib.starlette`, and `kida.contrib.django` adapter modules for Flask, Starlette/FastAPI, and Django.
+- **`SandboxedEnvironment`** — Configurable security policies with read-only collection method restrictions, call-time safety checking, and `allow_mutating_methods` / `allow_calling` allowlists.
+- **Template coverage collector** — `CoverageCollector` tracks which template lines execute during rendering, with LCOV and Cobertura output formats.
+- **Accessibility linting** — `a11y.py` checks for `img-alt`, `heading-order`, `html-lang`, and `input-label` violations.
+- **Template type checker** — `{% template %}` declarations for annotating expected context types with compile-time validation.
+- **Template formatter** — `kida fmt` opinionated template formatter with configurable blank line and indentation rules.
+- **Extension/plugin architecture** — `Extension` base class with `node_types` registration, `_extension_compilers` dispatch, and `_extension_end_keywords` for custom tags.
+- **Content stacks/portals** — `{% push %}` / `{% stack %}` tags for collecting and rendering content from nested templates (CSS/JS aggregation).
+- **CSP nonce support** — `inject_csp_nonce()` and `csp_nonce_filter` for inline script/style Content Security Policy compliance.
+- **`StreamTransform`** — Progressive rendering transform for streaming template output.
+- **Unified `NodeVisitor`/`NodeTransformer`** — MRO-aware dispatch cache for AST traversal.
+- **Terminal examples** — 8 new examples: `terminal_basic`, `terminal_dashboard`, `terminal_table`, `terminal_deploy`, `terminal_gitlog`, `terminal_layout`, `terminal_live`, `terminal_monitor`, `terminal_render`, `terminal_report`.
+
+### Changed
+
+- **Immutable AST** — Frozen-dataclass AST nodes with structural equality.
+- **Free-threading safe `RenderContext`** — No shared mutable state; `__setattr__` override removed from hot path (was causing 22–49% benchmark regression).
+- **Custom exception hierarchy** — `kida.exceptions` module with source-context-aware error classes, extracted from `environment.exceptions`.
+- **Constant folding** — Compiler partial evaluator folds constant expressions at compile time.
+- **Output coalescing** — Adjacent string concatenations merged in compiled output.
+- **Compiler pipeline optimizations** — Copy-on-write AST transformer replaces `deepcopy` in `sync_body_to_stream`; class-level dispatch table hoisted from per-instance bound methods; `_block_has_append_rebind` flag replaces post-hoc `ast.walk` scans.
+- **Parser validation** — Raises `ParseError` on multiple `{% template %}` declarations.
+- **Extension compiler dispatch** — `_extension_compilers` dict lookup replaces try/except iteration.
+
 ## [0.2.9] - 2026-03-23
 
 ### Added
@@ -372,6 +403,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.3.0]: https://github.com/lbliii/kida/releases/tag/v0.3.0
 [0.2.9]: https://github.com/lbliii/kida/releases/tag/v0.2.9
 [0.2.8]: https://github.com/lbliii/kida/releases/tag/v0.2.8
 [0.2.7]: https://github.com/lbliii/kida/releases/tag/v0.2.7

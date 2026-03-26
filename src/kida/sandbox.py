@@ -322,6 +322,7 @@ def _make_sandboxed_range(policy: SandboxPolicy):
     return sandboxed_range
 
 
+@dataclass
 class SandboxedEnvironment(Environment):
     """Environment subclass that enforces sandbox restrictions.
 
@@ -343,20 +344,24 @@ class SandboxedEnvironment(Environment):
         tmpl = env.from_string("{{ user.__class__.__mro__ }}")
         tmpl.render(user="hello")  # raises SecurityError
 
+    Custom policy::
+
+        from kida.sandbox import SandboxPolicy
+        policy = SandboxPolicy(allowed_attributes=frozenset({"name", "email"}))
+        env = SandboxedEnvironment(sandbox_policy=policy)
+
     """
 
+    sandbox_policy: SandboxPolicy | None = None
+
     def __post_init__(self) -> None:
-        # Get or create sandbox policy
-        if not hasattr(self, "_sandbox_policy"):
-            self._sandbox_policy = DEFAULT_POLICY
+        self._sandbox_policy = self.sandbox_policy or DEFAULT_POLICY
         super().__post_init__()
         # Replace range() in globals with sandboxed version
         self.globals["range"] = _make_sandboxed_range(self._sandbox_policy)
 
     def _get_sandbox_policy(self) -> SandboxPolicy:
-        if hasattr(self, "_sandbox_policy"):
-            return self._sandbox_policy
-        return DEFAULT_POLICY
+        return self._sandbox_policy
 
 
 def _make_sandboxed_call(policy: SandboxPolicy):
