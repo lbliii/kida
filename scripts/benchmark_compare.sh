@@ -40,11 +40,15 @@ else
     THRESHOLD="15"
 fi
 
-# Exclude high-variance benchmarks from regression (async + complex inheritance + include depth + compile:complex + cold cache)
-# These have StdDev ~50-100% of mean on shared CI runners; include_depth[1] is especially noisy.
-# compile_complex (~3ms) fluctuates 30-40% on shared 4-core runners due to cold-cache effects.
-# fragment_cache_cold is inherently noisy — cold cache timing varies with runner CPU clock speed.
-EXCLUDE_K="not (test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida or test_render_complex_jinja2 or test_include_depth_scaling or test_compile_complex_kida or test_compile_complex_jinja2 or test_render_fragment_cache_cold_kida)"
+# Exclude jinja2 comparison tests and high-variance benchmarks from regression checks.
+# Jinja2 tests exist for competitive context but shouldn't gate CI — Kida doesn't control
+# Jinja2 performance, and shared runners introduce noise (e.g. test_render_minimal_jinja2
+# showed 42% regression with 39x IQR spike on 2026-03-29, pure CI noise).
+# High-variance kida benchmarks: async (StdDev ~50-100%), include_depth[1] (noisy),
+# compile_complex (~3ms, fluctuates 30-40% on 4-core runners), fragment_cache_cold (cold
+# cache timing varies with runner CPU clock speed), inherited_render_block (~6µs, 12x IQR
+# spike on shared runners).
+EXCLUDE_K="not (_jinja2 or test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida or test_include_depth_scaling or test_compile_complex_kida or test_render_fragment_cache_cold_kida or test_benchmark_inherited_render_block)"
 
 echo "=== Kida Benchmark Regression Check ==="
 echo "Baseline: $BASELINE"
@@ -53,7 +57,7 @@ echo "Storage: $STORAGE"
 echo "Python: $(python --version 2>&1)"
 echo "Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 if [ "${BENCHMARK_INCLUDE_ALL:-0}" != "1" ]; then
-    echo "Excluded (high variance): async_medium, async_large, render_complex, compile_complex (kida+jinja2), include_depth_scaling, fragment_cache_cold"
+    echo "Excluded: all *_jinja2 tests (comparison only), async_medium, async_large, render_complex, compile_complex, include_depth_scaling, fragment_cache_cold, inherited_render_block"
 fi
 echo ""
 
