@@ -102,9 +102,35 @@ Kida provides explicit scoping for variable assignment:
 {% set name = "Alice" %}
 
 {# Kida — three scoping options #}
-{% set name = "Alice" %}      {# Same as Jinja2: current scope #}
-{% let name = "Alice" %}      {# Block-local: doesn't leak out #}
-{% export name = "Alice" %}   {# Exports to parent scope #}
+{% set name = "Alice" %}      {# Block-scoped: doesn't leak out #}
+{% let name = "Alice" %}      {# Template-wide: visible everywhere #}
+{% export name = "Alice" %}   {# Exports to template scope from inner blocks #}
+{% promote name = "Alice" %}  {# Alias for export — same behavior #}
+```
+
+### Nullish Assignment
+
+Kida adds `??=` to assign only when a variable is undefined or `None`:
+
+```html
+{# Jinja2 — verbose default pattern #}
+{% if title is not defined %}{% set title = "Untitled" %}{% endif %}
+
+{# Kida — one line #}
+{% let title ??= "Untitled" %}
+```
+
+### Null-Safe Filter Chains
+
+Kida adds `?|` (optional filter) and `?|>` (safe pipeline) for None-safe filtering:
+
+```html
+{# Jinja2 — errors if value is None #}
+{{ value | upper }}
+
+{# Kida — skips filter on None, provides fallback #}
+{{ value ?| upper ?? "N/A" }}
+{{ user?.name ?|> upper ?|> trim ?? "Anonymous" }}
 ```
 
 ### Built-in Caching
@@ -142,11 +168,14 @@ Kida has native block-level caching (no extensions needed):
 | Feature | Description |
 |---------|-------------|
 | Pipeline `\|>` | Left-to-right filter chains |
+| Safe pipeline `?\|>` | None-propagating filter chains |
+| Optional filter `?\|` | Skip filter when value is None |
+| Nullish assign `??=` | Assign only if undefined/None |
 | `{% match %}` | Pattern matching for cleaner branching |
 | `{% region %}` | Parameterized blocks for `render_block()` and OOB (no Jinja2 equivalent) |
 | `{% yield %}` | Explicit slot forwarding in nested macro composition |
 | `{% cache %}` | Built-in block-level output caching |
-| `{% let %}` / `{% export %}` | Explicit variable scoping |
+| `{% let %}` / `{% export %}` / `{% promote %}` | Explicit variable scoping |
 | Native async | `{% async for %}`, `{{ await expr }}` |
 | Streaming | `render_stream()` yields chunks for HTMX/SSE |
 | Block rendering | `render_block()`, `render_with_blocks()` for fragments and layout composition |

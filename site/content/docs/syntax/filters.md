@@ -42,6 +42,26 @@ Use `|>` for improved readability:
 {{ title |> escape |> upper |> truncate(50) }}
 ```
 
+### Safe Pipeline (`?|>`)
+
+None-propagating pipeline — if the value is None, all subsequent filters are skipped:
+
+```kida
+{{ user?.name ?|> upper ?|> trim ?? "Anonymous" }}
+```
+
+### Optional Filter (`?|`)
+
+Skip a single filter when the value is None:
+
+```kida
+{{ value ?| upper ?? "N/A" }}
+{{ config?.debug ?| string ?? "unset" }}
+```
+
+Unlike `| default("") | upper`, `?|` preserves falsy values (`0`, `""`, `False`)
+and only short-circuits on `None`.
+
 ## Common Filters
 
 ### String Filters

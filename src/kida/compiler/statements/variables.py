@@ -43,16 +43,28 @@ class VariableAssignmentMixin:
             {% set x = value %}
             {% set a, b = 1, 2 %}
             {% set (a, b), c = ([1, 2], 3) %}
+
+        With ??=, assigns only if the variable is undefined or None:
+            {% set x ??= "default" %}
         """
-        return self._compile_block_scoped_assignment(node.target, node.value)
+        stmts = self._compile_block_scoped_assignment(node.target, node.value)
+        if node.coalesce:
+            return self._wrap_coalesce_guard(node.target, stmts)
+        return stmts
 
     def _compile_let(self, node: Let) -> list[ast.stmt]:
         """Compile {% let %} - template-scoped variable assignment.
 
         Variables assigned with {% let %} are available throughout the template.
         Supports structural unpacking: {% let a, b = 1, 2 %}
+
+        With ??=, assigns only if the variable is undefined or None:
+            {% let x ??= "default" %}
         """
-        return self._compile_assignment(node.name, node.value)
+        stmts = self._compile_assignment(node.name, node.value)
+        if node.coalesce:
+            return self._wrap_coalesce_guard(node.name, stmts)
+        return stmts
 
     def _compile_export(self, node: Export) -> list[ast.stmt]:
         """Compile {% export %} - export variable to outer scope.
@@ -61,8 +73,54 @@ class VariableAssignmentMixin:
         (e.g., inside a loop) to the outer scope (e.g., outside the loop).
 
         Supports structural unpacking: {% export a, b = 1, 2 %}
+
+        With ??=, exports only if the variable is undefined or None:
+            {% export x ??= "default" %}
         """
-        return self._compile_export_assignment(node.name, node.value)
+        stmts = self._compile_export_assignment(node.name, node.value)
+        if node.coalesce:
+            return self._wrap_coalesce_guard(node.name, stmts)
+        return stmts
+
+    def _wrap_coalesce_guard(self, target: Node, stmts: list[ast.stmt]) -> list[ast.stmt]:
+        """Wrap assignment statements with a nullish coalesce guard.
+
+        Uses _is_defined(lambda: _lookup_scope(ctx, _scope_stack, name)) to match
+        kida's scope-aware variable resolution semantics. This correctly handles:
+        - Variables defined in block scopes (_scope_stack)
+        - Variables defined in template scope (ctx)
+        - Truly undefined variables (raises UndefinedError, caught by _is_defined)
+        - Explicit None values
+        """
+        from kida.nodes import Name as KidaName
+
+        if isinstance(target, KidaName):
+            # if not _is_defined(lambda: _lookup_scope(ctx, _scope_stack, name)): <assign>
+            lookup_call = ast.Call(
+                func=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+                args=[
+                    ast.Name(id="ctx", ctx=ast.Load()),
+                    ast.Name(id="_scope_stack", ctx=ast.Load()),
+                    ast.Constant(value=target.name),
+                ],
+                keywords=[],
+            )
+            return [
+                ast.If(
+                    test=ast.UnaryOp(
+                        op=ast.Not(),
+                        operand=ast.Call(
+                            func=ast.Name(id="_is_defined", ctx=ast.Load()),
+                            args=[self._make_deferred_lambda(lookup_call)],
+                            keywords=[],
+                        ),
+                    ),
+                    body=stmts,
+                    orelse=[],
+                )
+            ]
+        # For tuple unpacking with ??=, disallowed at parse time
+        return stmts
 
     def _compile_block_scoped_assignment(self, target: Node, value: Node) -> list[ast.stmt]:
         """Compile block-scoped assignment ({% set %}).

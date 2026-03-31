@@ -323,6 +323,32 @@ Found: {{ found }}
         )
         assert tmpl.render().strip() == "exported"
 
+    def test_promote_alias_for_export(self, env: Environment):
+        """promote is an alias for export."""
+        tmpl = env.from_string(
+            """
+{% if true %}
+  {% promote value = "promoted" %}
+{% end %}
+{{ value }}
+""".strip()
+        )
+        assert tmpl.render().strip() == "promoted"
+
+    def test_promote_from_loop(self, env: Environment):
+        """promote works identically to export inside loops."""
+        tmpl = env.from_string(
+            """
+{% for item in [1, 2, 3] %}
+  {% if item == 3 %}
+    {% promote last = item %}
+  {% end %}
+{% end %}
+Last: {{ last }}
+""".strip()
+        )
+        assert tmpl.render().strip() == "Last: 3"
+
     def test_nested_scopes(self, env: Environment):
         """Nested blocks create nested scopes."""
         tmpl = env.from_string(

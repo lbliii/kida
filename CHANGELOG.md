@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Safe pipeline (`?|>`)** — None-propagating filter chain. If the value is None, all subsequent filters are skipped instead of erroring: `{{ user?.name ?|> upper ?|> trim ?? "Anonymous" }}`.
+- **Optional filter (`?|`)** — Skip a single filter when the value is None: `{{ value ?| upper ?? "N/A" }}`. Unlike `| default("") | filter`, preserves falsy values like `0` and `""`.
+- **Nullish assignment (`??=`)** — Assign only if the variable is undefined or None. Works with `let`, `set`, `export`, and `promote`: `{% let title ??= "Untitled" %}`.
+- **`promote` keyword** — Alias for `export`. Reads more naturally for scope promotion: `{% promote result = value %}`.
+
 ## [0.3.0] - 2026-03-26
 
 ### Added

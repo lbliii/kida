@@ -11,26 +11,29 @@ from kida.nodes.expressions import Expr, Filter
 
 @dataclass(frozen=True, slots=True)
 class Let(Node):
-    """Template-scoped variable: {% let x = expr %}"""
+    """Template-scoped variable: {% let x = expr %} or {% let x ??= expr %}"""
 
     name: Expr
     value: Expr
+    coalesce: bool = False  # ??= — assign only if undefined/None
 
 
 @dataclass(frozen=True, slots=True)
 class Set(Node):
-    """Block-scoped variable: {% set x = expr %}"""
+    """Block-scoped variable: {% set x = expr %} or {% set x ??= expr %}"""
 
     target: Expr
     value: Expr
+    coalesce: bool = False  # ??= — assign only if undefined/None
 
 
 @dataclass(frozen=True, slots=True)
 class Export(Node):
-    """Export variable from inner scope: {% export x = expr %}"""
+    """Export variable from inner scope: {% export x = expr %} or {% export x ??= expr %}"""
 
     name: Expr
     value: Expr
+    coalesce: bool = False  # ??= — assign only if undefined/None
 
 
 @dataclass(frozen=True, slots=True)

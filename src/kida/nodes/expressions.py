@@ -123,6 +123,22 @@ class Pipeline(Expr):
 
 
 @dataclass(frozen=True, slots=True)
+class SafePipeline(Pipeline):
+    """Safe pipeline: expr ?|> filter1 ?|> filter2 (None-propagating)
+
+    Inherits from Pipeline so purity analysis treats it identically.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class OptionalFilter(Filter):
+    """Optional filter: expr ?| filter(args) — skips if value is None
+
+    Inherits from Filter so purity analysis treats it identically.
+    """
+
+
+@dataclass(frozen=True, slots=True)
 class Test(Expr):
     """Test application: expr is test(args) or expr is not test(args)"""
 

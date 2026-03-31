@@ -36,6 +36,9 @@ composition.
 | Comments | `{# text #}` | `{# TODO #}` |
 | Filters | `\| filter` | `{{ name \| upper }}` |
 | Pipeline | `\|> filter` | `{{ x \|> a \|> b }}` |
+| Safe pipeline | `?\|> filter` | `{{ x ?\|> a ?\|> b }}` |
+| Optional filter | `?\| filter` | `{{ x ?\| upper }}` |
+| Nullish assign | `??=` | `{% let x ??= "default" %}` |
 
 ## Syntax Guide
 
@@ -106,4 +109,6 @@ composition.
 - **Unified `{% end %}`** — Clean, consistent block endings
 - **Pattern matching** — `{% match status %}{% case "active" %}...{% end %}`
 - **Pipeline operator** — `{{ title |> escape |> upper |> truncate(50) }}`
+- **Safe pipeline** — `{{ user?.name ?|> upper ?? "Anonymous" }}` — None-propagating
+- **Nullish assignment** — `{% let title ??= "Untitled" %}` — set only if undefined/None
 - **Built-in caching** — `{% cache "sidebar" %}...{% end %}`

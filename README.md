@@ -27,7 +27,7 @@ Kida is a modern template engine for Python 3.14t. It works for static site gene
 - **AST-native** — Compiles to Python AST directly. Structured code manipulation, compile-time optimization, precise error source mapping.
 - **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703). All public APIs are thread-safe.
 - **Dual-mode rendering** — `render()` uses StringBuilder for maximum throughput. `render_stream()` yields chunks for streaming HTTP and SSE.
-- **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`, null coalescing, optional chaining.
+- **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`, null coalescing (`??`), optional chaining (`?.`), safe pipeline (`?|>`), optional filter (`?|`), nullish assignment (`??=`).
 - **Explicit block closers** — Prefer `{% endif %}`, `{% endcall %}`, `{% endfor %}`, `{% endblock %}`, `{% enddef %}` over bare `{% end %}` when nesting depth is 3+ (both styles are valid; explicit tags match Jinja2 muscle memory and ease code review).
 - **Zero dependencies** — Pure Python, includes native `Markup` implementation.
 
