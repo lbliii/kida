@@ -5,6 +5,18 @@
 {# Null coalescing: ?? provides a fallback for None values #}
 <img src="{{ user?.profile?.avatar ?? 'default.png' }}" alt="avatar">
 
+{# Safe pipeline: ?|> propagates None through filter chains #}
+<p class="bio">{{ user?.bio ?|> trim ?|> truncate(100) ?? "No bio provided" }}</p>
+
+{# Optional filter: ?| skips filter on None #}
+<span class="location">{{ user?.location ?| upper ?? "Unknown" }}</span>
+
+{# Nullish assignment: ??= sets defaults without overwriting #}
+{% let page_title ??= "User Profile" %}
+{% let show_actions ??= true %}
+
+<title>{{ page_title }}</title>
+
 {# Pattern matching: {% match %} for clean branching #}
 {% match status %}
     {% case "active" %}
@@ -23,4 +35,12 @@
     <p class="role">Can edit content</p>
     {% case _ %}
     <p class="role">Read-only</p>
+{% end %}
+
+{# promote ??= — capture first matching item from a loop #}
+{% for tag in tags %}
+    {% promote primary_tag ??= tag %}
+{% end %}
+{% if show_actions %}
+<footer>Primary tag: {{ primary_tag ?? "none" }}</footer>
 {% end %}

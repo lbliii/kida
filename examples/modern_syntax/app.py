@@ -1,7 +1,8 @@
 """Modern syntax -- features with no Jinja2 equivalent.
 
 Demonstrates pattern matching ({% match %}), pipeline operator (|>),
-null coalescing (??), and optional chaining (?.).
+null coalescing (??), optional chaining (?.), safe pipeline (?|>),
+optional filter (?|), nullish assignment (??=), and promote alias.
 
 Run:
     python app.py
@@ -18,20 +19,36 @@ template = env.get_template("profile.html")
 
 # Render with a complete user
 complete_output = template.render(
-    user={"name": "Alice", "role": "admin", "profile": {"avatar": "alice.png"}},
+    user={
+        "name": "Alice",
+        "role": "admin",
+        "profile": {"avatar": "alice.png"},
+        "bio": "  Security researcher and open-source contributor  ",
+        "location": "Portland",
+    },
     status="active",
+    tags=["python", "security", "oss"],
 )
 
 # Render with a minimal user (missing optional fields)
 minimal_output = template.render(
-    user={"name": "Bob", "role": "viewer", "profile": None},
+    user={"name": "Bob", "role": "viewer", "profile": None, "bio": None, "location": None},
     status="pending",
+    tags=[],
 )
 
 # Render with unknown status
 unknown_output = template.render(
-    user={"name": "Charlie", "role": "editor", "profile": {"avatar": "charlie.png"}},
+    user={
+        "name": "Charlie",
+        "role": "editor",
+        "profile": {"avatar": "charlie.png"},
+        "bio": None,
+        "location": "Denver",
+    },
     status="archived",
+    tags=["writing"],
+    page_title="Charlie's Profile",
 )
 
 

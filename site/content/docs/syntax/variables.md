@@ -118,6 +118,40 @@ Both syntaxes are equivalent:
 {{ items |> sort(attribute='date') |> first }}
 ```
 
+### Safe Pipeline
+
+Use `?|>` for None-propagating pipelines. If the value is None, the entire chain
+short-circuits instead of erroring:
+
+```kida
+{# Without ?|> — errors if user.name is None #}
+{{ user.name |> upper |> trim }}
+
+{# With ?|> — safely returns None, then ?? provides fallback #}
+{{ user?.name ?|> upper ?|> trim ?? "Anonymous" }}
+```
+
+This composes naturally with optional chaining (`?.`) and null coalescing (`??`).
+
+### Optional Filter
+
+Use `?|` to skip a filter when the value is None:
+
+```kida
+{# Errors if value is None #}
+{{ value | upper }}
+
+{# Safely skips — returns None, then ?? provides fallback #}
+{{ value ?| upper ?? "N/A" }}
+
+{# Chain multiple optional filters #}
+{{ config?.debug ?| string ?? "unset" }}
+```
+
+`?|` works like `|` but checks for None before applying the filter. Use it
+anywhere you'd write `| default("") | filter` — it's cleaner and doesn't
+swallow falsy values like `0` or `""`.
+
 ## Default Values
 
 Handle missing or None values:

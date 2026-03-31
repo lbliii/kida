@@ -182,7 +182,7 @@ Block-scoped variable — **does not leak** out of `{% if %}`, `{% for %}`, or o
 > inside a block modifies the outer variable. In Kida, `set` is block-scoped. Use
 > `let` for template-wide variables or `export` to push values out of blocks.
 
-### export
+### export / promote
 
 Promotes a variable to the template (outermost) scope — it escapes all nested blocks,
 not just the immediate parent:
@@ -195,10 +195,42 @@ not just the immediate parent:
 {{ total }}  → sum of all prices
 ```
 
+`promote` is an alias for `export` — use whichever reads better:
+
+```kida
+{% for item in items %}
+    {% promote first_item ??= item %}
+{% end %}
+{{ first_item }}  → first item in the list
+```
+
 This replaces Jinja2's `namespace()` pattern for accumulating values inside loops.
 
-> **Note:** `export` always writes to the template scope, even from deeply nested blocks.
-> An `export` inside an `if` inside a `for` will escape both.
+> **Note:** `export` / `promote` always writes to the template scope, even from deeply
+> nested blocks. An `export` inside an `if` inside a `for` will escape both.
+
+### Nullish Assignment (??=)
+
+Use `??=` to assign only when a variable is undefined or None. Works with all three
+scoping keywords:
+
+```kida
+{# Set defaults without overwriting existing values #}
+{% let title ??= "Untitled" %}
+{% let show_sidebar ??= true %}
+
+{# In loops — capture only the first value #}
+{% for item in items %}
+    {% promote winner ??= item %}
+{% end %}
+{{ winner }}  → first item (??= is a no-op after that)
+
+{# With context variables — respect what the caller passed #}
+{% let page_class ??= "default" %}
+```
+
+`??=` checks for both undefined and `None`. It does **not** treat falsy values
+like `0`, `""`, or `False` as missing — only `None` and truly undefined variables.
 
 ## Whitespace Control
 
