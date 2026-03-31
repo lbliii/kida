@@ -97,6 +97,11 @@ class VariableBlockParsingMixin(BlockStackMixin):
                 self._expect(TokenType.ASSIGN)
 
             if is_tuple_unpack:
+                if coalesce:
+                    raise self._error(
+                        "Cannot use ??= with tuple unpacking",
+                        suggestion="Use ??= with a single variable: {% set x ??= value %}",
+                    )
                 # Tuple unpacking: use _parse_tuple_or_expression for RHS
                 # This handles {% set a, b = 1, 2 %}
                 value = self._parse_tuple_or_expression()
@@ -106,7 +111,6 @@ class VariableBlockParsingMixin(BlockStackMixin):
                         col_offset=start.col_offset,
                         target=target,
                         value=value,
-                        coalesce=coalesce,
                     )
                 )
                 # Tuple unpacking cannot be combined with multi-set
@@ -164,22 +168,23 @@ class VariableBlockParsingMixin(BlockStackMixin):
         return sets
 
     def _is_multi_set_continuation(self) -> bool:
-        """Check if comma is followed by 'NAME =' pattern (multi-set).
+        """Check if comma is followed by 'NAME =' or 'NAME ??=' pattern (multi-set).
 
         Uses 2-token lookahead without consuming tokens.
 
         Returns True for: a = 1, b = 2
+        Returns True for: a = 1, b ??= 2
         Returns False for: a = 1, 2, 3 (tuple value)
         Returns False for: a = 1, (trailing comma)
         """
         # Current token is COMMA
-        # Peek ahead: NAME ASSIGN?
+        # Peek ahead: NAME (ASSIGN | NULLISH_ASSIGN)?
         next_token = self._peek(1)
         if next_token.type != TokenType.NAME:
             return False
 
         next_next_token = self._peek(2)
-        return bool(next_next_token.type == TokenType.ASSIGN)
+        return next_next_token.type in (TokenType.ASSIGN, TokenType.NULLISH_ASSIGN)
 
     def _parse_let(self) -> Let | list[Let]:
         """Parse {% let x = expr %} or {% let x ??= expr %}.
@@ -216,6 +221,11 @@ class VariableBlockParsingMixin(BlockStackMixin):
             is_tuple_unpack = isinstance(target, KidaTuple) and len(target.items) > 1
 
             if is_tuple_unpack:
+                if coalesce:
+                    raise self._error(
+                        "Cannot use ??= with tuple unpacking",
+                        suggestion="Use ??= with a single variable: {% let x ??= value %}",
+                    )
                 # Tuple unpacking: use _parse_tuple_or_expression for RHS
                 value = self._parse_tuple_or_expression()
                 lets.append(
@@ -224,7 +234,6 @@ class VariableBlockParsingMixin(BlockStackMixin):
                         col_offset=start.col_offset,
                         name=target,
                         value=value,
-                        coalesce=coalesce,
                     )
                 )
                 # Tuple unpacking cannot be combined with multi-let
@@ -304,7 +313,14 @@ class VariableBlockParsingMixin(BlockStackMixin):
         # Check for tuple unpacking
         from kida.nodes import Tuple as KidaTuple
 
-        if isinstance(target, KidaTuple) and len(target.items) > 1:
+        is_tuple_unpack = isinstance(target, KidaTuple) and len(target.items) > 1
+
+        if is_tuple_unpack:
+            if coalesce:
+                raise self._error(
+                    "Cannot use ??= with tuple unpacking",
+                    suggestion="Use ??= with a single variable: {% export x ??= value %}",
+                )
             value = self._parse_tuple_or_expression()
         else:
             value = self._parse_expression()

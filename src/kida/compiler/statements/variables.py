@@ -85,35 +85,41 @@ class VariableAssignmentMixin:
     def _wrap_coalesce_guard(self, target: Node, stmts: list[ast.stmt]) -> list[ast.stmt]:
         """Wrap assignment statements with a nullish coalesce guard.
 
-        Generates: if not _is_defined(lambda: ctx.get('name')) or ctx.get('name') is None: ...
-
-        Simplified: if ctx.get('name') is None: <assign>
-        This covers both undefined (returns None from dict.get) and explicit None.
+        Uses _is_defined(lambda: _lookup_scope(ctx, _scope_stack, name)) to match
+        kida's scope-aware variable resolution semantics. This correctly handles:
+        - Variables defined in block scopes (_scope_stack)
+        - Variables defined in template scope (ctx)
+        - Truly undefined variables (raises UndefinedError, caught by _is_defined)
+        - Explicit None values
         """
         from kida.nodes import Name as KidaName
 
         if isinstance(target, KidaName):
-            # if ctx.get('name') is None: <original assignment>
+            # if not _is_defined(lambda: _lookup_scope(ctx, _scope_stack, name)): <assign>
+            lookup_call = ast.Call(
+                func=ast.Name(id="_lookup_scope", ctx=ast.Load()),
+                args=[
+                    ast.Name(id="ctx", ctx=ast.Load()),
+                    ast.Name(id="_scope_stack", ctx=ast.Load()),
+                    ast.Constant(value=target.name),
+                ],
+                keywords=[],
+            )
             return [
                 ast.If(
-                    test=ast.Compare(
-                        left=ast.Call(
-                            func=ast.Attribute(
-                                value=ast.Name(id="ctx", ctx=ast.Load()),
-                                attr="get",
-                                ctx=ast.Load(),
-                            ),
-                            args=[ast.Constant(value=target.name)],
+                    test=ast.UnaryOp(
+                        op=ast.Not(),
+                        operand=ast.Call(
+                            func=ast.Name(id="_is_defined", ctx=ast.Load()),
+                            args=[self._make_deferred_lambda(lookup_call)],
                             keywords=[],
                         ),
-                        ops=[ast.Is()],
-                        comparators=[ast.Constant(value=None)],
                     ),
                     body=stmts,
                     orelse=[],
                 )
             ]
-        # For tuple unpacking with ??=, fall through to unconditional assignment
+        # For tuple unpacking with ??=, disallowed at parse time
         return stmts
 
     def _compile_block_scoped_assignment(self, target: Node, value: Node) -> list[ast.stmt]:

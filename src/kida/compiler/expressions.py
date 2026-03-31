@@ -101,23 +101,14 @@ class ExpressionCompilationMixin:
         This handles cases like (a | length) + (b | length) where the left/right
         operands are Filter nodes that need numeric coercion.
         """
-        from kida.nodes import (
-            BinOp,
-            CondExpr,
-            Filter,
-            FuncCall,
-            OptionalFilter,
-            Pipeline,
-            SafePipeline,
-            UnaryOp,
-        )
+        from kida.nodes import BinOp, CondExpr, Filter, FuncCall, Pipeline, UnaryOp
 
-        # Direct match: Filter or FuncCall nodes
-        if isinstance(node, (FuncCall, Filter, OptionalFilter)):
+        # Direct match: Filter/OptionalFilter or FuncCall nodes
+        if isinstance(node, (FuncCall, Filter)):
             return True
 
-        # Pipeline nodes contain filters, need coercion
-        if isinstance(node, (Pipeline, SafePipeline)):
+        # Pipeline/SafePipeline nodes contain filters, need coercion
+        if isinstance(node, Pipeline):
             return True
 
         # Recursive check for nested expressions that might contain filters
@@ -378,6 +369,10 @@ class ExpressionCompilationMixin:
                 )
             return call_node
 
+        # OptionalFilter before Filter (subclass before parent)
+        if isinstance(node, OptionalFilter):
+            return self._compile_optional_filter(node)
+
         if isinstance(node, Filter):
             # Validate filter exists at compile time
             # Special case: 'default' and 'd' are handled specially below but still valid
@@ -520,14 +515,12 @@ class ExpressionCompilationMixin:
                 orelse=self._compile_expr(node.if_false),
             )
 
-        if isinstance(node, Pipeline):
-            return self._compile_pipeline(node)
-
+        # SafePipeline before Pipeline (subclass before parent)
         if isinstance(node, SafePipeline):
             return self._compile_safe_pipeline(node)
 
-        if isinstance(node, OptionalFilter):
-            return self._compile_optional_filter(node)
+        if isinstance(node, Pipeline):
+            return self._compile_pipeline(node)
 
         if isinstance(node, InlinedFilter):
             return self._compile_inlined_filter(node)

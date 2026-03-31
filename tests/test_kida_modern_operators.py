@@ -128,6 +128,40 @@ class TestNullishAssignment:
         )
         assert tmpl.render().strip() == "default"
 
+    def test_set_nullish_assign_inside_loop_preserves_outer(self, env: Environment):
+        """??= with {% set %} inside a loop does not overwrite outer non-None value."""
+        tmpl = env.from_string(
+            """
+{% let x = "outer" %}
+{% for item in [1, 2, 3] %}
+  {% set x ??= "inner" %}
+{% end %}
+{{ x }}
+""".strip()
+        )
+        # x is already "outer", so ??= inside the loop should not overwrite it
+        assert tmpl.render().strip() == "outer"
+
+    def test_set_nullish_assign_inside_if_preserves_outer(self, env: Environment):
+        """??= with {% set %} inside if block does not overwrite outer non-None value."""
+        tmpl = env.from_string(
+            """
+{% let x = "outer" %}
+{% if true %}
+  {% set x ??= "inner" %}
+{% end %}
+{{ x }}
+""".strip()
+        )
+        assert tmpl.render().strip() == "outer"
+
+    def test_nullish_assign_rejects_tuple_unpacking(self, env: Environment):
+        """??= is not allowed with tuple unpacking."""
+        import pytest as _pytest
+
+        with _pytest.raises(Exception, match=r"Cannot use .* with tuple unpacking"):
+            env.from_string("{% let a, b ??= 1, 2 %}")
+
     def test_export_nullish_assign(self, env: Environment):
         """??= works with {% export %} (scope promotion)."""
         tmpl = env.from_string(

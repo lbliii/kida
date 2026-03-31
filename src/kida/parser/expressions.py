@@ -658,10 +658,10 @@ class ExpressionParsingMixin:
                 )
 
         # Error if mixing operators
-        if self._match(TokenType.PIPE, TokenType.PIPELINE):
+        if self._match(TokenType.PIPE, TokenType.PIPELINE, TokenType.OPTIONAL_PIPE):
             raise self._error(
-                "Cannot mix '?|>' with '|' or '|>' operators",
-                suggestion="Use ?|> consistently: {{ x ?|> a ?|> b }}",
+                "Cannot mix '?|>' with '|', '|>', or '?|' operators",
+                suggestion="Use ?|> consistently for safe pipelines: {{ x ?|> a ?|> b }}",
             )
 
         if not steps:

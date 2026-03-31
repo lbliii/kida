@@ -123,21 +123,19 @@ class Pipeline(Expr):
 
 
 @dataclass(frozen=True, slots=True)
-class SafePipeline(Expr):
-    """Safe pipeline: expr ?|> filter1 ?|> filter2 (None-propagating)"""
+class SafePipeline(Pipeline):
+    """Safe pipeline: expr ?|> filter1 ?|> filter2 (None-propagating)
 
-    value: Expr
-    steps: Sequence[tuple[str, Sequence[Expr], dict[str, Expr]]]
+    Inherits from Pipeline so purity analysis treats it identically.
+    """
 
 
 @dataclass(frozen=True, slots=True)
-class OptionalFilter(Expr):
-    """Optional filter: expr ?| filter(args) — skips if value is None"""
+class OptionalFilter(Filter):
+    """Optional filter: expr ?| filter(args) — skips if value is None
 
-    value: Expr
-    name: str
-    args: Sequence[Expr] = ()
-    kwargs: dict[str, Expr] = field(default_factory=dict)
+    Inherits from Filter so purity analysis treats it identically.
+    """
 
 
 @dataclass(frozen=True, slots=True)
