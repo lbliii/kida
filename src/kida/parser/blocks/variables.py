@@ -62,10 +62,13 @@ class VariableBlockParsingMixin(BlockStackMixin):
         def _parse_expression(self) -> Expr: ...
 
     def _parse_set(self) -> list[Set]:
-        """Parse {% set x = expr %} or {% set x = 1, y = 2, z = 3 %}.
+        """Parse {% set x = expr %} or {% set x ??= expr %} or {% set x = 1, y = 2, z = 3 %}.
 
         Multi-set syntax allows comma-separated independent assignments:
             {% set a = 1, b = 2, c = 3 %}
+
+        Nullish assignment (??=) assigns only if the variable is undefined or None:
+            {% set x ??= "default" %}
 
         Tuple unpacking remains unchanged:
             {% set a, b = 1, 2 %}
@@ -86,7 +89,12 @@ class VariableBlockParsingMixin(BlockStackMixin):
             # Check for tuple unpacking (target is a tuple with multiple items)
             is_tuple_unpack = isinstance(target, Tuple) and len(target.items) > 1
 
-            self._expect(TokenType.ASSIGN)
+            # Check for ??= (nullish assign) or = (regular assign)
+            coalesce = self._match(TokenType.NULLISH_ASSIGN)
+            if coalesce:
+                self._advance()  # consume ??=
+            else:
+                self._expect(TokenType.ASSIGN)
 
             if is_tuple_unpack:
                 # Tuple unpacking: use _parse_tuple_or_expression for RHS
@@ -98,6 +106,7 @@ class VariableBlockParsingMixin(BlockStackMixin):
                         col_offset=start.col_offset,
                         target=target,
                         value=value,
+                        coalesce=coalesce,
                     )
                 )
                 # Tuple unpacking cannot be combined with multi-set
@@ -116,6 +125,7 @@ class VariableBlockParsingMixin(BlockStackMixin):
                                 col_offset=start.col_offset,
                                 target=target,
                                 value=value,
+                                coalesce=coalesce,
                             )
                         )
                         self._advance()  # consume comma
@@ -145,6 +155,7 @@ class VariableBlockParsingMixin(BlockStackMixin):
                         col_offset=start.col_offset,
                         target=target,
                         value=value,
+                        coalesce=coalesce,
                     )
                 )
                 break
@@ -171,10 +182,13 @@ class VariableBlockParsingMixin(BlockStackMixin):
         return bool(next_next_token.type == TokenType.ASSIGN)
 
     def _parse_let(self) -> Let | list[Let]:
-        """Parse {% let x = expr %} or {% let x = 1, y = 2, z = 3 %}.
+        """Parse {% let x = expr %} or {% let x ??= expr %}.
 
         Multi-let syntax allows comma-separated independent assignments:
             {% let a = 1, b = 2, c = 3 %}
+
+        Nullish assignment (??=) assigns only if the variable is undefined or None:
+            {% let x ??= "default" %}
 
         Supports tuple unpacking:
             {% let a, b = 1, 2 %}
@@ -189,7 +203,12 @@ class VariableBlockParsingMixin(BlockStackMixin):
             # Parse target - can be single name or tuple for unpacking
             target = self._parse_tuple_or_name()
 
-            self._expect(TokenType.ASSIGN)
+            # Check for ??= (nullish assign) or = (regular assign)
+            coalesce = self._match(TokenType.NULLISH_ASSIGN)
+            if coalesce:
+                self._advance()  # consume ??=
+            else:
+                self._expect(TokenType.ASSIGN)
 
             # Check for tuple unpacking
             from kida.nodes import Tuple as KidaTuple
@@ -203,8 +222,9 @@ class VariableBlockParsingMixin(BlockStackMixin):
                     Let(
                         lineno=start.lineno,
                         col_offset=start.col_offset,
-                        name=target,  # node.name can now be an Expr (Name or Tuple)
+                        name=target,
                         value=value,
+                        coalesce=coalesce,
                     )
                 )
                 # Tuple unpacking cannot be combined with multi-let
@@ -222,6 +242,7 @@ class VariableBlockParsingMixin(BlockStackMixin):
                                 col_offset=start.col_offset,
                                 name=target,
                                 value=value,
+                                coalesce=coalesce,
                             )
                         )
                         self._advance()  # consume comma
@@ -249,6 +270,7 @@ class VariableBlockParsingMixin(BlockStackMixin):
                         col_offset=start.col_offset,
                         name=target,
                         value=value,
+                        coalesce=coalesce,
                     )
                 )
                 break
@@ -259,17 +281,25 @@ class VariableBlockParsingMixin(BlockStackMixin):
         return lets[0] if len(lets) == 1 else lets
 
     def _parse_export(self) -> Export:
-        """Parse {% export x = expr %}.
+        """Parse {% export x = expr %} or {% export x ??= expr %}.
 
         Supports tuple unpacking:
             {% export a, b = 1, 2 %}
+
+        Nullish assignment (??=) exports only if the variable is undefined or None:
+            {% export x ??= "default" %}
         """
-        start = self._advance()  # consume 'export'
+        start = self._advance()  # consume 'export' or 'promote'
 
         # Parse target - can be single name or tuple for unpacking
         target = self._parse_tuple_or_name()
 
-        self._expect(TokenType.ASSIGN)
+        # Check for ??= (nullish assign) or = (regular assign)
+        coalesce = self._match(TokenType.NULLISH_ASSIGN)
+        if coalesce:
+            self._advance()  # consume ??=
+        else:
+            self._expect(TokenType.ASSIGN)
 
         # Check for tuple unpacking
         from kida.nodes import Tuple as KidaTuple
@@ -284,6 +314,7 @@ class VariableBlockParsingMixin(BlockStackMixin):
         return Export(
             lineno=start.lineno,
             col_offset=start.col_offset,
-            name=target,  # node.name can now be an Expr (Name or Tuple)
+            name=target,
             value=value,
+            coalesce=coalesce,
         )

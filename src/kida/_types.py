@@ -116,7 +116,10 @@ class TokenType(Enum):
     # Modern syntax features (RFC: kida-modern-syntax-features)
     OPTIONAL_DOT = "optional_dot"  # ?.
     OPTIONAL_BRACKET = "optional_bracket"  # ?[
+    OPTIONAL_PIPE = "optional_pipe"  # ?|
     NULLISH_COALESCE = "nullish_coalesce"  # ??
+    NULLISH_ASSIGN = "nullish_assign"  # ??=
+    SAFE_PIPELINE = "safe_pipeline"  # ?|>
     RANGE_INCLUSIVE = "range_inclusive"  # ..
     RANGE_EXCLUSIVE = "range_exclusive"  # ...
 
@@ -172,7 +175,10 @@ _TOKEN_DISPLAY: dict[str, str] = {
     "rbrace": "'}'",
     "optional_dot": "'?.'",
     "optional_bracket": "'?['",
+    "optional_pipe": "'?|'",
     "nullish_coalesce": "'??'",
+    "nullish_assign": "'??='",
+    "safe_pipeline": "'?|>'",
     "range_inclusive": "'..'",
     "range_exclusive": "'...'",
     "eof": "end of template",
@@ -247,6 +253,7 @@ KEYWORDS = frozenset(
         "let",
         "set",
         "export",
+        "promote",  # Alias for export — clearer "push to outer scope" semantics
         # Async (Kida native)
         "async",
         "await",

@@ -101,14 +101,23 @@ class ExpressionCompilationMixin:
         This handles cases like (a | length) + (b | length) where the left/right
         operands are Filter nodes that need numeric coercion.
         """
-        from kida.nodes import BinOp, CondExpr, Filter, FuncCall, Pipeline, UnaryOp
+        from kida.nodes import (
+            BinOp,
+            CondExpr,
+            Filter,
+            FuncCall,
+            OptionalFilter,
+            Pipeline,
+            SafePipeline,
+            UnaryOp,
+        )
 
         # Direct match: Filter or FuncCall nodes
-        if isinstance(node, (FuncCall, Filter)):
+        if isinstance(node, (FuncCall, Filter, OptionalFilter)):
             return True
 
         # Pipeline nodes contain filters, need coercion
-        if isinstance(node, Pipeline):
+        if isinstance(node, (Pipeline, SafePipeline)):
             return True
 
         # Recursive check for nested expressions that might contain filters
@@ -163,10 +172,12 @@ class ExpressionCompilationMixin:
             InlinedFilter,
             Name,
             NullCoalesce,
+            OptionalFilter,
             OptionalGetattr,
             OptionalGetitem,
             Pipeline,
             Range,
+            SafePipeline,
             Slice,
             Test,
             UnaryOp,
@@ -512,6 +523,12 @@ class ExpressionCompilationMixin:
         if isinstance(node, Pipeline):
             return self._compile_pipeline(node)
 
+        if isinstance(node, SafePipeline):
+            return self._compile_safe_pipeline(node)
+
+        if isinstance(node, OptionalFilter):
+            return self._compile_optional_filter(node)
+
         if isinstance(node, InlinedFilter):
             return self._compile_inlined_filter(node)
 
@@ -741,6 +758,64 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
+    def _compile_optional_filter(self, node: Any) -> ast.expr:
+        """Compile expr ?| filter — skip filter if value is None.
+
+        expr ?| upper  compiles to:
+            None if (_of_N := expr) is None else _filters['upper'](_of_N)
+        """
+        self._block_counter += 1
+        tmp_name = f"_of_{self._block_counter}"
+
+        # Validate filter exists at compile time
+        if node.name not in self._env._filters:
+            suggestion = self._get_filter_suggestion(node.name)
+            msg = f"Unknown filter '{node.name}'"
+            if suggestion:
+                msg += f". Did you mean '{suggestion}'?"
+            raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+
+        value = self._compile_expr(node.value)
+        compiled_args = [self._compile_expr(arg) for arg in node.args]
+        compiled_kwargs = [
+            ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
+        ]
+
+        filter_call = ast.Call(
+            func=ast.Subscript(
+                value=ast.Name(id="_filters", ctx=ast.Load()),
+                slice=ast.Constant(value=node.name),
+                ctx=ast.Load(),
+            ),
+            args=[ast.Name(id=tmp_name, ctx=ast.Load()), *compiled_args],
+            keywords=compiled_kwargs,
+        )
+
+        if self._env.enable_profiling:
+            filter_call = ast.Call(
+                func=ast.Name(id="_record_filter", ctx=ast.Load()),
+                args=[
+                    ast.Name(id="_acc", ctx=ast.Load()),
+                    ast.Constant(value=node.name),
+                    filter_call,
+                ],
+                keywords=[],
+            )
+
+        # None if (_of_N := value) is None else _filters['name'](_of_N, ...)
+        return ast.IfExp(
+            test=ast.Compare(
+                left=ast.NamedExpr(
+                    target=ast.Name(id=tmp_name, ctx=ast.Store()),
+                    value=value,
+                ),
+                ops=[ast.Is()],
+                comparators=[ast.Constant(value=None)],
+            ),
+            body=ast.Constant(value=None),
+            orelse=filter_call,
+        )
+
     def _compile_pipeline(self, node: Pipeline) -> ast.expr:
         """Compile pipeline: expr |> filter1 |> filter2.
 
@@ -792,5 +867,70 @@ class ExpressionCompilationMixin:
                 )
             else:
                 result = filter_call
+
+        return result
+
+    def _compile_safe_pipeline(self, node: Any) -> ast.expr:
+        """Compile safe pipeline: expr ?|> filter1 ?|> filter2.
+
+        None-propagating: each step checks for None before applying the filter.
+
+        expr ?|> a ?|> b(x)  compiles to:
+            _sp_2 = None if (_sp_1 := expr) is None else _filters['a'](_sp_1)
+            None if _sp_2 is None else _filters['b'](_sp_2, x)
+        """
+        result = self._compile_expr(node.value)
+
+        for filter_name, args, kwargs in node.steps:
+            # Validate filter exists at compile time
+            if filter_name not in self._env._filters:
+                suggestion = self._get_filter_suggestion(filter_name)
+                msg = f"Unknown filter '{filter_name}'"
+                if suggestion:
+                    msg += f". Did you mean '{suggestion}'?"
+                raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+
+            self._block_counter += 1
+            tmp_name = f"_sp_{self._block_counter}"
+
+            compiled_args = [self._compile_expr(arg) for arg in args]
+            compiled_kwargs = [
+                ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in kwargs.items()
+            ]
+
+            filter_call = ast.Call(
+                func=ast.Subscript(
+                    value=ast.Name(id="_filters", ctx=ast.Load()),
+                    slice=ast.Constant(value=filter_name),
+                    ctx=ast.Load(),
+                ),
+                args=[ast.Name(id=tmp_name, ctx=ast.Load()), *compiled_args],
+                keywords=compiled_kwargs,
+            )
+
+            if self._env.enable_profiling:
+                filter_call = ast.Call(
+                    func=ast.Name(id="_record_filter", ctx=ast.Load()),
+                    args=[
+                        ast.Name(id="_acc", ctx=ast.Load()),
+                        ast.Constant(value=filter_name),
+                        filter_call,
+                    ],
+                    keywords=[],
+                )
+
+            # None if (_sp_N := prev) is None else _filters['name'](_sp_N, ...)
+            result = ast.IfExp(
+                test=ast.Compare(
+                    left=ast.NamedExpr(
+                        target=ast.Name(id=tmp_name, ctx=ast.Store()),
+                        value=result,
+                    ),
+                    ops=[ast.Is()],
+                    comparators=[ast.Constant(value=None)],
+                ),
+                body=ast.Constant(value=None),
+                orelse=filter_call,
+            )
 
         return result

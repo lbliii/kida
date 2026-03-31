@@ -40,6 +40,7 @@ _BLOCK_PARSERS: dict[str, str] = {
     "set": "_parse_set",
     "let": "_parse_let",
     "export": "_parse_export",
+    "promote": "_parse_export",  # Alias for export
     # Template structure
     "template": "_parse_template_context",
     "block": "_parse_block_tag",

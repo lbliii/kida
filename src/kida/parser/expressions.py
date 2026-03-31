@@ -27,10 +27,12 @@ from kida.nodes import (
     List,
     Name,
     NullCoalesce,
+    OptionalFilter,
     OptionalGetattr,
     OptionalGetitem,
     Pipeline,
     Range,
+    SafePipeline,
     Slice,
     Test,
     Tuple,
@@ -499,6 +501,8 @@ class ExpressionParsingMixin:
         """Parse filter chain: expr | filter1 | filter2(arg).
 
         Also handles pipeline operator: expr |> filter1 |> filter2(arg).
+        Also handles safe pipeline: expr ?|> filter1 ?|> filter2(arg).
+        Also handles optional filter: expr ?| filter(args).
 
         Design: Mixing | and |> in the same expression is not allowed.
         The first operator encountered determines the style for the expression.
@@ -506,13 +510,16 @@ class ExpressionParsingMixin:
         Filters are parsed after unary operators:
         -42|abs  parses as  (-42)|abs  → 42
         """
-        # Check for pipeline operator first
+        # Check for pipeline operators first
         if self._match(TokenType.PIPELINE):
             return self._parse_pipeline(expr)
+        if self._match(TokenType.SAFE_PIPELINE):
+            return self._parse_safe_pipeline(expr)
 
-        # Standard filter chain with |
+        # Standard filter chain with | or optional filter with ?|
         filter_count = 0
-        while self._match(TokenType.PIPE):
+        while self._match(TokenType.PIPE, TokenType.OPTIONAL_PIPE):
+            is_optional = self._current.type == TokenType.OPTIONAL_PIPE
             self._advance()
             filter_count += 1
             if filter_count > MAX_FILTER_CHAIN_LEN:
@@ -522,7 +529,7 @@ class ExpressionParsingMixin:
                 )
 
             # Error if switching from | to |> mid-expression
-            if self._match(TokenType.PIPELINE):
+            if self._match(TokenType.PIPELINE, TokenType.SAFE_PIPELINE):
                 raise self._error(
                     "Cannot mix '|' and '|>' operators in the same expression",
                     suggestion="Use either '|' or '|>' consistently: {{ x | a | b }} or {{ x |> a |> b }}",
@@ -541,7 +548,8 @@ class ExpressionParsingMixin:
                 args, kwargs = self._parse_call_args()
                 self._expect(TokenType.RPAREN)
 
-            expr = Filter(
+            node_cls = OptionalFilter if is_optional else Filter
+            expr = node_cls(
                 lineno=expr.lineno,
                 col_offset=expr.col_offset,
                 value=expr,
@@ -551,7 +559,7 @@ class ExpressionParsingMixin:
             )
 
         # Error if switching from | to |> after the filter chain
-        if self._match(TokenType.PIPELINE):
+        if self._match(TokenType.PIPELINE, TokenType.SAFE_PIPELINE):
             raise self._error(
                 "Cannot mix '|' and '|>' operators in the same expression",
                 suggestion="Use either '|' or '|>' consistently: {{ x | a | b }} or {{ x |> a |> b }}",
@@ -609,6 +617,57 @@ class ExpressionParsingMixin:
             return expr
 
         return Pipeline(
+            lineno=expr.lineno,
+            col_offset=expr.col_offset,
+            value=expr,
+            steps=tuple(steps),
+        )
+
+    def _parse_safe_pipeline(self, expr: Expr) -> Expr:
+        """Parse safe pipeline: expr ?|> filter1 ?|> filter2(arg).
+
+        None-propagating: if expr is None, the entire pipeline returns None
+        without calling any filters. Each step checks for None before applying.
+        """
+        steps: list[tuple[str, Sequence[Expr], dict[str, Expr]]] = []
+
+        while self._match(TokenType.SAFE_PIPELINE):
+            self._advance()  # consume ?|>
+
+            if self._current.type != TokenType.NAME:
+                raise self._error(
+                    "Expected filter name after ?|>",
+                    suggestion="Safe pipeline syntax: expr ?|> filter_name or expr ?|> filter_name(args)",
+                )
+
+            filter_name = self._advance().value
+
+            args: list[Expr] = []
+            kwargs: dict[str, Expr] = {}
+
+            if self._match(TokenType.LPAREN):
+                self._advance()
+                args, kwargs = self._parse_call_args()
+                self._expect(TokenType.RPAREN)
+
+            steps.append((filter_name, tuple(args), kwargs))
+            if len(steps) > MAX_FILTER_CHAIN_LEN:
+                raise self._error(
+                    f"Safe pipeline exceeds maximum length ({MAX_FILTER_CHAIN_LEN})",
+                    suggestion="Simplify the expression or split into multiple variables",
+                )
+
+        # Error if mixing operators
+        if self._match(TokenType.PIPE, TokenType.PIPELINE):
+            raise self._error(
+                "Cannot mix '?|>' with '|' or '|>' operators",
+                suggestion="Use ?|> consistently: {{ x ?|> a ?|> b }}",
+            )
+
+        if not steps:
+            return expr
+
+        return SafePipeline(
             lineno=expr.lineno,
             col_offset=expr.col_offset,
             value=expr,

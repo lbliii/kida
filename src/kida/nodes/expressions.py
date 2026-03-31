@@ -123,6 +123,24 @@ class Pipeline(Expr):
 
 
 @dataclass(frozen=True, slots=True)
+class SafePipeline(Expr):
+    """Safe pipeline: expr ?|> filter1 ?|> filter2 (None-propagating)"""
+
+    value: Expr
+    steps: Sequence[tuple[str, Sequence[Expr], dict[str, Expr]]]
+
+
+@dataclass(frozen=True, slots=True)
+class OptionalFilter(Expr):
+    """Optional filter: expr ?| filter(args) — skips if value is None"""
+
+    value: Expr
+    name: str
+    args: Sequence[Expr] = ()
+    kwargs: dict[str, Expr] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class Test(Expr):
     """Test application: expr is test(args) or expr is not test(args)"""
 

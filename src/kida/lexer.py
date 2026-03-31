@@ -226,6 +226,8 @@ class Lexer:
     # Three-char operators checked first, then two-char, then single-char
     _OPERATORS_3CHAR: ClassVar[dict[str, TokenType]] = {
         "...": TokenType.RANGE_EXCLUSIVE,  # Range exclusive: 1...11
+        "??=": TokenType.NULLISH_ASSIGN,  # Nullish assign: {% let x ??= 0 %}
+        "?|>": TokenType.SAFE_PIPELINE,  # Safe pipeline: expr ?|> filter (None-propagating)
     }
     _OPERATORS_2CHAR: ClassVar[dict[str, TokenType]] = {
         "**": TokenType.POW,
@@ -238,6 +240,7 @@ class Lexer:
         # Modern syntax features (RFC: kida-modern-syntax-features)
         "?.": TokenType.OPTIONAL_DOT,  # Optional chaining: obj?.attr
         "?[": TokenType.OPTIONAL_BRACKET,  # Optional subscript: obj?[key]
+        "?|": TokenType.OPTIONAL_PIPE,  # Optional filter: expr ?| filter
         "??": TokenType.NULLISH_COALESCE,  # Null coalescing: a ?? b
         "..": TokenType.RANGE_INCLUSIVE,  # Range inclusive: 1..10
     }
