@@ -17,14 +17,13 @@ RFC: kida-contextvar-patterns
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from collections.abc import AsyncIterator, Iterator
 
 
 # Coverage collection hook — when set (via CoverageCollector.start()),

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, final
 
 from kida.nodes import (
     BinOp,
@@ -85,91 +85,93 @@ def _try_eval_const_only(expr: Expr) -> Any:
     Resolves Const, BinOp, UnaryOp, Compare, BoolOp. No Name/Getattr/Getitem
     (those require static_context). Used for dead code elimination.
     """
-    if isinstance(expr, Const):
-        return expr.value
+    match expr:
+        case Const():
+            return expr.value
 
-    if isinstance(expr, BinOp):
-        left = _try_eval_const_only(expr.left)
-        right = _try_eval_const_only(expr.right)
-        if left is _UNRESOLVED or right is _UNRESOLVED:
-            return _UNRESOLVED
-        try:
-            if expr.op == "+":
-                return left + right
-            if expr.op == "-":
-                return left - right
-            if expr.op == "*":
-                return left * right
-            if expr.op == "/":
-                return left / right
-            if expr.op == "//":
-                return left // right
-            if expr.op == "%":
-                return left % right
-            if expr.op == "**":
-                return left**right
-            if expr.op == "~":
-                return str(left) + str(right)
-        except _PARTIAL_EVAL_EXCEPTIONS:
-            return _UNRESOLVED
-        return _UNRESOLVED
-
-    if isinstance(expr, UnaryOp):
-        operand = _try_eval_const_only(expr.operand)
-        if operand is _UNRESOLVED:
-            return _UNRESOLVED
-        try:
-            if expr.op == "-":
-                return -operand
-            if expr.op == "+":
-                return +operand
-            if expr.op == "not":
-                return not operand
-        except _PARTIAL_EVAL_EXCEPTIONS:
-            return _UNRESOLVED
-        return _UNRESOLVED
-
-    if isinstance(expr, Compare):
-        left = _try_eval_const_only(expr.left)
-        if left is _UNRESOLVED:
-            return _UNRESOLVED
-        for op, comp_node in zip(expr.ops, expr.comparators, strict=True):
-            right = _try_eval_const_only(comp_node)
-            if right is _UNRESOLVED:
+        case BinOp():
+            left = _try_eval_const_only(expr.left)
+            right = _try_eval_const_only(expr.right)
+            if left is _UNRESOLVED or right is _UNRESOLVED:
                 return _UNRESOLVED
             try:
-                result = _compare_op(op, left, right)
+                if expr.op == "+":
+                    return left + right
+                if expr.op == "-":
+                    return left - right
+                if expr.op == "*":
+                    return left * right
+                if expr.op == "/":
+                    return left / right
+                if expr.op == "//":
+                    return left // right
+                if expr.op == "%":
+                    return left % right
+                if expr.op == "**":
+                    return left**right
+                if expr.op == "~":
+                    return str(left) + str(right)
             except _PARTIAL_EVAL_EXCEPTIONS:
                 return _UNRESOLVED
-            if not result:
-                return False
-            left = right
-        return True
+            return _UNRESOLVED
 
-    if isinstance(expr, BoolOp):
-        if expr.op == "and":
+        case UnaryOp():
+            operand = _try_eval_const_only(expr.operand)
+            if operand is _UNRESOLVED:
+                return _UNRESOLVED
+            try:
+                if expr.op == "-":
+                    return -operand
+                if expr.op == "+":
+                    return +operand
+                if expr.op == "not":
+                    return not operand
+            except _PARTIAL_EVAL_EXCEPTIONS:
+                return _UNRESOLVED
+            return _UNRESOLVED
+
+        case Compare():
+            left = _try_eval_const_only(expr.left)
+            if left is _UNRESOLVED:
+                return _UNRESOLVED
+            for op, comp_node in zip(expr.ops, expr.comparators, strict=True):
+                right = _try_eval_const_only(comp_node)
+                if right is _UNRESOLVED:
+                    return _UNRESOLVED
+                try:
+                    result = _compare_op(op, left, right)
+                except _PARTIAL_EVAL_EXCEPTIONS:
+                    return _UNRESOLVED
+                if not result:
+                    return False
+                left = right
+            return True
+
+        case BoolOp():
+            if expr.op == "and":
+                for val_node in expr.values:
+                    val = _try_eval_const_only(val_node)
+                    if val is _UNRESOLVED:
+                        return _UNRESOLVED
+                    if not val:
+                        return val
+                return val
             for val_node in expr.values:
                 val = _try_eval_const_only(val_node)
                 if val is _UNRESOLVED:
                     return _UNRESOLVED
-                if not val:
+                if val:
                     return val
             return val
-        for val_node in expr.values:
-            val = _try_eval_const_only(val_node)
-            if val is _UNRESOLVED:
+
+        case CondExpr():
+            test = _try_eval_const_only(expr.test)
+            if test is _UNRESOLVED:
                 return _UNRESOLVED
-            if val:
-                return val
-        return val
+            return _try_eval_const_only(expr.if_true if test else expr.if_false)
 
-    if isinstance(expr, CondExpr):
-        test = _try_eval_const_only(expr.test)
-        if test is _UNRESOLVED:
+        case _:
             return _UNRESOLVED
-        return _try_eval_const_only(expr.if_true if test else expr.if_false)
-
-    return _UNRESOLVED
 
 
 def _body_has_scoping_nodes(nodes: Sequence[Node]) -> bool:
@@ -237,54 +239,55 @@ def _dce_transform_body(body: Sequence[Node]) -> Sequence[Node]:
     changed = False
 
     for node in body:
-        if isinstance(node, If):
-            transformed = _dce_transform_if(node)
-            if transformed is None:
-                changed = True
-                continue
-            if isinstance(transformed, _InlinedBody):
-                changed = True
-                result.extend(transformed.nodes)
-            else:
-                result.append(transformed)
-        elif isinstance(node, Block):
-            new_block_body = _dce_transform_body(node.body)
-            if new_block_body is not node.body:
-                changed = True
-                result.append(
-                    Block(
-                        lineno=node.lineno,
-                        col_offset=node.col_offset,
-                        name=node.name,
-                        body=new_block_body,
-                        scoped=node.scoped,
-                        required=node.required,
-                    )
-                )
-            else:
-                result.append(node)
-        elif isinstance(node, Output):
-            val = _try_eval_const_only(node.expr)
-            if val is not _UNRESOLVED:
-                str_val = "" if val is None else str(val)
-                # Only fold safely: numerics never need escaping,
-                # strings only fold when escape is not required
-                if isinstance(val, (int, float, bool)) or not node.escape:
+        match node:
+            case If():
+                transformed = _dce_transform_if(node)
+                if transformed is None:
                     changed = True
-                    if str_val:
-                        result.append(
-                            Data(
-                                lineno=node.lineno,
-                                col_offset=node.col_offset,
-                                value=str_val,
-                            )
+                    continue
+                if isinstance(transformed, _InlinedBody):
+                    changed = True
+                    result.extend(transformed.nodes)
+                else:
+                    result.append(transformed)
+            case Block():
+                new_block_body = _dce_transform_body(node.body)
+                if new_block_body is not node.body:
+                    changed = True
+                    result.append(
+                        Block(
+                            lineno=node.lineno,
+                            col_offset=node.col_offset,
+                            name=node.name,
+                            body=new_block_body,
+                            scoped=node.scoped,
+                            required=node.required,
                         )
+                    )
                 else:
                     result.append(node)
-            else:
+            case Output():
+                val = _try_eval_const_only(node.expr)
+                if val is not _UNRESOLVED:
+                    str_val = "" if val is None else str(val)
+                    # Only fold safely: numerics never need escaping,
+                    # strings only fold when escape is not required
+                    if isinstance(val, (int, float, bool)) or not node.escape:
+                        changed = True
+                        if str_val:
+                            result.append(
+                                Data(
+                                    lineno=node.lineno,
+                                    col_offset=node.col_offset,
+                                    value=str_val,
+                                )
+                            )
+                    else:
+                        result.append(node)
+                else:
+                    result.append(node)
+            case _:
                 result.append(node)
-        else:
-            result.append(node)
 
     if not changed:
         return body
@@ -843,6 +846,7 @@ class PartialEvaluator:
         return expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class _InlinedBody(Node):
     """Temporary node for inlined If branches.

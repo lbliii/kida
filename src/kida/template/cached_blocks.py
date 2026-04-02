@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from kida.template.types import BlockCallable
+if TYPE_CHECKING:
+    from kida.template.types import BlockCallable
 
 
 class CachedBlocksDict:

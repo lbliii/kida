@@ -5,8 +5,12 @@ Provides ParseError class with rich source context and suggestions.
 
 from __future__ import annotations
 
-from kida._types import Token
+from typing import TYPE_CHECKING
+
 from kida.environment.exceptions import ErrorCode, TemplateSyntaxError
+
+if TYPE_CHECKING:
+    from kida._types import Token
 
 
 class ParseError(TemplateSyntaxError):

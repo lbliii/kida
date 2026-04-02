@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-RoleType = Literal["navigation", "content", "sidebar", "header", "footer", "unknown"]
+type RoleType = Literal["navigation", "content", "sidebar", "header", "footer", "unknown"]
 
 
 def classify_role(

@@ -24,7 +24,7 @@ Progressive streaming::
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kida.terminal.live import LiveRenderer, Spinner, stream_to_terminal
@@ -47,7 +47,7 @@ def terminal_env(**kwargs) -> Environment:
     from kida.environment.loaders import ChoiceLoader, FileSystemLoader
 
     # Component templates directory
-    components_dir = os.path.dirname(__file__)
+    components_dir = Path(__file__).parent
 
     user_loader = kwargs.pop("loader", None)
 

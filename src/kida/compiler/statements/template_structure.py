@@ -363,7 +363,7 @@ class TemplateStructureMixin:
 
         # ctx['name'] = _imported['name'] for each imported name
         for name, alias in node.names:
-            target_name = alias if alias else name
+            target_name = alias or name
             stmts.append(
                 ast.Assign(
                     targets=[

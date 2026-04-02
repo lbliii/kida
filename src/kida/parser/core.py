@@ -25,7 +25,7 @@ per template compilation. The resulting AST is immutable and thread-safe.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
 from kida.nodes import Template, TemplateContext
@@ -33,6 +33,9 @@ from kida.parser.blocks import BlockParsingMixin
 from kida.parser.expressions import ExpressionParsingMixin
 from kida.parser.statements import StatementParsingMixin
 from kida.parser.tokens import TokenNavigationMixin
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class Parser(

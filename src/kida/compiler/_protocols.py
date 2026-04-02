@@ -8,10 +8,11 @@ See: plan/rfc-mixin-protocol-typing.md
 
 from __future__ import annotations
 
-import ast
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    import ast
+
     from kida.environment import Environment
     from kida.nodes import Node
 

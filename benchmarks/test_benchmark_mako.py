@@ -13,9 +13,13 @@ import pytest
 
 pytest.importorskip("mako")
 
-from pytest_benchmark.fixture import BenchmarkFixture
+
+from typing import TYPE_CHECKING
 
 from kida import Environment as KidaEnvironment
+
+if TYPE_CHECKING:
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 # Equivalent templates (Kida vs Mako syntax)
 MINIMAL_KIDA = "Hello {{ name }}!"

@@ -10,7 +10,6 @@ Run:
     uvicorn app:app --reload
 """
 
-from collections.abc import AsyncIterator
 from pathlib import Path
 
 fastapi = None
@@ -22,7 +21,12 @@ try:
 except ImportError:
     pass
 
-from kida import Environment, FileSystemLoader
+from typing import TYPE_CHECKING  # noqa: E402
+
+from kida import Environment, FileSystemLoader  # noqa: E402
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 templates_dir = Path(__file__).parent / "templates"
 env = Environment(loader=FileSystemLoader(str(templates_dir)))
@@ -63,7 +67,7 @@ if fastapi is not None:
             title="Dashboard",
             items=fetch_items(),
         ):
-            chunks.append(chunk)
+            chunks.append(chunk)  # noqa: PERF401
         html = "".join(chunks)
         return StreamingResponse(
             iter([html]),

@@ -7,10 +7,9 @@ and role classification into a unified analysis pass.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Any
+from typing import TYPE_CHECKING, Any, final
 
 from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
@@ -33,6 +32,9 @@ from kida.nodes import (
     Region,
     Template,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -448,6 +450,7 @@ class BlockAnalyzer:
             )
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class _DefSignature:
     """Internal: extracted signature of a {% def %} for call validation."""
@@ -474,6 +477,7 @@ class _DefSignature:
         )
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class _SurfaceScanResult:
     """Result of a merged surface scan (landmarks + emits_html + block_hash)."""

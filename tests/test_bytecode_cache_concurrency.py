@@ -6,10 +6,13 @@ Verifies thread safety under concurrent get/set operations.
 from __future__ import annotations
 
 import threading
-from pathlib import Path
-from types import CodeType
+from typing import TYPE_CHECKING
 
 from kida.bytecode_cache import BytecodeCache, hash_source
+
+if TYPE_CHECKING:
+    from pathlib import Path
+    from types import CodeType
 
 
 def _make_code(name: str) -> CodeType:

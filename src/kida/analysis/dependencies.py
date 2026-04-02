@@ -7,7 +7,6 @@ excludes paths that are actually used.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING, ClassVar, cast
 
 from kida.analysis.visitor import visit_children
@@ -22,6 +21,8 @@ from kida.nodes import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from kida.nodes import (
         AsyncFor,
         Autoescape,
@@ -694,48 +695,50 @@ class DependencyWalker:
         current = node
 
         while True:
-            if isinstance(current, (Getattr, OptionalGetattr)):
-                parts.append(current.attr)
-                current = current.obj
-            elif isinstance(current, Getitem):
-                # Only static string keys
-                if isinstance(current.key, Const) and isinstance(current.key.value, str):
-                    parts.append(current.key.value)
+            match current:
+                case Getattr() | OptionalGetattr():
+                    parts.append(current.attr)
                     current = current.obj
-                else:
-                    return None  # Dynamic key
-            elif isinstance(current, OptionalGetitem):
-                if isinstance(current.key, Const) and isinstance(current.key.value, str):
-                    parts.append(current.key.value)
-                    current = current.obj
-                else:
-                    return None
-            elif isinstance(current, Name):
-                name = current.name
-                # Check if root is local
-                if self._is_local(name):
-                    return None  # Local var, not a context dep
-                if name in _BUILTIN_NAMES:
-                    return None  # Built-in
-                parts.append(name)
-                break
-            else:
-                return None  # Can't determine statically
+                case Getitem():
+                    # Only static string keys
+                    if isinstance(current.key, Const) and isinstance(current.key.value, str):
+                        parts.append(current.key.value)
+                        current = current.obj
+                    else:
+                        return None  # Dynamic key
+                case OptionalGetitem():
+                    if isinstance(current.key, Const) and isinstance(current.key.value, str):
+                        parts.append(current.key.value)
+                        current = current.obj
+                    else:
+                        return None
+                case Name():
+                    name = current.name
+                    # Check if root is local
+                    if self._is_local(name):
+                        return None  # Local var, not a context dep
+                    if name in _BUILTIN_NAMES:
+                        return None  # Built-in
+                    parts.append(name)
+                    break
+                case _:
+                    return None  # Can't determine statically
 
         parts.reverse()
         return ".".join(parts)
 
     def _extract_targets(self, node: Node) -> set[str]:
         """Extract variable names from assignment target."""
-        if isinstance(node, Name):
-            return {node.name}
-        elif isinstance(node, Tuple):
-            names: set[str] = set()
-            for item in node.items:
-                names |= self._extract_targets(item)
-            return names
-
-        return set()
+        match node:
+            case Name():
+                return {node.name}
+            case Tuple():
+                names: set[str] = set()
+                for item in node.items:
+                    names |= self._extract_targets(item)
+                return names
+            case _:
+                return set()
 
     def _push_scope(self, names: set[str]) -> None:
         """Push a new scope and update the flat locals set."""

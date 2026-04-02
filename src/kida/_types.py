@@ -34,6 +34,7 @@ True
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import final
 
 
 class TokenType(Enum):
@@ -187,6 +188,7 @@ _TOKEN_DISPLAY: dict[str, str] = {
 }
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Token:
     """A single token from the lexer.

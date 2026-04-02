@@ -68,21 +68,51 @@ python-version = "3.14"
 [tool.ty.src]
 exclude = ["dist/", "build/", "benchmarks/", "tests/", "examples/"]
 
-# Markup class intentionally returns Self instead of str (like MarkupSafe)
-# This technically violates LSP but is the correct pattern for HTML-safe strings
+# Safe-string classes (Markup, Styled, Marked) intentionally return Self
+# instead of str. This technically violates LSP but is the correct pattern
+# for safe-string wrappers (like MarkupSafe).
 [[tool.ty.overrides]]
-include = ["src/kida/utils/html.py"]
+include = ["src/kida/utils/html.py", "src/kida/utils/terminal_escape.py", "src/kida/utils/markdown_escape.py"]
 [tool.ty.overrides.rules]
 invalid-method-override = "ignore"
 
-# Compiler/parser mixin patterns: mixins access attributes defined in sibling
+# Compiler mixin patterns: mixins access attributes defined in sibling
 # mixins or the host class. ty cannot resolve cross-mixin attribute access.
-# These will be fixed properly via Protocol typing (see plan/rfc-mixin-protocol-typing.md)
-#
+# See plan/rfc-mixin-protocol-typing.md for the long-term fix.
+[[tool.ty.overrides]]
+include = [
+    "src/kida/compiler/core.py",
+    "src/kida/compiler/expressions.py",
+    "src/kida/compiler/coalescing.py",
+    "src/kida/compiler/stream_transform.py",
+    "src/kida/compiler/partial_eval.py",
+    "src/kida/compiler/block_recompile.py",
+    "src/kida/compiler/utils.py",
+    "src/kida/compiler/statements/*.py",
+]
+[tool.ty.overrides.rules]
+unresolved-attribute = "warn"
+
+# Parser mixin patterns: same cross-mixin attribute access issue.
+[[tool.ty.overrides]]
+include = [
+    "src/kida/parser/core.py",
+    "src/kida/parser/expressions.py",
+    "src/kida/parser/statements.py",
+    "src/kida/parser/blocks/*.py",
+]
+[tool.ty.overrides.rules]
+unresolved-attribute = "warn"
+
 # Analysis visitor pattern: visitor methods dispatch on node type and access
 # subclass-specific attributes via the base Node type.
 [[tool.ty.overrides]]
-include = ["src/kida/compiler/**", "src/kida/parser/**", "src/kida/analysis/**"]
+include = [
+    "src/kida/analysis/dependencies.py",
+    "src/kida/analysis/purity.py",
+    "src/kida/analysis/a11y.py",
+    "src/kida/analysis/type_checker.py",
+]
 [tool.ty.overrides.rules]
 unresolved-attribute = "warn"
 
@@ -105,13 +135,23 @@ select = [
     "PERF", # perflint - performance anti-patterns
     "C4",   # unnecessary comprehensions/list()/dict() calls
     "RUF",  # Ruff-specific (unused noqa, mutable class defaults, etc.)
+    "TCH",  # flake8-type-checking - imports behind TYPE_CHECKING
+    "SLOT", # flake8-slots - enforce __slots__
+    "FURB", # refurb - modern Python idioms
+    "T20",  # flake8-print - no print() in library code
+    "PTH",  # flake8-pathlib - pathlib over os.path
 ]
 ignore = ["E501"] # Line length handled by formatter
 
 # Per-file ignore rules
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]   # Allow unused imports in __init__ files
-"tests/**/*.py" = ["S101"] # Allow assert in tests
+"tests/**/*.py" = ["S101", "T201"]  # Allow assert and print in tests
+"src/kida/cli.py" = ["T201"]  # CLI legitimately uses print()
+"src/kida/environment/filters/_debug.py" = ["T201"]  # Debug filter uses print()
+"benchmarks/**/*.py" = ["T201"]  # Benchmarks legitimately use print()
+"examples/**/*.py" = ["T201"]  # Examples legitimately use print()
+"scripts/**/*.py" = ["T201", "PTH"]  # Scripts legitimately use print() and os.path
 
 [dependency-groups]
 dev = [

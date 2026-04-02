@@ -8,7 +8,6 @@ dependencies. See: plan/rfc-mixin-protocol-typing.md
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
@@ -41,6 +40,8 @@ from kida.nodes import (
 from kida.utils.constants import MAX_FILTER_CHAIN_LEN
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
     from kida.nodes import Expr
     from kida.parser.errors import ParseError
 

@@ -26,8 +26,10 @@ from __future__ import annotations
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable
-from typing import Any, cast, overload
+from typing import TYPE_CHECKING, Any, cast, overload
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class LRUCache[K, V]:

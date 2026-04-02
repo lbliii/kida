@@ -30,10 +30,12 @@ Usage::
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Sequence
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from kida.nodes.base import Node
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class NodeVisitor:
@@ -144,20 +146,18 @@ class NodeTransformer:
 
     def _visit_field(self, value: Any) -> Any:
         """Visit a single field value, returning updated value if changed."""
-        if value is None:
-            return value
-
-        if isinstance(value, Node):
-            return self.visit(value)
-
-        if isinstance(value, (list, tuple)):
-            return self._visit_sequence(value)
-
-        if isinstance(value, dict):
-            return self._visit_dict(value)
-
-        # Primitive value (str, int, bool, etc.) — pass through
-        return value
+        match value:
+            case None:
+                return value
+            case Node():
+                return self.visit(value)
+            case list() | tuple():
+                return self._visit_sequence(value)
+            case dict():
+                return self._visit_dict(value)
+            case _:
+                # Primitive value (str, int, bool, etc.) — pass through
+                return value
 
     def _visit_sequence(self, seq: Sequence[Any]) -> Sequence[Any]:
         """Visit a sequence, handling nested tuples (elif_, cases, etc.)."""

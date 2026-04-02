@@ -7,13 +7,15 @@ via mixin inheritance.
 
 from __future__ import annotations
 
-import weakref
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    import weakref
+
     from kida.analysis import BlockMetadata, TemplateMetadata
     from kida.environment import Environment
     from kida.nodes import Template as TemplateNode
+    from kida.template.core import Template
 
 
 class TemplateIntrospectionMixin:
@@ -255,7 +257,6 @@ class TemplateIntrospectionMixin:
         """Perform static analysis and cache results."""
         # Avoid circular import at module level
         from kida.analysis import BlockAnalyzer, TemplateMetadata
-        from kida.template.core import Template
 
         # Check environment's shared analysis cache first (for included templates)
         env_for_cache = self._env_ref()

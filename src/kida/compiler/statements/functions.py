@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import ast
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida.nodes.output import Data
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from kida.nodes import CallBlock, Def, Node, Region, Slot
 
 logger = logging.getLogger(__name__)

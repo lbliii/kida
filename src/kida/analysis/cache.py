@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from kida.analysis.config import AnalysisConfig
 
-CacheScope = Literal["none", "page", "site", "unknown"]
+type CacheScope = Literal["none", "page", "site", "unknown"]
 
 
 def infer_cache_scope(

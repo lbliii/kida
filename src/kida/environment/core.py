@@ -23,11 +23,10 @@ Example:
 from __future__ import annotations
 
 import json
-import os
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from hashlib import sha256
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from kida.environment.exceptions import (
@@ -35,9 +34,7 @@ from kida.environment.exceptions import (
     TemplateSyntaxError,
 )
 from kida.environment.filters import DEFAULT_FILTERS
-from kida.environment.protocols import Loader
 from kida.environment.registry import FilterRegistry
-from kida.environment.terminal import TerminalCaps
 from kida.environment.tests import DEFAULT_TESTS
 from kida.lexer import Lexer, LexerConfig
 from kida.template import Template
@@ -45,8 +42,13 @@ from kida.utils.lru_cache import LRUCache
 from kida.utils.template_keys import normalize_template_name
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from kida.analysis.metadata import TemplateMetadata, TemplateStructureManifest
     from kida.bytecode_cache import BytecodeCache
+    from kida.environment.protocols import Loader
+    from kida.environment.terminal import TerminalCaps
+    from kida.extensions import Extension
 
 
 # Default cache limits
@@ -342,7 +344,6 @@ class Environment:
 
     def _init_extensions(self) -> None:
         """Initialize registered extensions."""
-        from kida.extensions import Extension
 
         tag_map: dict[str, Extension] = {}
         compiler_map: dict[str, Extension] = {}
@@ -551,7 +552,7 @@ class Environment:
             # Record mtime for fast stale checks (skip hash when mtime unchanged)
             if filename is not None:
                 try:
-                    self._template_mtimes[name] = os.stat(filename).st_mtime_ns
+                    self._template_mtimes[name] = Path(filename).stat().st_mtime_ns
                 except OSError:
                     self._template_mtimes.pop(name, None)
 
@@ -760,7 +761,7 @@ class Environment:
                 cached_template = self._cache.get(name)
                 if cached_template is not None and cached_template._filename is not None:
                     try:
-                        current_mtime = os.stat(cached_template._filename).st_mtime_ns
+                        current_mtime = Path(cached_template._filename).stat().st_mtime_ns
                         if current_mtime == cached_mtime:
                             return False  # mtime unchanged → not stale
                     except OSError:

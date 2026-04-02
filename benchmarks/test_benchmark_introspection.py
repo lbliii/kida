@@ -12,14 +12,18 @@ Run with: pytest benchmarks/test_benchmark_introspection.py --benchmark-only -v
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-from pytest_benchmark.fixture import BenchmarkFixture
 
 from kida import Environment as KidaEnvironment
 from kida import FileSystemLoader as KidaFileSystemLoader
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"

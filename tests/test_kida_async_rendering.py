@@ -9,13 +9,16 @@ Part of RFC: rfc-async-rendering.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 import pytest
 
 from kida import DictLoader, Environment
 from kida.environment.exceptions import TemplateRuntimeError, TemplateSyntaxError
 from kida.template.loop_context import AsyncLoopContext
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers — mock async iterables for testing

@@ -7,11 +7,15 @@ Run with: pytest benchmarks/test_benchmark_features.py --benchmark-only -v
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from jinja2 import Environment as Jinja2Environment
-from pytest_benchmark.fixture import BenchmarkFixture
 
 from kida import Environment as KidaEnvironment
+
+if TYPE_CHECKING:
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 # Pattern matching: 5 cases + default
 MATCH_KIDA = """\

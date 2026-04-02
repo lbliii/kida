@@ -10,8 +10,10 @@ Objects implementing __markdown__() bypass escaping (like __terminal__/__html__)
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Any, Self, SupportsIndex, cast
+from typing import TYPE_CHECKING, Any, Self, SupportsIndex, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 # =============================================================================
 # Markdown Special Characters

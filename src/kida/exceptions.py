@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, final
 
 
 def _terminal():
@@ -150,6 +150,7 @@ def format_template_stack(stack: list[tuple[str, int]] | None) -> str:
     return "\n".join(lines)
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class SourceSnippet:
     """Template source context around an error line.

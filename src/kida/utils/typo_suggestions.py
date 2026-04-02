@@ -7,8 +7,11 @@ but a similar name exists. Used by compiler (filters, tests), loaders
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from difflib import get_close_matches
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 def suggest_closest(

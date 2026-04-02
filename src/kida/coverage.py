@@ -30,6 +30,7 @@ import threading
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from io import StringIO
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kida.render_context import RenderContext, _coverage_data
@@ -184,7 +185,7 @@ class CoverageCollector:
 
     def write_lcov(self, path: str) -> None:
         """Write coverage data in LCOV tracefile format."""
-        with open(path, "w") as f:
+        with Path(path).open("w") as f:
             f.write(self.format_lcov())
 
     def format_lcov(self) -> str:
@@ -238,5 +239,5 @@ class CoverageCollector:
 
     def write_cobertura(self, path: str) -> None:
         """Write coverage data in Cobertura XML format."""
-        with open(path, "w") as f:
+        with Path(path).open("w") as f:
             f.write(self.format_cobertura())

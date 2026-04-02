@@ -8,14 +8,15 @@ See: plan/rfc-mixin-protocol-typing.md
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
-from kida.environment.exceptions import ErrorCode
 from kida.nodes import Export, Let, Set, Tuple
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from kida.environment.exceptions import ErrorCode
     from kida.nodes import Expr
     from kida.parser.errors import ParseError
 

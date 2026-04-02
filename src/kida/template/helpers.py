@@ -11,13 +11,15 @@ All functions are stateless and safe for concurrent use.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from time import perf_counter as _perf_counter
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from kida.render_accumulator import RenderAccumulator
 from kida.render_accumulator import get_accumulator as _get_accumulator
 from kida.utils.html import _SPACELESS_RE, Markup
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # =============================================================================
 # Undefined Sentinel
@@ -116,7 +118,7 @@ def safe_getattr(obj: object, name: str) -> object:
     # type() is dict skips the isinstance MRO probe; dict subclasses fall
     # through to the isinstance branch which preserves subscript-first order.
     if type(obj) is dict:
-        d = cast(dict[str, Any], obj)
+        d = cast("dict[str, Any]", obj)
         val = d.get(name, _MISS)
         if val is not _MISS:
             return "" if val is None else val
@@ -157,7 +159,7 @@ def getattr_preserve_none(obj: object, name: str) -> object:
     Complexity: O(1)
     """
     if type(obj) is dict:
-        d = cast(dict[str, Any], obj)
+        d = cast("dict[str, Any]", obj)
         val = d.get(name, _MISS)
         if val is not _MISS:
             return val
@@ -367,7 +369,7 @@ def default_safe(
     # Apply default filter logic
     if boolean:
         # Return default if value is falsy (bool(_Undefined) is False)
-        return value if value else default_value
+        return value or default_value
     else:
         # Return default only if value is None or _Undefined
         return value if (value is not None and not isinstance(value, _Undefined)) else default_value

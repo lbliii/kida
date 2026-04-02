@@ -70,7 +70,7 @@ if TYPE_CHECKING:
     import types
 
     from kida.environment import Environment
-    from kida.nodes import Block, Extends, Node, Region
+    from kida.nodes import Extends, Node
     from kida.nodes import Template as TemplateNode
 
 _TOP_LEVEL_STATEMENTS = frozenset(
@@ -697,7 +697,7 @@ class Compiler(
                 kw_defaults=[],
                 defaults=[],
             ),
-            body=cast(list[ast.stmt], body_stmts or [ast.Pass()]),
+            body=cast("list[ast.stmt]", body_stmts or [ast.Pass()]),
             decorator_list=[],
         )
 
@@ -1059,7 +1059,7 @@ class Compiler(
                 return
             if isinstance(node, FromImport):
                 for name, alias in node.names:
-                    mutated.add(alias if alias else name)
+                    mutated.add(alias or name)
                 _walk(node.template, count_refs=count_refs)
                 return
 

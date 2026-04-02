@@ -6,7 +6,6 @@ Pure blocks produce the same output for the same inputs.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from kida.environment.exceptions import TemplateNotFoundError, TemplateSyntaxError
@@ -15,6 +14,8 @@ from kida.nodes import Name as _Name
 from kida.utils.constants import IMPURE_FILTERS, PURE_FILTERS_ALL, PURE_FUNCTIONS
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from kida.nodes import (
         Await,
         BinOp,
@@ -67,7 +68,7 @@ if TYPE_CHECKING:
 # Purity lattice: pure < unknown < impure
 # When combining, take the most conservative (worst case)
 
-PurityLevel = Literal["pure", "unknown", "impure"]
+type PurityLevel = Literal["pure", "unknown", "impure"]
 
 
 def _combine_purity(a: PurityLevel, b: PurityLevel) -> PurityLevel:
@@ -153,7 +154,7 @@ class PurityAnalyzer:
 
         handler = getattr(self, f"_visit_{node_type.lower()}", None)
         if handler:
-            return cast(PurityLevel, handler(node))
+            return cast("PurityLevel", handler(node))
 
         # Default: check children
         return self._visit_children(node)

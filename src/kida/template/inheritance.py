@@ -1,9 +1,15 @@
 """Template inheritance mixin — block resolution across extends chain.
 
 Requires host class to define slots: _inheritance_chain_cache,
-_effective_blocks_cache, _inheritance_cache_lock, _extends_target,
+_effective_blocks_cache, _extends_target,
 _local_blocks_sync, _local_blocks_stream, _local_blocks_async_stream,
 _env_ref, _name. Requires _get_env_limits() method.
+
+Thread-Safety (free-threaded Python 3.14+):
+    Attribute assignment and dict.setdefault are atomic in CPython.
+    The worst case without locking is benign redundant computation —
+    two threads may compute the same immutable chain and both store it.
+    Since results are idempotent, no lock is needed for correctness.
 """
 
 from __future__ import annotations
@@ -11,8 +17,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from threading import Lock
-
     from kida.environment import Environment
     from kida.template.core import Template
 
@@ -27,7 +31,6 @@ class TemplateInheritanceMixin:
         # Host attributes (from Template.__slots__ / __init__)
         _inheritance_chain_cache: tuple[Template, ...] | None
         _effective_blocks_cache: dict[str, dict[str, Any]]
-        _inheritance_cache_lock: Lock
         _extends_target: str | None
         _local_blocks_sync: dict[str, Any]
         _local_blocks_stream: dict[str, Any]
@@ -84,10 +87,9 @@ class TemplateInheritanceMixin:
                 template_name=self._name,
                 suggestion="Check for circular inheritance: A extends B extends A",
             )
-        if not self._env.auto_reload:
-            with self._inheritance_cache_lock:
-                if self._inheritance_chain_cache is None:
-                    self._inheritance_chain_cache = tuple(chain)
+        # Atomic pointer swap — benign race if two threads compute simultaneously
+        if not self._env.auto_reload and self._inheritance_chain_cache is None:
+            self._inheritance_chain_cache = tuple(chain)
         return chain
 
     def _effective_block_map(self, kind: str) -> dict[str, Any]:
@@ -101,12 +103,6 @@ class TemplateInheritanceMixin:
             if cached_map is not None:
                 return cached_map
 
-        with self._inheritance_cache_lock:
-            if not self._env.auto_reload:
-                cached_map = self._effective_blocks_cache.get(kind)
-                if cached_map is not None:
-                    return cached_map
-        # Build outside lock — _inheritance_chain() acquires it when populating
         # Single-pass: collect all three kinds at once to avoid repeated chain traversal
         if kind == "sync":
             block_attrs = ("_local_blocks_sync",)
@@ -124,6 +120,6 @@ class TemplateInheritanceMixin:
                 for name, fn in getattr(t, attr).items():
                     effective.setdefault(name, fn)
         if not self._env.auto_reload:
-            with self._inheritance_cache_lock:
-                self._effective_blocks_cache.setdefault(kind, effective)
+            # dict.setdefault is atomic — benign race if two threads compute simultaneously
+            self._effective_blocks_cache.setdefault(kind, effective)
         return effective

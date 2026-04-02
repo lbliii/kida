@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, final
 
 from kida.nodes.base import Node
-from kida.nodes.expressions import Expr, Filter
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from kida.nodes.expressions import Expr, Filter
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Output(Node):
     """Output expression: {{ expr }}"""
@@ -17,6 +22,7 @@ class Output(Node):
     escape: bool = True
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Data(Node):
     """Raw text data between template constructs."""
@@ -24,6 +30,7 @@ class Data(Node):
     value: str
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class FilterBlock(Node):
     """Apply filter to block: {% filter upper %}...{% end %}"""
@@ -32,6 +39,7 @@ class FilterBlock(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Autoescape(Node):
     """Control autoescaping: {% autoescape true %}...{% end %}"""
@@ -40,6 +48,7 @@ class Autoescape(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Raw(Node):
     """Raw block (no template processing): {% raw %}...{% end %}"""
@@ -47,6 +56,7 @@ class Raw(Node):
     value: str
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Trim(Node):
     """Whitespace control block: {% trim %}...{% end %}"""
@@ -54,6 +64,7 @@ class Trim(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Spaceless(Node):
     """Remove whitespace between HTML tags: {% spaceless %}...{% end %}"""
@@ -61,6 +72,7 @@ class Spaceless(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Flush(Node):
     """Streaming flush boundary: {% flush %}"""

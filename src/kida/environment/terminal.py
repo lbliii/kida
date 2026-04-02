@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, final
 
 if TYPE_CHECKING:
-    pass  # Environment import avoided to prevent circular deps
+    from collections.abc import Callable
+
 
 # ANSI color codes
 _COLORS = {
@@ -39,7 +39,7 @@ _COLORS = {
     "bright_cyan": "\033[96m",
 }
 
-ColorName = Literal[
+type ColorName = Literal[
     "reset",
     "bold",
     "dim",
@@ -235,6 +235,7 @@ def format_source_line(
 # ---------------------------------------------------------------------------
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class TerminalCaps:
     """Detected terminal capabilities."""

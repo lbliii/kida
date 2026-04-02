@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, final
 
 from kida.nodes.base import Node
-from kida.nodes.expressions import Expr
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from kida.nodes.expressions import Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class TemplateContext(Node):
     """Type declaration: {% template page: Page, site: Site %}"""
@@ -16,6 +21,7 @@ class TemplateContext(Node):
     declarations: Sequence[tuple[str, str]]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Extends(Node):
     """Template inheritance: {% extends "base.html" %}"""
@@ -23,6 +29,7 @@ class Extends(Node):
     template: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Block(Node):
     """Named block for inheritance: {% block name %}...{% end %}"""
@@ -35,6 +42,7 @@ class Block(Node):
     condition: Expr | None = None
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Globals(Node):
     """Setup block for macros/variables available during render_block()."""
@@ -42,6 +50,7 @@ class Globals(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Imports(Node):
     """Imports block — {% imports %}...{% end %}.
@@ -53,6 +62,7 @@ class Imports(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Include(Node):
     """Include another template: {% include "partial.html" %}"""
@@ -62,6 +72,7 @@ class Include(Node):
     ignore_missing: bool = False
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Import(Node):
     """Import functions from template: {% import "funcs.html" as f %}"""
@@ -71,6 +82,7 @@ class Import(Node):
     with_context: bool = False
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class FromImport(Node):
     """Import specific functions: {% from "funcs.html" import button, card %}"""
@@ -80,6 +92,7 @@ class FromImport(Node):
     with_context: bool = False
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Template(Node):
     """Root node representing a complete template."""
@@ -89,6 +102,7 @@ class Template(Node):
     context_type: TemplateContext | None = None
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Cache(Node):
     """Fragment caching: {% cache key %}...{% end %}"""
@@ -99,6 +113,7 @@ class Cache(Node):
     depends: Sequence[Expr] = ()
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class With(Node):
     """Jinja2-style context manager: {% with x = expr %}...{% end %}"""
@@ -107,6 +122,7 @@ class With(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class WithConditional(Node):
     """Conditional with block: {% with expr as name %}...{% end %}"""
@@ -117,6 +133,7 @@ class WithConditional(Node):
     empty: Sequence[Node] = ()
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Embed(Node):
     """Embed template with block overrides: {% embed 'card.html' %}...{% end %}"""
@@ -126,6 +143,7 @@ class Embed(Node):
     with_context: bool = True
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Push(Node):
     """Push content to a named stack: {% push "scripts" %}...{% end %}
@@ -138,6 +156,7 @@ class Push(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Stack(Node):
     """Emit collected stack content: {% stack "scripts" %}

@@ -17,10 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 import pytest
-from jinja2 import Environment as Jinja2Environment
-from pytest_benchmark.fixture import BenchmarkFixture
 
-from kida import Environment as KidaEnvironment
 from kida.utils.workers import (
     WorkloadType,
     get_optimal_workers,
@@ -29,7 +26,10 @@ from kida.utils.workers import (
 )
 
 if TYPE_CHECKING:
-    pass
+    from jinja2 import Environment as Jinja2Environment
+    from pytest_benchmark.fixture import BenchmarkFixture
+
+    from kida import Environment as KidaEnvironment
 
 # Template source (identical logic for fair comparison)
 TEMPLATE_SOURCE_KIDA = """

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-import pathlib
 import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from kida.coverage import CoverageCollector, CoverageResult
 from kida.render_context import RenderContext
+
+if TYPE_CHECKING:
+    import pathlib
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -241,7 +245,7 @@ class TestCoverageCollectorLcov:
             _simulate_render(cov, "t.html", [1])
         path = str(tmp_path / "coverage.lcov")
         cov.write_lcov(path)
-        with open(path) as f:
+        with Path(path).open() as f:
             content = f.read()
         assert "SF:t.html" in content
 
@@ -295,7 +299,7 @@ class TestCoverageCollectorCobertura:
             _simulate_render(cov, "t.html", [1])
         path = str(tmp_path / "coverage.xml")
         cov.write_cobertura(path)
-        with open(path) as f:
+        with Path(path).open() as f:
             content = f.read()
         root = ET.fromstring(content)
         assert root.tag == "coverage"

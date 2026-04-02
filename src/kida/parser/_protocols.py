@@ -15,12 +15,12 @@ See: plan/rfc-mixin-protocol-typing.md
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, Protocol
 
-from kida._types import Token, TokenType
-
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from kida._types import Token, TokenType
     from kida.parser.errors import ParseError
 
 

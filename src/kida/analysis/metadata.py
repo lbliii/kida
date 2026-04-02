@@ -7,9 +7,10 @@ All fields are conservative estimates — may over-approximate but never under.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, final
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class BlockMetadata:
     """Metadata about a template block, inferred from static analysis.
@@ -112,6 +113,7 @@ class BlockMetadata:
         return any(path.startswith("site.") or path == "site" for path in self.depends_on)
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class TemplateMetadata:
     """Metadata about a complete template.
@@ -192,6 +194,7 @@ class TemplateMetadata:
         return {k: v for k, v in self.blocks.items() if v.is_region}
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class CallValidation:
     """Result of validating a single call site against a function definition.
@@ -222,6 +225,7 @@ class CallValidation:
         return not (self.unknown_params or self.missing_required or self.duplicate_params)
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class TemplateStructureManifest:
     """Lightweight template structure for schedulers and dependency planners.

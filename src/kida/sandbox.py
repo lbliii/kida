@@ -29,7 +29,7 @@ Custom policy::
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, cast, final
 
 from kida.environment.core import Environment
 
@@ -157,6 +157,7 @@ _MUTATING_COLLECTION_METHODS = frozenset(
 )
 
 
+@final
 @dataclass(frozen=True)
 class SandboxPolicy:
     """Configuration for sandbox restrictions.
@@ -240,7 +241,7 @@ def _make_sandboxed_getattr(policy: SandboxPolicy):
             )
         # Delegate to standard resolution, but with checks
         if type(obj) is dict:
-            d = cast(dict[str, Any], obj)
+            d = cast("dict[str, Any]", obj)
             val = d.get(name, _MISS)
             if val is not _MISS:
                 return "" if val is None else val
@@ -282,7 +283,7 @@ def _make_sandboxed_getattr_none(policy: SandboxPolicy):
                 f"Access to objects of type {type(obj).__name__!r} is blocked by sandbox policy"
             )
         if type(obj) is dict:
-            d = cast(dict[str, Any], obj)
+            d = cast("dict[str, Any]", obj)
             val = d.get(name, _MISS)
             if val is not _MISS:
                 return val

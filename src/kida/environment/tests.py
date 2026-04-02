@@ -66,10 +66,12 @@ Custom Tests:
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from kida.template.helpers import _Undefined
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _apply_test(value: Any, test_name: str, *args: Any) -> bool:

@@ -1,12 +1,12 @@
 """Terminal dashboard example with file loader."""
 
-import os
+from pathlib import Path
 
 from kida import Environment, FileSystemLoader
 
 
 def main():
-    templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+    templates_dir = Path(__file__).parent / "templates"
     env = Environment(
         loader=FileSystemLoader(templates_dir),
         autoescape="terminal",

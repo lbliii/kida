@@ -8,7 +8,7 @@ import pytest
 fastapi = pytest.importorskip("fastapi")
 httpx = pytest.importorskip("httpx")
 
-from starlette.testclient import TestClient
+from starlette.testclient import TestClient  # noqa: E402
 
 
 class TestFastApiAsyncApp:

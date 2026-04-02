@@ -24,7 +24,7 @@ call_count = 0
 
 def expensive_computation() -> str:
     """Simulate an expensive operation that should be cached."""
-    global call_count  # noqa: PLW0603
+    global call_count
     call_count += 1
     return f"Result (computed {call_count} time(s))"
 

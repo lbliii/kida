@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, final
 
 from kida.nodes import Block, Node
 
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from kida.template import Template
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class BlockDelta:
     """Describes which blocks changed between two template versions.
@@ -79,16 +80,16 @@ def _walk_for_blocks(nodes: Sequence[Node], out: dict[str, Block]) -> None:
         elif hasattr(node, "body"):
             body = node.body
             if isinstance(body, Sequence):
-                _walk_for_blocks(cast(Sequence[Node], body), out)
+                _walk_for_blocks(cast("Sequence[Node]", body), out)
             # Walk alternate branches
             for attr in ("else_", "empty"):
                 branch = getattr(node, attr, None)
                 if isinstance(branch, Sequence):
-                    _walk_for_blocks(cast(Sequence[Node], branch), out)
+                    _walk_for_blocks(cast("Sequence[Node]", branch), out)
             elif_ = getattr(node, "elif_", None)
             if elif_:
                 for _, elif_body in elif_:
-                    _walk_for_blocks(cast(Sequence[Node], elif_body), out)
+                    _walk_for_blocks(cast("Sequence[Node]", elif_body), out)
 
 
 def detect_block_changes(

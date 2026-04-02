@@ -8,10 +8,14 @@ Run with: pytest benchmarks/test_benchmark_compile_pipeline.py --benchmark-only 
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
-from pytest_benchmark.fixture import BenchmarkFixture
 
 from kida import Environment
+
+if TYPE_CHECKING:
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 # Reuse template sizes from test_benchmark_lexer.py
 MINIMAL = "{{ name }}"

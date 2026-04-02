@@ -8,9 +8,12 @@ Run:
 """
 
 import asyncio
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
-from kida import DictLoader, Environment
+from kida import Environment
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 # -- Simulated async data sources ----------------------------------------
 
@@ -62,7 +65,7 @@ async def render() -> str:
         fetch_count=fetch_count,
         fetch_title=fetch_title,
     ):
-        chunks.append(chunk)
+        chunks.append(chunk)  # noqa: PERF401
     return "".join(chunks)
 
 
