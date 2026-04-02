@@ -7,12 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-02
+
 ### Added
 
 - **Safe pipeline (`?|>`)** — None-propagating filter chain. If the value is None, all subsequent filters are skipped instead of erroring: `{{ user?.name ?|> upper ?|> trim ?? "Anonymous" }}`.
 - **Optional filter (`?|`)** — Skip a single filter when the value is None: `{{ value ?| upper ?? "N/A" }}`. Unlike `| default("") | filter`, preserves falsy values like `0` and `""`.
 - **Nullish assignment (`??=`)** — Assign only if the variable is undefined or None. Works with `let`, `set`, `export`, and `promote`: `{% let title ??= "Untitled" %}`.
 - **`promote` keyword** — Alias for `export`. Reads more naturally for scope promotion: `{% promote result = value %}`.
+- **Markdown rendering mode** — `autoescape="markdown"` with markdown-safe escaping and CI report filters.
+- **GitHub Action** — `lbliii/kida@v0.3.1` renders CI reports (pytest, coverage, ruff, ty, jest, gotest, SARIF) as step summaries or PR comments.
+- **SARIF parser** — Parse SARIF static analysis output for template rendering.
+- **LCOV parser** — Parse LCOV coverage data for template rendering.
+- **JUnit XML parser** — Parse JUnit XML test results for template rendering.
+- **Built-in CI report templates** — `pytest`, `coverage`, `ruff`, `ty`, `jest`, `gotest`, `sarif` templates with snapshot tests.
+
+### Changed
+
+- **Jinja2 migration docs** — Documented sharp edges and behavioral differences for migrators.
+- **Benchmark regression gate** — Excluded Jinja2 tests from benchmark regression checks (CI noise).
 
 ## [0.3.0] - 2026-03-26
 
@@ -410,6 +423,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Import paths changed from `bengal.rendering.kida` to `kida`
 
+[0.3.1]: https://github.com/lbliii/kida/releases/tag/v0.3.1
 [0.3.0]: https://github.com/lbliii/kida/releases/tag/v0.3.0
 [0.2.9]: https://github.com/lbliii/kida/releases/tag/v0.2.9
 [0.2.8]: https://github.com/lbliii/kida/releases/tag/v0.2.8
