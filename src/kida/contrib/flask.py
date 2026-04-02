@@ -18,12 +18,10 @@ Usage::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 from kida import Environment, FileSystemLoader
-
-if TYPE_CHECKING:
-    pass
 
 
 def init_kida(
@@ -46,11 +44,11 @@ def init_kida(
     Returns:
         The configured Kida Environment.
     """
-    import os
-
     folder = template_folder or app.template_folder or "templates"
-    if not os.path.isabs(folder):
-        folder = os.path.join(app.root_path, folder)
+    folder_path = Path(folder)
+    if not folder_path.is_absolute():
+        folder_path = Path(app.root_path) / folder_path
+    folder = str(folder_path)
 
     env = Environment(
         loader=FileSystemLoader(folder),

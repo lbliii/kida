@@ -5,10 +5,11 @@ Provides dict-like interface for filters and tests.
 
 from __future__ import annotations
 
-from collections.abc import Callable, ItemsView, KeysView, ValuesView
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, ItemsView, KeysView, ValuesView
+
     from kida.environment.core import Environment
 
 

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, final
 
 from kida.analysis.node_visitor import NodeVisitor
 
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from kida.nodes import Data, Output, Template
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class A11yIssue:
     """A single accessibility finding."""

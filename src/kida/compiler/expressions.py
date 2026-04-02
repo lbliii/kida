@@ -9,13 +9,14 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from kida.environment.exceptions import TemplateSyntaxError
 from kida.utils.typo_suggestions import suggest_closest
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from kida.environment import Environment
     from kida.nodes import (
         Block,

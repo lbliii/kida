@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, final
 
 from kida.nodes.base import Node
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +16,7 @@ class Expr(Node):
     """Base class for expressions."""
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Const(Expr):
     """Constant value: string, number, boolean, None."""
@@ -21,6 +24,7 @@ class Const(Expr):
     value: str | int | float | bool | None
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Name(Expr):
     """Variable reference: {{ user }}"""
@@ -29,6 +33,7 @@ class Name(Expr):
     ctx: Literal["load", "store", "del"] = "load"
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Tuple(Expr):
     """Tuple expression: (a, b, c)"""
@@ -37,6 +42,7 @@ class Tuple(Expr):
     ctx: Literal["load", "store"] = "load"
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class List(Expr):
     """List expression: [a, b, c]"""
@@ -44,6 +50,7 @@ class List(Expr):
     items: Sequence[Expr]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Dict(Expr):
     """Dict expression: {a: b, c: d}"""
@@ -52,6 +59,7 @@ class Dict(Expr):
     values: Sequence[Expr]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Getattr(Expr):
     """Attribute access: obj.attr"""
@@ -60,6 +68,7 @@ class Getattr(Expr):
     attr: str
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class OptionalGetattr(Expr):
     """Optional attribute access: obj?.attr"""
@@ -68,6 +77,7 @@ class OptionalGetattr(Expr):
     attr: str
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Getitem(Expr):
     """Subscript access: obj[key]"""
@@ -76,6 +86,7 @@ class Getitem(Expr):
     key: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class OptionalGetitem(Expr):
     """Optional subscript access: obj?[key]"""
@@ -84,6 +95,7 @@ class OptionalGetitem(Expr):
     key: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Slice(Expr):
     """Slice expression: [start:stop:step]"""
@@ -93,6 +105,7 @@ class Slice(Expr):
     step: Expr | None
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class FuncCall(Expr):
     """Function call: func(args, **kwargs)"""
@@ -122,6 +135,7 @@ class Pipeline(Expr):
     steps: Sequence[tuple[str, Sequence[Expr], dict[str, Expr]]]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class SafePipeline(Pipeline):
     """Safe pipeline: expr ?|> filter1 ?|> filter2 (None-propagating)
@@ -130,6 +144,7 @@ class SafePipeline(Pipeline):
     """
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class OptionalFilter(Filter):
     """Optional filter: expr ?| filter(args) — skips if value is None
@@ -138,6 +153,7 @@ class OptionalFilter(Filter):
     """
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Test(Expr):
     """Test application: expr is test(args) or expr is not test(args)"""
@@ -149,6 +165,7 @@ class Test(Expr):
     negated: bool = False
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class BinOp(Expr):
     """Binary operation: left op right"""
@@ -158,6 +175,7 @@ class BinOp(Expr):
     right: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class UnaryOp(Expr):
     """Unary operation: op operand"""
@@ -166,6 +184,7 @@ class UnaryOp(Expr):
     operand: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Compare(Expr):
     """Comparison: left op1 right1 op2 right2 ..."""
@@ -175,6 +194,7 @@ class Compare(Expr):
     comparators: Sequence[Expr]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class BoolOp(Expr):
     """Boolean operation: expr1 and/or expr2"""
@@ -183,6 +203,7 @@ class BoolOp(Expr):
     values: Sequence[Expr]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class CondExpr(Expr):
     """Conditional expression: a if cond else b"""
@@ -192,6 +213,7 @@ class CondExpr(Expr):
     if_false: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class NullCoalesce(Expr):
     """Null coalescing: a ?? b"""
@@ -200,6 +222,7 @@ class NullCoalesce(Expr):
     right: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Range(Expr):
     """Range literal: start..end or start...end"""
@@ -210,6 +233,7 @@ class Range(Expr):
     step: Expr | None = None
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Await(Expr):
     """Await expression: await expr"""
@@ -217,6 +241,7 @@ class Await(Expr):
     value: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Concat(Expr):
     """String concatenation: a ~ b ~ c"""
@@ -224,6 +249,7 @@ class Concat(Expr):
     nodes: Sequence[Expr]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class MarkSafe(Expr):
     """Mark expression as safe (no escaping): {{ expr | safe }}"""
@@ -231,6 +257,7 @@ class MarkSafe(Expr):
     value: Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class LoopVar(Expr):
     """Loop variable access: {{ loop.index }}"""
@@ -238,6 +265,7 @@ class LoopVar(Expr):
     attr: str
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class InlinedFilter(Expr):
     """Inlined filter as direct method call (optimization)."""

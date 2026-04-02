@@ -7,8 +7,7 @@ Filters transform values in template expressions using the pipe syntax:
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from kida.environment.filters._collections import (
     SORT_KEY_NONE,
@@ -87,6 +86,9 @@ from kida.environment.filters._type_conversion import (
     _filter_typeof,
 )
 from kida.environment.filters._validation import _filter_default, _filter_require
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Default filters - comprehensive set matching Jinja2
 DEFAULT_FILTERS: dict[str, Callable[..., Any]] = {

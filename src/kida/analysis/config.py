@@ -6,8 +6,10 @@ Allows customization of naming conventions for different frameworks.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import final
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class AnalysisConfig:
     """Configuration for template analysis.

@@ -37,11 +37,12 @@ Usage::
 
 from __future__ import annotations
 
-import ast
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
+    import ast
+    from collections.abc import Callable
+
     from kida.nodes.base import Node
 
 

@@ -75,7 +75,7 @@ def hx_request() -> bool:
     ctx = get_render_context()
     if ctx is None:
         return False
-    return cast(bool, ctx.get_meta("hx_request", False))
+    return cast("bool", ctx.get_meta("hx_request", False))
 
 
 def hx_target() -> str | None:
@@ -108,7 +108,7 @@ def hx_target() -> str | None:
     ctx = get_render_context()
     if ctx is None:
         return None
-    return cast(str | None, ctx.get_meta("hx_target", None))
+    return cast("str | None", ctx.get_meta("hx_target", None))
 
 
 def hx_trigger() -> str | None:
@@ -136,7 +136,7 @@ def hx_trigger() -> str | None:
     ctx = get_render_context()
     if ctx is None:
         return None
-    return cast(str | None, ctx.get_meta("hx_trigger", None))
+    return cast("str | None", ctx.get_meta("hx_trigger", None))
 
 
 def hx_boosted() -> bool:
@@ -169,7 +169,7 @@ def hx_boosted() -> bool:
     ctx = get_render_context()
     if ctx is None:
         return False
-    return cast(bool, ctx.get_meta("hx_boosted", False))
+    return cast("bool", ctx.get_meta("hx_boosted", False))
 
 
 def csrf_token() -> Markup:

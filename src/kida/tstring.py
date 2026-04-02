@@ -21,10 +21,12 @@ from __future__ import annotations
 
 import re
 from importlib import import_module
-from types import ModuleType
-from typing import Any, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 from kida.utils.html import html_escape
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 
 @runtime_checkable
@@ -43,7 +45,7 @@ try:  # Python <3.14 fallback: allow tests and callers to pass compatible object
 except ImportError:  # pragma: no cover - exercised via fallback path
     templatelib_module = None
 
-templatelib: TemplateLibProtocol | None = cast(TemplateLibProtocol | None, templatelib_module)
+templatelib: TemplateLibProtocol | None = cast("TemplateLibProtocol | None", templatelib_module)
 
 
 # =============================================================================

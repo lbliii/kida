@@ -33,15 +33,16 @@ from __future__ import annotations
 
 import hashlib
 import marshal
-import os
 import sys
 import time
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from types import CodeType
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from kida.utils.template_keys import normalize_template_name
+
+if TYPE_CHECKING:
+    from types import CodeType
 
 # Python version tag for cache invalidation across Python upgrades
 _PY_VERSION_TAG = f"py{sys.version_info.major}{sys.version_info.minor}"
@@ -130,8 +131,8 @@ class BytecodeCache:
             return None
 
         try:
-            with open(path, "rb") as f:
-                return cast(CodeType, marshal.load(f))
+            with path.open("rb") as f:
+                return cast("CodeType", marshal.load(f))
         except OSError, ValueError, EOFError:
             # Corrupted or incompatible cache file
             import contextlib
@@ -172,7 +173,7 @@ class BytecodeCache:
                 marshal.dump(code, f)
 
             # Atomic replacement
-            os.replace(tmp_path, path)
+            tmp_path.replace(path)
         except OSError:
             # Best effort - caching failure shouldn't break compilation
             import contextlib

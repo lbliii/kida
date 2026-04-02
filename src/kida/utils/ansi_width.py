@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, final
 
 # Pre-compiled regex matching SGR, OSC, and CSI escape sequences.
 # Covers the vast majority of terminal escape codes:
@@ -28,6 +28,7 @@ _ANSI_RE = re.compile(r"\033\[[^m]*m|\033\].*?(?:\007|\033\\)|\033\[[^a-zA-Z]*[a
 # =============================================================================
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class WidthStrategy:
     """Controls how ambiguous-width characters are measured.

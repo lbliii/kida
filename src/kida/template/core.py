@@ -42,8 +42,6 @@ Complexity:
 from __future__ import annotations
 
 import weakref
-from collections.abc import AsyncIterator, Callable, Iterator
-from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from kida.template.cached_blocks import CachedBlocksDict
@@ -71,6 +69,7 @@ from kida.utils.html import html_escape
 
 if TYPE_CHECKING:
     import types
+    from collections.abc import AsyncIterator, Callable, Iterator
 
     from kida.analysis import TemplateMetadata
     from kida.environment import Environment
@@ -130,7 +129,6 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         "_env_ref",
         "_extends_target",  # Literal parent name for inherited block lookup (or None)
         "_filename",
-        "_inheritance_cache_lock",  # Thread safety for inherited block caches
         "_inheritance_chain_cache",  # Cached [self, parent, ...] resolution
         "_local_blocks_async_stream",  # Local async stream block funcs
         "_local_blocks_stream",  # Local stream block funcs
@@ -177,7 +175,6 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         self._metadata_cache: TemplateMetadata | None = None
         self._inheritance_chain_cache: tuple[Template, ...] | None = None
         self._effective_blocks_cache: dict[str, dict[str, Any]] = {}
-        self._inheritance_cache_lock = Lock()
 
         # Build render helpers from factory (extracted to render_helpers.py)
         env_ref = self._env_ref

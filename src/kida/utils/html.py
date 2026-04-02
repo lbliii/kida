@@ -18,10 +18,12 @@ from __future__ import annotations
 import html
 import re
 import warnings
-from collections.abc import Callable, Iterable
-from typing import Any, Self, SupportsIndex, cast
+from typing import TYPE_CHECKING, Any, Self, SupportsIndex, cast
 
 from kida.utils.constants import EVENT_HANDLER_ATTRS as _EVENT_HANDLER_ATTRS
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
 
 # NOTE: markupsafe is no longer used for escaping. Kida's native
 # str.translate(_ESCAPE_TABLE) is C-level fast, handles NUL byte stripping

@@ -9,18 +9,19 @@ from __future__ import annotations
 
 import inspect
 import re
-from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, final
 
-from kida.render_context import RenderContext
 from kida.template.cached_blocks import CachedBlocksDict
 from kida.template.error_enhancement import enhance_template_error
 from kida.template.helpers import UNDEFINED
-from kida.template.types import BlocksDict
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Callable, Iterator
+
     from kida.environment import Environment
+    from kida.render_context import RenderContext
+    from kida.template.types import BlocksDict
 
 
 _TTL_DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhdSMHD]?)\s*$")
@@ -87,6 +88,7 @@ def _wrap_blocks_if_cached(
     )
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class MacroWrapper:
     """Callable wrapper for imported macros with source attribution metadata.

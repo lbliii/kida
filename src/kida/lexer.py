@@ -49,13 +49,15 @@ Example:
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import lru_cache
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, final
 
 from kida._types import Token, TokenType
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 class LexerMode(Enum):
@@ -67,6 +69,7 @@ class LexerMode(Enum):
     COMMENT = auto()  # Inside {# #}
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class LexerConfig:
     """Lexer configuration for delimiter customization and whitespace control.

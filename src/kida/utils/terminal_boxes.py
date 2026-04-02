@@ -15,12 +15,14 @@ Thread-Safety:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import final
 
 # =============================================================================
 # BoxChars Dataclass
 # =============================================================================
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class BoxChars:
     """A complete set of box-drawing characters for one style.

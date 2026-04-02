@@ -7,8 +7,10 @@ and ty JUnit XML output variants.
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def junit_to_dict(path: str | Path) -> dict[str, Any]:

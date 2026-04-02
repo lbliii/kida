@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, final
 
 from kida.nodes.base import Node
-from kida.nodes.expressions import Expr
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from kida.nodes.expressions import Expr
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class DefParam(Node):
     """A single parameter in a {% def %} with optional type annotation."""
@@ -17,6 +22,7 @@ class DefParam(Node):
     annotation: str | None = None
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Def(Node):
     """Function definition: {% def name(params) %}...{% end %}"""
@@ -34,6 +40,7 @@ class Def(Node):
         return tuple(p.name for p in self.params)
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Region(Node):
     """Parameterized renderable unit: {% region name(params) %}...{% end %}.
@@ -56,6 +63,7 @@ class Region(Node):
         return tuple(p.name for p in self.params)
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Slot(Node):
     """Slot placeholder inside {% def %}: {% slot %} or {% slot name %}"""
@@ -63,6 +71,7 @@ class Slot(Node):
     name: str = "default"
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class SlotBlock(Node):
     """Named slot content inside {% call %}: {% slot name %}...{% end %}"""
@@ -71,6 +80,7 @@ class SlotBlock(Node):
     body: Sequence[Node]
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class CallBlock(Node):
     """Call function with slot content: {% call name(args) %}...{% end %}"""

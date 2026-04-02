@@ -6,7 +6,7 @@ and a loader for built-in markdown component templates.
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ def markdown_env(**kwargs) -> Environment:
     from kida.environment.loaders import ChoiceLoader, FileSystemLoader
 
     # Component templates directory
-    components_dir = os.path.dirname(__file__)
+    components_dir = Path(__file__).parent
 
     user_loader = kwargs.pop("loader", None)
 

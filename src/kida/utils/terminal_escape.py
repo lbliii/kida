@@ -15,8 +15,10 @@ All operations are O(n) single-pass with no ReDoS risk.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
-from typing import Any, Self, SupportsIndex, cast
+from typing import TYPE_CHECKING, Any, Self, SupportsIndex, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 # =============================================================================
 # ANSI Sequence Detection

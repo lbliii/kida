@@ -37,11 +37,14 @@ FunctionLoader delegates to the user-provided callable).
 from __future__ import annotations
 
 import importlib.resources
-from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from kida.environment.exceptions import TemplateNotFoundError
 from kida.utils.template_keys import normalize_template_name
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class FileSystemLoader:

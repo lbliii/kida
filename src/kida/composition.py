@@ -19,9 +19,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from kida.analysis.metadata import TemplateStructureManifest
-
 if TYPE_CHECKING:
+    from kida.analysis.metadata import TemplateStructureManifest
     from kida.environment import Environment
     from kida.template import Template
 
