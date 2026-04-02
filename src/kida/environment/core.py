@@ -291,6 +291,7 @@ class Environment:
     _extension_end_keywords: frozenset[str] = field(init=False, default_factory=frozenset)
     # Cached globals filtered to exclude UNDEFINED values (lazily populated)
     _filtered_globals: dict[str, Any] | None = field(init=False, default=None, repr=False)
+    _filtered_globals_source: dict[str, Any] | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize derived configuration."""
@@ -458,17 +459,20 @@ class Environment:
         new_globals[name] = value
         self.globals = new_globals
         self._filtered_globals = None  # invalidate cache
+        self._filtered_globals_source: dict[str, Any] | None = None
 
     def get_filtered_globals(self) -> dict[str, Any]:
         """Return globals dict with UNDEFINED values removed (cached).
 
-        The result is cached and invalidated when globals are mutated
-        via ``add_global()``.
+        The result is cached, but the cache is automatically refreshed if
+        the public ``globals`` mapping has been mutated or replaced since the
+        last computation.
         """
-        if self._filtered_globals is None:
+        if self._filtered_globals is None or self._filtered_globals_source != self.globals:
             from kida.template.helpers import UNDEFINED
 
             self._filtered_globals = {k: v for k, v in self.globals.items() if v is not UNDEFINED}
+            self._filtered_globals_source = self.globals.copy()
         return self._filtered_globals
 
     def update_filters(self, filters: dict[str, Callable[..., Any]]) -> None:

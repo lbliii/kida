@@ -121,8 +121,8 @@ class FileSystemLoader:
         templates = set()
         for base in self._paths:
             if base.is_dir():
-                for path in base.rglob("*"):
-                    if path.suffix in {".html", ".xml"} and path.is_file():
+                for ext in ("*.html", "*.xml"):
+                    for path in base.rglob(ext):
                         templates.add(str(path.relative_to(base)))
         return sorted(templates)
 

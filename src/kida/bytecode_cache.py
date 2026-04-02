@@ -130,8 +130,9 @@ class BytecodeCache:
 
         The cache file may contain either:
         - Legacy format: raw marshal-encoded code object only.
-        - Current format: a 4-byte little-endian length prefix, followed by
-          the marshal-encoded code bytes, followed by a pickle-encoded AST.
+        - Current format: the ``_FRAMED_MAGIC`` sentinel, followed by a
+          4-byte little-endian length for the marshal-encoded code bytes,
+          followed by those code bytes and then a pickle-encoded AST.
 
         Args:
             name: Template name
