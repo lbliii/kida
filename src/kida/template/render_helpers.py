@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import inspect
 import re
-from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, final
 
@@ -213,21 +212,19 @@ def make_render_helpers(
             )
         return _env
 
-    @contextmanager
-    def _child_render_context(
+    def _enter_child_context(
         template_name: str,
         *,
         for_extends: bool,
-    ):  # type: ignore[return]
-        """Shared scaffold for include/extends variants (steps 1-5).
+    ):
+        """Shared setup for include/extends variants.
 
         Handles depth check, accumulator recording (includes only),
-        environment resolution, child context creation, and the
-        set_render_context / reset_render_context try/finally.
+        environment resolution, and child context creation.
 
-        Yields:
-            tuple[RenderContext, template] — the child context and the
-            resolved template object.
+        Returns:
+            tuple of (child_ctx, template, token) — caller MUST call
+            reset_render_context(token) in a finally block.
         """
         render_ctx = get_render_context_required()
         if for_extends:
@@ -244,10 +241,7 @@ def make_render_helpers(
         else:
             child_ctx = render_ctx.child_context(template_name, source=tmpl._source)
         token = set_render_context(child_ctx)
-        try:
-            yield child_ctx, tmpl
-        finally:
-            reset_render_context(token)
+        return child_ctx, tmpl, token
 
     def _include(
         template_name: str,
@@ -258,10 +252,8 @@ def make_render_helpers(
     ) -> str:
         caller_name = get_render_context_required().template_name
         try:
-            with _child_render_context(template_name, for_extends=False) as (
-                child_ctx,
-                included,
-            ):
+            child_ctx, included, token = _enter_child_context(template_name, for_extends=False)
+            try:
                 if included.is_async:
                     raise TemplateRuntimeError(
                         f"Sync template '{caller_name}' cannot include "
@@ -281,13 +273,16 @@ def make_render_helpers(
                     raise
                 except Exception as e:
                     raise enhance_template_error(e, child_ctx, included._source) from e
+            finally:
+                reset_render_context(token)
         except TemplateError as e:
             if ignore_missing and isinstance(e, TemplateNotFoundError):
                 return ""
             raise
 
     def _extends(template_name: str, context: dict[str, Any], blocks: BlocksDict) -> str:
-        with _child_render_context(template_name, for_extends=True) as (child_ctx, parent):
+        child_ctx, parent, token = _enter_child_context(template_name, for_extends=True)
+        try:
             if parent._render_func is None:
                 raise RuntimeError(
                     f"Template '{template_name}' not properly compiled: "
@@ -296,6 +291,8 @@ def make_render_helpers(
             blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
             result: str = parent._render_func(context, blocks_to_use)
             return result
+        finally:
+            reset_render_context(token)
 
     def _include_stream(
         template_name: str,
@@ -305,10 +302,8 @@ def make_render_helpers(
         blocks: dict[str, Any] | None = None,
     ) -> Iterator[str]:
         try:
-            with _child_render_context(template_name, for_extends=False) as (
-                _child_ctx,
-                included,
-            ):
+            _child_ctx, included, token = _enter_child_context(template_name, for_extends=False)
+            try:
                 stream_func = included._namespace.get("render_stream")
                 if stream_func is not None:
                     if blocks is not None:
@@ -317,6 +312,8 @@ def make_render_helpers(
                         yield from stream_func(context, None)
                 else:
                     yield included.render(**context)
+            finally:
+                reset_render_context(token)
         except TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError:
             if ignore_missing:
                 return
@@ -325,7 +322,8 @@ def make_render_helpers(
     def _extends_stream(
         template_name: str, context: dict[str, Any], blocks: dict[str, Any]
     ) -> Iterator[str]:
-        with _child_render_context(template_name, for_extends=True) as (child_ctx, parent):
+        child_ctx, parent, token = _enter_child_context(template_name, for_extends=True)
+        try:
             stream_func = parent._namespace.get("render_stream")
             if stream_func is None:
                 raise RuntimeError(
@@ -333,6 +331,8 @@ def make_render_helpers(
                 )
             blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
             yield from stream_func(context, blocks_to_use)
+        finally:
+            reset_render_context(token)
 
     async def _include_stream_async(
         template_name: str,
@@ -342,10 +342,8 @@ def make_render_helpers(
         blocks: dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
         try:
-            with _child_render_context(template_name, for_extends=False) as (
-                _child_ctx,
-                included,
-            ):
+            _child_ctx, included, token = _enter_child_context(template_name, for_extends=False)
+            try:
                 async_func = included._namespace.get("render_stream_async")
                 if async_func is not None:
                     if blocks is not None:
@@ -365,6 +363,8 @@ def make_render_helpers(
                                 yield chunk
                     else:
                         yield included.render(**context)
+            finally:
+                reset_render_context(token)
         except TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError:
             if ignore_missing:
                 return
@@ -373,7 +373,8 @@ def make_render_helpers(
     async def _extends_stream_async(
         template_name: str, context: dict[str, Any], blocks: dict[str, Any]
     ) -> AsyncIterator[str]:
-        with _child_render_context(template_name, for_extends=True) as (child_ctx, parent):
+        child_ctx, parent, token = _enter_child_context(template_name, for_extends=True)
+        try:
             blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
             async_func = parent._namespace.get("render_stream_async")
             if async_func is not None:
@@ -387,6 +388,8 @@ def make_render_helpers(
                     )
                 for chunk in sync_func(context, blocks_to_use):
                     yield chunk
+        finally:
+            reset_render_context(token)
 
     def _import_macros(
         template_name: str,
