@@ -351,7 +351,7 @@ Use Kida as a GitHub Action to render CI reports as step summaries or PR comment
   run: pytest --junitxml=results.xml
 
 - name: Post test report
-  uses: lbliii/kida@v0.3.0
+  uses: lbliii/kida@v0.3.1
   with:
     template: pytest
     data: results.xml
@@ -362,7 +362,7 @@ Use Kida as a GitHub Action to render CI reports as step summaries or PR comment
 
 ```yaml
 - name: Post coverage to PR
-  uses: lbliii/kida@v0.3.0
+  uses: lbliii/kida@v0.3.1
   with:
     template: coverage
     data: coverage.json
@@ -386,7 +386,7 @@ Use Kida as a GitHub Action to render CI reports as step summaries or PR comment
 Point to any template file in your repo:
 
 ```yaml
-- uses: lbliii/kida@v0.3.0
+- uses: lbliii/kida@v0.3.1
   with:
     template: .github/kida-templates/my-report.md
     data: output.json
