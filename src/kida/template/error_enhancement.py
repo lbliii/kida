@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.environment.exceptions import TemplateRuntimeError
+    from kida.exceptions import TemplateRuntimeError
     from kida.render_context import RenderContext
 
 
@@ -32,7 +32,7 @@ def enhance_template_error(
     Converts generic Python exceptions into TemplateRuntimeError with
     template name, line number, and source snippet context.
     """
-    from kida.environment.exceptions import (
+    from kida.exceptions import (
         ErrorCode,
         NoneComparisonError,
         TemplateRuntimeError,

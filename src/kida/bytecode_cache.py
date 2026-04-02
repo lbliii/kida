@@ -1,7 +1,8 @@
 """Template Bytecode Cache.
 
 Persists compiled template code objects to disk for near-instant
-cold-start loading. Uses marshal for code object serialization.
+cold-start loading. Uses marshal for code object serialization and
+pickle for optional AST serialization.
 
 Cache Invalidation:
 Uses source hash in filename. When source changes, hash changes,
@@ -18,7 +19,7 @@ Example:
     >>> cache = BytecodeCache(Path(".kida-cache"))
     >>>
     >>> # Check cache
-    >>> code = cache.get("base.html", source_hash)
+    >>> code, ast = cache.get("base.html", source_hash)
     >>> if code is None:
     ...     code = compile_template(source)
     ...     cache.set("base.html", source_hash, code)
@@ -33,6 +34,8 @@ from __future__ import annotations
 
 import hashlib
 import marshal
+import pickle
+import struct
 import sys
 import time
 from pathlib import Path
@@ -43,6 +46,13 @@ from kida.utils.template_keys import normalize_template_name
 
 if TYPE_CHECKING:
     from types import CodeType
+
+    from kida.nodes.base import Node
+
+# Magic sentinel that prefixes the framed cache format (v2).
+# Marshal code objects always start with 0xe3 (the TYPE_CODE byte), so this
+# 4-byte sentinel — which starts with 0x00 — is unambiguous.
+_FRAMED_MAGIC = b"\x00KDA"
 
 # Python version tag for cache invalidation across Python upgrades
 _PY_VERSION_TAG = f"py{sys.version_info.major}{sys.version_info.minor}"
@@ -65,13 +75,13 @@ class BytecodeCache:
             >>> cache = BytecodeCache(Path(".kida-cache"))
             >>>
             >>> # Miss: compile and cache
-            >>> code = cache.get("base.html", source_hash)
+            >>> code, ast = cache.get("base.html", source_hash)
             >>> if code is None:
             ...     code = compile_template(source)
-            ...     cache.set("base.html", source_hash, code)
+            ...     cache.set("base.html", source_hash, code, ast=optimized_ast)
             >>>
-            >>> # Hit: instant load
-            >>> code = cache.get("base.html", source_hash)
+            >>> # Hit: instant load (ast may be None for old cache entries)
+            >>> code, ast = cache.get("base.html", source_hash)
 
     """
 
@@ -115,31 +125,75 @@ class BytecodeCache:
         source_hash: str,
         *,
         context_hash: str | None = None,
-    ) -> CodeType | None:
-        """Load cached bytecode if available.
+    ) -> tuple[CodeType, Node | None] | tuple[None, None]:
+        """Load cached bytecode and optional AST if available.
+
+        The cache file may contain either:
+        - Legacy format: raw marshal-encoded code object only.
+        - Current format: the ``_FRAMED_MAGIC`` sentinel, followed by a
+          4-byte little-endian length for the marshal-encoded code bytes,
+          followed by those code bytes and then a pickle-encoded AST.
 
         Args:
             name: Template name
             source_hash: Hash of template source (for invalidation)
 
         Returns:
-            Compiled code object, or None if not cached
+            ``(code, ast)`` on a cache hit — ``ast`` may be ``None`` for
+            entries written by an older version of Kida.  Returns
+            ``(None, None)`` on a cache miss or read error.
         """
         path = self._make_path(name, source_hash, context_hash)
 
         if not path.exists():
-            return None
+            return None, None
 
         try:
-            with path.open("rb") as f:
-                return cast("CodeType", marshal.load(f))
-        except OSError, ValueError, EOFError:
+            data = path.read_bytes()
+        except OSError:
+            return None, None
+
+        try:
+            if data[: len(_FRAMED_MAGIC)] == _FRAMED_MAGIC:
+                # Framed format (v2): magic(4) + code_len(4 LE) + code + pickle(ast)?
+                offset = len(_FRAMED_MAGIC)
+                (code_len,) = struct.unpack_from("<I", data, offset)
+                offset += 4
+                code_bytes = data[offset : offset + code_len]
+                if len(code_bytes) != code_len:
+                    # Truncated file — discard and signal miss.
+                    import contextlib
+
+                    with contextlib.suppress(OSError):
+                        path.unlink(missing_ok=True)
+                    return None, None
+
+                code = cast("CodeType", marshal.loads(code_bytes))
+
+                # AST section is optional; absence means preserve_ast was False
+                # when the entry was written.
+                ast_bytes = data[offset + code_len :]
+                ast: Node | None = None
+                if ast_bytes:
+                    try:
+                        ast = pickle.loads(ast_bytes)
+                    except Exception:
+                        # Corrupted or incompatible pickle — signal re-parse
+                        # by returning None for the AST (code is still valid).
+                        ast = None
+
+                return code, ast
+            else:
+                # Legacy format: plain marshal stream, no AST.
+                code = cast("CodeType", marshal.loads(data))
+                return code, None
+        except ValueError, EOFError, struct.error:
             # Corrupted or incompatible cache file
             import contextlib
 
             with contextlib.suppress(OSError):
                 path.unlink(missing_ok=True)
-            return None
+            return None, None
 
     def set(
         self,
@@ -148,18 +202,29 @@ class BytecodeCache:
         code: CodeType,
         *,
         context_hash: str | None = None,
+        ast: Node | None = None,
     ) -> None:
-        """Cache compiled bytecode.
+        """Cache compiled bytecode and optional AST.
+
+        File format (v2, framed):
+        ``[_FRAMED_MAGIC (4 B)][code_len LE uint32 (4 B)][marshal(code)][pickle(ast)?]``
+
+        The AST section is omitted when ``ast`` is ``None``.  Legacy entries
+        written by older Kida versions are plain ``marshal(code)`` streams
+        with no header; :meth:`get` detects and reads both formats.
 
         Args:
             name: Template name
             source_hash: Hash of template source
             code: Compiled code object
+            ast: Optimised AST root node (optional).  When supplied it is
+                pickled with protocol 5 and appended after the code section.
         """
         path = self._make_path(name, source_hash, context_hash)
         tmp_path: Path | None = None
 
         try:
+            code_bytes = marshal.dumps(code)
             # Write to a unique temp file in the same directory, then atomically
             # replace the target path. Unique temp naming prevents producer races.
             with NamedTemporaryFile(
@@ -170,7 +235,16 @@ class BytecodeCache:
                 delete=False,
             ) as f:
                 tmp_path = Path(f.name)
-                marshal.dump(code, f)
+                # Framed format (v2):
+                #   _FRAMED_MAGIC (4 bytes)
+                #   code_len      (4 bytes, little-endian uint32)
+                #   code          (code_len bytes, marshal-encoded)
+                #   ast           (remaining bytes, pickle protocol 5; absent if ast is None)
+                f.write(_FRAMED_MAGIC)
+                f.write(struct.pack("<I", len(code_bytes)))
+                f.write(code_bytes)
+                if ast is not None:
+                    f.write(pickle.dumps(ast, protocol=5))
 
             # Atomic replacement
             tmp_path.replace(path)

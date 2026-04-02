@@ -278,7 +278,7 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
     except KeyError:
         # Defer imports to error path — avoids ~4 dict lookups per call
         # on the hot path (sys.modules + getattr per import).
-        from kida.environment.exceptions import UndefinedError, build_source_snippet
+        from kida.exceptions import UndefinedError, build_source_snippet
         from kida.render_context import get_render_context
 
         # Get template context from RenderContext for better error messages
@@ -317,7 +317,7 @@ def lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_nam
         return ctx[var_name]
 
     # Not found - raise UndefinedError with available names for suggestions
-    from kida.environment.exceptions import UndefinedError, build_source_snippet
+    from kida.exceptions import UndefinedError, build_source_snippet
     from kida.render_context import get_render_context
 
     render_ctx = get_render_context()
@@ -359,7 +359,7 @@ def default_safe(
     Returns:
         The value if defined and valid, otherwise the default
     """
-    from kida.environment.exceptions import UndefinedError
+    from kida.exceptions import UndefinedError
 
     try:
         value = value_fn()
@@ -396,7 +396,7 @@ def is_defined(value_fn: Callable[[], Any]) -> bool:
     Returns:
         True if the value is defined, False otherwise
     """
-    from kida.environment.exceptions import UndefinedError
+    from kida.exceptions import UndefinedError
 
     try:
         value = value_fn()
@@ -422,7 +422,7 @@ def null_coalesce(left_fn: Callable[[], Any], right_fn: Callable[[], Any]) -> An
     Returns:
         The left value if defined and not None, otherwise the right value
     """
-    from kida.environment.exceptions import UndefinedError
+    from kida.exceptions import UndefinedError
 
     try:
         value = left_fn()

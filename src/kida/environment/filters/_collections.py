@@ -290,20 +290,20 @@ def _filter_groupby(value: Any, attribute: str) -> list[dict[str, Any]]:
             return item.get(attribute)
         return getattr(item, attribute, None)
 
-    def sort_key(item: Any) -> tuple[Any, ...]:
-        """None-safe sort key: (is_none, value_for_comparison)."""
-        val = get_key(item)
+    def _sort_tuple(val: Any) -> tuple[Any, ...]:
+        """None-safe sort tuple from a pre-extracted key value."""
         if val is None or val == "":
-            # None/empty sorts last, use empty string for grouping key stability
             return (1, "")
         if isinstance(val, (int, float)):
             return (0, val)
-        # Convert to string for consistent comparison
         return (0, str(val).lower())
 
-    sorted_items = sorted(value, key=sort_key)
+    # Extract key once per item, sort, then group
+    keyed = [(get_key(item), item) for item in value]
+    keyed.sort(key=lambda x: _sort_tuple(x[0]))
     return [
-        {"grouper": key, "list": list(group)} for key, group in groupby(sorted_items, key=get_key)
+        {"grouper": key, "list": [pair[1] for pair in group]}
+        for key, group in groupby(keyed, key=lambda x: x[0])
     ]
 
 
@@ -319,7 +319,7 @@ def _filter_sort(
     showing which items have None values for the sort attribute.
 
     """
-    from kida.environment.exceptions import NoneComparisonError
+    from kida.exceptions import NoneComparisonError
 
     if not value:
         return []

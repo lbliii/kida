@@ -134,12 +134,12 @@ def _str_width(s: str) -> int:
     of its normal East Asian Width. The VS15 itself is zero-width.
     """
     total = 0
-    chars = list(s)
     i = 0
-    while i < len(chars):
-        c = chars[i]
+    n = len(s)
+    while i < n:
+        c = s[i]
         # Check if next char is VS15 (text presentation selector)
-        if i + 1 < len(chars) and chars[i + 1] == "\ufe0e":
+        if i + 1 < n and s[i + 1] == "\ufe0e":
             total += 1  # VS15 forces width 1
             i += 2  # skip both the char and VS15
         else:

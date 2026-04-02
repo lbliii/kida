@@ -24,7 +24,7 @@ def normalize_template_name(name: str) -> str:
     parts = normalized.split("/")
     for part in parts:
         if part == "..":
-            from kida.environment.exceptions import TemplateNotFoundError
+            from kida.exceptions import TemplateNotFoundError
 
             raise TemplateNotFoundError(name)
     return normalized

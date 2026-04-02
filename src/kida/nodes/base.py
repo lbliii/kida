@@ -52,3 +52,9 @@ def _iter_sequence(seq: list | tuple) -> Iterator[Node]:
             yield item
         elif isinstance(item, (list, tuple)):
             yield from _iter_sequence(item)
+        elif isinstance(item, dict):
+            for v in item.values():
+                if isinstance(v, Node):
+                    yield v
+                elif isinstance(v, (list, tuple)):
+                    yield from _iter_sequence(v)

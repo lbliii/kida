@@ -53,12 +53,12 @@ def sarif_to_dict(path: str | Path) -> dict[str, Any]:
     errors = 0
     warnings = 0
     notes = 0
-    tool_names: list[str] = []
+    tool_names: dict[str, None] = {}
 
     for run in runs:
         name = run.get("tool", {}).get("driver", {}).get("name")
-        if name and name not in tool_names:
-            tool_names.append(name)
+        if name:
+            tool_names.setdefault(name, None)
 
         for r in run.get("results", []):
             level = r.get("level", "warning")
@@ -97,7 +97,7 @@ def sarif_to_dict(path: str | Path) -> dict[str, Any]:
     if not tool_names:
         tool_name = "unknown"
     elif len(tool_names) == 1:
-        tool_name = tool_names[0]
+        tool_name = next(iter(tool_names))
     else:
         tool_name = ", ".join(tool_names)
 

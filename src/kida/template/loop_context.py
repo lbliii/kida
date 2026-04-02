@@ -127,7 +127,7 @@ class LoopContext:
 
 def _async_loop_unavailable(name: str) -> NoReturn:
     """Raise TemplateRuntimeError for size-dependent loop variables in async for."""
-    from kida.environment.exceptions import TemplateRuntimeError
+    from kida.exceptions import TemplateRuntimeError
 
     raise TemplateRuntimeError(
         f"'loop.{name}' is not available in async for-loops "

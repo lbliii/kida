@@ -189,7 +189,7 @@ def make_render_helpers(
         _include_stream_async, _extends_stream_async, _import_macros,
         _cache_get, _cache_set.
     """
-    from kida.environment.exceptions import (
+    from kida.exceptions import (
         ErrorCode,
         TemplateError,
         TemplateNotFoundError,
@@ -212,6 +212,37 @@ def make_render_helpers(
             )
         return _env
 
+    def _enter_child_context(
+        template_name: str,
+        *,
+        for_extends: bool,
+    ):
+        """Shared setup for include/extends variants.
+
+        Handles depth check, accumulator recording (includes only),
+        environment resolution, and child context creation.
+
+        Returns:
+            tuple of (child_ctx, template, token) — caller MUST call
+            reset_render_context(token) in a finally block.
+        """
+        render_ctx = get_render_context_required()
+        if for_extends:
+            render_ctx.check_extends_depth(template_name)
+        else:
+            render_ctx.check_include_depth(template_name)
+            acc = get_accumulator()
+            if acc is not None:
+                acc.record_include(template_name)
+        _env = _resolve_env(template_name)
+        tmpl = _env.get_template(template_name)
+        if for_extends:
+            child_ctx = render_ctx.child_context_for_extends(template_name, source=tmpl._source)
+        else:
+            child_ctx = render_ctx.child_context(template_name, source=tmpl._source)
+        token = set_render_context(child_ctx)
+        return child_ctx, tmpl, token
+
     def _include(
         template_name: str,
         context: dict[str, Any],
@@ -219,35 +250,29 @@ def make_render_helpers(
         *,
         blocks: dict[str, Any] | None = None,
     ) -> str:
-        render_ctx = get_render_context_required()
-        render_ctx.check_include_depth(template_name)
-        acc = get_accumulator()
-        if acc is not None:
-            acc.record_include(template_name)
-        _env = _resolve_env(template_name)
+        caller_name = get_render_context_required().template_name
         try:
-            included = _env.get_template(template_name)
-            if included.is_async:
-                raise TemplateRuntimeError(
-                    f"Sync template '{render_ctx.template_name}' cannot include "
-                    f"async template '{template_name}'. Use render_stream_async() "
-                    f"to render templates with async includes.",
-                    template_name=render_ctx.template_name,
-                )
-            child_ctx = render_ctx.child_context(template_name, source=included._source)
-            token = set_render_context(child_ctx)
+            child_ctx, included, token = _enter_child_context(template_name, for_extends=False)
             try:
-                if blocks is not None and included._render_func is not None:
-                    result: str = included._render_func(context, blocks)
-                    return result
-                if included._render_func is not None:
-                    result = included._render_func(context, None)
-                    return str(result) if result is not None else ""
-                return str(included.render(**context))
-            except TemplateError:
-                raise
-            except Exception as e:
-                raise enhance_template_error(e, child_ctx, included._source) from e
+                if included.is_async:
+                    raise TemplateRuntimeError(
+                        f"Sync template '{caller_name}' cannot include "
+                        f"async template '{template_name}'. Use render_stream_async() "
+                        f"to render templates with async includes.",
+                        template_name=caller_name,
+                    )
+                try:
+                    if blocks is not None and included._render_func is not None:
+                        result: str = included._render_func(context, blocks)
+                        return result
+                    if included._render_func is not None:
+                        result = included._render_func(context, None)
+                        return str(result) if result is not None else ""
+                    return str(included.render(**context))
+                except TemplateError:
+                    raise
+                except Exception as e:
+                    raise enhance_template_error(e, child_ctx, included._source) from e
             finally:
                 reset_render_context(token)
         except TemplateError as e:
@@ -256,12 +281,7 @@ def make_render_helpers(
             raise
 
     def _extends(template_name: str, context: dict[str, Any], blocks: BlocksDict) -> str:
-        render_ctx = get_render_context_required()
-        render_ctx.check_extends_depth(template_name)
-        _env = _resolve_env(template_name)
-        parent = _env.get_template(template_name)
-        child_ctx = render_ctx.child_context_for_extends(template_name, source=parent._source)
-        token = set_render_context(child_ctx)
+        child_ctx, parent, token = _enter_child_context(template_name, for_extends=True)
         try:
             if parent._render_func is None:
                 raise RuntimeError(
@@ -281,20 +301,8 @@ def make_render_helpers(
         *,
         blocks: dict[str, Any] | None = None,
     ) -> Iterator[str]:
-        render_ctx = get_render_context_required()
-        render_ctx.check_include_depth(template_name)
-        acc = get_accumulator()
-        if acc is not None:
-            acc.record_include(template_name)
-        _env = env_ref()
-        if _env is None:
-            raise RuntimeError(
-                f"Environment has been garbage collected while including '{template_name}'"
-            )
         try:
-            included = _env.get_template(template_name)
-            child_ctx = render_ctx.child_context(template_name, source=included._source)
-            token = set_render_context(child_ctx)
+            _child_ctx, included, token = _enter_child_context(template_name, for_extends=False)
             try:
                 stream_func = included._namespace.get("render_stream")
                 if stream_func is not None:
@@ -314,12 +322,7 @@ def make_render_helpers(
     def _extends_stream(
         template_name: str, context: dict[str, Any], blocks: dict[str, Any]
     ) -> Iterator[str]:
-        render_ctx = get_render_context_required()
-        render_ctx.check_extends_depth(template_name)
-        _env = _resolve_env(template_name)
-        parent = _env.get_template(template_name)
-        child_ctx = render_ctx.child_context_for_extends(template_name, source=parent._source)
-        token = set_render_context(child_ctx)
+        child_ctx, parent, token = _enter_child_context(template_name, for_extends=True)
         try:
             stream_func = parent._namespace.get("render_stream")
             if stream_func is None:
@@ -338,16 +341,8 @@ def make_render_helpers(
         *,
         blocks: dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
-        render_ctx = get_render_context_required()
-        render_ctx.check_include_depth(template_name)
-        acc = get_accumulator()
-        if acc is not None:
-            acc.record_include(template_name)
-        _env = _resolve_env(template_name)
         try:
-            included = _env.get_template(template_name)
-            child_ctx = render_ctx.child_context(template_name, source=included._source)
-            token = set_render_context(child_ctx)
+            _child_ctx, included, token = _enter_child_context(template_name, for_extends=False)
             try:
                 async_func = included._namespace.get("render_stream_async")
                 if async_func is not None:
@@ -378,12 +373,7 @@ def make_render_helpers(
     async def _extends_stream_async(
         template_name: str, context: dict[str, Any], blocks: dict[str, Any]
     ) -> AsyncIterator[str]:
-        render_ctx = get_render_context_required()
-        render_ctx.check_extends_depth(template_name)
-        _env = _resolve_env(template_name)
-        parent = _env.get_template(template_name)
-        child_ctx = render_ctx.child_context_for_extends(template_name, source=parent._source)
-        token = set_render_context(child_ctx)
+        child_ctx, parent, token = _enter_child_context(template_name, for_extends=True)
         try:
             blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
             async_func = parent._namespace.get("render_stream_async")
@@ -432,7 +422,7 @@ def make_render_helpers(
                         f"Template '{template_name}' not properly compiled: "
                         f"_render_func is None. Check for syntax errors in the template."
                     )
-                import_ctx = {k: v for k, v in _env.globals.items() if v is not UNDEFINED}
+                import_ctx = dict(_env.get_filtered_globals())
                 if with_context:
                     import_ctx.update(context)
                 imported._render_func(import_ctx, None)

@@ -388,7 +388,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 yield ctx, render_ctx, blocks_arg
                 return
 
-            from kida.environment.exceptions import (
+            from kida.exceptions import (
                 TemplateNotFoundError,
                 TemplateRuntimeError,
                 TemplateSyntaxError,
@@ -441,7 +441,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             >>> t.render({"name": "World"})
             'Hello, World!'
         """
-        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.exceptions import TemplateRuntimeError
 
         # Guard: async templates must use render_stream_async()
         if self.is_async:
@@ -571,7 +571,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             >>> for chunk in t.render_stream(name="World"):
             ...     send(chunk)
         """
-        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.exceptions import TemplateRuntimeError
 
         # Guard: async templates must use render_stream_async()
         if self.is_async:
@@ -613,7 +613,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         """
         import asyncio
 
-        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.exceptions import TemplateRuntimeError
 
         if self.is_async:
             raise TemplateRuntimeError(

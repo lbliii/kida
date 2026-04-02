@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from kida.bytecode_cache import BytecodeCache, hash_source
-from kida.environment.exceptions import TemplateNotFoundError
+from kida.exceptions import TemplateNotFoundError
 
 
 class TestBytecodeCache:
@@ -32,9 +32,9 @@ class TestBytecodeCache:
         assert cache_dir.exists()
 
     def test_get_miss(self, cache):
-        """Get returns None for missing cache entry."""
+        """Get returns (None, None) for missing cache entry."""
         result = cache.get("missing.html", "abc123")
-        assert result is None
+        assert result == (None, None)
 
     def test_set_and_get(self, cache):
         """Set stores bytecode and get retrieves it."""
@@ -46,9 +46,9 @@ class TestBytecodeCache:
         cache.set("test.html", source_hash, code)
 
         # Retrieve it
-        result = cache.get("test.html", source_hash)
-        assert result is not None
-        assert result.co_code == code.co_code
+        result_code, _result_ast = cache.get("test.html", source_hash)
+        assert result_code is not None
+        assert result_code.co_code == code.co_code
 
     def test_concurrent_set_same_key_is_safe(self, cache):
         """Concurrent writers for same key do not corrupt cache file."""
@@ -64,8 +64,8 @@ class TestBytecodeCache:
                 future.result()
 
         # Cache must remain loadable (winner may be any writer).
-        cached = cache.get("shared.html", source_hash)
-        assert cached is not None
+        cached_code, _ = cache.get("shared.html", source_hash)
+        assert cached_code is not None
 
     def test_set_does_not_leave_tmp_artifacts_under_contention(self, cache_dir):
         """Concurrent writes should not leave stale temporary files behind."""
@@ -93,10 +93,10 @@ class TestBytecodeCache:
         cache.set("test.html", hash1, code)
 
         # Original hash hits
-        assert cache.get("test.html", hash1) is not None
+        assert cache.get("test.html", hash1)[0] is not None
 
         # Different hash misses
-        assert cache.get("test.html", hash2) is None
+        assert cache.get("test.html", hash2) == (None, None)
 
     def test_clear_all(self, cache):
         """Clear removes all cache entries."""
@@ -237,8 +237,8 @@ class TestBytecodeCache:
         cache.set("dir/subdir/test.html", hash_source("test"), code)
 
         # Should be retrievable
-        result = cache.get("dir/subdir/test.html", hash_source("test"))
-        assert result is not None
+        result_code, _ = cache.get("dir/subdir/test.html", hash_source("test"))
+        assert result_code is not None
 
     def test_corrupted_cache_file_handled(self, cache, cache_dir):
         """Corrupted cache files are handled gracefully."""
@@ -248,9 +248,9 @@ class TestBytecodeCache:
         corrupted_path = cache._make_path("test.html", source_hash)
         corrupted_path.write_bytes(b"not valid bytecode")
 
-        # Should return None, not crash
+        # Should return (None, None), not crash
         result = cache.get("test.html", source_hash)
-        assert result is None
+        assert result == (None, None)
 
         # Corrupted file should be removed
         assert not corrupted_path.exists()

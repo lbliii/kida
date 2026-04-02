@@ -273,7 +273,7 @@ class TemplateIntrospectionMixin:
         # Create template resolver for included template analysis
         def resolve_template(name: str) -> Template | None:
             """Resolve and analyze included templates."""
-            from kida.environment.exceptions import (
+            from kida.exceptions import (
                 TemplateNotFoundError,
                 TemplateSyntaxError,
             )

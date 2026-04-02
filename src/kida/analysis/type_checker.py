@@ -193,12 +193,12 @@ class _TypeCheckVisitor(NodeVisitor):
                 self._add_target_names(item)
 
 
-def _suggest_typo(name: str, candidates: frozenset[str]) -> str | None:
+def _suggest_typo(name: str, candidates: list[str]) -> str | None:
     """Suggest a declared name if the given name looks like a typo."""
     if not candidates:
         return None
     # Simple edit distance check (1 char difference)
-    for candidate in sorted(candidates):
+    for candidate in candidates:
         if abs(len(name) - len(candidate)) <= 2:
             # Check prefix match (common typo: extra/missing char)
             if name.startswith(candidate[:3]) or candidate.startswith(name[:3]):
@@ -244,6 +244,7 @@ def check_types(template: Template) -> list[TypeIssue]:
         return []
 
     declared = frozenset(name for name, _type in template.context_type.declarations)
+    declared_sorted = sorted(declared)
 
     visitor = _TypeCheckVisitor(declared)
     visitor.visit(template)
@@ -253,7 +254,7 @@ def check_types(template: Template) -> list[TypeIssue]:
     # Check for undeclared variable access
     for name, lineno, col in visitor._used_names:
         if name not in declared:
-            suggestion = _suggest_typo(name, declared)
+            suggestion = _suggest_typo(name, declared_sorted)
             msg = f"Variable '{name}' used but not declared in {{% template %}}"
             if suggestion:
                 msg += f" (did you mean '{suggestion}'?)"

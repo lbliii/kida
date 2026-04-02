@@ -6,7 +6,7 @@ import json
 from pathlib import PurePath
 from typing import Any
 
-from kida.environment.exceptions import TemplateRuntimeError
+from kida.exceptions import TemplateRuntimeError
 from kida.utils.html import Markup
 
 
