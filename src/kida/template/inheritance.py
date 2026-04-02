@@ -63,7 +63,7 @@ class TemplateInheritanceMixin:
 
     def _inheritance_chain(self) -> tuple[Template, ...] | list[Any]:
         """Return [self, parent, grandparent, ...] for inherited block resolution."""
-        from kida.environment.exceptions import TemplateRuntimeError
+        from kida.exceptions import TemplateRuntimeError
 
         # Skip cache when auto_reload: parent templates can be reloaded independently
         if not self._env.auto_reload:

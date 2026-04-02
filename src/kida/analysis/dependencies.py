@@ -7,9 +7,9 @@ excludes paths that are actually used.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, cast
 
-from kida.analysis.visitor import visit_children
+from kida.analysis.node_visitor import NodeVisitor
 from kida.nodes import (
     Const,
     Getattr,
@@ -21,8 +21,6 @@ from kida.nodes import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from kida.nodes import (
         AsyncFor,
         Autoescape,
@@ -65,6 +63,7 @@ if TYPE_CHECKING:
         Range,
         Raw,
         Region,
+        SafePipeline,
         Set,
         Slice,
         Slot,
@@ -123,7 +122,7 @@ _BUILTIN_NAMES = frozenset(
 )
 
 
-class DependencyWalker:
+class DependencyWalker(NodeVisitor):
     """Extract context variable dependencies from AST expressions.
 
     Walks the AST and collects all context paths (e.g., "page.title",
@@ -148,32 +147,11 @@ class DependencyWalker:
 
     """
 
-    def __init_subclass__(cls, **kwargs: object) -> None:
-        super().__init_subclass__(**kwargs)
-        cls._dispatch = cls._build_dispatch()
-
-    @classmethod
-    def _build_dispatch(cls) -> dict[str, Callable[..., None]]:
-        """Build dispatch table from _visit_* methods (once per class)."""
-        dispatch: dict[str, Callable[..., None]] = {}
-        for name in dir(cls):
-            if name.startswith("_visit_") and name != "_visit_children":
-                method = getattr(cls, name)
-                if callable(method):
-                    dispatch[name[7:]] = method
-        return dispatch
-
-    # Class-level dispatch table — built once, not per-instance via dir(self)
-    _dispatch: ClassVar[dict[str, Callable[..., None]]] = {}
-
     def __init__(self) -> None:
         """Initialize walker (stateless until analyze() is called)."""
         self._scope_stack: list[set[str]] = []
         self._all_locals: set[str] = set()
         self._dependencies: set[str] = set()
-        # Build dispatch on first instantiation if not yet built by __init_subclass__
-        if not type(self)._dispatch:
-            type(self)._dispatch = type(self)._build_dispatch()
 
     def analyze(self, node: Node) -> frozenset[str]:
         """Analyze a node and return all context dependencies.
@@ -188,24 +166,10 @@ class DependencyWalker:
         self._scope_stack = [set()]
         self._all_locals = set()
         self._dependencies = set()
-        self._visit(node)
+        self.visit(node)
         return frozenset(self._dependencies)
 
-    def _visit(self, node: Node | None) -> None:
-        """Visit a node and its children."""
-        if node is None:
-            return
-
-        node_type = type(node).__name__
-
-        # O(1) dispatch to specific handlers (class-level dict, not per-instance)
-        handler = self._dispatch.get(node_type.lower())
-        if handler:
-            handler(self, node)
-        else:
-            visit_children(node, self._visit)
-
-    def _visit_name(self, node: Name) -> None:
+    def visit_Name(self, node: Name) -> None:  # noqa: N802
         """Handle variable reference."""
         name = node.name
 
@@ -220,25 +184,25 @@ class DependencyWalker:
         # It's a context variable
         self._dependencies.add(name)
 
-    def _visit_getattr(self, node: Getattr) -> None:
+    def visit_Getattr(self, node: Getattr) -> None:  # noqa: N802
         """Handle attribute access: obj.attr"""
         path = self._build_path(node)
         if path:
             self._dependencies.add(path)
         else:
             # Couldn't build full path, visit children
-            self._visit(node.obj)
+            self.visit(node.obj)
 
-    def _visit_optionalgetattr(self, node: OptionalGetattr) -> None:
+    def visit_OptionalGetattr(self, node: OptionalGetattr) -> None:  # noqa: N802
         """Handle optional attribute access: obj?.attr"""
         # Same logic as regular getattr
         path = self._build_path(node)
         if path:
             self._dependencies.add(path)
         else:
-            self._visit(node.obj)
+            self.visit(node.obj)
 
-    def _visit_getitem(self, node: Getitem) -> None:
+    def visit_Getitem(self, node: Getitem) -> None:  # noqa: N802
         """Handle subscript access: obj[key]"""
         # We can only track static string keys
         if isinstance(node.key, Const) and isinstance(node.key.value, str):
@@ -248,10 +212,10 @@ class DependencyWalker:
                 return
 
         # Dynamic key - track the base object and the key expression
-        self._visit(node.obj)
-        self._visit(node.key)
+        self.visit(node.obj)
+        self.visit(node.key)
 
-    def _visit_optionalgetitem(self, node: OptionalGetitem) -> None:
+    def visit_OptionalGetitem(self, node: OptionalGetitem) -> None:  # noqa: N802
         """Handle optional subscript access: obj?[key]"""
         # Same logic as regular getitem
         if isinstance(node.key, Const) and isinstance(node.key.value, str):
@@ -260,13 +224,13 @@ class DependencyWalker:
                 self._dependencies.add(path)
                 return
 
-        self._visit(node.obj)
-        self._visit(node.key)
+        self.visit(node.obj)
+        self.visit(node.key)
 
-    def _visit_for(self, node: For | AsyncFor) -> None:
+    def visit_For(self, node: For | AsyncFor) -> None:  # noqa: N802
         """Handle for loop: push loop variable into scope."""
         # Visit the iterable (this IS a dependency)
-        self._visit(node.iter)
+        self.visit(node.iter)
 
         # Extract loop variables
         loop_vars = self._extract_targets(node.target)
@@ -275,7 +239,7 @@ class DependencyWalker:
         test = getattr(node, "test", None)
         if test:
             self._push_scope(loop_vars | {"loop"})
-            self._visit(test)
+            self.visit(test)
             self._pop_scope()
 
         # Push loop variable(s) into scope with implicit 'loop' variable
@@ -283,33 +247,33 @@ class DependencyWalker:
 
         # Visit body with loop var in scope
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
         # Visit empty block (if any)
         empty = getattr(node, "empty", None)
         if empty:
             for child in empty:
-                self._visit(child)
+                self.visit(child)
 
         # Pop scope
         self._pop_scope()
 
-    def _visit_asyncfor(self, node: AsyncFor) -> None:
+    def visit_AsyncFor(self, node: AsyncFor) -> None:  # noqa: N802
         """Handle async for loop (same as regular for)."""
-        self._visit_for(node)
+        self.visit_For(node)
 
-    def _visit_while(self, node: While) -> None:
+    def visit_While(self, node: While) -> None:  # noqa: N802
         """Handle while loop."""
-        self._visit(node.test)
+        self.visit(node.test)
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_with(self, node: With) -> None:
+    def visit_With(self, node: With) -> None:  # noqa: N802
         """Handle with block: {% with x = expr %}...{% end %}"""
         # Collect all bindings
         bindings = set()
         for name, value in node.targets:
-            self._visit(value)  # Value expression IS a dependency
+            self.visit(value)  # Value expression IS a dependency
             bindings.add(name)
 
         # Push bindings into scope
@@ -317,15 +281,15 @@ class DependencyWalker:
 
         # Visit body
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
         # Pop scope
         self._pop_scope()
 
-    def _visit_withconditional(self, node: WithConditional) -> None:
+    def visit_WithConditional(self, node: WithConditional) -> None:  # noqa: N802
         """Handle conditional with: {% with expr as target %}"""
         # Visit the expression (IS a dependency)
-        self._visit(node.expr)
+        self.visit(node.expr)
 
         # Extract targets and push into scope
         targets = self._extract_targets(node.target)
@@ -333,356 +297,365 @@ class DependencyWalker:
 
         # Visit body
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
         # Pop scope
         self._pop_scope()
 
-    def _visit_def(self, node: Def) -> None:
+    def visit_Def(self, node: Def) -> None:  # noqa: N802
         """Handle function definition: push args into scope."""
         # Visit defaults (outside function scope)
         for default in node.defaults:
-            self._visit(default)
+            self.visit(default)
 
         # Push function parameter names into scope
         self._push_scope({p.name for p in node.params})
 
         # Visit body
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
         self._pop_scope()
 
-    def _visit_region(self, node: Region) -> None:
+    def visit_Region(self, node: Region) -> None:  # noqa: N802
         """Handle region: push params into scope, visit body (same as def)."""
         # Visit defaults (outside region scope)
         for default in node.defaults:
-            self._visit(default)
+            self.visit(default)
 
         # Push region parameter names into scope
         self._push_scope({p.name for p in node.params})
 
         # Visit body
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
         self._pop_scope()
 
-    def _visit_macro(self, node: Node) -> None:
+    def visit_Macro(self, node: Node) -> None:  # noqa: N802
         """Handle macro definition (same as def)."""
-        self._visit_def(cast("Def", node))
+        self.visit_Def(cast("Def", node))
 
-    def _visit_set(self, node: Set) -> None:
+    def visit_Set(self, node: Set) -> None:  # noqa: N802
         """Handle set statement."""
         # Visit the value expression
-        self._visit(node.value)
+        self.visit(node.value)
 
         # Add target to current scope
         targets = self._extract_targets(node.target)
         if self._scope_stack:
             self._scope_stack[-1] |= targets
 
-    def _visit_let(self, node: Let) -> None:
+    def visit_Let(self, node: Let) -> None:  # noqa: N802
         """Handle let statement (template-scoped)."""
         # Visit the value expression
-        self._visit(node.value)
+        self.visit(node.value)
 
         # Add to root scope
         if self._scope_stack:
             targets = self._extract_targets(node.name)
             self._scope_stack[0] |= targets
 
-    def _visit_export(self, node: Export) -> None:
+    def visit_Export(self, node: Export) -> None:  # noqa: N802
         """Handle export statement."""
-        self._visit(node.value)
+        self.visit(node.value)
         # Export doesn't create a new scope
 
-    def _visit_capture(self, node: Capture) -> None:
+    def visit_Capture(self, node: Capture) -> None:  # noqa: N802
         """Handle capture block: {% capture name %}...{% end %}"""
         # Visit body
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
         # Visit filter if present
         filter_node = getattr(node, "filter", None)
         if filter_node:
-            self._visit(filter_node)
+            self.visit(filter_node)
 
         # Add captured name to current scope
         if self._scope_stack:
             self._scope_stack[-1].add(node.name)
 
-    def _visit_filter(self, node: Filter) -> None:
+    def visit_Filter(self, node: Filter) -> None:  # noqa: N802
         """Handle filter expression."""
         # Visit the value being filtered
-        self._visit(node.value)
+        self.visit(node.value)
 
         # Visit filter arguments
         for arg in node.args:
-            self._visit(arg)
+            self.visit(arg)
 
         for value in node.kwargs.values():
-            self._visit(value)
+            self.visit(value)
 
-    def _visit_pipeline(self, node: Pipeline) -> None:
+    def visit_OptionalFilter(self, node: Filter) -> None:  # noqa: N802
+        """Handle optional filter expression (same as regular filter)."""
+        self.visit_Filter(node)
+
+    def visit_Pipeline(self, node: Pipeline) -> None:  # noqa: N802
         """Handle pipeline expression: expr |> filter1 |> filter2"""
         # Visit the initial value
-        self._visit(node.value)
+        self.visit(node.value)
 
         # Visit arguments in each pipeline step
         for _name, args, kwargs in node.steps:
             for arg in args:
-                self._visit(arg)
+                self.visit(arg)
             for value in kwargs.values():
-                self._visit(value)
+                self.visit(value)
 
-    def _visit_funccall(self, node: FuncCall) -> None:
+    def visit_SafePipeline(self, node: SafePipeline) -> None:  # noqa: N802
+        """Handle safe pipeline expression (same as regular pipeline)."""
+        self.visit_Pipeline(node)
+
+    def visit_FuncCall(self, node: FuncCall) -> None:  # noqa: N802
         """Handle function call."""
         # Visit the function expression
-        self._visit(node.func)
+        self.visit(node.func)
 
         # Visit arguments
         for arg in node.args:
-            self._visit(arg)
+            self.visit(arg)
 
         for value in node.kwargs.values():
-            self._visit(value)
+            self.visit(value)
 
         # Handle *args and **kwargs
         dyn_args = getattr(node, "dyn_args", None)
         if dyn_args:
-            self._visit(dyn_args)
+            self.visit(dyn_args)
         dyn_kwargs = getattr(node, "dyn_kwargs", None)
         if dyn_kwargs:
-            self._visit(dyn_kwargs)
+            self.visit(dyn_kwargs)
 
-    def _visit_nullcoalesce(self, node: NullCoalesce) -> None:
+    def visit_NullCoalesce(self, node: NullCoalesce) -> None:  # noqa: N802
         """Handle null coalescing: a ?? b"""
-        self._visit(node.left)
-        self._visit(node.right)
+        self.visit(node.left)
+        self.visit(node.right)
 
-    def _visit_condexpr(self, node: CondExpr) -> None:
+    def visit_CondExpr(self, node: CondExpr) -> None:  # noqa: N802
         """Handle conditional expression: a if cond else b"""
-        self._visit(node.test)
-        self._visit(node.if_true)
-        self._visit(node.if_false)
+        self.visit(node.test)
+        self.visit(node.if_true)
+        self.visit(node.if_false)
 
-    def _visit_boolop(self, node: BoolOp) -> None:
+    def visit_BoolOp(self, node: BoolOp) -> None:  # noqa: N802
         """Handle boolean operations: a and b, a or b"""
         for value in node.values:
-            self._visit(value)
+            self.visit(value)
 
-    def _visit_binop(self, node: BinOp) -> None:
+    def visit_BinOp(self, node: BinOp) -> None:  # noqa: N802
         """Handle binary operations: a + b, a - b, etc."""
-        self._visit(node.left)
-        self._visit(node.right)
+        self.visit(node.left)
+        self.visit(node.right)
 
-    def _visit_unaryop(self, node: UnaryOp) -> None:
+    def visit_UnaryOp(self, node: UnaryOp) -> None:  # noqa: N802
         """Handle unary operations: -a, not a"""
-        self._visit(node.operand)
+        self.visit(node.operand)
 
-    def _visit_compare(self, node: Compare) -> None:
+    def visit_Compare(self, node: Compare) -> None:  # noqa: N802
         """Handle comparisons: a < b < c"""
-        self._visit(node.left)
+        self.visit(node.left)
         for comp in node.comparators:
-            self._visit(comp)
+            self.visit(comp)
 
-    def _visit_range(self, node: Range) -> None:
+    def visit_Range(self, node: Range) -> None:  # noqa: N802
         """Handle range literal: start..end or start...end"""
-        self._visit(node.start)
-        self._visit(node.end)
+        self.visit(node.start)
+        self.visit(node.end)
         if node.step:
-            self._visit(node.step)
+            self.visit(node.step)
 
-    def _visit_slice(self, node: Slice) -> None:
+    def visit_Slice(self, node: Slice) -> None:  # noqa: N802
         """Handle slice expression: [start:stop:step]"""
         if node.start:
-            self._visit(node.start)
+            self.visit(node.start)
         if node.stop:
-            self._visit(node.stop)
+            self.visit(node.stop)
         if node.step:
-            self._visit(node.step)
+            self.visit(node.step)
 
-    def _visit_concat(self, node: Concat) -> None:
+    def visit_Concat(self, node: Concat) -> None:  # noqa: N802
         """Handle string concatenation: a ~ b ~ c"""
         for child in node.nodes:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_list(self, node: List) -> None:
+    def visit_List(self, node: List) -> None:  # noqa: N802
         """Handle list literal: [a, b, c]"""
         for item in node.items:
-            self._visit(item)
+            self.visit(item)
 
-    def _visit_tuple(self, node: Tuple) -> None:
+    def visit_Tuple(self, node: Tuple) -> None:  # noqa: N802
         """Handle tuple literal: (a, b, c)"""
         for item in node.items:
-            self._visit(item)
+            self.visit(item)
 
-    def _visit_dict(self, node: Dict) -> None:
+    def visit_Dict(self, node: Dict) -> None:  # noqa: N802
         """Handle dict literal: {a: b, c: d}"""
         for key in node.keys:
-            self._visit(key)
+            self.visit(key)
         for value in node.values:
-            self._visit(value)
+            self.visit(value)
 
-    def _visit_test(self, node: Test) -> None:
+    def visit_Test(self, node: Test) -> None:  # noqa: N802
         """Handle test expression: x is defined"""
-        self._visit(node.value)
+        self.visit(node.value)
         for arg in node.args:
-            self._visit(arg)
+            self.visit(arg)
         for value in node.kwargs.values():
-            self._visit(value)
+            self.visit(value)
 
-    def _visit_match(self, node: Match) -> None:
+    def visit_Match(self, node: Match) -> None:  # noqa: N802
         """Handle match statement."""
-        self._visit(node.subject)
+        if node.subject is not None:
+            self.visit(node.subject)
         for pattern, guard, body in node.cases:
-            self._visit(pattern)
+            self.visit(pattern)
             if guard:
-                self._visit(guard)
+                self.visit(guard)
             for child in body:
-                self._visit(child)
+                self.visit(child)
 
-    def _visit_cache(self, node: Cache) -> None:
+    def visit_Cache(self, node: Cache) -> None:  # noqa: N802
         """Handle cache block: {% cache key %}...{% end %}"""
-        self._visit(node.key)
+        self.visit(node.key)
         if node.ttl:
-            self._visit(node.ttl)
+            self.visit(node.ttl)
         for dep in node.depends:
-            self._visit(dep)
+            self.visit(dep)
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_include(self, node: Include) -> None:
+    def visit_Include(self, node: Include) -> None:  # noqa: N802
         """Handle include statement."""
-        self._visit(node.template)
+        self.visit(node.template)
 
-    def _visit_import(self, node: Import) -> None:
+    def visit_Import(self, node: Import) -> None:  # noqa: N802
         """Handle import statement."""
-        self._visit(node.template)
+        self.visit(node.template)
         # Add imported name to scope
         if self._scope_stack:
             self._scope_stack[-1].add(node.target)
 
-    def _visit_fromimport(self, node: FromImport) -> None:
+    def visit_FromImport(self, node: FromImport) -> None:  # noqa: N802
         """Handle from...import statement."""
-        self._visit(node.template)
+        self.visit(node.template)
         # Add imported names to scope
         if self._scope_stack:
             for name, alias in node.names:
                 self._scope_stack[-1].add(alias or name)
 
-    def _visit_if(self, node: If) -> None:
+    def visit_If(self, node: If) -> None:  # noqa: N802
         """Handle if statement."""
-        self._visit(node.test)
+        self.visit(node.test)
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
         for child in node.else_:
-            self._visit(child)
+            self.visit(child)
         # Handle elif
         elif_ = getattr(node, "elif_", None)
         if elif_:
             for test, body in elif_:
-                self._visit(test)
+                self.visit(test)
                 for child in body:
-                    self._visit(child)
+                    self.visit(child)
 
-    def _visit_output(self, node: Output) -> None:
+    def visit_Output(self, node: Output) -> None:  # noqa: N802
         """Handle output: {{ expr }}"""
-        self._visit(node.expr)
+        self.visit(node.expr)
 
-    def _visit_block(self, node: Block) -> None:
+    def visit_Block(self, node: Block) -> None:  # noqa: N802
         """Handle block: {% block name %}...{% end %}"""
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_extends(self, node: Extends) -> None:
+    def visit_Extends(self, node: Extends) -> None:  # noqa: N802
         """Handle extends: {% extends 'base.html' %}"""
-        self._visit(node.template)
+        self.visit(node.template)
 
-    def _visit_template(self, node: Template) -> None:
+    def visit_Template(self, node: Template) -> None:  # noqa: N802
         """Handle template root node."""
         if node.extends:
-            self._visit(node.extends)
+            self.visit(node.extends)
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_filterblock(self, node: FilterBlock) -> None:
+    def visit_FilterBlock(self, node: FilterBlock) -> None:  # noqa: N802
         """Handle filter block: {% filter upper %}...{% end %}"""
-        self._visit(node.filter)
+        self.visit(node.filter)
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_callblock(self, node: CallBlock) -> None:
+    def visit_CallBlock(self, node: CallBlock) -> None:  # noqa: N802
         """Handle call block: {% call name(args) %}body{% end %} with named slots."""
-        self._visit(node.call)
+        self.visit(node.call)
         for arg in node.args:
-            self._visit(arg)
+            self.visit(arg)
         for slot_body in node.slots.values():
             for child in slot_body:
-                self._visit(child)
+                self.visit(child)
 
-    def _visit_spaceless(self, node: Spaceless) -> None:
+    def visit_Spaceless(self, node: Spaceless) -> None:  # noqa: N802
         """Handle spaceless block."""
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_autoescape(self, node: Autoescape) -> None:
+    def visit_Autoescape(self, node: Autoescape) -> None:  # noqa: N802
         """Handle autoescape block."""
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_trim(self, node: Trim) -> None:
+    def visit_Trim(self, node: Trim) -> None:  # noqa: N802
         """Handle trim block."""
         for child in node.body:
-            self._visit(child)
+            self.visit(child)
 
-    def _visit_embed(self, node: Embed) -> None:
+    def visit_Embed(self, node: Embed) -> None:  # noqa: N802
         """Handle embed: {% embed 'card.html' %}...{% end %}"""
-        self._visit(node.template)
+        self.visit(node.template)
         for block in node.blocks.values():
-            self._visit(block)
+            self.visit(block)
 
-    def _visit_await(self, node: Await) -> None:
+    def visit_Await(self, node: Await) -> None:  # noqa: N802
         """Handle await expression."""
-        self._visit(node.value)
+        self.visit(node.value)
 
-    def _visit_marksafe(self, node: MarkSafe) -> None:
+    def visit_MarkSafe(self, node: MarkSafe) -> None:  # noqa: N802
         """Handle safe marker."""
-        self._visit(node.value)
+        self.visit(node.value)
 
-    def _visit_inlinedfilter(self, node: InlinedFilter) -> None:
+    def visit_InlinedFilter(self, node: InlinedFilter) -> None:  # noqa: N802
         """Handle inlined filter (optimization)."""
-        self._visit(node.value)
+        self.visit(node.value)
         for arg in node.args:
-            self._visit(arg)
+            self.visit(arg)
 
     # Leaf nodes that don't need children visited
-    def _visit_const(self, node: Const) -> None:
+    def visit_Const(self, node: Const) -> None:  # noqa: N802
         """Constants have no dependencies."""
 
-    def _visit_data(self, node: Data) -> None:
+    def visit_Data(self, node: Data) -> None:  # noqa: N802
         """Static data has no dependencies."""
 
-    def _visit_raw(self, node: Raw) -> None:
+    def visit_Raw(self, node: Raw) -> None:  # noqa: N802
         """Raw blocks have no dependencies."""
 
-    def _visit_slot(self, node: Slot) -> None:
+    def visit_Slot(self, node: Slot) -> None:  # noqa: N802
         """Slots have no dependencies."""
 
-    def _visit_break(self, node: Break) -> None:
+    def visit_Break(self, node: Break) -> None:  # noqa: N802
         """Break has no dependencies."""
 
-    def _visit_continue(self, node: Continue) -> None:
+    def visit_Continue(self, node: Continue) -> None:  # noqa: N802
         """Continue has no dependencies."""
 
-    def _visit_do(self, node: Node) -> None:
+    def visit_Do(self, node: Node) -> None:  # noqa: N802
         """Handle do statement."""
         expr = getattr(node, "expr", None)
         if expr is not None:
-            self._visit(expr)
+            self.visit(expr)
 
-    def _visit_loopvar(self, node: LoopVar) -> None:
+    def visit_LoopVar(self, node: LoopVar) -> None:  # noqa: N802
         """Loop variable access (loop.index, etc.) - no context deps."""
 
     def _build_path(self, node: Node) -> str | None:

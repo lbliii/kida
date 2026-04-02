@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, Any
 
-from kida.environment.exceptions import TemplateSyntaxError
+from kida.exceptions import TemplateSyntaxError
 from kida.utils.typo_suggestions import suggest_closest
 
 if TYPE_CHECKING:

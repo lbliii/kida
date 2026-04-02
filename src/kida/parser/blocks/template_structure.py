@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
-from kida.environment.exceptions import ErrorCode
+from kida.exceptions import ErrorCode
 from kida.nodes import (
     Block,
     Extends,

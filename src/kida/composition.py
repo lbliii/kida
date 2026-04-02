@@ -51,7 +51,7 @@ def validate_block_exists(
     if not block_name:
         return False
     try:
-        from kida.environment.exceptions import (
+        from kida.exceptions import (
             TemplateNotFoundError,
             TemplateSyntaxError,
         )

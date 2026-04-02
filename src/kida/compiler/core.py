@@ -274,7 +274,7 @@ class Compiler(
         This ensures nested blocks (blocks inside blocks, blocks inside
         conditionals, etc.) are all registered for compilation.
         """
-        from kida.environment.exceptions import TemplateSyntaxError
+        from kida.exceptions import TemplateSyntaxError
         from kida.nodes import Block, CallBlock, Def, Region, Slot, SlotBlock
 
         for node in nodes:
@@ -842,17 +842,19 @@ class Compiler(
             include_render_ctx=True,
         )
 
-    def _make_region_block_function(self, name: str, region_node: Region) -> ast.FunctionDef:
-        """Generate block wrapper that delegates to region callable with ctx params."""
+    def _build_region_keywords(self, region_node: Region) -> tuple[list[str], list[ast.keyword]]:
+        """Build param_names and keywords for region block delegation.
+
+        Returns (param_names, keywords) where keywords includes both the
+        per-param entries and the trailing _outer_ctx / _blocks keywords.
+        """
         param_names = [p.name for p in region_node.params]
         n_defaults = len(region_node.defaults)
         n_required = len(param_names) - n_defaults
 
-        # Build call: ctx['name'](param=ctx.get/ctx[], ..., _outer_ctx=ctx)
         keywords: list[ast.keyword] = []
         for i, param_name in enumerate(param_names):
             if i < n_required:
-                # Required param: _lookup(ctx, name) raises UndefinedError if missing
                 val = ast.Call(
                     func=ast.Name(id="_lookup", ctx=ast.Load()),
                     args=[
@@ -862,7 +864,6 @@ class Compiler(
                     keywords=[],
                 )
             else:
-                # Optional param: ctx.get('param', _REGION_DEFAULT) — region resolves at call
                 val = ast.Call(
                     func=ast.Attribute(
                         value=ast.Name(id="ctx", ctx=ast.Load()),
@@ -878,6 +879,11 @@ class Compiler(
             keywords.append(ast.keyword(arg=param_name, value=val))
         keywords.append(ast.keyword(arg="_outer_ctx", value=ast.Name(id="ctx", ctx=ast.Load())))
         keywords.append(ast.keyword(arg="_blocks", value=ast.Name(id="_blocks", ctx=ast.Load())))
+        return param_names, keywords
+
+    def _make_region_block_function(self, name: str, region_node: Region) -> ast.FunctionDef:
+        """Generate block wrapper that delegates to region callable with ctx params."""
+        _param_names, keywords = self._build_region_keywords(region_node)
 
         return ast.FunctionDef(
             name=f"_block_{name}",
@@ -1186,6 +1192,7 @@ class Compiler(
 
         # --- CSE: analyse Kida AST before compilation ---
         body_nodes = list(block_node.body)
+        self._last_block_body_nodes = body_nodes
         cacheable = self._analyze_for_cse(body_nodes)
         saved_cached = self._cached_vars
         self._cached_vars = cacheable
@@ -1467,8 +1474,9 @@ class Compiler(
 
         body: list[ast.stmt] = self._make_block_preamble(streaming=True)
 
-        # Compile block body with streaming yields
-        body.extend(self._compile_body_with_coalescing(list(block_node.body)))
+        # Compile block body with streaming yields (reuse cached body_nodes)
+        body_nodes = getattr(self, "_last_block_body_nodes", None) or list(block_node.body)
+        body.extend(self._compile_body_with_coalescing(body_nodes))
 
         # Ensure generator semantics: unreachable yield after return
         # guarantees Python treats this as a generator even for empty blocks.
@@ -1536,38 +1544,7 @@ class Compiler(
 
     def _make_region_block_function_stream(self, name: str, region_node: Region) -> ast.FunctionDef:
         """Streaming block wrapper for region — yields callable result."""
-        param_names = [p.name for p in region_node.params]
-        n_defaults = len(region_node.defaults)
-        n_required = len(param_names) - n_defaults
-        keywords: list[ast.keyword] = []
-        for i, param_name in enumerate(param_names):
-            if i < n_required:
-                # Required param: _lookup(ctx, name) raises UndefinedError if missing
-                val = ast.Call(
-                    func=ast.Name(id="_lookup", ctx=ast.Load()),
-                    args=[
-                        ast.Name(id="ctx", ctx=ast.Load()),
-                        ast.Constant(value=param_name),
-                    ],
-                    keywords=[],
-                )
-            else:
-                # Optional param: ctx.get('param', _REGION_DEFAULT) — region resolves at call
-                val = ast.Call(
-                    func=ast.Attribute(
-                        value=ast.Name(id="ctx", ctx=ast.Load()),
-                        attr="get",
-                        ctx=ast.Load(),
-                    ),
-                    args=[
-                        ast.Constant(value=param_name),
-                        ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()),
-                    ],
-                    keywords=[],
-                )
-            keywords.append(ast.keyword(arg=param_name, value=val))
-        keywords.append(ast.keyword(arg="_outer_ctx", value=ast.Name(id="ctx", ctx=ast.Load())))
-        keywords.append(ast.keyword(arg="_blocks", value=ast.Name(id="_blocks", ctx=ast.Load())))
+        _param_names, keywords = self._build_region_keywords(region_node)
         call = ast.Call(
             func=ast.Subscript(
                 value=ast.Name(id="ctx", ctx=ast.Load()),
@@ -1625,7 +1602,9 @@ class Compiler(
 
         body: list[ast.stmt] = self._make_block_preamble(streaming=True)
 
-        body.extend(self._compile_body_with_coalescing(list(block_node.body)))
+        # Reuse cached body_nodes from _make_block_function
+        body_nodes = getattr(self, "_last_block_body_nodes", None) or list(block_node.body)
+        body.extend(self._compile_body_with_coalescing(body_nodes))
 
         # Ensure async generator semantics
         body.append(ast.Return(value=None))

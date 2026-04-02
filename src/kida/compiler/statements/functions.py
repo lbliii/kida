@@ -169,24 +169,24 @@ class FunctionCompilationMixin:
         # Track for profiling: FuncCall to this name will be instrumented
         self._def_names.add(def_name)
 
-        # Build function arguments with optional type annotations
-        args_list = [
-            ast.arg(
-                arg=p.name,
-                annotation=(self._parse_annotation(p.annotation) if p.annotation else None),
+        # Build function arguments, param names, and context dict entries in one pass
+        args_list: list[ast.arg] = []
+        ctx_keys: list[ast.expr | None] = []
+        ctx_values: list[ast.expr] = []
+        for p in node.params:
+            args_list.append(
+                ast.arg(
+                    arg=p.name,
+                    annotation=(self._parse_annotation(p.annotation) if p.annotation else None),
+                )
             )
-            for p in node.params
-        ]
+            ctx_keys.append(ast.Constant(value=p.name))
+            ctx_values.append(ast.Name(id=p.name, ctx=ast.Load()))
         defaults = [self._compile_expr(d) for d in node.defaults]
 
         # Build vararg and kwarg AST nodes
         vararg_node = ast.arg(arg=node.vararg) if node.vararg else None
         kwarg_node = ast.arg(arg=node.kwarg) if node.kwarg else None
-
-        # Build context dict entries: regular args + vararg + kwarg
-        param_names = [p.name for p in node.params]
-        ctx_keys: list[ast.expr | None] = [ast.Constant(value=name) for name in param_names]
-        ctx_values: list[ast.expr] = [ast.Name(id=name, ctx=ast.Load()) for name in param_names]
 
         if node.vararg:
             ctx_keys.append(ast.Constant(value=node.vararg))

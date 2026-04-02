@@ -42,7 +42,7 @@ def _filter_require(
         RequiredValueError: If value is None
 
     """
-    from kida.environment.exceptions import RequiredValueError
+    from kida.exceptions import RequiredValueError
 
     if value is None:
         raise RequiredValueError(

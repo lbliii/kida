@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from kida.environment.exceptions import TemplateNotFoundError, TemplateSyntaxError
+from kida.exceptions import TemplateNotFoundError, TemplateSyntaxError
 from kida.nodes import Const as _Const
 from kida.nodes import Name as _Name
 from kida.utils.constants import IMPURE_FILTERS, PURE_FILTERS_ALL, PURE_FUNCTIONS

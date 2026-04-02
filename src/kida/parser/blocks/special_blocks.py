@@ -31,7 +31,7 @@ from kida.nodes import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from kida.environment.exceptions import ErrorCode
+    from kida.exceptions import ErrorCode
     from kida.nodes import Expr, Node
     from kida.parser.errors import ParseError
 

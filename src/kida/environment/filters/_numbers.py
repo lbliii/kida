@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from kida.environment.exceptions import TemplateRuntimeError
+from kida.exceptions import TemplateRuntimeError
 
 
 def _filter_abs(value: Any) -> Any:

@@ -16,7 +16,7 @@ from kida.nodes import Export, Let, Set, Tuple
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from kida.environment.exceptions import ErrorCode
+    from kida.exceptions import ErrorCode
     from kida.nodes import Expr
     from kida.parser.errors import ParseError
 

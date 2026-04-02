@@ -8,7 +8,7 @@ from pathlib import Path
 
 from kida import Environment, FileSystemLoader
 from kida.analysis.analyzer import BlockAnalyzer
-from kida.environment.exceptions import TemplateSyntaxError
+from kida.exceptions import TemplateSyntaxError
 from kida.lexer import Lexer
 from kida.parser import Parser
 

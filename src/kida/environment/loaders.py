@@ -40,7 +40,7 @@ import importlib.resources
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from kida.environment.exceptions import TemplateNotFoundError
+from kida.exceptions import TemplateNotFoundError
 from kida.utils.template_keys import normalize_template_name
 
 if TYPE_CHECKING:
@@ -121,10 +121,9 @@ class FileSystemLoader:
         templates = set()
         for base in self._paths:
             if base.is_dir():
-                for path in base.rglob("*.html"):
-                    templates.add(str(path.relative_to(base)))
-                for path in base.rglob("*.xml"):
-                    templates.add(str(path.relative_to(base)))
+                for path in base.rglob("*"):
+                    if path.suffix in {".html", ".xml"} and path.is_file():
+                        templates.add(str(path.relative_to(base)))
         return sorted(templates)
 
 
@@ -324,7 +323,7 @@ class PrefixLoader:
     def list_templates(self) -> list[str]:
         """List all templates across all prefixes, with prefix prepended."""
         templates: list[str] = []
-        for prefix, loader in sorted(self._mapping.items()):
+        for prefix, loader in self._mapping.items():
             if hasattr(loader, "list_templates"):
                 templates.extend(
                     f"{prefix}{self._delimiter}{name}" for name in loader.list_templates()

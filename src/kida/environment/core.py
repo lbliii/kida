@@ -27,15 +27,15 @@ import threading
 from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from kida.environment.exceptions import (
-    TemplateNotFoundError,
-    TemplateSyntaxError,
-)
 from kida.environment.filters import DEFAULT_FILTERS
 from kida.environment.registry import FilterRegistry
 from kida.environment.tests import DEFAULT_TESTS
+from kida.exceptions import (
+    TemplateNotFoundError,
+    TemplateSyntaxError,
+)
 from kida.lexer import Lexer, LexerConfig
 from kida.template import Template
 from kida.utils.lru_cache import LRUCache
@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from kida.environment.protocols import Loader
     from kida.environment.terminal import TerminalCaps
     from kida.extensions import Extension
+    from kida.nodes import Template as TemplateNode
 
 
 # Default cache limits
@@ -288,6 +289,8 @@ class Environment:
         init=False, default_factory=dict
     )  # node_type -> Extension
     _extension_end_keywords: frozenset[str] = field(init=False, default_factory=frozenset)
+    # Cached globals filtered to exclude UNDEFINED values (lazily populated)
+    _filtered_globals: dict[str, Any] | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize derived configuration."""
@@ -454,6 +457,19 @@ class Environment:
         new_globals = self.globals.copy()
         new_globals[name] = value
         self.globals = new_globals
+        self._filtered_globals = None  # invalidate cache
+
+    def get_filtered_globals(self) -> dict[str, Any]:
+        """Return globals dict with UNDEFINED values removed (cached).
+
+        The result is cached and invalidated when globals are mutated
+        via ``add_global()``.
+        """
+        if self._filtered_globals is None:
+            from kida.template.helpers import UNDEFINED
+
+            self._filtered_globals = {k: v for k, v in self.globals.items() if v is not UNDEFINED}
+        return self._filtered_globals
 
     def update_filters(self, filters: dict[str, Callable[..., Any]]) -> None:
         """Add multiple filters at once (copy-on-write).
@@ -633,24 +649,32 @@ class Environment:
             from kida.bytecode_cache import hash_source
 
             source_hash = hash_source(source)
-            cached_code = self._bytecode_cache.get(name, source_hash, context_hash=context_hash)
+            cached_code, cached_ast = self._bytecode_cache.get(
+                name, source_hash, context_hash=context_hash
+            )
             if cached_code is not None:
-                # If introspection is needed, re-parse source to get AST
-                # (AST can't be serialized in bytecode cache, so we re-parse)
+                # Resolve AST for introspection when preserve_ast is enabled.
+                # Prefer the cached (pickled) AST to avoid a full re-parse.
+                # Fall back to re-parsing when the cached AST is absent (old
+                # cache entry) or if pickle.loads raised an exception (the
+                # cache's get() already handled that and returned None).
                 optimized_ast = None
                 if self.preserve_ast:
-                    lexer = Lexer(source, self._lexer_config)
-                    tokens = list(lexer.tokenize())
-                    should_escape = self.select_autoescape(name)
-                    parser = Parser(
-                        tokens,
-                        name,
-                        filename,
-                        source,
-                        autoescape=should_escape,
-                        extension_tags=self._extension_tags or None,
-                    )
-                    optimized_ast = parser.parse()
+                    if cached_ast is not None:
+                        optimized_ast = cast("TemplateNode", cached_ast)
+                    else:
+                        lexer = Lexer(source, self._lexer_config)
+                        tokens = list(lexer.tokenize())
+                        should_escape = self.select_autoescape(name)
+                        parser = Parser(
+                            tokens,
+                            name,
+                            filename,
+                            source,
+                            autoescape=should_escape,
+                            extension_tags=self._extension_tags or None,
+                        )
+                        optimized_ast = parser.parse()
 
                 return Template(
                     self,
@@ -667,12 +691,7 @@ class Environment:
 
         # Determine autoescape setting for this template
         # Terminal mode uses its own escape function; the parser just needs a bool
-        if isinstance(self.autoescape, str):
-            should_escape = self.autoescape != "false"
-        elif callable(self.autoescape):
-            should_escape = self.autoescape(name)
-        else:
-            should_escape = self.autoescape
+        should_escape = self.select_autoescape(name)
 
         # Parse (pass source for rich error messages)
         parser = Parser(
@@ -728,9 +747,14 @@ class Environment:
         compiler = Compiler(self)
         code = compiler.compile(ast, name, filename)
 
-        # Cache bytecode for future cold-starts.
+        # Cache bytecode (and AST when available) for future cold-starts.
+        # Serialising the AST avoids re-lexing/re-parsing on cache hits when
+        # preserve_ast=True.  optimized_ast is None when preserve_ast is False,
+        # in which case the cache entry simply contains no AST section.
         if self._bytecode_cache is not None and name is not None and source_hash is not None:
-            self._bytecode_cache.set(name, source_hash, code, context_hash=context_hash)
+            self._bytecode_cache.set(
+                name, source_hash, code, context_hash=context_hash, ast=optimized_ast
+            )
 
         return Template(self, code, name, filename, optimized_ast=optimized_ast, source=source)
 

@@ -16,7 +16,7 @@ from kida.nodes import CallBlock, Def, DefParam, Region, Slot, SlotBlock
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from kida.environment.exceptions import ErrorCode
+    from kida.exceptions import ErrorCode
     from kida.nodes import Data, Expr, Node, Output
     from kida.parser.errors import ParseError
 

@@ -40,16 +40,6 @@ Example:
 """
 
 from kida.environment.core import Environment
-from kida.environment.exceptions import (
-    ErrorCode,
-    SourceSnippet,
-    TemplateError,
-    TemplateNotFoundError,
-    TemplateRuntimeError,
-    TemplateSyntaxError,
-    UndefinedError,
-    build_source_snippet,
-)
 from kida.environment.loaders import (
     ChoiceLoader,
     DictLoader,
@@ -60,6 +50,16 @@ from kida.environment.loaders import (
 )
 from kida.environment.protocols import Filter, Loader, Test
 from kida.environment.registry import FilterRegistry
+from kida.exceptions import (
+    ErrorCode,
+    SourceSnippet,
+    TemplateError,
+    TemplateNotFoundError,
+    TemplateRuntimeError,
+    TemplateSyntaxError,
+    UndefinedError,
+    build_source_snippet,
+)
 
 __all__ = [
     "ChoiceLoader",

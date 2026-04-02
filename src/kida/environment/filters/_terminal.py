@@ -377,7 +377,7 @@ def make_terminal_filters(
         rows: list[list[str]]
         col_names: list[str]
 
-        # Normalise input
+        # Normalise input and compute column widths in merged passes
         if isinstance(data[0], dict):
             if headers is None:
                 seen: dict[str, None] = {}
@@ -394,12 +394,13 @@ def make_terminal_filters(
 
         num_cols = len(col_names)
 
-        # Compute column widths
+        # Compute column widths (merged with row iteration)
         col_widths = [visible_len(c) for c in col_names]
         for row in rows:
-            for i, cell in enumerate(row):
-                if i < num_cols:
-                    col_widths[i] = max(col_widths[i], visible_len(cell))
+            for i in range(min(len(row), num_cols)):
+                w = visible_len(row[i])
+                if w > col_widths[i]:
+                    col_widths[i] = w
 
         # Apply max_width constraint
         if max_width is not None:

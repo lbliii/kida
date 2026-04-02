@@ -187,7 +187,7 @@ class RenderContext:
             TemplateRuntimeError: If depth >= max_include_depth
         """
         if self.include_depth >= self.max_include_depth:
-            from kida.environment.exceptions import TemplateRuntimeError
+            from kida.exceptions import TemplateRuntimeError
 
             raise TemplateRuntimeError(
                 f"Maximum include depth exceeded ({self.max_include_depth}) "
@@ -206,7 +206,7 @@ class RenderContext:
             TemplateRuntimeError: If depth >= max_extends_depth
         """
         if self.extends_depth >= self.max_extends_depth:
-            from kida.environment.exceptions import TemplateRuntimeError
+            from kida.exceptions import TemplateRuntimeError
 
             raise TemplateRuntimeError(
                 f"Maximum extends depth exceeded ({self.max_extends_depth}) "
@@ -332,6 +332,47 @@ def get_render_context_required() -> RenderContext:
     return ctx
 
 
+def _make_render_context(
+    template_name: str | None = None,
+    filename: str | None = None,
+    source: str | None = None,
+    cached_blocks: dict[str, str] | None = None,
+    cache_stats: dict[str, int] | None = None,
+    parent_meta: dict[str, object] | None = None,
+    max_extends_depth: int = 50,
+    max_include_depth: int = 50,
+) -> RenderContext:
+    """Construct and return a RenderContext from the given parameters.
+
+    Shared by render_context() and async_render_context(). Does NOT touch
+    the ContextVar — callers are responsible for set/reset.
+
+    Args:
+        template_name: Template name for error messages
+        filename: Source file path for error messages
+        source: Template source for runtime error snippets
+        cached_blocks: Site-scoped block cache
+        cache_stats: Optional dict for cache hit/miss tracking
+        parent_meta: Metadata from parent context to inherit (for framework integration)
+        max_extends_depth: Maximum extends nesting depth
+        max_include_depth: Maximum include nesting depth
+
+    Returns:
+        A fully-initialised RenderContext (not yet set as current).
+    """
+    return RenderContext(
+        template_name=template_name,
+        filename=filename,
+        source=source,
+        cached_blocks=cached_blocks or {},
+        cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
+        cache_stats=cache_stats,
+        max_extends_depth=max_extends_depth,
+        max_include_depth=max_include_depth,
+        _meta=parent_meta.copy() if parent_meta else {},  # Inherit parent metadata
+    )
+
+
 @contextmanager
 def render_context(
     template_name: str | None = None,
@@ -371,16 +412,15 @@ def render_context(
             # When template.render() is called, it inherits this metadata
             html = template.render(user=user)
     """
-    ctx = RenderContext(
+    ctx = _make_render_context(
         template_name=template_name,
         filename=filename,
         source=source,
-        cached_blocks=cached_blocks or {},
-        cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
+        cached_blocks=cached_blocks,
         cache_stats=cache_stats,
+        parent_meta=parent_meta,
         max_extends_depth=max_extends_depth,
         max_include_depth=max_include_depth,
-        _meta=parent_meta.copy() if parent_meta else {},  # Inherit parent metadata
     )
     token: Token[RenderContext | None] = _render_context.set(ctx)
     try:
@@ -418,16 +458,15 @@ async def async_render_context(
     Yields:
         The new RenderContext
     """
-    ctx = RenderContext(
+    ctx = _make_render_context(
         template_name=template_name,
         filename=filename,
         source=source,
-        cached_blocks=cached_blocks or {},
-        cached_block_names=frozenset(cached_blocks.keys()) if cached_blocks else frozenset(),
+        cached_blocks=cached_blocks,
         cache_stats=cache_stats,
+        parent_meta=parent_meta,
         max_extends_depth=max_extends_depth,
         max_include_depth=max_include_depth,
-        _meta=parent_meta.copy() if parent_meta else {},  # Inherit parent metadata
     )
     token: Token[RenderContext | None] = _render_context.set(ctx)
     try:

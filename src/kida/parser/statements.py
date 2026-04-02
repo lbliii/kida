@@ -293,7 +293,7 @@ class StatementParsingMixin:
         # Unknown keyword
         raise self._error(
             f"Unknown block keyword: {keyword}",
-            suggestion=f"Valid keywords: {', '.join(sorted(_VALID_KEYWORDS | set(ext_tags.keys())))}",
+            suggestion=f"Valid keywords: {', '.join(sorted(_VALID_KEYWORDS | ext_tags.keys()))}",
         )
 
     def _handle_end_keyword(self, keyword: str) -> None:

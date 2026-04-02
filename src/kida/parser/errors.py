@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kida.environment.exceptions import ErrorCode, TemplateSyntaxError
+from kida.exceptions import ErrorCode, TemplateSyntaxError
 
 if TYPE_CHECKING:
     from kida._types import Token
