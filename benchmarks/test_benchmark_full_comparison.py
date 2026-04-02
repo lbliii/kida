@@ -31,9 +31,12 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING
 
 import pytest
-from pytest_benchmark.fixture import BenchmarkFixture
+
+if TYPE_CHECKING:
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 # =============================================================================
 # Template Sources (identical logic, syntax differs)

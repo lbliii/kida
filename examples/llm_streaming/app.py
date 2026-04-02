@@ -10,10 +10,13 @@ Run:
 """
 
 import asyncio
-from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from kida import Environment, FileSystemLoader
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 templates_dir = Path(__file__).parent / "templates"
 env = Environment(loader=FileSystemLoader(str(templates_dir)))
@@ -50,7 +53,7 @@ async def render() -> tuple[str, list[str]]:
         prompt="What is Kida?",
         stream=simulated_llm_stream(),
     ):
-        chunks.append(chunk)
+        chunks.append(chunk)  # noqa: PERF401
     return "".join(chunks), chunks
 
 
@@ -62,7 +65,7 @@ def main() -> None:
     print(f"Streamed {len(chunks)} chunks:\n")
     for i, chunk in enumerate(chunks):
         print(f"  [chunk {i}] {chunk!r}")
-    print(f"\n--- Full output ---\n")
+    print("\n--- Full output ---\n")
     print(output)
 
 

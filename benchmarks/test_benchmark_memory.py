@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import sys
 import tracemalloc
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-from pytest_benchmark.fixture import BenchmarkFixture
 
-from kida import Environment
 from kida.bytecode_cache import BytecodeCache
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from pytest_benchmark.fixture import BenchmarkFixture
+
+    from kida import Environment
 
 
 def _peak_bytes(func, *args, **kwargs) -> int:

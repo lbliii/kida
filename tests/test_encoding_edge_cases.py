@@ -6,12 +6,15 @@ Ensures Kida handles pathological or malformed input safely.
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from kida import Environment
 from kida.environment.loaders import FileSystemLoader
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestFromStringEncoding:

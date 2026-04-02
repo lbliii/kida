@@ -4,8 +4,8 @@ import json
 import os
 import platform
 import sys
-from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from jinja2 import Environment as Jinja2Environment
@@ -18,6 +18,9 @@ from benchmarks.fixtures.context_small import SMALL_CONTEXT
 from kida import Environment as KidaEnvironment
 from kida import FileSystemLoader as KidaFileSystemLoader
 from kida.bytecode_cache import BytecodeCache
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 try:
     import importlib.metadata as importlib_metadata

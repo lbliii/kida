@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from kida.utils.lcov import lcov_to_dict
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # =============================================================================
 # Fixtures

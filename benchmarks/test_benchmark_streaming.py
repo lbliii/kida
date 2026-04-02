@@ -9,12 +9,15 @@ Run with: pytest benchmarks/test_benchmark_streaming.py --benchmark-only -v
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 from jinja2 import Environment as Jinja2Environment
-from pytest_benchmark.fixture import BenchmarkFixture
 
 from kida import Environment as KidaEnvironment
+
+if TYPE_CHECKING:
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 # Inline templates for fair comparison (identical logic)
 MINIMAL_KIDA = "Hello {{ name }}!"

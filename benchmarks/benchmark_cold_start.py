@@ -13,9 +13,12 @@ from __future__ import annotations
 import subprocess
 import sys
 import tempfile
-from collections.abc import Sequence
 from pathlib import Path
 from statistics import mean, median, stdev
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 ITERATIONS = 10
 

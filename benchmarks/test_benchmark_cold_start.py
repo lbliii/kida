@@ -12,10 +12,14 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-from pytest_benchmark.fixture import BenchmarkFixture
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 
 def _measure_cold_start(

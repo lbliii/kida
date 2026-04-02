@@ -12,10 +12,9 @@ import io
 from typing import TYPE_CHECKING
 
 import pytest
-from pytest_benchmark.fixture import BenchmarkFixture
 
 if TYPE_CHECKING:
-    pass
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 
 # =============================================================================

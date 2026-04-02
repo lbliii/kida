@@ -6,10 +6,14 @@ Run with:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
-from pytest_benchmark.fixture import BenchmarkFixture
 
 from kida import DictLoader, Environment
+
+if TYPE_CHECKING:
+    from pytest_benchmark.fixture import BenchmarkFixture
 
 
 def _build_env() -> Environment:

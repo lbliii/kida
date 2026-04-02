@@ -6,11 +6,15 @@ Compare: pytest benchmarks/benchmark_render.py --benchmark-compare
 
 from __future__ import annotations
 
-import pytest
-from jinja2 import Environment as Jinja2Environment
-from pytest_benchmark.fixture import BenchmarkFixture
+from typing import TYPE_CHECKING
 
-from kida import Environment as KidaEnvironment
+import pytest
+
+if TYPE_CHECKING:
+    from jinja2 import Environment as Jinja2Environment
+    from pytest_benchmark.fixture import BenchmarkFixture
+
+    from kida import Environment as KidaEnvironment
 
 
 @pytest.mark.benchmark(group="render:minimal")
