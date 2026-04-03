@@ -226,15 +226,13 @@ def _print_explain(env: Environment, tpl: object) -> None:
     lines.append("  [on]  lazy loop context — skips LoopContext when loop.* unused")
 
     # Partial evaluation
-    # Check if the template was compiled with static_context
-    has_static = hasattr(tpl, "_static_context") and getattr(tpl, "_static_context", None)
-    if has_static:
-        lines.append("  [on]  partial evaluation — static expressions replaced with constants")
-        lines.append(
-            "  [on]  filter constant folding — pure filters evaluated at compile time (67 filters)"
-        )
-    else:
-        lines.append("  [off] partial evaluation (no static_context provided)")
+    # The CLI loads templates via get_template() which doesn't support
+    # static_context — partial eval requires from_string(src, static_context={...}).
+    # Report the capability rather than the current state.
+    lines.append("  [off] partial evaluation (pass static_context to from_string() to enable)")
+    lines.append(
+        "  [off] filter constant folding (requires partial evaluation — 67 pure filters available)"
+    )
 
     # Component inlining
     if env.inline_components:

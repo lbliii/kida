@@ -723,9 +723,19 @@ class Environment:
         if static_context:
             from kida.compiler.partial_eval import partial_evaluate
 
+            # Provide the escape function so folded Output nodes are
+            # correctly escaped at compile time (prevents XSS from
+            # static_context strings bypassing runtime escaping).
+            escape_fn = None
+            if should_escape:
+                from kida.utils.html import Markup
+
+                escape_fn = Markup.escape
+
             ast = partial_evaluate(
                 ast,
                 static_context,
+                escape_func=escape_fn,
                 pure_filters=frozenset(self.pure_filters),
                 filter_callables=self._filters,
                 inline_components=self.inline_components,

@@ -751,8 +751,20 @@ class PartialEvaluator:
 
         # Fully resolved — replace with Data
         str_value = str(value) if value is not None else ""
-        if node.escape and self._escape is not None:
-            str_value = str(self._escape(str_value))
+        if node.escape:
+            if hasattr(value, "__html__"):
+                # Value is already marked safe (e.g. Markup from | safe filter)
+                # — don't escape again.
+                str_value = str(value)
+            elif isinstance(value, (int, float, bool)):
+                # Numeric/bool types never need escaping.
+                pass
+            elif self._escape is not None:
+                str_value = str(self._escape(str_value))
+            else:
+                # No escape function available and value is a string —
+                # leave as Output so the runtime escape path handles it.
+                return node
         return Data(
             lineno=node.lineno,
             col_offset=node.col_offset,
@@ -880,8 +892,17 @@ class PartialEvaluator:
         if self._has_slot(defn.body):
             return None
 
-        # No slot content in the call
-        if any(body for body in node.slots.values()):
+        # Defs execute with their own local context; inlining bodies that
+        # contain scoping/assignment nodes would leak mutations into the
+        # caller scope and change semantics.
+        if _body_has_scoping_nodes(defn.body):
+            return None
+
+        # No meaningful slot content in the call — whitespace-only is OK
+        def _slot_body_is_empty(body: Sequence[Node]) -> bool:
+            return all(isinstance(child, Data) and not child.value.strip() for child in body)
+
+        if any(not _slot_body_is_empty(body) for body in node.slots.values()):
             return None
 
         # No vararg/kwarg
@@ -956,18 +977,24 @@ class PartialEvaluator:
         for node in body:
             if isinstance(node, Slot):
                 return True
-            # Check common container nodes
+            # Check all child bodies for container nodes
             if isinstance(node, (Block, If, For)):
                 child_body = getattr(node, "body", ())
                 if PartialEvaluator._has_slot(child_body):
                     return True
-                # Check else/elif branches for If
+                # If: check elif branches and else
                 if isinstance(node, If):
                     for _, branch_body in node.elif_:
                         if PartialEvaluator._has_slot(branch_body):
                             return True
                     if node.else_ and PartialEvaluator._has_slot(node.else_):
                         return True
+                # For: check empty branch
+                if isinstance(node, For) and node.empty and PartialEvaluator._has_slot(node.empty):
+                    return True
+            # SlotBlock contains a body too
+            if isinstance(node, SlotBlock) and PartialEvaluator._has_slot(node.body):
+                return True
         return False
 
     def _transform_expr(self, expr: Expr) -> Expr:

@@ -373,7 +373,7 @@ kida fmt templates/
 | `template.list_blocks()` | Block names for validation |
 | `template.template_metadata()` | Full analysis (blocks, regions, deps) |
 
-Full documentation: **[lbliii.github.io/kida](https://lbliii.github.io/kida/)** | [Kida vs Jinja2](docs/kida-vs-jinja2.md)
+Full documentation: **[lbliii.github.io/kida](https://lbliii.github.io/kida/)**. See also: [Kida vs Jinja2](docs/kida-vs-jinja2.md)
 
 | Section | |
 |---------|---|
