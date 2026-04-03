@@ -5,7 +5,7 @@
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://pypi.org/project/kida-templates/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**A Python template engine for HTML, terminal, and streaming — with framework integration**
+**A template engine that compiles to Python AST, renders to HTML/terminal/markdown, and scales across cores on free-threaded Python.**
 
 ```python
 from kida import Environment
@@ -13,32 +13,40 @@ from kida import Environment
 env = Environment()
 template = env.from_string("Hello, {{ name }}!")
 print(template.render(name="World"))
-# Output: Hello, World!
+# Hello, World!
 ```
 
 ---
 
-## What is Kida?
+## Why Kida
 
-Kida is a modern template engine for Python 3.14t. It works for static site generation (Bengal), dynamic web apps (Chirp), and anywhere you need templates — same syntax, same engine. It compiles templates to Python AST directly (no string generation), supports streaming and block rendering, and is built for free-threading.
+Most template engines generate Python source code as strings, then `exec()` it. Kida compiles directly to `ast.Module` — the same structured representation Python itself uses. This unlocks compile-time optimization, precise error mapping, and safe concurrent rendering that string-based engines can't achieve.
 
-**Why people pick it:**
+| | Kida | Jinja2 |
+|---|---|---|
+| **Compilation target** | Python AST (`ast.Module`) | Python source strings |
+| **Free-threading (PEP 703)** | Safe under `PYTHON_GIL=0` | Not tested/supported |
+| **Rendering modes** | `render()`, `render_stream()`, `render_block()`, async variants | `render()`, `generate()` |
+| **Compile-time optimization** | Constant folding, dead branch elimination, filter eval, component inlining | None |
+| **Terminal rendering** | Built-in (`autoescape="terminal"`) with 30+ ANSI-aware filters | None |
+| **Pattern matching** | `{% match %}` / `{% case %}` | None |
+| **Null safety** | `??`, `?.`, `?|>`, `?|`, `??=` | `| default` only |
+| **Components** | `{% def %}` + `{% slot %}` + named slots | Macros (no slots) |
+| **Regions** | `{% region name(params) %}` — parameterized blocks | None |
+| **Block rendering** | `render_block()`, `render_with_blocks()` | None (third-party) |
+| **Fragment caching** | `{% cache "key" %}` built-in | Extension required |
 
-- **AST-native** — Compiles to Python AST directly. Structured code manipulation, compile-time optimization, precise error source mapping.
-- **Free-threading ready** — Safe for Python 3.14t concurrent execution (PEP 703). All public APIs are thread-safe.
-- **Dual-mode rendering** — `render()` uses StringBuilder for maximum throughput. `render_stream()` yields chunks for streaming HTTP and SSE.
-- **Modern syntax** — Pattern matching, pipeline operator, unified `{% end %}`, null coalescing (`??`), optional chaining (`?.`), safe pipeline (`?|>`), optional filter (`?|`), nullish assignment (`??=`).
-- **Explicit block closers** — Prefer `{% endif %}`, `{% endcall %}`, `{% endfor %}`, `{% endblock %}`, `{% enddef %}` over bare `{% end %}` when nesting depth is 3+ (both styles are valid; explicit tags match Jinja2 muscle memory and ease code review).
-- **Zero dependencies** — Pure Python, includes native `Markup` implementation.
+### Performance
 
-## Use Kida For
-
-- **HTML template rendering** — Pages, partials, emails, and reusable components
-- **Terminal/CLI output** — `autoescape="terminal"` with ANSI colors, tables, trees, panels, and live rendering
-- **Jinja2-style migration paths** — Familiar syntax with new features and different internals
-- **Streaming interfaces** — Chunked HTML, SSE, and progressive rendering
-- **Framework integration** — Drop-in adapters for Flask, Starlette/FastAPI, and Django
-- **Python 3.14+ template stacks** — Async rendering and free-threading-friendly execution
+| Template complexity | Kida | vs Jinja2 |
+|---|---|---|
+| Minimal (~4µs) | Baseline | ~1x |
+| Small loop + filter (~7µs) | Baseline | ~1x |
+| Medium ~100 vars (~0.2ms) | Baseline | ~1.3x faster |
+| Large 1000-item loop (~1.6ms) | Baseline | **2.5x faster** |
+| Complex 3-level inheritance (~19µs) | Baseline | **1.5x faster** |
+| With `static_context` (compile-time folding) | **1.5-2x additional speedup** | N/A |
+| Concurrent (2-4 cores, `PYTHON_GIL=0`) | Linear scaling | Not supported |
 
 ---
 
@@ -48,78 +56,61 @@ Kida is a modern template engine for Python 3.14t. It works for static site gene
 pip install kida-templates
 ```
 
-Requires Python 3.14+
+Requires Python 3.14+. Zero runtime dependencies.
 
 ---
 
-## Quick Start
+## Render Anywhere
 
-| Function | Description |
-|----------|-------------|
-| `Environment()` | Create a template environment |
-| `env.from_string(src)` | Compile template from string |
-| `env.get_template(name)` | Load template from filesystem |
-| `template.render(**ctx)` | Full page (StringBuilder, fastest) |
-| `template.render_block(name, **ctx)` | Single block (fragments, HTMX) |
-| `template.render_stream(**ctx)` | Generator (chunked HTTP, SSE) |
-| `template.render_async(**ctx)` | Async buffered output |
-| `template.render_stream_async(**ctx)` | Async streaming (for `{% async for %}`) |
-| `template.render_with_blocks(overrides, **ctx)` | Compose layout with pre-rendered blocks |
-| `template.list_blocks()` | Block names for validation |
-| `template.template_metadata()` | Full analysis (blocks, regions, dependencies) |
-| `validate_block_exists(env, template, block)` | Check block exists before render_block |
-| `RenderedTemplate(template, ctx)` | Lazy iterable wrapper for streaming |
+Kida renders to three surfaces from the same template syntax.
 
----
-
-## Features
-
-| Feature | Description | Docs |
-|---------|-------------|------|
-| **Jinja2 Migration** | Learn where syntax matches, what changes, and how to switch safely | [Migrate from Jinja2 →](https://lbliii.github.io/kida/docs/tutorials/migrate-from-jinja2/) |
-| **Framework Integration** | Block rendering, metadata, and adapters for web frameworks | [Framework Integration →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
-| **Template Syntax** | Variables, filters, control flow, pattern matching | [Syntax →](https://lbliii.github.io/kida/docs/syntax/) |
-| **Inheritance** | Template extends, blocks, includes | [Inheritance →](https://lbliii.github.io/kida/docs/syntax/inheritance/) |
-| **Filters & Tests** | 50+ built-in filters, custom filter registration | [Filters →](https://lbliii.github.io/kida/docs/reference/filters/) |
-| **Streaming** | Statement-level generator rendering via `render_stream()` | [Streaming →](https://lbliii.github.io/kida/docs/usage/streaming/) |
-| **Async Support** | Native `async for`, `await` in templates | [Async →](https://lbliii.github.io/kida/docs/syntax/async/) |
-| **Caching** | Fragment caching with TTL support | [Caching →](https://lbliii.github.io/kida/docs/syntax/caching/) |
-| **Components & Slots** | `{% def %}`, `{% call %}`, `{% slot %}`, `{% yield %}` | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/) |
-| **Regions** | `{% region name(params) %}...{% end %}` — parameterized blocks for render_block | [Functions →](https://lbliii.github.io/kida/docs/syntax/functions/#regions) |
-| **Block Rendering** | `render_block()`, `render_with_blocks()` for fragments and layout composition | [Framework Integration →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
-| **Introspection** | `template_metadata()`, `block_metadata()`, `validate_context()` for frameworks | [Analysis →](https://lbliii.github.io/kida/docs/advanced/analysis/) |
-| **Partial Evaluation** | Compile-time evaluation via `static_context` | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
-| **Block Recompilation** | Recompile only changed blocks in live templates | [Advanced →](https://lbliii.github.io/kida/docs/advanced/compiler/) |
-| **Terminal Rendering** | `autoescape="terminal"` with 30+ filters, components, live rendering | [Terminal →](https://lbliii.github.io/kida/docs/usage/terminal/) |
-| **Framework Adapters** | Drop-in Flask, Starlette/FastAPI, and Django integration | [Contrib →](https://lbliii.github.io/kida/docs/usage/framework-integration/) |
-| **Sandbox** | `SandboxedEnvironment` for untrusted templates with security policies | [Security →](https://lbliii.github.io/kida/docs/advanced/security/) |
-| **Coverage** | Template line coverage with LCOV/Cobertura export | [Coverage →](https://lbliii.github.io/kida/docs/advanced/coverage/) |
-| **Extensibility** | Custom filters, tests, globals, loaders, extension plugins | [Extending →](https://lbliii.github.io/kida/docs/extending/) |
-| **T-Strings (PEP 750)** | `k()` auto-escaping, `r()` composable regex (Python 3.14+) | [T-Strings →](https://lbliii.github.io/kida/docs/advanced/t-strings/) |
-| **HTMX Helpers** | `hx_request()`, `hx_target()`, `csrf_token()` for partials | [Custom Globals →](https://lbliii.github.io/kida/docs/extending/custom-globals/) |
-| **Worker Auto-Tuning** | `get_optimal_workers()`, `should_parallelize()` for parallel render | [Workers →](https://lbliii.github.io/kida/docs/advanced/workers/) |
-
-📚 **Full documentation**: [lbliii.github.io/kida](https://lbliii.github.io/kida/)
-
----
-
-## Usage
-
-<details>
-<summary><strong>File-based Templates</strong> — Load from filesystem</summary>
+### HTML (default)
 
 ```python
 from kida import Environment, FileSystemLoader
 
 env = Environment(loader=FileSystemLoader("templates/"))
 template = env.get_template("page.html")
-print(template.render(title="Hello", content="World"))
+html = template.render(title="Hello")
 ```
 
-</details>
+### Terminal
+
+```python
+from kida.terminal import terminal_env
+
+env = terminal_env()
+template = env.from_string("""
+{{ "Deploy Status" | bold | cyan }}
+{{ hr(40) }}
+{% for svc in services %}
+{{ svc.name | pad(20) }}{{ svc.status | badge }}
+{% end %}
+""")
+print(template.render(services=[
+    {"name": "api", "status": "pass"},
+    {"name": "worker", "status": "fail"},
+]))
+```
+
+30+ ANSI-aware filters (`bold`, `fg()`, `pad`, `badge`, `bar`, `kv`, `table`, `tree`, `diff`), built-in panel/box components, and `LiveRenderer` for in-place re-rendering with spinners.
+
+### Markdown
+
+```python
+from kida.markdown import markdown_env
+
+env = markdown_env()
+template = env.from_string("# {{ title }}\n\n{{ body }}")
+md = template.render(title="Report", body="All tests passed.")
+```
+
+---
+
+## Key Features
 
 <details>
-<summary><strong>Template Inheritance</strong> — Extend base templates</summary>
+<summary><strong>Template Inheritance</strong></summary>
 
 **base.html:**
 ```kida
@@ -136,48 +127,13 @@ print(template.render(title="Hello", content="World"))
 {% extends "base.html" %}
 {% block content %}
     <h1>{{ title }}</h1>
-    <p>{{ content }}</p>
 {% end %}
 ```
 
 </details>
 
 <details>
-<summary><strong>Control Flow</strong> — Conditionals, loops, pattern matching</summary>
-
-```kida
-{% if user.is_active %}
-    <p>Welcome, {{ user.name }}!</p>
-{% end %}
-
-{% for item in items %}
-    <li>{{ item.name }}</li>
-{% end %}
-
-{% match status %}
-{% case "active" %}
-    Active user
-{% case "pending" %}
-    Pending verification
-{% case _ %}
-    Unknown status
-{% end %}
-```
-
-You may close blocks with **explicit end keywords** instead of `{% end %}` — for example `{% endif %}`, `{% endfor %}`, `{% endblock %}`, `{% endcall %}`, `{% enddef %}`. Deeply nested templates (roughly three or more levels) are easier to read and review with explicit closers.
-
-```kida
-{% if user.is_admin %}
-  <span class="badge">Admin</span>
-{% endif %}
-```
-
-Run `kida check <template_dir>` to parse every `*.html` file under a directory (CI-friendly syntax and import resolution checks).
-
-</details>
-
-<details>
-<summary><strong>Components & Named Slots</strong> — Reusable UI composition</summary>
+<summary><strong>Components & Named Slots</strong></summary>
 
 ```kida
 {% def card(title) %}
@@ -194,13 +150,52 @@ Run `kida check <template_dir>` to parse every `*.html` file under a directory (
 {% end %}
 ```
 
-`{% slot %}` is the default slot. Named slot blocks inside `{% call %}` map to
-matching placeholders in `{% def %}`.
+</details>
+
+<details>
+<summary><strong>Pattern Matching & Null Safety</strong></summary>
+
+```kida
+{% match status %}
+{% case "active" %}
+    Active user
+{% case "pending" %}
+    Pending verification
+{% case _ %}
+    Unknown status
+{% end %}
+
+{# Null coalescing #}
+{{ user.nickname ?? user.name ?? "Anonymous" }}
+
+{# Optional chaining #}
+{{ config?.database?.host }}
+
+{# Safe pipeline — stops on None #}
+{{ data ?|> parse ?|> validate ?|> render }}
+```
 
 </details>
 
 <details>
-<summary><strong>Regions</strong> — Parameterized blocks for render_block</summary>
+<summary><strong>Streaming & Block Rendering</strong></summary>
+
+```python
+# Stream chunks as they render (chunked HTTP, SSE)
+for chunk in template.render_stream(items=large_list):
+    response.write(chunk)
+
+# Render a single block (HTMX partials)
+html = template.render_block("content", title="Hello")
+
+# Compose layouts with pre-rendered blocks
+html = layout.render_with_blocks({"content": inner_html}, title="Page")
+```
+
+</details>
+
+<details>
+<summary><strong>Regions — Parameterized Blocks</strong></summary>
 
 ```kida
 {% region sidebar(current_path="/") %}
@@ -210,141 +205,70 @@ matching placeholders in `{% def %}`.
 {{ sidebar(current_path="/about") }}
 ```
 
-Regions are both blocks (for `render_block()`) and callables (for `{{ name(args) }}`).
-They can read outer-context variables. Use for HTMX OOB, layout composition, and
-framework integration. See [Functions → Regions](https://lbliii.github.io/kida/docs/syntax/functions/#regions).
+Regions are blocks (for `render_block()`) and callables (for inline use). Ideal for HTMX OOB swaps and framework integration.
 
 </details>
 
 <details>
-<summary><strong>Filters & Pipelines</strong> — Transform values</summary>
-
-```kida
-{# Traditional syntax #}
-{{ title | escape | capitalize | truncate(50) }}
-
-{# Pipeline operator #}
-{{ title |> escape |> capitalize |> truncate(50) }}
-
-{# Custom filters #}
-{{ items | sort(attribute="name") | first }}
-```
-
-</details>
-
-<details>
-<summary><strong>Streaming Rendering</strong> — Yield chunks as they're ready</summary>
+<summary><strong>Compile-Time Optimization</strong></summary>
 
 ```python
-from kida import Environment
+# Pass static data at compile time — kida folds constants,
+# eliminates dead branches, and evaluates pure filters
+template = env.from_string(source, static_context={
+    "site": site_config,
+    "settings": app_settings,
+})
 
-env = Environment()
-template = env.from_string("""
-<ul>
-{% for item in items %}
-    <li>{{ item }}</li>
-{% end %}
-</ul>
-""")
-
-# Generator: yields each statement as a string chunk
-for chunk in template.render_stream(items=["a", "b", "c"]):
-    print(chunk, end="")
-
-# RenderedTemplate: lazy iterable wrapper
-from kida import RenderedTemplate
-rendered = RenderedTemplate(template, {"items": ["a", "b", "c"]})
-for chunk in rendered:
-    send_to_client(chunk)
+# Only dynamic data needed at render time
+html = template.render(page_title="Home", items=page_items)
 ```
 
-Works with inheritance (`{% extends %}`), includes, and all control flow. Blocks like `{% capture %}` and `{% spaceless %}` buffer internally and yield the processed result.
+67 pure filters evaluated at compile time. Dead `{% if debug %}` branches removed entirely. Component inlining for small defs with constant args.
+
+Use `kida render template.html --explain` to see which optimizations are active.
 
 </details>
 
 <details>
-<summary><strong>Async Templates</strong> — Await in templates</summary>
+<summary><strong>Free-Threading</strong></summary>
+
+All public APIs are safe under `PYTHON_GIL=0` (Python 3.14t, PEP 703):
+
+- Templates compile to immutable AST — no shared mutable state
+- Rendering uses thread-local StringBuilder — no contention
+- Environment uses copy-on-write for configuration changes
+- `LiveRenderer.update()` is thread-safe with internal locking
+
+Module declares GIL independence via `_Py_mod_gil = 0`. Rendering scales linearly with cores.
+
+</details>
+
+<details>
+<summary><strong>Framework Integration</strong></summary>
+
+Drop-in adapters for Flask, Starlette/FastAPI, and Django:
 
 ```python
-{% async for item in fetch_items() %}
-    {{ item }}
-{% end %}
+# Flask
+from kida.contrib.flask import KidaFlask
+kida = KidaFlask(app)
 
-{{ await get_user() }}
-```
+# Starlette / FastAPI
+from kida.contrib.starlette import KidaStarlette
+templates = KidaStarlette(directory="templates")
 
-</details>
-
-<details>
-<summary><strong>Terminal Rendering</strong> — CLI/TUI output with ANSI colors</summary>
-
-```python
-from kida.environment.terminal import terminal_env
-
-env = terminal_env()
-template = env.from_string("""
-{{ "Deploy Status" | fg("cyan") | bold }}
-{{ "=" * 40 | fg("dim") }}
-{% for svc in services %}
-{{ svc.name | ljust(20) }}{{ svc.status | badge }}
-{% end %}
-""")
-print(template.render(services=[
-    {"name": "api", "status": "running"},
-    {"name": "worker", "status": "stopped"},
-]))
-```
-
-Built-in components for panels, tables, trees, and more. Use `kida render template.txt --data ctx.json` from the CLI.
-
-</details>
-
-<details>
-<summary><strong>Fragment Caching</strong> — Cache expensive blocks</summary>
-
-```kida
-{% cache "navigation" %}
-    {% for item in nav_items %}
-        <a href="{{ item.url }}">{{ item.title }}</a>
-    {% end %}
-{% end %}
-```
-
-</details>
-
-<details>
-<summary><strong>Block Rendering</strong> — Fragments and layout composition</summary>
-
-```python
-# Render a single block (HTMX partials, cached nav)
-html = template.render_block("content", title="Hello")
-
-# Compose layout with pre-rendered blocks
-layout = env.get_template("_layout.html")
-html = layout.render_with_blocks({"content": inner_html}, title="Page")
+# Django
+TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaDjango", ...}]
 ```
 
 </details>
 
 ---
 
-## Use Cases
+## GitHub Action — CI Reports
 
-| Use case | Key APIs | Example |
-|----------|----------|---------|
-| **Static sites** | `render()`, fragment cache, bytecode cache | [Bengal](https://github.com/lbliii/bengal) |
-| **Dynamic web** | `render_block()`, `render_stream()`, `render_with_blocks()` | [Chirp](https://github.com/lbliii/chirp) |
-| **Terminal / CLI** | `terminal_env()`, `LiveRenderer`, `kida render` | Dashboards, deploy scripts, reports |
-| **Streaming / SSE** | `render_stream()`, `render_stream_async()` | Chunked HTTP, LLM streaming |
-| **Framework integration** | `template_metadata()`, `validate_block_exists()`, `get_structure()` | Build adapters, validate routes |
-
----
-
-## GitHub Action
-
-Use Kida as a GitHub Action to render CI reports as step summaries or PR comments.
-
-### Basic usage
+Turn pytest, coverage, ruff, and other tool output into formatted step summaries and PR comments.
 
 ```yaml
 - name: Run tests
@@ -358,17 +282,6 @@ Use Kida as a GitHub Action to render CI reports as step summaries or PR comment
     data-format: junit-xml
 ```
 
-### PR comments
-
-```yaml
-- name: Post coverage to PR
-  uses: lbliii/kida@v0.3.1
-  with:
-    template: coverage
-    data: coverage.json
-    post-to: step-summary,pr-comment
-```
-
 ### Built-in templates
 
 | Template | Data format | Tool |
@@ -379,11 +292,20 @@ Use Kida as a GitHub Action to render CI reports as step summaries or PR comment
 | `ty` | junit-xml | ty `--output-format junit` |
 | `jest` | json | jest `--json` |
 | `gotest` | junit-xml | go-junit-report |
-| `sarif` | sarif | Any SARIF producer (CodeQL, Semgrep, Trivy, ESLint) |
+| `sarif` | sarif | CodeQL, Semgrep, Trivy, ESLint |
+
+### PR comments with deduplication
+
+```yaml
+- name: Post coverage to PR
+  uses: lbliii/kida@v0.3.1
+  with:
+    template: coverage
+    data: coverage.json
+    post-to: step-summary,pr-comment
+```
 
 ### Custom templates
-
-Point to any template file in your repo:
 
 ```yaml
 - uses: lbliii/kida@v0.3.1
@@ -399,7 +321,7 @@ Point to any template file in your repo:
 | `template` | *(required)* | Built-in name or path to template file |
 | `data` | *(required)* | Path to data file |
 | `data-format` | `json` | `json`, `junit-xml`, `sarif`, or `lcov` |
-| `post-to` | `step-summary` | `step-summary`, `pr-comment`, or both (comma-separated) |
+| `post-to` | `step-summary` | `step-summary`, `pr-comment`, or both |
 | `comment-header` | template name | Marker for PR comment deduplication |
 | `token` | `github.token` | GitHub token (needed for `pr-comment`) |
 | `python-version` | `3.14` | Python version (`skip` to use existing) |
@@ -407,81 +329,74 @@ Point to any template file in your repo:
 
 ---
 
-## Architecture
+## CLI
 
-<details>
-<summary><strong>Compilation Pipeline</strong> — AST-native</summary>
+```bash
+# Render a template
+kida render template.txt --data context.json
+kida render dashboard.txt --mode terminal --width 80 --color truecolor
+
+# Show which compiler optimizations are active
+kida render template.html --explain
+
+# Check all templates for syntax errors
+kida check templates/
+
+# Strict mode: require explicit end tags ({% endif %} not {% end %})
+kida check templates/ --strict
+
+# Validate macro call sites against signatures
+kida check templates/ --validate-calls
+
+# Accessibility and type checking
+kida check templates/ --a11y --typed
+
+# Auto-format templates
+kida fmt templates/
+```
+
+---
+
+## API Reference
+
+| Function | Description |
+|----------|-------------|
+| `Environment()` | Create a template environment |
+| `env.from_string(src)` | Compile template from string |
+| `env.get_template(name)` | Load template from filesystem |
+| `template.render(**ctx)` | Full render (StringBuilder, fastest) |
+| `template.render_block(name, **ctx)` | Single block (HTMX partials) |
+| `template.render_stream(**ctx)` | Generator (chunked HTTP, SSE) |
+| `template.render_async(**ctx)` | Async buffered output |
+| `template.render_stream_async(**ctx)` | Async streaming |
+| `template.render_with_blocks(overrides, **ctx)` | Compose layout with pre-rendered blocks |
+| `template.list_blocks()` | Block names for validation |
+| `template.template_metadata()` | Full analysis (blocks, regions, deps) |
+
+Full documentation: **[lbliii.github.io/kida](https://lbliii.github.io/kida/)**. See also: [Kida vs Jinja2](docs/kida-vs-jinja2.md)
+
+| Section | |
+|---------|---|
+| [Get Started](https://lbliii.github.io/kida/docs/get-started/) | Installation, quickstart, coming from Jinja2 |
+| [Syntax](https://lbliii.github.io/kida/docs/syntax/) | Template language reference |
+| [Usage](https://lbliii.github.io/kida/docs/usage/) | Loading, rendering, escaping, terminal mode |
+| [Framework Integration](https://lbliii.github.io/kida/docs/usage/framework-integration/) | Flask, Starlette, Django adapters |
+| [Advanced](https://lbliii.github.io/kida/docs/advanced/) | Compiler, profiling, coverage, security |
+| [Reference](https://lbliii.github.io/kida/docs/reference/) | Complete API docs |
+
+---
+
+## Architecture
 
 ```
 Template Source → Lexer → Parser → Kida AST → Compiler → Python AST → exec()
 ```
 
-Kida generates `ast.Module` objects directly. This enables:
+Kida generates `ast.Module` objects directly — no intermediate source strings. This enables compile-time optimization (constant folding, dead branch elimination, filter evaluation), precise error source mapping (exact line:column in template source), and safe concurrent execution (immutable AST, no shared mutable state).
 
-- **Structured code manipulation** — Transform and optimize AST nodes
-- **Compile-time optimization** — Dead code elimination, constant folding
-- **Precise error source mapping** — Exact line/column in template source
-
-</details>
-
-<details>
-<summary><strong>Dual-Mode Rendering</strong> — StringBuilder + streaming generator</summary>
-
-```python
-# render() — StringBuilder (fastest, default)
-_out.append(...)
-return "".join(_out)
-
-# render_stream() — Generator (streaming, chunked HTTP)
-yield ...
-```
-
-The compiler generates both modes from a single template. `render()` uses StringBuilder for maximum throughput. `render_stream()` uses Python generators for statement-level streaming — ideal for chunked HTTP responses and Server-Sent Events.
-
-</details>
-
-<details>
-<summary><strong>Thread Safety</strong> — Free-threading ready</summary>
-
-All public APIs are thread-safe by design:
-
-- **Template compilation** — Idempotent (same input → same output)
-- **Rendering** — Uses only local state (StringBuilder pattern)
-- **Environment** — Copy-on-write for filters/tests/globals
-- **LRU caches** — Atomic operations
-
-Module declares itself GIL-independent via `_Py_mod_gil = 0` (PEP 703).
-
-</details>
-
----
-
-## Performance
-
-- **Minimal** — ~4.0µs (file-based)
-- **Small** — ~6.8µs (loop + filter)
-- **Medium** — ~0.2ms (~100 vars)
-- **Large** — ~1.6ms (1000 loop items) — **2.5x faster** than Jinja2
-- **Complex** — ~19µs (3-level inheritance) — **1.5x faster** than Jinja2
-- **Concurrent (2–4 workers)** — scales with worker count under Python 3.14t free-threading
-
-See [benchmarks/README.md](benchmarks/README.md) and [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for full Kida vs Jinja2 comparison.
-
----
-
-## Documentation
-
-📚 **[lbliii.github.io/kida](https://lbliii.github.io/kida/)**
-
-| Section | Description |
-|---------|-------------|
-| [Get Started](https://lbliii.github.io/kida/docs/get-started/) | Installation and quickstart |
-| [Syntax](https://lbliii.github.io/kida/docs/syntax/) | Template language reference |
-| [Usage](https://lbliii.github.io/kida/docs/usage/) | Loading, rendering, escaping |
-| [Framework Integration](https://lbliii.github.io/kida/docs/usage/framework-integration/) | Block rendering, introspection, adapters |
-| [Extending](https://lbliii.github.io/kida/docs/extending/) | Custom filters, tests, loaders |
-| [Reference](https://lbliii.github.io/kida/docs/reference/) | Complete API documentation |
-| [Tutorials](https://lbliii.github.io/kida/docs/tutorials/) | Jinja2 migration, Flask integration |
+Rendering uses two modes from a single compilation:
+- **`render()`** — StringBuilder pattern (`_out.append(...)`) for maximum throughput
+- **`render_stream()`** — Python generator (`yield ...`) for statement-level streaming
 
 ---
 
@@ -490,7 +405,6 @@ See [benchmarks/README.md](benchmarks/README.md) and [benchmarks/RESULTS.md](ben
 ```bash
 git clone https://github.com/lbliii/kida.git
 cd kida
-# Uses Python 3.14t by default (.python-version)
 uv sync --group dev --python 3.14t
 PYTHON_GIL=0 uv run --python 3.14t pytest
 ```
@@ -499,7 +413,7 @@ PYTHON_GIL=0 uv run --python 3.14t pytest
 
 ## The Bengal Ecosystem
 
-A structured reactive stack — every layer written in pure Python for 3.14t free-threading.
+Kida is part of a pure-Python stack built for 3.14t free-threading.
 
 | | | | |
 |--:|---|---|---|
@@ -507,11 +421,10 @@ A structured reactive stack — every layer written in pure Python for 3.14t fre
 | **∿∿** | [Purr](https://github.com/lbliii/purr) | Content runtime | — |
 | **⌁⌁** | [Chirp](https://github.com/lbliii/chirp) | Web framework | [Docs](https://lbliii.github.io/chirp/) |
 | **=^..^=** | [Pounce](https://github.com/lbliii/pounce) | ASGI server | [Docs](https://lbliii.github.io/pounce/) |
-| **)彡** | **Kida** | Template engine ← You are here | [Docs](https://lbliii.github.io/kida/) |
+| **)彡** | **Kida** | Template engine | [Docs](https://lbliii.github.io/kida/) |
 | **ฅᨐฅ** | [Patitas](https://github.com/lbliii/patitas) | Markdown parser | [Docs](https://lbliii.github.io/patitas/) |
 | **⌾⌾⌾** | [Rosettes](https://github.com/lbliii/rosettes) | Syntax highlighter | [Docs](https://lbliii.github.io/rosettes/) |
-
-Python-native. Free-threading ready. No npm required.
+| **ᓃ‿ᓃ** | [Milo](https://github.com/lbliii/milo-cli) | Terminal UI framework | [Docs](https://lbliii.github.io/milo-cli/) |
 
 ---
 
