@@ -275,7 +275,7 @@ Turn pytest, coverage, ruff, and other tool output into formatted step summaries
   run: pytest --junitxml=results.xml
 
 - name: Post test report
-  uses: lbliii/kida@v0.3.1
+  uses: lbliii/kida@v0.3.2
   with:
     template: pytest
     data: results.xml
@@ -298,7 +298,7 @@ Turn pytest, coverage, ruff, and other tool output into formatted step summaries
 
 ```yaml
 - name: Post coverage to PR
-  uses: lbliii/kida@v0.3.1
+  uses: lbliii/kida@v0.3.2
   with:
     template: coverage
     data: coverage.json
@@ -308,7 +308,7 @@ Turn pytest, coverage, ruff, and other tool output into formatted step summaries
 ### Custom templates
 
 ```yaml
-- uses: lbliii/kida@v0.3.1
+- uses: lbliii/kida@v0.3.2
   with:
     template: .github/kida-templates/my-report.md
     data: output.json

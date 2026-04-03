@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-03
+
+### Added
+
+- **`kida explain` CLI** — `kida explain <template>` prints which compile-time optimizations are active (f-string coalescing, dead code elimination, partial evaluation, component inlining, free-threading status).
+- **`kida bench` CLI** — Quick benchmarking command for template compile and render performance.
+- **Expanded partial evaluator** — Handles `Def`, `FuncCall`, `MarkSafe`, `NullCoalesce`, `OptionalFilter`, `SafePipeline`, `Slot`, and `SlotBlock` nodes for deeper compile-time optimization.
+- **Partial eval benchmarks** — Dedicated benchmark suite for measuring partial evaluation speedups.
+- **Terminal benchmarks** — Dedicated benchmark suite for terminal rendering mode.
+- **Kida vs Jinja2 comparison** — Side-by-side comparison document covering syntax, architecture, performance, and feature differences.
+
+### Changed
+
+- **Python 3.14 modernization** — `@final` decorators on key classes; `match` statements replace `if`/`elif` chains throughout the partial evaluator and constant evaluator; stricter ruff linting rules.
+- **Consolidated AST traversals** — Dependency analysis merged redundant walks into a single-pass visitor, reducing compile-time overhead.
+- **Cached AST in bytecode cache** — Bytecode cache now stores parsed AST alongside compiled code for faster recompilation.
+- **Render helper consolidation** — Deduplicated common patterns in `render_helpers.py` and `render_context.py`.
+- **README rewrite** — Concise, feature-focused README with architecture overview and benchmark highlights.
+- **Import path cleanup** — `TemplateSyntaxError` imported from `kida.exceptions` instead of `kida.environment.exceptions`.
+
+### Removed
+
+- **`analysis/visitor.py`** — Redundant visitor module consolidated into `analysis/node_visitor.py`.
+
 ## [0.3.1] - 2026-04-02
 
 ### Added
