@@ -66,7 +66,7 @@ jobs:
 
       - name: Post test report
         if: always()
-        uses: lbliii/kida@v0.3.1
+        uses: lbliii/kida@v0.3.2
         with:
           template: pytest
           data: results.xml
@@ -74,7 +74,7 @@ jobs:
 
       - name: Post coverage report
         if: always()
-        uses: lbliii/kida@v0.3.1
+        uses: lbliii/kida@v0.3.2
         with:
           template: coverage
           data: coverage.json
