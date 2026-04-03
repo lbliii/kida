@@ -40,19 +40,26 @@ from kida.nodes import (
     CondExpr,
     Const,
     Data,
+    Def,
     Export,
     Expr,
     Filter,
     For,
+    FuncCall,
     Getattr,
     Getitem,
     If,
     Let,
+    MarkSafe,
     Name,
     Node,
+    NullCoalesce,
+    OptionalFilter,
     Output,
     Pipeline,
+    SafePipeline,
     Set,
+    Slot,
     SlotBlock,
     Template,
     UnaryOp,
@@ -332,7 +339,15 @@ class PartialEvaluator:
 
     """
 
-    __slots__ = ("_ctx", "_escape", "_filter_callables", "_max_depth", "_pure_filters")
+    __slots__ = (
+        "_ctx",
+        "_defs",
+        "_escape",
+        "_filter_callables",
+        "_inline_components",
+        "_max_depth",
+        "_pure_filters",
+    )
 
     def __init__(
         self,
@@ -342,12 +357,15 @@ class PartialEvaluator:
         pure_filters: frozenset[str] = frozenset(),
         filter_callables: dict[str, Callable[..., Any]] | None = None,
         max_eval_depth: int = 100,
+        inline_components: bool = False,
     ) -> None:
         self._ctx = static_context
         self._escape = escape_func
         self._pure_filters = pure_filters
         self._filter_callables = filter_callables or {}
         self._max_depth = max_eval_depth
+        self._inline_components = inline_components
+        self._defs: dict[str, Def] = {}
 
     def evaluate(self, template: Template) -> Template:
         """Transform a template AST by evaluating static expressions.
@@ -453,11 +471,25 @@ class PartialEvaluator:
         if isinstance(expr, Pipeline):
             return self._try_eval_pipeline(expr, depth)
 
+        if isinstance(expr, NullCoalesce):
+            left = self._try_eval(expr.left, depth + 1)
+            if left is _UNRESOLVED:
+                return _UNRESOLVED
+            if left is not None:
+                return left
+            return self._try_eval(expr.right, depth + 1)
+
+        if isinstance(expr, MarkSafe):
+            return self._try_eval(expr.value, depth + 1)
+
         # Anything else (FuncCall, etc.) — not resolved
         return _UNRESOLVED
 
     def _try_eval_filter(self, expr: Filter, depth: int = 0) -> Any:
-        """Evaluate a Filter node when value and args are resolvable."""
+        """Evaluate a Filter node when value and args are resolvable.
+
+        OptionalFilter (``?|``) returns None when the input value is None.
+        """
         if expr.name not in self._pure_filters:
             return _UNRESOLVED
         func = self._filter_callables.get(expr.name)
@@ -466,6 +498,8 @@ class PartialEvaluator:
         value = self._try_eval(expr.value, depth + 1)
         if value is _UNRESOLVED:
             return _UNRESOLVED
+        if isinstance(expr, OptionalFilter) and value is None:
+            return None
         args_resolved: list[Any] = []
         for arg in expr.args:
             a = self._try_eval(arg, depth + 1)
@@ -484,11 +518,17 @@ class PartialEvaluator:
             return _UNRESOLVED
 
     def _try_eval_pipeline(self, expr: Pipeline, depth: int = 0) -> Any:
-        """Evaluate a Pipeline node when value and all steps are resolvable."""
+        """Evaluate a Pipeline node when value and all steps are resolvable.
+
+        SafePipeline (``?|>``) propagates None through the chain.
+        """
+        is_safe = isinstance(expr, SafePipeline)
         value = self._try_eval(expr.value, depth + 1)
         if value is _UNRESOLVED:
             return _UNRESOLVED
         for name, args, kwargs in expr.steps:
+            if is_safe and value is None:
+                return None
             if name not in self._pure_filters:
                 return _UNRESOLVED
             func = self._filter_callables.get(name)
@@ -648,7 +688,27 @@ class PartialEvaluator:
                 required=node.required,
             )
 
+        if isinstance(node, Def):
+            # Register def for potential inlining, then recurse into body
+            self._defs[node.name] = node
+            new_body = self._transform_body(node.body)
+            if new_body is node.body:
+                return node
+            return Def(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                name=node.name,
+                params=node.params,
+                body=new_body,
+                defaults=node.defaults,
+                vararg=node.vararg,
+                kwarg=node.kwarg,
+            )
+
         if isinstance(node, CallBlock):
+            inlined = self._try_inline_call(node) if self._inline_components else None
+            if inlined is not None:
+                return inlined
             new_slots = {k: self._transform_body(v) for k, v in node.slots.items()}
             if all(new_slots[k] is node.slots[k] for k in node.slots):
                 return node
@@ -780,6 +840,136 @@ class PartialEvaluator:
             test=node.test,
         )
 
+    # ------------------------------------------------------------------
+    # Component inlining
+    # ------------------------------------------------------------------
+
+    _MAX_INLINE_NODES = 20
+
+    def _try_inline_call(self, node: CallBlock) -> Node | None:
+        """Try to inline a CallBlock by expanding its Def body.
+
+        Returns an _InlinedBody (or single node) on success, None if
+        inlining is not possible.
+
+        Requirements for inlining:
+        - The call target is a simple FuncCall(Name(def_name))
+        - The referenced Def has been seen in this template
+        - The Def body is small (< _MAX_INLINE_NODES)
+        - The Def has no Slot nodes (no caller injection)
+        - No slot content in the CallBlock
+        - All arguments resolve to constants
+        """
+        # Must be a simple call: {{ name(args) }}
+        call = node.call
+        if not isinstance(call, FuncCall):
+            return None
+        if not isinstance(call.func, Name):
+            return None
+
+        def_name = call.func.name
+        defn = self._defs.get(def_name)
+        if defn is None:
+            return None
+
+        # Size guard
+        if self._count_nodes(defn.body) > self._MAX_INLINE_NODES:
+            return None
+
+        # No slots in def body
+        if self._has_slot(defn.body):
+            return None
+
+        # No slot content in the call
+        if any(body for body in node.slots.values()):
+            return None
+
+        # No vararg/kwarg
+        if defn.vararg or defn.kwarg:
+            return None
+
+        # Resolve all positional and keyword arguments
+        param_names = [p.name for p in defn.params]
+        arg_values: dict[str, Any] = {}
+
+        # Positional args from call
+        all_args = list(call.args) + list(node.args)
+        for i, arg_expr in enumerate(all_args):
+            if i >= len(param_names):
+                return None  # Too many args
+            val = self._try_eval(arg_expr)
+            if val is _UNRESOLVED:
+                return None
+            arg_values[param_names[i]] = val
+
+        # Keyword args from call
+        for k, v_expr in call.kwargs.items():
+            if k in arg_values:
+                return None  # Duplicate
+            val = self._try_eval(v_expr)
+            if val is _UNRESOLVED:
+                return None
+            arg_values[k] = val
+
+        # Fill defaults for missing params
+        n_required = len(param_names) - len(defn.defaults)
+        for i, param_name in enumerate(param_names):
+            if param_name in arg_values:
+                continue
+            default_idx = i - n_required
+            if default_idx < 0:
+                return None  # Missing required arg
+            val = self._try_eval(defn.defaults[default_idx])
+            if val is _UNRESOLVED:
+                return None
+            arg_values[param_name] = val
+
+        # Inline: create a sub-evaluator with merged context
+        merged_ctx = {**self._ctx, **arg_values}
+        sub_eval = PartialEvaluator(
+            merged_ctx,
+            escape_func=self._escape,
+            pure_filters=self._pure_filters,
+            filter_callables=self._filter_callables,
+            max_eval_depth=self._max_depth,
+            inline_components=self._inline_components,
+        )
+        sub_eval._defs = dict(self._defs)
+
+        inlined_body = sub_eval._transform_body(defn.body)
+        if len(inlined_body) == 1:
+            return inlined_body[0]
+        return _InlinedBody(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            nodes=inlined_body,
+        )
+
+    @staticmethod
+    def _count_nodes(body: Sequence[Node]) -> int:
+        """Count total nodes in a body (shallow — does not recurse into children)."""
+        return len(body)
+
+    @staticmethod
+    def _has_slot(body: Sequence[Node]) -> bool:
+        """Check if body contains any Slot nodes (recursively)."""
+        for node in body:
+            if isinstance(node, Slot):
+                return True
+            # Check common container nodes
+            if isinstance(node, (Block, If, For)):
+                child_body = getattr(node, "body", ())
+                if PartialEvaluator._has_slot(child_body):
+                    return True
+                # Check else/elif branches for If
+                if isinstance(node, If):
+                    for _, branch_body in node.elif_:
+                        if PartialEvaluator._has_slot(branch_body):
+                            return True
+                    if node.else_ and PartialEvaluator._has_slot(node.else_):
+                        return True
+        return False
+
     def _transform_expr(self, expr: Expr) -> Expr:
         """Try to partially evaluate an expression.
 
@@ -843,6 +1033,46 @@ class PartialEvaluator:
                 )
             return expr
 
+        if isinstance(expr, NullCoalesce):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            # Try to partially resolve the left side
+            new_left = self._transform_expr(expr.left)
+            new_right = self._transform_expr(expr.right)
+            if new_left is expr.left and new_right is expr.right:
+                return expr
+            return NullCoalesce(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                left=new_left,
+                right=new_right,
+            )
+
+        if isinstance(expr, MarkSafe):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            return expr
+
+        if isinstance(expr, (Filter, Pipeline)):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            return expr
+
         return expr
 
 
@@ -888,6 +1118,7 @@ def partial_evaluate(
     escape_func: Any | None = None,
     pure_filters: frozenset[str] = frozenset(),
     filter_callables: dict[str, Callable[..., Any]] | None = None,
+    inline_components: bool = False,
 ) -> Template:
     """Convenience function: partially evaluate a template AST.
 
@@ -897,6 +1128,8 @@ def partial_evaluate(
         escape_func: HTML escape function for static Output nodes.
         pure_filters: Filter names safe for compile-time evaluation.
         filter_callables: Filter name to callable for Filter/Pipeline eval.
+        inline_components: When True, small {% def %} calls with all-constant
+            arguments are expanded inline at compile time.
 
     Returns:
         Transformed template AST with static expressions replaced.
@@ -905,9 +1138,9 @@ def partial_evaluate(
     if not static_context:
         return template
 
-    from kida.utils.constants import MAX_PARTIAL_EVAL_DEPTH, PURE_FILTERS_COALESCEABLE
+    from kida.utils.constants import MAX_PARTIAL_EVAL_DEPTH, PURE_FILTERS_ALL
 
-    all_pure = PURE_FILTERS_COALESCEABLE | pure_filters
+    all_pure = PURE_FILTERS_ALL | pure_filters
 
     evaluator = PartialEvaluator(
         static_context,
@@ -915,6 +1148,7 @@ def partial_evaluate(
         pure_filters=all_pure,
         filter_callables=filter_callables or {},
         max_eval_depth=MAX_PARTIAL_EVAL_DEPTH,
+        inline_components=inline_components,
     )
     result = evaluator.evaluate(template)
 

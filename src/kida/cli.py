@@ -200,6 +200,63 @@ def _cmd_fmt(
     return 0
 
 
+def _print_explain(env: Environment, tpl: object) -> None:
+    """Print which compile-time optimizations are active for this template."""
+    import sys as _sys
+
+    lines: list[str] = []
+    lines.append("--- Compiler optimizations ---")
+
+    # F-string coalescing
+    if env.fstring_coalescing:
+        lines.append(
+            "  [on]  f-string coalescing — merges consecutive outputs into single f-string appends"
+        )
+    else:
+        lines.append("  [off] f-string coalescing")
+
+    # Dead code elimination (always on)
+    lines.append("  [on]  dead code elimination — removes const-only dead branches")
+
+    # Type-aware escaping (always on for HTML mode)
+    if env.autoescape:
+        lines.append("  [on]  type-aware escaping — skips HTML escape for int/float/bool")
+
+    # Lazy LoopContext (always on when loop vars unused)
+    lines.append("  [on]  lazy loop context — skips LoopContext when loop.* unused")
+
+    # Partial evaluation
+    # Check if the template was compiled with static_context
+    has_static = hasattr(tpl, "_static_context") and getattr(tpl, "_static_context", None)
+    if has_static:
+        lines.append("  [on]  partial evaluation — static expressions replaced with constants")
+        lines.append(
+            "  [on]  filter constant folding — pure filters evaluated at compile time (67 filters)"
+        )
+    else:
+        lines.append("  [off] partial evaluation (no static_context provided)")
+
+    # Component inlining
+    if env.inline_components:
+        lines.append("  [on]  component inlining — small defs with constant args expanded inline")
+    else:
+        lines.append("  [off] component inlining (enable with inline_components=True)")
+
+    # Free-threading
+    try:
+        from kida.utils.workers import is_free_threading_enabled
+
+        if is_free_threading_enabled():
+            lines.append("  [on]  free-threading — GIL disabled, concurrent rendering available")
+        else:
+            lines.append("  [off] free-threading (GIL enabled)")
+    except ImportError:
+        lines.append("  [off] free-threading (detection unavailable)")
+
+    lines.append("------------------------------")
+    _sys.stderr.write("\n".join(lines) + "\n\n")
+
+
 def _cmd_render(
     template_path: Path,
     *,
@@ -211,6 +268,7 @@ def _cmd_render(
     mode: str,
     stream: bool = False,
     stream_delay: float = 0.02,
+    explain: bool = False,
 ) -> int:
     """Render a single template to stdout."""
     import json
@@ -284,6 +342,9 @@ def _cmd_render(
         env = Environment(loader=FileSystemLoader(str(template_dir)))
 
     tpl = env.get_template(template_name)
+
+    if explain:
+        _print_explain(env, tpl)
 
     try:
         if stream:
@@ -398,6 +459,11 @@ def main(argv: list[str] | None = None) -> int:
         metavar="SECONDS",
         help="Delay between stream chunks (default: 0.02s, requires --stream)",
     )
+    p_render.add_argument(
+        "--explain",
+        action="store_true",
+        help="Show which compile-time optimizations were applied",
+    )
 
     p_fmt = sub.add_parser(
         "fmt",
@@ -441,6 +507,7 @@ def main(argv: list[str] | None = None) -> int:
             mode=args.mode,
             stream=args.stream,
             stream_delay=args.stream_delay,
+            explain=args.explain,
         )
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)

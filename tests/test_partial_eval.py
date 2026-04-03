@@ -364,3 +364,213 @@ class TestEdgeCases:
             static_context={"x": 21},
         )
         assert tmpl.render() == "42"
+
+
+class TestExtendedFilterFolding:
+    """Filters from PURE_FILTERS_ALL (not just COALESCEABLE) fold at compile time."""
+
+    def test_sort_filter(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ items | sort | join(', ') }}",
+            static_context={"items": [3, 1, 2]},
+        )
+        assert tmpl.render() == "1, 2, 3"
+
+    def test_reverse_filter(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ items | reverse | join(', ') }}",
+            static_context={"items": ["a", "b", "c"]},
+        )
+        assert tmpl.render() == "c, b, a"
+
+    def test_abs_filter(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ val | abs }}",
+            static_context={"val": -42},
+        )
+        assert tmpl.render() == "42"
+
+    def test_round_filter(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ val | round(1) }}",
+            static_context={"val": 3.14159},
+        )
+        assert tmpl.render() == "3.1"
+
+    def test_replace_filter(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ text | replace('world', 'kida') }}",
+            static_context={"text": "hello world"},
+        )
+        assert tmpl.render() == "hello kida"
+
+    def test_wordcount_filter(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ text | wordcount }}",
+            static_context={"text": "one two three"},
+        )
+        assert tmpl.render() == "3"
+
+    def test_chained_extended_filters(self):
+        """Multiple PURE_FILTERS_ALL filters chain correctly."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ items | sort | reverse | first }}",
+            static_context={"items": [1, 3, 2]},
+        )
+        assert tmpl.render() == "3"
+
+
+class TestNullCoalescePartialEval:
+    """Null coalescing (??) is evaluated at compile time."""
+
+    def test_null_coalesce_left_defined(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{{ name ?? "Anonymous" }}',
+            static_context={"name": "Alice"},
+        )
+        assert tmpl.render() == "Alice"
+
+    def test_null_coalesce_left_none(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{{ name ?? "Anonymous" }}',
+            static_context={"name": None},
+        )
+        assert tmpl.render() == "Anonymous"
+
+    def test_null_coalesce_mixed_context(self):
+        """Static left, dynamic right — left wins, right never evaluated."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ title ?? fallback }}",
+            static_context={"title": "Static Title"},
+        )
+        assert tmpl.render(fallback="Dynamic") == "Static Title"
+
+
+class TestSafePipelinePartialEval:
+    """Safe pipeline (?|>) None-propagation at compile time."""
+
+    def test_safe_pipeline_with_value(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ name ?|> upper ?|> trim }}",
+            static_context={"name": " hello "},
+        )
+        assert tmpl.render() == "HELLO"
+
+    def test_safe_pipeline_none_propagates(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{{ name ?|> upper ?? "N/A" }}',
+            static_context={"name": None},
+        )
+        assert tmpl.render() == "N/A"
+
+
+class TestOptionalFilterPartialEval:
+    """Optional filter (?|) skips filter when value is None."""
+
+    def test_optional_filter_with_value(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ name ?| upper }}",
+            static_context={"name": "hello"},
+        )
+        assert tmpl.render() == "HELLO"
+
+    def test_optional_filter_none_passthrough(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{{ name ?| upper ?? "N/A" }}',
+            static_context={"name": None},
+        )
+        assert tmpl.render() == "N/A"
+
+
+class TestMarkSafePartialEval:
+    """MarkSafe (| safe) is unwrapped for compile-time evaluation."""
+
+    def test_safe_filter_folds(self):
+        env = Environment(autoescape=True)
+        tmpl = env.from_string(
+            "{{ content | safe }}",
+            static_context={"content": "<b>bold</b>"},
+        )
+        assert tmpl.render() == "<b>bold</b>"
+
+
+def _inline_env() -> Environment:
+    return Environment(autoescape=False, inline_components=True)
+
+
+class TestComponentInlining:
+    """Small defs with constant args are inlined at compile time."""
+
+    def test_simple_inline(self):
+        """A def called with all-static args is inlined."""
+        env = _inline_env()
+        tmpl = env.from_string(
+            '{% def greeting(name) %}Hello, {{ name }}!{% end %}{{ greeting("World") }}',
+            static_context={"_placeholder": True},  # Need static_context to trigger
+        )
+        assert tmpl.render() == "Hello, World!"
+
+    def test_inline_with_defaults(self):
+        """Default params are resolved at compile time."""
+        env = _inline_env()
+        tmpl = env.from_string(
+            '{% def tag(text, cls="default") %}'
+            '<span class="{{ cls }}">{{ text }}</span>'
+            "{% end %}"
+            '{{ tag("hi") }}',
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == '<span class="default">hi</span>'
+
+    def test_inline_with_static_context(self):
+        """Def body references static context vars."""
+        env = _inline_env()
+        tmpl = env.from_string(
+            "{% def header() %}<h1>{{ site_name }}</h1>{% end %}{{ header() }}",
+            static_context={"site_name": "Kida"},
+        )
+        assert tmpl.render() == "<h1>Kida</h1>"
+
+    def test_no_inline_with_slots(self):
+        """Defs with slots are NOT inlined (too complex)."""
+        env = _inline_env()
+        tmpl = env.from_string(
+            "{% def card(title) %}<div>{{ title }}{% slot %}</div>{% end %}"
+            "{% call card('X') %}content{% end %}",
+            static_context={"_placeholder": True},
+        )
+        # Should still work, just not inlined
+        assert "X" in tmpl.render()
+
+    def test_no_inline_without_flag(self):
+        """Inlining is off by default."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% def greeting(name) %}Hello, {{ name }}!{% end %}{{ greeting("World") }}',
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "Hello, World!"
+
+    def test_inline_with_dynamic_args_skipped(self):
+        """Calls with dynamic args are not inlined."""
+        env = _inline_env()
+        tmpl = env.from_string(
+            "{% def greeting(name) %}Hello, {{ name }}!{% end %}{{ greeting(user_name) }}",
+            static_context={"_placeholder": True},
+        )
+        # Dynamic arg — falls back to runtime
+        assert tmpl.render(user_name="Alice") == "Hello, Alice!"

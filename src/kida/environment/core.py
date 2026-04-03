@@ -215,6 +215,12 @@ class Environment:
     # Filters in this set are assumed to have no side effects and can be coalesced
     pure_filters: set[str] = field(default_factory=set)
 
+    # Component inlining (Phase 1.3: Compiler Intelligence)
+    # When True, small {% def %} calls with all-constant arguments are expanded
+    # inline at compile time during partial evaluation. Eliminates function call
+    # overhead and enables further f-string coalescing of the inlined output.
+    inline_components: bool = False
+
     # HTMX integration (Feature 1.1: HTMX Context Detection)
     # When True (default), registers HTMX helper globals:
     #   - hx_request(), hx_target(), hx_trigger(), hx_boosted()
@@ -722,6 +728,7 @@ class Environment:
                 static_context,
                 pure_filters=frozenset(self.pure_filters),
                 filter_callables=self._filters,
+                inline_components=self.inline_components,
             )
 
         # Call-site validation (RFC: typed-def-parameters)
