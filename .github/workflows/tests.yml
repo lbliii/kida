@@ -10,6 +10,10 @@ on:
     - cron: '0 2 * * 0'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -63,7 +67,7 @@ jobs:
         continue-on-error: true
 
       - name: Get changed files
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         id: changed
         run: |
           FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null | grep '\.py$' || true)
@@ -80,7 +84,7 @@ jobs:
           template: pytest
           data: reports/pytest.xml
           data-format: junit-xml
-          post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
+          post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
           comment-header: CI Report
           python-version: skip
           install: 'false'
@@ -93,7 +97,7 @@ jobs:
         with:
           template: coverage
           data: reports/coverage.json
-          post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
+          post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
           comment-header: CI Report
           comment-mode: append
           context: "${{ steps.changed.outputs.files && format('{0}{1}{2}', '{\"changed_files\": ', steps.changed.outputs.files, '}') || '' }}"
@@ -149,7 +153,7 @@ jobs:
           template: ty
           data: reports/ty.xml
           data-format: junit-xml
-          post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
+          post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
           comment-header: CI Report
           comment-mode: append
           python-version: skip
@@ -197,7 +201,7 @@ jobs:
         with:
           template: ruff
           data: reports/ruff.json
-          post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
+          post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
           comment-header: CI Report
           comment-mode: append
           python-version: skip
