@@ -37,9 +37,9 @@ inputs:
     required: false
     default: ${{ github.token }}
   python-version:
-    description: 'Python version to use (must be 3.14+). Set to "skip" to skip Python setup.'
+    description: 'Python version to use (3.12+). Set to "skip" to skip Python setup.'
     required: false
-    default: '3.14'
+    default: '3.12'
   install:
     description: 'Whether to install kida via pip. Set to "false" if kida is already available.'
     required: false
@@ -48,6 +48,26 @@ inputs:
     description: 'Command to invoke kida (e.g., "uv run kida" for local dev). Default: "kida".'
     required: false
     default: 'kida'
+  fail-under:
+    description: >
+      Optional numeric threshold. If the data contains a top-level percent_covered
+      (coverage) or a computed pass rate (junit-xml) below this value, the step fails.
+      Ignored when empty.
+    required: false
+    default: ''
+  comment-mode:
+    description: >
+      How to handle existing PR comments with the same header.
+      "replace" overwrites the comment (default). "append" adds a new section below
+      the existing content, useful for combining multiple reports into one comment.
+    required: false
+    default: 'replace'
+  context:
+    description: >
+      Optional JSON string with extra template variables merged into the data context.
+      Example: '{"changed_files": ["src/foo.py", "src/bar.py"]}'
+    required: false
+    default: ''
 
 outputs:
   report:
@@ -100,10 +120,26 @@ runs:
       run: |
         OUTPUT_FILE="$(mktemp)"
 
+        # Build --set flags from context JSON
+        SET_FLAGS=""
+        CONTEXT='${{ inputs.context }}'
+        if [[ -n "$CONTEXT" ]]; then
+          # Parse JSON object keys into --set key=value flags
+          while IFS='=' read -r key value; do
+            SET_FLAGS="$SET_FLAGS --set $key=$value"
+          done < <(echo "$CONTEXT" | python3 -c "
+        import json, sys
+        ctx = json.load(sys.stdin)
+        for k, v in ctx.items():
+            print(f'{k}={json.dumps(v)}')
+        " 2>/dev/null || true)
+        fi
+
         ${{ inputs.kida-command }} render "${{ steps.resolve.outputs.template }}" \
           --data "${{ inputs.data }}" \
           --data-format "${{ inputs.data-format }}" \
           --mode markdown \
+          $SET_FLAGS \
           > "$OUTPUT_FILE"
 
         # Set output (handle multiline)
@@ -127,6 +163,7 @@ runs:
         POST_TO="${{ inputs.post-to }}"
         TEMPLATE="${{ inputs.template }}"
         HEADER="${{ inputs.comment-header }}"
+        COMMENT_MODE="${{ inputs.comment-mode }}"
 
         # Default header to template name
         if [[ -z "$HEADER" ]]; then
@@ -157,17 +194,33 @@ runs:
             echo "::warning::post-to includes pr-comment but this is not a pull request event. Skipping."
           else
             MARKER="<!-- kida-report: ${HEADER} -->"
-            BODY="${MARKER}
-        $(cat "$OUTPUT_FILE")"
+            NEW_CONTENT="$(cat "$OUTPUT_FILE")"
 
             # Look for an existing comment with our marker (use --arg for safe interpolation)
-            EXISTING_ID=$(gh api \
+            EXISTING=$(gh api \
               "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
               --paginate --jq '.[] | {id, body}' \
-              2>/dev/null | jq -r --arg marker "$MARKER" 'select(.body | startswith($marker)) | .id' | head -1)
+              2>/dev/null | jq -r --arg marker "$MARKER" 'select(.body | startswith($marker)) | "\(.id)\t\(.body)"' | head -1)
 
-            if [[ -n "$EXISTING_ID" ]]; then
-              # Update existing comment
+            EXISTING_ID=$(echo "$EXISTING" | cut -f1)
+            EXISTING_BODY=$(echo "$EXISTING" | cut -f2-)
+
+            if [[ -n "$EXISTING_ID" && "$COMMENT_MODE" == "append" ]]; then
+              # Append: add new content below existing body
+              BODY="${EXISTING_BODY}
+
+        ---
+
+        ${NEW_CONTENT}"
+              gh api \
+                "repos/${{ github.repository }}/issues/comments/${EXISTING_ID}" \
+                -X PATCH -f body="$BODY" --silent
+              echo "Appended to PR comment $EXISTING_ID"
+              echo "comment-id=$EXISTING_ID" >> "$GITHUB_OUTPUT"
+            elif [[ -n "$EXISTING_ID" ]]; then
+              # Replace: overwrite with new content
+              BODY="${MARKER}
+        ${NEW_CONTENT}"
               gh api \
                 "repos/${{ github.repository }}/issues/comments/${EXISTING_ID}" \
                 -X PATCH -f body="$BODY" --silent
@@ -175,6 +228,8 @@ runs:
               echo "comment-id=$EXISTING_ID" >> "$GITHUB_OUTPUT"
             else
               # Create new comment
+              BODY="${MARKER}
+        ${NEW_CONTENT}"
               COMMENT_ID=$(gh api \
                 "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
                 -f body="$BODY" --jq '.id')
@@ -186,3 +241,59 @@ runs:
 
         # Clean up
         rm -f "$OUTPUT_FILE"
+
+    - name: Check fail-under threshold
+      if: inputs.fail-under != ''
+      shell: bash
+      run: |
+        THRESHOLD="${{ inputs.fail-under }}"
+        DATA_FILE="${{ inputs.data }}"
+        DATA_FORMAT="${{ inputs.data-format }}"
+
+        # Extract the relevant metric based on data format
+        if [[ "$DATA_FORMAT" == "junit-xml" ]]; then
+          # Compute pass rate from JUnit XML
+          METRIC=$(python3 -c "
+        import xml.etree.ElementTree as ET, sys
+        tree = ET.parse('$DATA_FILE')
+        root = tree.getroot()
+        suites = root.findall('.//testsuite') if root.tag == 'testsuites' else [root]
+        total = sum(int(s.get('tests', 0)) for s in suites)
+        failures = sum(int(s.get('failures', 0)) for s in suites)
+        errors = sum(int(s.get('errors', 0)) for s in suites)
+        rate = ((total - failures - errors) / total * 100) if total > 0 else 0
+        print(f'{rate:.1f}')
+        ")
+          LABEL="pass rate"
+        elif [[ "$DATA_FORMAT" == "lcov" ]]; then
+          METRIC=$(python3 -c "
+        found = hit = 0
+        for line in open('$DATA_FILE'):
+            if line.startswith('LF:'): found += int(line.split(':')[1])
+            elif line.startswith('LH:'): hit += int(line.split(':')[1])
+        print(f'{(hit/found*100) if found else 0:.1f}')
+        ")
+          LABEL="line coverage"
+        else
+          # JSON: look for percent_covered at top level or in totals
+          METRIC=$(python3 -c "
+        import json
+        d = json.load(open('$DATA_FILE'))
+        pct = d.get('percent_covered') or (d.get('totals', {}).get('percent_covered'))
+        print(f'{float(pct):.1f}' if pct is not None else '')
+        ")
+          LABEL="coverage"
+        fi
+
+        if [[ -z "$METRIC" ]]; then
+          echo "::warning::fail-under set but no metric found in data — skipping threshold check"
+          exit 0
+        fi
+
+        PASS=$(python3 -c "print('yes' if float('$METRIC') >= float('$THRESHOLD') else 'no')")
+        if [[ "$PASS" == "no" ]]; then
+          echo "::error::${LABEL} ${METRIC}% is below threshold ${THRESHOLD}%"
+          exit 1
+        else
+          echo "${LABEL} ${METRIC}% meets threshold ${THRESHOLD}%"
+        fi

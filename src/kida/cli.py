@@ -267,6 +267,7 @@ def _cmd_render(
     stream: bool = False,
     stream_delay: float = 0.02,
     explain: bool = False,
+    set_vars: list[str] | None = None,
 ) -> int:
     """Render a single template to stdout."""
     import json
@@ -315,6 +316,17 @@ def _cmd_render(
         except Exception as e:
             print(f"kida render: invalid JSON: {e}", file=sys.stderr)
             return 2
+
+    # Merge --set key=value overrides
+    for item in set_vars or []:
+        if "=" not in item:
+            print(f"kida render: --set requires KEY=VALUE, got: {item}", file=sys.stderr)
+            return 2
+        key, raw = item.split("=", 1)
+        try:
+            context[key] = json.loads(raw)
+        except ValueError:
+            context[key] = raw
 
     # Build environment
     template_dir = template_path.parent
@@ -462,6 +474,13 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Show which compile-time optimizations were applied",
     )
+    p_render.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Set extra template variables (value is parsed as JSON, falls back to string). Repeatable.",
+    )
 
     p_fmt = sub.add_parser(
         "fmt",
@@ -506,6 +525,7 @@ def main(argv: list[str] | None = None) -> int:
             stream=args.stream,
             stream_delay=args.stream_delay,
             explain=args.explain,
+            set_vars=args.set,
         )
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)

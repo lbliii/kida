@@ -10,6 +10,10 @@ on:
     - cron: '0 2 * * 0'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -62,6 +66,17 @@ jobs:
             --junitxml=reports/pytest.xml
         continue-on-error: true
 
+      - name: Get changed files
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        id: changed
+        run: |
+          FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null | grep '\.py$' || true)
+          # Build JSON array
+          JSON=$(echo "$FILES" | python3 -c "import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))")
+          echo "files=$JSON" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Render test report
         if: always()
         uses: ./
@@ -69,7 +84,8 @@ jobs:
           template: pytest
           data: reports/pytest.xml
           data-format: junit-xml
-          post-to: step-summary
+          post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
+          comment-header: CI Report
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -81,7 +97,10 @@ jobs:
         with:
           template: coverage
           data: reports/coverage.json
-          post-to: step-summary
+          post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
+          comment-header: CI Report
+          comment-mode: append
+          context: "${{ steps.changed.outputs.files && format('{0}{1}{2}', '{\"changed_files\": ', steps.changed.outputs.files, '}') || '' }}"
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -134,7 +153,9 @@ jobs:
           template: ty
           data: reports/ty.xml
           data-format: junit-xml
-          post-to: step-summary
+          post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
+          comment-header: CI Report
+          comment-mode: append
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -180,7 +201,9 @@ jobs:
         with:
           template: ruff
           data: reports/ruff.json
-          post-to: step-summary
+          post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
+          comment-header: CI Report
+          comment-mode: append
           python-version: skip
           install: 'false'
           kida-command: uv run kida
