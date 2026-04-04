@@ -69,7 +69,7 @@ jobs:
           template: pytest
           data: reports/pytest.xml
           data-format: junit-xml
-          post-to: step-summary
+          post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -81,7 +81,7 @@ jobs:
         with:
           template: coverage
           data: reports/coverage.json
-          post-to: step-summary
+          post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -134,7 +134,7 @@ jobs:
           template: ty
           data: reports/ty.xml
           data-format: junit-xml
-          post-to: step-summary
+          post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -180,7 +180,7 @@ jobs:
         with:
           template: ruff
           data: reports/ruff.json
-          post-to: step-summary
+          post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
           python-version: skip
           install: 'false'
           kida-command: uv run kida
