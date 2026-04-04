@@ -62,6 +62,17 @@ jobs:
             --junitxml=reports/pytest.xml
         continue-on-error: true
 
+      - name: Get changed files
+        if: always() && github.event_name == 'pull_request'
+        id: changed
+        run: |
+          FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null | grep '\.py$' || true)
+          # Build JSON array
+          JSON=$(echo "$FILES" | python3 -c "import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))")
+          echo "files=$JSON" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Render test report
         if: always()
         uses: ./
@@ -70,6 +81,7 @@ jobs:
           data: reports/pytest.xml
           data-format: junit-xml
           post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
+          comment-header: CI Report
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -82,6 +94,9 @@ jobs:
           template: coverage
           data: reports/coverage.json
           post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
+          comment-header: CI Report
+          comment-mode: append
+          context: "${{ steps.changed.outputs.files && format('{0}{1}{2}', '{\"changed_files\": ', steps.changed.outputs.files, '}') || '' }}"
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -135,6 +150,8 @@ jobs:
           data: reports/ty.xml
           data-format: junit-xml
           post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
+          comment-header: CI Report
+          comment-mode: append
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -181,6 +198,8 @@ jobs:
           template: ruff
           data: reports/ruff.json
           post-to: ${{ github.event_name == 'pull_request' && 'step-summary,pr-comment' || 'step-summary' }}
+          comment-header: CI Report
+          comment-mode: append
           python-version: skip
           install: 'false'
           kida-command: uv run kida
