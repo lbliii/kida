@@ -385,6 +385,93 @@ class TestBoxSet:
 
 
 # =============================================================================
+# Syntax
+# =============================================================================
+
+
+class TestSyntaxFilter:
+    def test_json_keys_cyan(self, f_color):
+        result = f_color["syntax"]('{"name": "Alice"}', language="json")
+        assert "\033[36m" in result  # cyan for keys
+        assert isinstance(result, Styled)
+
+    def test_json_string_values_green(self, f_color):
+        result = f_color["syntax"]('{"name": "Alice"}', language="json")
+        assert "\033[32m" in result  # green for string values
+
+    def test_json_numbers_yellow(self, f_color):
+        result = f_color["syntax"]('{"age": 30}', language="json")
+        assert "\033[33m" in result  # yellow for numbers
+
+    def test_json_booleans_magenta(self, f_color):
+        result = f_color["syntax"]('{"active": true}', language="json")
+        assert "\033[35m" in result  # magenta for booleans
+
+    def test_json_null_magenta(self, f_color):
+        result = f_color["syntax"]('{"value": null}', language="json")
+        assert "\033[35m" in result  # magenta for null
+
+    def test_json_braces_dim(self, f_color):
+        result = f_color["syntax"]('{"a": 1}', language="json")
+        assert "\033[2m" in result  # dim for braces
+
+    def test_json_default_language(self, f_color):
+        """Default language parameter is json."""
+        result = f_color["syntax"]('{"x": 1}')
+        assert "\033[36m" in result  # cyan keys
+
+    def test_yaml_keys_cyan(self, f_color):
+        result = f_color["syntax"]("name: Alice", language="yaml")
+        assert "\033[36m" in result  # cyan for keys
+
+    def test_yaml_string_values_green(self, f_color):
+        result = f_color["syntax"]('name: "Alice"', language="yaml")
+        assert "\033[32m" in result  # green for string values
+
+    def test_yaml_numbers_yellow(self, f_color):
+        result = f_color["syntax"]("age: 30", language="yaml")
+        assert "\033[33m" in result  # yellow for numbers
+
+    def test_yaml_booleans_magenta(self, f_color):
+        result = f_color["syntax"]("active: true", language="yaml")
+        assert "\033[35m" in result  # magenta for booleans
+
+    def test_yaml_comments_dim(self, f_color):
+        result = f_color["syntax"]("# this is a comment", language="yaml")
+        assert "\033[2m" in result  # dim for comments
+
+    def test_yml_alias(self, f_color):
+        """'yml' is accepted as an alias for yaml."""
+        result = f_color["syntax"]("key: 42", language="yml")
+        assert "\033[36m" in result  # cyan for keys
+
+    def test_unknown_language_unstyled(self, f_color):
+        result = f_color["syntax"]("some content", language="unknown")
+        assert result == "some content"
+        assert "\033[" not in result
+        assert isinstance(result, Styled)
+
+    def test_no_color_returns_plain(self, f_nocolor):
+        result = f_nocolor["syntax"]('{"name": "Alice"}', language="json")
+        assert "\033[" not in result
+        assert result == '{"name": "Alice"}'
+        assert isinstance(result, Styled)
+
+    def test_multiline_json(self, f_color):
+        content = '{\n  "name": "Alice",\n  "age": 30\n}'
+        result = f_color["syntax"](content, language="json")
+        assert "\n" in result
+        assert "\033[36m" in result  # cyan keys
+        assert "\033[33m" in result  # yellow numbers
+
+    def test_multiline_yaml(self, f_color):
+        content = "name: Alice\nage: 30\n# comment"
+        result = f_color["syntax"](content, language="yaml")
+        assert "\n" in result
+        assert "\033[36m" in result  # cyan keys
+
+
+# =============================================================================
 # Integration: Environment with autoescape="terminal"
 # =============================================================================
 

@@ -1,7 +1,7 @@
 """Terminal style, layout, and data-rendering filters for Kida templates.
 
 Provides ANSI color/decoration filters, layout helpers (pad, table, tree),
-and data-display filters (badge, bar, kv) for terminal-mode output.
+and data-display filters (badge, bar, kv, syntax) for terminal-mode output.
 
 All style filters return ``Styled`` strings. The ``make_terminal_filters``
 factory produces a filter dict with closures bound to the caller's
@@ -11,6 +11,7 @@ color/unicode capabilities.
 from __future__ import annotations
 
 import difflib
+import re as _re
 from typing import Any
 
 from kida.utils.ansi_width import (
@@ -534,12 +535,105 @@ def make_terminal_filters(
 
     filters["diff"] = _filter_diff
 
+    # -----------------------------------------------------------------
+    # Data: syntax
+    # -----------------------------------------------------------------
+    def _filter_syntax(content: Any, language: str = "json") -> Styled:
+        text = str(content)
+        if not color:
+            return Styled(text)
+
+        lang = language.lower()
+        if lang == "json":
+            highlighted = _highlight_json(text)
+        elif lang in ("yaml", "yml"):
+            highlighted = _highlight_yaml(text)
+        else:
+            return Styled(text)
+        return Styled("\n".join(highlighted))
+
+    filters["syntax"] = _filter_syntax
+
     return filters
 
 
 # =============================================================================
 # Internal Helpers
 # =============================================================================
+
+
+# =============================================================================
+# Syntax Highlighting Helpers
+# =============================================================================
+
+# JSON: single combined pattern for one-pass tokenisation.
+_JSON_TOKEN = _re.compile(
+    r'(?P<key>"(?:[^"\\]|\\.)*")\s*:'  # key (string before colon)
+    r'|(?P<strval>"(?:[^"\\]|\\.)*")'  # string value
+    r"|\b(?P<boolnull>true|false|null)\b"  # bool / null
+    r"|(?P<number>-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)"  # number
+    r"|(?P<brace>[{}\[\],])"  # structural chars
+)
+
+# YAML patterns
+_YAML_COMMENT = _re.compile(r"(#.*)$")
+_YAML_KEY = _re.compile(r"^(\s*[\w.-]+)\s*:")
+_YAML_STRING_VAL = _re.compile(r":\s+(['\"].*?['\"])\s*$")
+_YAML_NUMBER_VAL = _re.compile(r":\s+(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*$")
+_YAML_BOOL_VAL = _re.compile(r":\s+(true|false|yes|no|on|off)\s*$", _re.IGNORECASE)
+
+
+def _sgr_wrap(code: int, text: str) -> str:
+    """Wrap text in SGR codes (raw string, not Styled)."""
+    return f"\033[{code}m{text}\033[0m"
+
+
+def _highlight_json(text: str) -> list[str]:
+    """Apply per-line regex highlighting for JSON (single-pass)."""
+
+    def _repl(m: _re.Match[str]) -> str:
+        if m.group("key"):
+            return _sgr_wrap(36, m.group("key")) + ":"
+        if m.group("strval"):
+            return _sgr_wrap(32, m.group("strval"))
+        if m.group("boolnull"):
+            return _sgr_wrap(35, m.group("boolnull"))
+        if m.group("number"):
+            return _sgr_wrap(33, m.group("number"))
+        if m.group("brace"):
+            return _sgr_wrap(2, m.group("brace"))
+        return m.group(0)  # pragma: no cover
+
+    return [_JSON_TOKEN.sub(_repl, line) for line in text.splitlines()]
+
+
+def _highlight_yaml(text: str) -> list[str]:
+    """Apply per-line regex highlighting for YAML."""
+    lines: list[str] = []
+    for line in text.splitlines():
+        # Comments (dim) — handle first, skip further highlighting
+        cm = _YAML_COMMENT.search(line)
+        if cm and cm.start() == 0:
+            lines.append(_sgr_wrap(2, line))
+            continue
+
+        # Keys (cyan)
+        line = _YAML_KEY.sub(lambda m: _sgr_wrap(36, m.group(1)) + ":", line)
+        # String values (green)
+        line = _YAML_STRING_VAL.sub(lambda m: ": " + _sgr_wrap(32, m.group(1)), line)
+        # Booleans (magenta)
+        line = _YAML_BOOL_VAL.sub(lambda m: ": " + _sgr_wrap(35, m.group(1)), line)
+        # Numbers (yellow)
+        line = _YAML_NUMBER_VAL.sub(lambda m: ": " + _sgr_wrap(33, m.group(1)), line)
+
+        # Inline comment
+        if cm:
+            pre = line[: cm.start()]
+            comment = line[cm.start() :]
+            line = pre + _sgr_wrap(2, comment)
+
+        lines.append(line)
+    return lines
 
 
 def _get_box(style: str, use_unicode: bool) -> BoxChars:
