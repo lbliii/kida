@@ -1,0 +1,65 @@
+{
+  "agent": "Dependency Bot",
+  "risk": "medium",
+  "added": [
+    {
+      "name": "pydantic",
+      "version": "2.11.0",
+      "license": "MIT",
+      "size": "1.8 MB",
+      "transitive_count": 4,
+      "notes": "Used for schema validation in AMP protocol"
+    },
+    {
+      "name": "orjson",
+      "version": "3.10.15",
+      "license": "MIT OR Apache-2.0",
+      "size": "320 kB",
+      "transitive_count": 0,
+      "notes": "Fast JSON serialization for large PR data payloads"
+    }
+  ],
+  "updated": [
+    {
+      "name": "ruff",
+      "from": "0.9.0",
+      "to": "0.10.0",
+      "change_type": "minor",
+      "changelog_url": "https://github.com/astral-sh/ruff/releases/tag/0.10.0"
+    },
+    {
+      "name": "pytest",
+      "from": "8.3.0",
+      "to": "9.0.0",
+      "change_type": "major",
+      "changelog_url": "https://github.com/pytest-dev/pytest/releases/tag/9.0.0"
+    }
+  ],
+  "removed": [
+    {
+      "name": "deprecated-lib",
+      "version": "1.2.3",
+      "reason": "Replaced by stdlib equivalent in Python 3.14"
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "package": "pydantic",
+      "version": "2.11.0",
+      "severity": "medium",
+      "id": "GHSA-xxxx-yyyy-zzzz",
+      "cve": "CVE-2026-12345",
+      "title": "ReDoS in email validator",
+      "description": "A specially crafted email string can cause exponential backtracking in the email validation regex.",
+      "fix_version": "2.11.1",
+      "url": "https://github.com/advisories/GHSA-xxxx-yyyy-zzzz"
+    }
+  ],
+  "license_issues": [
+    {
+      "package": "hypothetical-gpl-lib",
+      "license": "GPL-3.0",
+      "reason": "GPL-3.0 is copyleft — incompatible with MIT-licensed projects without relicensing"
+    }
+  ]
+}
