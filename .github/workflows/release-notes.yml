@@ -16,7 +16,7 @@ jobs:
   release-notes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0  # full history for tag detection and diff stats
 
@@ -60,6 +60,7 @@ jobs:
       # ── Surface 3: Compact notes for changelog ─────────────────
       - name: Generate release notes (compact)
         uses: ./
+        id: compact
         with:
           template: release-notes-compact
           data: ${{ steps.markdown.outputs.data-file }}
@@ -69,3 +70,16 @@ jobs:
           install: 'false'
           python-version: 'skip'
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit changelog updates
+        if: steps.compact.outcome == 'success'
+        run: |
+          if git diff --quiet CHANGELOG.md 2>/dev/null; then
+            echo "No changelog changes to commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "docs: update CHANGELOG for ${{ steps.tag.outputs.tag }}"
+            git push
+          fi

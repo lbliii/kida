@@ -146,7 +146,8 @@
         "schema": "./code-review.schema.json",
         "description": "AI code review with file-level findings, severity, confidence, and suggested fixes.",
         "templates": {
-          "github": "code-review",
+          "github-pr-comment": "code-review",
+          "github-step-summary": "code-review",
           "terminal": "code-review"
         }
       },
@@ -154,37 +155,41 @@
         "schema": "./pr-summary.schema.json",
         "description": "Auto-generated pull request description with what/why/risk analysis.",
         "templates": {
-          "github": "pr-summary"
+          "github-pr-comment": "pr-summary",
+          "github-step-summary": "pr-summary"
         }
       },
       "deploy-preview": {
         "schema": "./deploy-preview.schema.json",
         "description": "Deploy status with URL, bundle size, and performance scores.",
         "templates": {
-          "github": "deploy-preview"
+          "github-pr-comment": "deploy-preview",
+          "github-step-summary": "deploy-preview"
         }
       },
       "dependency-review": {
         "schema": "./dependency-review.schema.json",
         "description": "Dependency changes with vulnerability, license, and supply chain analysis.",
         "templates": {
-          "github": "dependency-review"
+          "github-pr-comment": "dependency-review",
+          "github-step-summary": "dependency-review"
         }
       },
       "security-scan": {
         "schema": "./security-scan.schema.json",
         "description": "Security findings grouped by severity with CVE/CWE references and remediation.",
         "templates": {
-          "github": "security-scan"
+          "github-pr-comment": "security-scan",
+          "github-step-summary": "security-scan"
         }
       },
       "release-notes": {
         "schema": "./release-notes.schema.json",
         "description": "Release notes with categorized PRs, breaking changes, and contributor highlights.",
         "templates": {
-          "github": "release-notes",
-          "github-compact": "release-notes-compact",
-          "github-detailed": "release-notes-detailed",
+          "github-release": "release-notes",
+          "github-pr-comment": "release-notes-compact",
+          "github-step-summary": "release-notes",
           "terminal": "release-notes-terminal"
         }
       }

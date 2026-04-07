@@ -61,7 +61,7 @@
 
 | Metric | Score |
 | --- | --- |
-{% if perf -%}
+{% if perf is defined and perf is not none -%}
 {% if perf >= 90 -%}
 | Performance | {{ "pass" | badge }} **{{ perf }}** |
 {% elif perf >= 50 -%}
@@ -70,7 +70,7 @@
 | Performance | {{ "fail" | badge }} **{{ perf }}** |
 {% endif -%}
 {% endif -%}
-{% if a11y -%}
+{% if a11y is defined and a11y is not none -%}
 {% if a11y >= 90 -%}
 | Accessibility | {{ "pass" | badge }} **{{ a11y }}** |
 {% elif a11y >= 50 -%}
@@ -79,7 +79,7 @@
 | Accessibility | {{ "fail" | badge }} **{{ a11y }}** |
 {% endif -%}
 {% endif -%}
-{% if bp -%}
+{% if bp is defined and bp is not none -%}
 {% if bp >= 90 -%}
 | Best Practices | {{ "pass" | badge }} **{{ bp }}** |
 {% elif bp >= 50 -%}
@@ -88,7 +88,7 @@
 | Best Practices | {{ "fail" | badge }} **{{ bp }}** |
 {% endif -%}
 {% endif -%}
-{% if seo -%}
+{% if seo is defined and seo is not none -%}
 {% if seo >= 90 -%}
 | SEO | {{ "pass" | badge }} **{{ seo }}** |
 {% elif seo >= 50 -%}

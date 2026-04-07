@@ -203,34 +203,40 @@ runs:
         echo "Collecting PRs merged between $BASE_REF and $HEAD_REF"
 
         DATA_FILE="$(mktemp --suffix=.json)"
+        export REPO BASE_REF HEAD_REF DATA_FILE
 
-        python3 << 'COLLECT_EOF'
-        import json, subprocess, os, re, datetime
+        REPO="$REPO" BASE_REF="$BASE_REF" HEAD_REF="$HEAD_REF" DATA_FILE="$DATA_FILE" python3 << 'COLLECT_EOF'
+        import json, subprocess, os, re
+        from datetime import datetime, timezone
 
-        repo = os.environ.get('REPO', '')
-        base = os.environ.get('BASE_REF', '')
-        head = os.environ.get('HEAD_REF', '')
-        data_file = os.environ.get('DATA_FILE', '')
+        repo = os.environ['REPO']
+        base = os.environ['BASE_REF']
+        head = os.environ['HEAD_REF']
+        data_file = os.environ['DATA_FILE']
 
-        if not repo:
-            repo = '${{ github.repository }}'
-        if not base:
-            base = '$BASE_REF'
-        if not head:
-            head = '$HEAD_REF'
-        if not data_file:
-            data_file = '$DATA_FILE'
+        # ── Helpers ───────────────────────────────────────────────────
+        def parse_iso(value):
+            """Parse ISO-8601 timestamp to timezone-aware datetime."""
+            if not value:
+                return None
+            try:
+                return datetime.fromisoformat(value.replace('Z', '+00:00'))
+            except ValueError:
+                return None
 
-        # ── Collect merged PRs ────────────────────────────────────────
-        result = subprocess.run(
-            ['gh', 'pr', 'list', '--repo', repo, '--state', 'merged',
-             '--base', 'main', '--limit', '500',
-             '--json', 'number,title,author,labels,mergedAt,body,closingIssuesReferences'],
-            capture_output=True, text=True
-        )
-        all_prs = json.loads(result.stdout) if result.returncode == 0 else []
+        def default_branch(repo_name):
+            """Detect the repository's default branch."""
+            r = subprocess.run(
+                ['gh', 'repo', 'view', repo_name, '--json', 'defaultBranchRef'],
+                capture_output=True, text=True
+            )
+            if r.returncode != 0:
+                return 'main'
+            try:
+                return json.loads(r.stdout)['defaultBranchRef']['name']
+            except (KeyError, TypeError, json.JSONDecodeError):
+                return 'main'
 
-        # Date range from git refs
         def git_date(ref):
             r = subprocess.run(
                 ['git', 'log', '-1', '--format=%aI', ref],
@@ -238,14 +244,28 @@ runs:
             )
             return r.stdout.strip()
 
-        base_date = git_date(base)
-        head_date = git_date(head)
+        pr_base = default_branch(repo)
+
+        # ── Collect merged PRs ────────────────────────────────────────
+        result = subprocess.run(
+            ['gh', 'pr', 'list', '--repo', repo, '--state', 'merged',
+             '--base', pr_base, '--limit', '500',
+             '--json', 'number,title,author,labels,mergedAt,body,closingIssuesReferences'],
+            capture_output=True, text=True
+        )
+        all_prs = json.loads(result.stdout) if result.returncode == 0 else []
+
+        # Date range from git refs (timezone-aware)
+        base_date = parse_iso(git_date(base))
+        head_date = parse_iso(git_date(head))
 
         # ── Filter PRs by merge date ─────────────────────────────────
         filtered = []
         for pr in all_prs:
-            merged = pr.get('mergedAt', '')
-            if not merged or not (base_date <= merged <= head_date):
+            merged = parse_iso(pr.get('mergedAt', ''))
+            if not merged or not base_date or not head_date:
+                continue
+            if not (base_date <= merged <= head_date):
                 continue
 
             body = pr.get('body', '') or ''
@@ -430,7 +450,8 @@ runs:
         # ── Assemble output ──────────────────────────────────────────
         contributors = sorted(current_authors)
         compare_url = f'https://github.com/{repo}/compare/{base}...{head}'
-        release_date = datetime.date.today().isoformat()
+        import datetime as _dt
+        release_date = _dt.date.today().isoformat()
 
         output = {
             'version': version,
@@ -593,7 +614,7 @@ runs:
         fi
 
         # --- release ---
-        if echo "$POST_TO" | grep -q -w "release"; then
+        if [[ ",$POST_TO," == *",release,"* ]]; then
           RELEASE_TAG="${{ inputs.release-tag }}"
           if [[ -z "$RELEASE_TAG" ]]; then
             echo "::error::post-to includes release but release-tag is not set."
