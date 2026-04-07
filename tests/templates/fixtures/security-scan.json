@@ -1,0 +1,45 @@
+{
+  "tool": "Semgrep",
+  "status": "warn",
+  "summary": "Scanned 42 files. Found 3 issues: 1 high severity (hardcoded secret), 1 medium (path traversal), 1 low (debug logging). No critical findings.",
+  "repository": "lbliii/kida",
+  "sha": "f0daa1e",
+  "policy_status": "warn",
+  "findings": [
+    {
+      "id": "python.secrets.hardcoded-secret",
+      "rule": "python.lang.security.audit.hardcoded-secret",
+      "severity": "high",
+      "title": "Hardcoded secret in source",
+      "message": "A string that looks like an API key is assigned to a variable. Secrets should be loaded from environment variables or a secrets manager.",
+      "file": "examples/contrib/flask_app.py",
+      "line": 12,
+      "category": "exposure",
+      "cwe": "798",
+      "remediation": "Move the secret to an environment variable and load it with `os.environ.get('API_KEY')`.",
+      "diff": "- API_KEY = \"sk-abc123def456\"\n+ API_KEY = os.environ[\"API_KEY\"]"
+    },
+    {
+      "id": "python.path-traversal",
+      "rule": "python.lang.security.audit.path-traversal",
+      "severity": "medium",
+      "title": "Potential path traversal",
+      "message": "User input is passed to `open()` without sanitization. An attacker could read arbitrary files by passing `../../etc/passwd` as the template path.",
+      "file": "src/kida/cli.py",
+      "line": 275,
+      "category": "injection",
+      "cwe": "22",
+      "remediation": "Validate that the resolved path is within the expected directory using `Path.resolve()` and checking it starts with the root."
+    },
+    {
+      "id": "python.debug-logging",
+      "rule": "python.lang.security.audit.debug-logging",
+      "severity": "low",
+      "title": "Debug logging in production code",
+      "message": "A `print()` statement with potentially sensitive context data. Consider using the `logging` module with appropriate levels.",
+      "file": "src/kida/environment/core.py",
+      "line": 340,
+      "category": "exposure"
+    }
+  ]
+}

@@ -365,8 +365,8 @@ runs:
         prev_prs = json.loads(prev_result.stdout) if prev_result.returncode == 0 else []
         prior_authors = set()
         for pr in prev_prs:
-            merged = pr.get('mergedAt', '')
-            if merged and merged < base_date:
+            merged = parse_iso(pr.get('mergedAt', ''))
+            if merged and base_date and merged < base_date:
                 login = pr.get('author', {}).get('login', '')
                 if login:
                     prior_authors.add(login)
@@ -375,17 +375,39 @@ runs:
 
         # ── Direct commits (not from PRs) ────────────────────────────
         pr_merge_shas = set()
-        for pr in filtered:
-            # Get merge commit SHA for each PR
+        owner, name = repo.split('/', 1)
+        pr_numbers = [pr['number'] for pr in filtered]
+        chunk_size = 50
+        for i in range(0, len(pr_numbers), chunk_size):
+            chunk = pr_numbers[i:i + chunk_size]
+            aliases = []
+            for idx, number in enumerate(chunk):
+                aliases.append(
+                    f"pr{idx}: pullRequest(number: {int(number)}) "
+                    "{ mergeCommit { oid } }"
+                )
+            query = (
+                "query($owner: String!, $name: String!) { "
+                "repository(owner: $owner, name: $name) { "
+                + " ".join(aliases) +
+                " } }"
+            )
             r = subprocess.run(
-                ['gh', 'pr', 'view', str(pr['number']), '--repo', repo,
-                 '--json', 'mergeCommit'],
+                [
+                    'gh', 'api', 'graphql',
+                    '-f', f'query={query}',
+                    '-F', f'owner={owner}',
+                    '-F', f'name={name}',
+                ],
                 capture_output=True, text=True
             )
-            if r.returncode == 0:
-                mc = json.loads(r.stdout).get('mergeCommit', {})
-                if mc:
-                    pr_merge_shas.add(mc.get('oid', ''))
+            if r.returncode != 0:
+                continue
+            data = json.loads(r.stdout).get('data', {}).get('repository', {})
+            for value in data.values():
+                mc = value.get('mergeCommit') if value else None
+                if mc and mc.get('oid'):
+                    pr_merge_shas.add(mc['oid'])
 
         # Get all commits in range
         r = subprocess.run(

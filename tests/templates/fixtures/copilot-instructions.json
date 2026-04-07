@@ -1,0 +1,17 @@
+{
+  "project_name": "kida",
+  "language": "Python",
+  "frameworks": ["pytest", "asyncio"],
+  "test_command": "uv run pytest",
+  "lint_command": "uv run ruff check",
+  "build_command": "uv build",
+  "amp_schemas": ["code-review", "pr-summary"],
+  "review_categories": ["security", "bug", "performance", "style"],
+  "review_rules": ["Prefer immutable data structures", "Always type-annotate public APIs"],
+  "severity_guide": {
+    "error": "security vulnerabilities, data loss",
+    "warn": "logic bugs, missing validation",
+    "info": "code style, naming",
+    "suggestion": "optional improvements"
+  }
+}

@@ -106,6 +106,6 @@
 New direct dependencies pull in **{{ total_transitive }}** transitive dependencies.
 {% endif -%}
 {% if risk_level -%}
-Overall risk: {% if risk_level == "high" %}{{ "fail" | badge }}{% elif risk_level == "medium" %}{{ "warn" | badge }}{% else %}{{ "pass" | badge }}{% endif %} **{{ risk_level }}**
+Overall risk: {% if risk_level == "critical" or risk_level == "high" %}{{ "fail" | badge }}{% elif risk_level == "medium" %}{{ "warn" | badge }}{% else %}{{ "pass" | badge }}{% endif %} **{{ risk_level }}**
 {% endif %}
 {% endif -%}

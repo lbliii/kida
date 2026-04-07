@@ -52,13 +52,14 @@ jobs:
           # Agents like Claude Code may embed amp:type blocks in
           # the PR body itself.
           PR_NUMBER="${{ github.event.pull_request.number }}"
+          export PR_BODY
           PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body // ""')
 
           if [ -n "$PR_BODY" ]; then
             python3 << 'EXTRACT_EOF'
           import re, json, os
 
-          body = os.environ.get("PR_BODY", "")
+          body = os.environ["PR_BODY"]
           # Match ```amp:type ... ``` code blocks
           pattern = r'```amp:(\w[\w-]*)\s*\n(.*?)```'
           matches = re.findall(pattern, body, re.DOTALL)
@@ -173,8 +174,7 @@ jobs:
 
             # Post to PR comment with deduplication marker
             MARKER="<!-- amp:${MSG_TYPE} -->"
-            BODY="${MARKER}
-          ${OUTPUT}"
+            BODY=$(printf '%s\n%s' "$MARKER" "$OUTPUT")
 
             # Check for existing comment with this marker
             EXISTING_ID=$(gh api \

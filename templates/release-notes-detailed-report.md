@@ -35,12 +35,12 @@
 {% elif is_dep -%}
 {% set _ = categories["deps"]["items"].append(pr) -%}
 {% else -%}
-{% set matched = namespace(found=false) -%}
+{% set matched = {"found": false} -%}
 {% for prefix in ["feat", "fix", "perf", "docs", "refactor", "test", "ci", "chore"] -%}
 {% if not matched.found -%}
 {% if title_lower.startswith(prefix ~ ":") or title_lower.startswith(prefix ~ "(") or labels | select("equalto", prefix) | list | length > 0 -%}
 {% set _ = categories[prefix]["items"].append(pr) -%}
-{% set matched.found = true -%}
+{% set _ = matched.update({"found": true}) -%}
 {% endif -%}
 {% endif -%}
 {% endfor -%}
