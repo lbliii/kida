@@ -89,6 +89,7 @@ class CachedBlocksDict:
             self._record_hit()
             return wrapper
         # For non-cached blocks, use normal setdefault
+        self._record_miss()
         return self._original.setdefault(key, default)
 
     def __getitem__(self, key: str) -> BlockCallable | Any:
@@ -97,6 +98,7 @@ class CachedBlocksDict:
         if wrapper is not None:
             self._record_hit()
             return wrapper
+        self._record_miss()
         return self._original[key]
 
     def __setitem__(self, key: str, value: Any) -> None:
