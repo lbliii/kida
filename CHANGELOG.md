@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-04-07
+
+### Added
+
+- **`syntax()` terminal filter** — Regex-based JSON and YAML syntax highlighting for terminal rendering mode.
+- **PR comment support in GitHub Action** — CI reports can now be posted as pull request comments in addition to step summaries. Includes comment deduplication via `comment-header`, `comment-mode: append` for combining multiple reports into one comment, and extra template variables via the `context` input.
+
+### Fixed
+
+- **`CachedBlocksDict` miss tracking** — Fixed cache miss tracking so block lookups that miss are properly recorded; expanded test coverage for cached blocks, purity checks, and t-strings.
+
 ## [0.3.2] - 2026-04-03
 
 ### Added
