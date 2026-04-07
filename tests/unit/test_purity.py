@@ -533,9 +533,9 @@ class TestImpurityPropagation:
         node = CondExpr(L, C, test=_name_x, if_true=impure, if_false=_const_42)
         assert analyzer.analyze(node) == "impure"
 
-    def test_unknown_child_generic_visitor(self, analyzer: PurityAnalyzer) -> None:
-        """Nodes without explicit visitors fall through to _visit_children."""
-        # Capture with an impure body triggers the generic child walk
+    def test_impure_in_capture(self, analyzer: PurityAnalyzer) -> None:
+        """Capture propagates impurity from its body."""
+        # An impure node inside the capture body makes the capture impure.
         impure = Output(L, C, expr=Filter(L, C, value=_name_x, name="random"))
         node = Capture(L, C, name="x", body=[impure])
         assert analyzer.analyze(node) == "impure"
