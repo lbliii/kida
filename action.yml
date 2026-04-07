@@ -9,22 +9,69 @@ branding:
 inputs:
   template:
     description: >
-      Built-in template name (pytest, coverage, ruff, ty, jest, gotest, sarif) or
-      path to a custom template file in your repository.
+      Built-in template name (pytest, coverage, ruff, ty, jest, gotest, sarif,
+      release-notes, release-notes-compact, release-notes-detailed,
+      release-notes-terminal) or path to a custom template file.
     required: true
   data:
-    description: 'Path to the data file (JSON, JUnit XML, etc.)'
+    description: >
+      Path to a data file (JSON, JUnit XML, etc.) or "auto" to collect data
+      from the GitHub API (only for data-format: github-prs).
     required: true
   data-format:
-    description: 'Format of the data file (json, junit-xml, sarif, lcov)'
+    description: >
+      Format of the data file (json, junit-xml, sarif, lcov, github-prs).
+      github-prs collects merged pull requests between two git refs via the
+      GitHub API and produces JSON for release-notes templates.
     required: false
     default: 'json'
   post-to:
     description: >
       Where to post the rendered report. Comma-separated list of targets:
-      step-summary, pr-comment. Default: step-summary.
+      step-summary, pr-comment, release, release-asset, slack, changelog.
     required: false
     default: 'step-summary'
+  base-ref:
+    description: >
+      Base git ref for github-prs collection (tag, branch, or SHA).
+      When omitted, auto-detects the previous tag.
+    required: false
+    default: ''
+  head-ref:
+    description: >
+      Head git ref for github-prs collection. Default: current ref.
+    required: false
+    default: ''
+  release-tag:
+    description: >
+      Tag name for the GitHub Release when post-to includes "release" or
+      "release-asset". Required for those targets.
+    required: false
+    default: ''
+  asset-name:
+    description: >
+      Filename for the release asset when post-to includes "release-asset".
+      Default: "release-notes.md".
+    required: false
+    default: 'release-notes.md'
+  slack-webhook:
+    description: >
+      Slack incoming webhook URL for post-to: slack. The rendered report is
+      sent as the message text.
+    required: false
+    default: ''
+  changelog-path:
+    description: >
+      Path to the CHANGELOG.md file for post-to: changelog. The rendered
+      content is prepended under the [Unreleased] heading.
+    required: false
+    default: 'CHANGELOG.md'
+  render-mode:
+    description: >
+      Kida rendering mode: markdown (default), terminal, html.
+      Terminal mode enables ANSI colors and terminal filters.
+    required: false
+    default: 'markdown'
   comment-header:
     description: >
       Header text used to identify the PR comment for updates. When posting
@@ -76,6 +123,9 @@ outputs:
   comment-id:
     description: 'The ID of the created/updated PR comment (if post-to includes pr-comment)'
     value: ${{ steps.post.outputs.comment-id }}
+  data-file:
+    description: 'Path to the collected data JSON (github-prs only). Reuse in subsequent steps.'
+    value: ${{ steps.collect.outputs.data_file }}
 
 runs:
   using: 'composite'
@@ -114,11 +164,306 @@ runs:
         echo "::error::Template not found: $TEMPLATE (looked for file and built-in '${NAME}')"
         exit 1
 
+    - name: Collect GitHub PR data
+      id: collect
+      if: inputs.data-format == 'github-prs'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+
+        REPO="${{ github.repository }}"
+        BASE_REF="${{ inputs.base-ref }}"
+        HEAD_REF="${{ inputs.head-ref }}"
+        DATA_INPUT="${{ inputs.data }}"
+
+        # If data is a file (not "auto"), skip collection
+        if [[ "$DATA_INPUT" != "auto" && -f "$DATA_INPUT" ]]; then
+          echo "data_file=$DATA_INPUT" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Auto-detect head ref
+        if [[ -z "$HEAD_REF" ]]; then
+          HEAD_REF="${{ github.ref_name }}"
+        fi
+
+        # Auto-detect base ref (previous tag)
+        if [[ -z "$BASE_REF" ]]; then
+          BASE_REF=$(git tag --sort=-version:refname | grep -E '^v[0-9]' | head -2 | tail -1)
+          if [[ -z "$BASE_REF" ]]; then
+            echo "::warning::Could not auto-detect previous tag. Using first commit."
+            BASE_REF=$(git rev-list --max-parents=0 HEAD)
+          fi
+        fi
+
+        echo "Collecting PRs merged between $BASE_REF and $HEAD_REF"
+
+        DATA_FILE="$(mktemp --suffix=.json)"
+
+        python3 << 'COLLECT_EOF'
+        import json, subprocess, os, re, datetime
+
+        repo = os.environ.get('REPO', '')
+        base = os.environ.get('BASE_REF', '')
+        head = os.environ.get('HEAD_REF', '')
+        data_file = os.environ.get('DATA_FILE', '')
+
+        if not repo:
+            repo = '${{ github.repository }}'
+        if not base:
+            base = '$BASE_REF'
+        if not head:
+            head = '$HEAD_REF'
+        if not data_file:
+            data_file = '$DATA_FILE'
+
+        # ── Collect merged PRs ────────────────────────────────────────
+        result = subprocess.run(
+            ['gh', 'pr', 'list', '--repo', repo, '--state', 'merged',
+             '--base', 'main', '--limit', '500',
+             '--json', 'number,title,author,labels,mergedAt,body,closingIssuesReferences'],
+            capture_output=True, text=True
+        )
+        all_prs = json.loads(result.stdout) if result.returncode == 0 else []
+
+        # Date range from git refs
+        def git_date(ref):
+            r = subprocess.run(
+                ['git', 'log', '-1', '--format=%aI', ref],
+                capture_output=True, text=True
+            )
+            return r.stdout.strip()
+
+        base_date = git_date(base)
+        head_date = git_date(head)
+
+        # ── Filter PRs by merge date ─────────────────────────────────
+        filtered = []
+        for pr in all_prs:
+            merged = pr.get('mergedAt', '')
+            if not merged or not (base_date <= merged <= head_date):
+                continue
+
+            body = pr.get('body', '') or ''
+
+            # Extract <!-- release-note: ... --> marker
+            release_note = ''
+            rn_match = re.search(r'<!--\s*release-note:\s*(.+?)\s*-->', body)
+            if rn_match:
+                release_note = rn_match.group(1).strip()
+
+            # Extract first paragraph as body_excerpt (skip blank lines at top)
+            body_excerpt = ''
+            lines = body.strip().split('\n')
+            para = []
+            for line in lines:
+                # Skip HTML comments and blank lines at the start
+                if not para and (not line.strip() or line.strip().startswith('<!--')):
+                    if line.strip().startswith('<!--') and '-->' in line:
+                        continue
+                    continue
+                if not line.strip() and para:
+                    break
+                para.append(line)
+            if para:
+                excerpt = '\n'.join(para[:5])  # max 5 lines
+                if len(excerpt) > 300:
+                    excerpt = excerpt[:300] + '...'
+                body_excerpt = excerpt
+
+            # Linked issues from GitHub's closingIssuesReferences
+            linked_issues = []
+            for issue_ref in pr.get('closingIssuesReferences', []) or []:
+                linked_issues.append({
+                    'number': issue_ref.get('number', 0),
+                    'title': issue_ref.get('title', ''),
+                })
+
+            # Also parse "Fixes #123" / "Closes #456" from body
+            for m in re.finditer(r'(?:fix(?:es)?|close[sd]?|resolve[sd]?)\s+#(\d+)', body, re.I):
+                num = int(m.group(1))
+                if not any(i['number'] == num for i in linked_issues):
+                    linked_issues.append({'number': num, 'title': ''})
+
+            # Detect dependency updates and parse versions
+            author = pr.get('author', {}).get('login', '')
+            is_dep = author in ('dependabot[bot]', 'renovate[bot]', 'dependabot', 'renovate')
+            dep_updates = []
+            if is_dep:
+                # Try to parse "Bump foo from 1.0 to 2.0"
+                dep_match = re.search(
+                    r'[Bb]ump\s+(\S+)\s+from\s+(\S+)\s+to\s+(\S+)', pr.get('title', '')
+                )
+                if dep_match:
+                    dep_updates.append({
+                        'name': dep_match.group(1),
+                        'from': dep_match.group(2),
+                        'to': dep_match.group(3),
+                    })
+                # Renovate: "Update foo to v2.0"
+                ren_match = re.search(
+                    r'[Uu]pdate\s+(\S+)\s+to\s+v?(\S+)', pr.get('title', '')
+                )
+                if not dep_updates and ren_match:
+                    dep_updates.append({
+                        'name': ren_match.group(1),
+                        'from': '',
+                        'to': ren_match.group(2),
+                    })
+
+            filtered.append({
+                'number': pr['number'],
+                'title': pr['title'],
+                'author': author,
+                'labels': [l.get('name', '') for l in pr.get('labels', [])],
+                'body': body,
+                'body_excerpt': body_excerpt,
+                'release_note': release_note,
+                'linked_issues': linked_issues,
+                'dependency_updates': dep_updates,
+            })
+
+        # ── Version metadata ─────────────────────────────────────────
+        head_tag = head if head.startswith('v') else ''
+        version = head_tag.lstrip('v') if head_tag else head
+        prev_version = base.lstrip('v') if base.startswith('v') else base
+
+        # ── First-time contributors ──────────────────────────────────
+        current_authors = set(pr['author'] for pr in filtered if pr['author'])
+
+        # Get all authors from PRs merged before base_date
+        prev_result = subprocess.run(
+            ['gh', 'pr', 'list', '--repo', repo, '--state', 'merged',
+             '--base', 'main', '--limit', '1000',
+             '--json', 'author,mergedAt'],
+            capture_output=True, text=True
+        )
+        prev_prs = json.loads(prev_result.stdout) if prev_result.returncode == 0 else []
+        prior_authors = set()
+        for pr in prev_prs:
+            merged = pr.get('mergedAt', '')
+            if merged and merged < base_date:
+                login = pr.get('author', {}).get('login', '')
+                if login:
+                    prior_authors.add(login)
+
+        new_contributors = sorted(current_authors - prior_authors) if prior_authors else []
+
+        # ── Direct commits (not from PRs) ────────────────────────────
+        pr_merge_shas = set()
+        for pr in filtered:
+            # Get merge commit SHA for each PR
+            r = subprocess.run(
+                ['gh', 'pr', 'view', str(pr['number']), '--repo', repo,
+                 '--json', 'mergeCommit'],
+                capture_output=True, text=True
+            )
+            if r.returncode == 0:
+                mc = json.loads(r.stdout).get('mergeCommit', {})
+                if mc:
+                    pr_merge_shas.add(mc.get('oid', ''))
+
+        # Get all commits in range
+        r = subprocess.run(
+            ['git', 'log', '--format=%H\t%s\t%an', f'{base}..{head}'],
+            capture_output=True, text=True
+        )
+        direct_commits = []
+        for line in r.stdout.strip().split('\n'):
+            if not line.strip():
+                continue
+            parts = line.split('\t', 2)
+            if len(parts) < 3:
+                continue
+            sha, msg, author = parts
+            # Skip merge commits and commits that belong to PRs
+            if sha in pr_merge_shas:
+                continue
+            if msg.startswith('Merge pull request'):
+                continue
+            direct_commits.append({
+                'sha': sha,
+                'message': msg,
+                'author': author,
+            })
+
+        # ── Diff stats ───────────────────────────────────────────────
+        r = subprocess.run(
+            ['git', 'diff', '--shortstat', f'{base}..{head}'],
+            capture_output=True, text=True
+        )
+        diff_stats = {'files_changed': 0, 'insertions': 0, 'deletions': 0, 'new_files': []}
+        stat_line = r.stdout.strip()
+        if stat_line:
+            fm = re.search(r'(\d+)\s+files?\s+changed', stat_line)
+            im = re.search(r'(\d+)\s+insertions?', stat_line)
+            dm = re.search(r'(\d+)\s+deletions?', stat_line)
+            if fm: diff_stats['files_changed'] = int(fm.group(1))
+            if im: diff_stats['insertions'] = int(im.group(1))
+            if dm: diff_stats['deletions'] = int(dm.group(1))
+
+        # New files
+        r = subprocess.run(
+            ['git', 'diff', '--diff-filter=A', '--name-only', f'{base}..{head}'],
+            capture_output=True, text=True
+        )
+        if r.stdout.strip():
+            diff_stats['new_files'] = r.stdout.strip().split('\n')
+
+        # ── Benchmark deltas (if baselines exist) ────────────────────
+        benchmarks = {}
+        # Look for benchmark baseline files
+        import glob as _glob
+        baselines = _glob.glob('benchmarks/**/*_baseline.json', recursive=True)
+        if baselines:
+            try:
+                # Compare latest baseline against previous tag baseline
+                # This is repo-specific; provide empty structure if not available
+                benchmarks = {'deltas': []}
+            except Exception:
+                pass
+
+        # ── Assemble output ──────────────────────────────────────────
+        contributors = sorted(current_authors)
+        compare_url = f'https://github.com/{repo}/compare/{base}...{head}'
+        release_date = datetime.date.today().isoformat()
+
+        output = {
+            'version': version,
+            'previous_version': prev_version,
+            'release_date': release_date,
+            'repository': repo,
+            'pull_requests': filtered,
+            'contributors': contributors,
+            'new_contributors': new_contributors,
+            'compare_url': compare_url,
+            'diff_stats': diff_stats,
+            'direct_commits': direct_commits[:50],  # cap at 50
+            'benchmarks': benchmarks,
+        }
+
+        with open(data_file, 'w') as f:
+            json.dump(output, f, indent=2)
+
+        print(f'Collected {len(filtered)} PRs, {len(direct_commits)} direct commits')
+        print(f'  {len(new_contributors)} new contributor(s), {diff_stats["files_changed"]} files changed')
+        COLLECT_EOF
+
+        echo "data_file=$DATA_FILE" >> "$GITHUB_OUTPUT"
+
     - name: Render report
       id: render
       shell: bash
       run: |
         OUTPUT_FILE="$(mktemp)"
+
+        # Use collected data file if github-prs format
+        DATA_FILE="${{ inputs.data }}"
+        if [[ "${{ inputs.data-format }}" == "github-prs" ]]; then
+          DATA_FILE="${{ steps.collect.outputs.data_file }}"
+        fi
 
         # Build --set flags from context JSON
         SET_FLAGS=""
@@ -135,10 +480,16 @@ runs:
         " 2>/dev/null || true)
         fi
 
+        # Resolve data format for rendering (github-prs produces json)
+        RENDER_FORMAT="${{ inputs.data-format }}"
+        if [[ "$RENDER_FORMAT" == "github-prs" ]]; then
+          RENDER_FORMAT="json"
+        fi
+
         ${{ inputs.kida-command }} render "${{ steps.resolve.outputs.template }}" \
-          --data "${{ inputs.data }}" \
-          --data-format "${{ inputs.data-format }}" \
-          --mode markdown \
+          --data "$DATA_FILE" \
+          --data-format "$RENDER_FORMAT" \
+          --mode "${{ inputs.render-mode }}" \
           $SET_FLAGS \
           > "$OUTPUT_FILE"
 
@@ -239,6 +590,131 @@ runs:
           fi
         fi
 
+        # --- release ---
+        if echo "$POST_TO" | grep -q -w "release"; then
+          RELEASE_TAG="${{ inputs.release-tag }}"
+          if [[ -z "$RELEASE_TAG" ]]; then
+            echo "::error::post-to includes release but release-tag is not set."
+            exit 1
+          fi
+
+          RELEASE_BODY="$(cat "$OUTPUT_FILE")"
+
+          # Check if release exists
+          if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" &>/dev/null; then
+            gh release edit "$RELEASE_TAG" \
+              --repo "${{ github.repository }}" \
+              --notes "$RELEASE_BODY"
+            echo "Updated release $RELEASE_TAG"
+          else
+            gh release create "$RELEASE_TAG" \
+              --repo "${{ github.repository }}" \
+              --title "$RELEASE_TAG" \
+              --notes "$RELEASE_BODY"
+            echo "Created release $RELEASE_TAG"
+          fi
+        fi
+
+        # --- release-asset ---
+        if echo "$POST_TO" | grep -q "release-asset"; then
+          RELEASE_TAG="${{ inputs.release-tag }}"
+          ASSET_NAME="${{ inputs.asset-name }}"
+          if [[ -z "$RELEASE_TAG" ]]; then
+            echo "::error::post-to includes release-asset but release-tag is not set."
+            exit 1
+          fi
+
+          # Copy to a named file for upload
+          ASSET_FILE="$(mktemp -d)/${ASSET_NAME}"
+          cp "$OUTPUT_FILE" "$ASSET_FILE"
+
+          # Wait for release to exist (may have just been created above)
+          for i in 1 2 3; do
+            if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" &>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          # Delete existing asset with same name, then upload
+          gh release delete-asset "$RELEASE_TAG" "$ASSET_NAME" \
+            --repo "${{ github.repository }}" --yes 2>/dev/null || true
+          gh release upload "$RELEASE_TAG" "$ASSET_FILE" \
+            --repo "${{ github.repository }}"
+          echo "Uploaded release asset: $ASSET_NAME"
+          rm -f "$ASSET_FILE"
+        fi
+
+        # --- slack ---
+        if echo "$POST_TO" | grep -q "slack"; then
+          WEBHOOK="${{ inputs.slack-webhook }}"
+          if [[ -z "$WEBHOOK" ]]; then
+            echo "::error::post-to includes slack but slack-webhook is not set."
+            exit 1
+          fi
+
+          SLACK_TEXT="$(cat "$OUTPUT_FILE")"
+          # Truncate to Slack's 40k char limit
+          if [[ ${#SLACK_TEXT} -gt 39000 ]]; then
+            SLACK_TEXT="${SLACK_TEXT:0:39000}..."
+          fi
+
+          # Post to Slack via webhook
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "$WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            --data "$(python3 -c "
+        import json, sys
+        text = open('$OUTPUT_FILE').read()
+        if len(text) > 39000:
+            text = text[:39000] + '...'
+        print(json.dumps({'text': text}))
+        ")")
+
+          if [[ "$HTTP_CODE" == "200" ]]; then
+            echo "Posted to Slack"
+          else
+            echo "::warning::Slack webhook returned HTTP $HTTP_CODE"
+          fi
+        fi
+
+        # --- changelog ---
+        if echo "$POST_TO" | grep -q "changelog"; then
+          CHANGELOG="${{ inputs.changelog-path }}"
+          NEW_ENTRY="$(cat "$OUTPUT_FILE")"
+
+          if [[ -f "$CHANGELOG" ]]; then
+            # Insert after [Unreleased] heading (or at top if not found)
+            python3 -c "
+        import re
+
+        changelog = open('$CHANGELOG', 'r').read()
+        new_entry = open('$OUTPUT_FILE', 'r').read().strip()
+
+        # Find the [Unreleased] section and insert after it
+        pattern = r'(## \[Unreleased\].*?\n)'
+        match = re.search(pattern, changelog)
+        if match:
+            insert_pos = match.end()
+            updated = changelog[:insert_pos] + '\n' + new_entry + '\n\n' + changelog[insert_pos:]
+        else:
+            # No [Unreleased] heading — insert after first heading
+            first_h2 = changelog.find('\n## ')
+            if first_h2 >= 0:
+                updated = changelog[:first_h2+1] + new_entry + '\n\n' + changelog[first_h2+1:]
+            else:
+                updated = new_entry + '\n\n' + changelog
+
+        open('$CHANGELOG', 'w').write(updated)
+        "
+            echo "Updated $CHANGELOG"
+          else
+            # Create new changelog
+            cat "$OUTPUT_FILE" > "$CHANGELOG"
+            echo "Created $CHANGELOG"
+          fi
+        fi
+
         # Clean up
         rm -f "$OUTPUT_FILE"
 
@@ -249,6 +725,12 @@ runs:
         THRESHOLD="${{ inputs.fail-under }}"
         DATA_FILE="${{ inputs.data }}"
         DATA_FORMAT="${{ inputs.data-format }}"
+
+        # Skip for non-metric formats
+        if [[ "$DATA_FORMAT" == "github-prs" ]]; then
+          echo "::notice::fail-under is not applicable to github-prs format"
+          exit 0
+        fi
 
         # Extract the relevant metric based on data format
         if [[ "$DATA_FORMAT" == "junit-xml" ]]; then

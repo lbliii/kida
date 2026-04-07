@@ -1,0 +1,71 @@
+name: Release Notes
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v0.3.3)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for tag detection and diff stats
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Surface 1: GitHub Release body + step summary ──────────
+      - name: Generate release notes (markdown)
+        uses: ./
+        id: markdown
+        with:
+          template: release-notes
+          data: auto
+          data-format: github-prs
+          head-ref: ${{ steps.tag.outputs.tag }}
+          release-tag: ${{ steps.tag.outputs.tag }}
+          post-to: release,step-summary
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Surface 2: Terminal-formatted release asset ────────────
+      - name: Generate release notes (terminal)
+        uses: ./
+        with:
+          template: release-notes-terminal
+          data: ${{ steps.markdown.outputs.data-file }}
+          data-format: json
+          render-mode: terminal
+          release-tag: ${{ steps.tag.outputs.tag }}
+          asset-name: RELEASE-NOTES.txt
+          post-to: release-asset
+          install: 'false'
+          python-version: 'skip'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Surface 3: Compact notes for changelog ─────────────────
+      - name: Generate release notes (compact)
+        uses: ./
+        with:
+          template: release-notes-compact
+          data: ${{ steps.markdown.outputs.data-file }}
+          data-format: json
+          release-tag: ${{ steps.tag.outputs.tag }}
+          post-to: changelog
+          install: 'false'
+          python-version: 'skip'
+          token: ${{ secrets.GITHUB_TOKEN }}
