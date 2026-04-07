@@ -73,7 +73,7 @@ Turn pytest, coverage, ruff, and other tool output into step summaries and PR co
     post-to: step-summary,pr-comment
 ```
 
-Built-in templates for pytest, coverage, ruff, ty, jest, gotest, and sarif. [Full action docs &rarr;](#github-action)
+Built-in templates for pytest, coverage, ruff, ty, jest, gotest, and sarif. [Full action docs &rarr;](https://lbliii.github.io/kida/docs/usage/github-action/)
 
 ---
 
@@ -231,56 +231,6 @@ templates = KidaStarlette(directory="templates")
 # Django
 TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaDjango", ...}]
 ```
-
-</details>
-
-<details>
-<summary><strong>GitHub Action</strong></summary>
-
-#### Built-in templates
-
-| Template | Data format | Tool |
-|----------|-------------|------|
-| `pytest` | junit-xml | pytest `--junitxml` |
-| `coverage` | json | coverage.py `--json` or lcov |
-| `ruff` | json | ruff `--output-format json` |
-| `ty` | junit-xml | ty `--output-format junit` |
-| `jest` | json | jest `--json` |
-| `gotest` | junit-xml | go-junit-report |
-| `sarif` | sarif | CodeQL, Semgrep, Trivy, ESLint |
-
-#### PR comments with deduplication
-
-```yaml
-- name: Post coverage to PR
-  uses: lbliii/kida@v0.3.3
-  with:
-    template: coverage
-    data: coverage.json
-    post-to: step-summary,pr-comment
-```
-
-#### Custom templates
-
-```yaml
-- uses: lbliii/kida@v0.3.3
-  with:
-    template: .github/kida-templates/my-report.md
-    data: output.json
-```
-
-#### Inputs
-
-| Input | Default | Description |
-|-------|---------|-------------|
-| `template` | *(required)* | Built-in name or path to template file |
-| `data` | *(required)* | Path to data file |
-| `data-format` | `json` | `json`, `junit-xml`, `sarif`, or `lcov` |
-| `post-to` | `step-summary` | `step-summary`, `pr-comment`, or both |
-| `comment-header` | template name | Marker for PR comment deduplication |
-| `token` | `github.token` | GitHub token (needed for `pr-comment`) |
-| `python-version` | `3.14` | Python version (`skip` to use existing) |
-| `install` | `true` | Whether to `pip install kida-templates` |
 
 </details>
 
