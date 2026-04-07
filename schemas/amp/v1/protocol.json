@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbliii/kida/schemas/amp/v1/protocol.json",
+  "title": "Agent Message Protocol (AMP) v1",
+  "description": "Defines how AI agents express structured output for multi-surface rendering. AMP decouples message production (agents) from message presentation (renderers), enabling consistent, customizable, composable agent output across GitHub, Slack, terminal, and other surfaces.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1",
+      "description": "Protocol version"
+    },
+    "message_types": {
+      "type": "object",
+      "description": "Registry of AMP message types. Each type has a schema URI, a description, and a list of reference renderers (Kida templates).",
+      "additionalProperties": {
+        "$ref": "#/$defs/message_type"
+      }
+    },
+    "surfaces": {
+      "type": "object",
+      "description": "Rendering surfaces and their capabilities.",
+      "additionalProperties": {
+        "$ref": "#/$defs/surface"
+      }
+    },
+    "composition": {
+      "type": "object",
+      "description": "Rules for combining multiple agent messages.",
+      "properties": {
+        "modes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/composition_mode"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "message_type": {
+      "type": "object",
+      "required": ["schema", "description"],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "format": "uri-reference",
+          "description": "Relative path to the JSON Schema definition for this message type."
+        },
+        "description": {
+          "type": "string"
+        },
+        "templates": {
+          "type": "object",
+          "description": "Map of surface name to Kida template name (reference renderers).",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "supports_composition": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether multiple messages of this type can be composed."
+        }
+      }
+    },
+    "surface": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["markdown", "html", "ansi", "mrkdwn", "plain"],
+          "description": "Primary output format."
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "checkboxes": { "type": "boolean", "description": "Supports `- [ ]` task lists" },
+            "collapsible": { "type": "boolean", "description": "Supports <details>/<summary>" },
+            "alerts": { "type": "boolean", "description": "Supports > [!CAUTION] style alerts" },
+            "tables": { "type": "boolean", "description": "Supports GFM tables" },
+            "links": { "type": "boolean", "description": "Supports hyperlinks" },
+            "images": { "type": "boolean", "description": "Supports inline images" },
+            "code_blocks": { "type": "boolean", "description": "Supports fenced code blocks" },
+            "colors": { "type": "boolean", "description": "Supports ANSI colors" },
+            "emoji": { "type": "boolean", "description": "Supports emoji shortcodes" },
+            "max_length": { "type": "integer", "description": "Maximum message length in characters (0 = unlimited)" }
+          }
+        }
+      }
+    },
+    "composition_mode": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": { "type": "string" },
+        "deduplication": {
+          "type": "string",
+          "enum": ["none", "by_header", "by_agent", "by_type"],
+          "description": "How to identify existing messages for update."
+        },
+        "ordering": {
+          "type": "string",
+          "enum": ["append", "prepend", "by_severity", "by_agent"],
+          "description": "How composed sections are ordered."
+        }
+      }
+    },
+    "agent_metadata": {
+      "type": "object",
+      "description": "Standard metadata every AMP message MAY include to identify its source.",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "description": "Agent name (e.g., 'Claude', 'Copilot', 'custom-linter')"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier (e.g., 'claude-sonnet-4-20250514', 'gpt-4o')"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall confidence score for this message (0.0–1.0)"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of when the message was produced"
+        },
+        "run_id": {
+          "type": "string",
+          "description": "Unique identifier for this agent run (for deduplication and tracing)"
+        }
+      }
+    }
+  },
+  "default": {
+    "version": "1",
+    "message_types": {
+      "code-review": {
+        "schema": "./code-review.schema.json",
+        "description": "AI code review with file-level findings, severity, confidence, and suggested fixes.",
+        "templates": {
+          "github": "code-review",
+          "terminal": "code-review"
+        }
+      },
+      "pr-summary": {
+        "schema": "./pr-summary.schema.json",
+        "description": "Auto-generated pull request description with what/why/risk analysis.",
+        "templates": {
+          "github": "pr-summary"
+        }
+      },
+      "deploy-preview": {
+        "schema": "./deploy-preview.schema.json",
+        "description": "Deploy status with URL, bundle size, and performance scores.",
+        "templates": {
+          "github": "deploy-preview"
+        }
+      },
+      "dependency-review": {
+        "schema": "./dependency-review.schema.json",
+        "description": "Dependency changes with vulnerability, license, and supply chain analysis.",
+        "templates": {
+          "github": "dependency-review"
+        }
+      },
+      "security-scan": {
+        "schema": "./security-scan.schema.json",
+        "description": "Security findings grouped by severity with CVE/CWE references and remediation.",
+        "templates": {
+          "github": "security-scan"
+        }
+      },
+      "release-notes": {
+        "schema": "./release-notes.schema.json",
+        "description": "Release notes with categorized PRs, breaking changes, and contributor highlights.",
+        "templates": {
+          "github": "release-notes",
+          "github-compact": "release-notes-compact",
+          "github-detailed": "release-notes-detailed",
+          "terminal": "release-notes-terminal"
+        }
+      }
+    },
+    "surfaces": {
+      "github-pr-comment": {
+        "name": "GitHub PR Comment",
+        "format": "markdown",
+        "capabilities": {
+          "checkboxes": true,
+          "collapsible": true,
+          "alerts": true,
+          "tables": true,
+          "links": true,
+          "images": true,
+          "code_blocks": true,
+          "colors": false,
+          "emoji": true,
+          "max_length": 65536
+        }
+      },
+      "github-step-summary": {
+        "name": "GitHub Step Summary",
+        "format": "markdown",
+        "capabilities": {
+          "checkboxes": true,
+          "collapsible": true,
+          "alerts": true,
+          "tables": true,
+          "links": true,
+          "images": true,
+          "code_blocks": true,
+          "colors": false,
+          "emoji": true,
+          "max_length": 1048576
+        }
+      },
+      "github-release": {
+        "name": "GitHub Release Body",
+        "format": "markdown",
+        "capabilities": {
+          "checkboxes": false,
+          "collapsible": true,
+          "alerts": false,
+          "tables": true,
+          "links": true,
+          "images": true,
+          "code_blocks": true,
+          "colors": false,
+          "emoji": true,
+          "max_length": 125000
+        }
+      },
+      "slack": {
+        "name": "Slack Message",
+        "format": "mrkdwn",
+        "capabilities": {
+          "checkboxes": false,
+          "collapsible": false,
+          "alerts": false,
+          "tables": false,
+          "links": true,
+          "images": false,
+          "code_blocks": true,
+          "colors": false,
+          "emoji": true,
+          "max_length": 40000
+        }
+      },
+      "terminal": {
+        "name": "Terminal / CLI",
+        "format": "ansi",
+        "capabilities": {
+          "checkboxes": false,
+          "collapsible": false,
+          "alerts": false,
+          "tables": true,
+          "links": false,
+          "images": false,
+          "code_blocks": true,
+          "colors": true,
+          "emoji": true,
+          "max_length": 0
+        }
+      }
+    },
+    "composition": {
+      "modes": {
+        "replace": {
+          "description": "Latest message replaces any existing message with the same header/type.",
+          "deduplication": "by_header",
+          "ordering": "append"
+        },
+        "append": {
+          "description": "New message is appended below existing content, separated by a horizontal rule.",
+          "deduplication": "by_header",
+          "ordering": "append"
+        },
+        "thread": {
+          "description": "Each agent gets a collapsible section within a shared container comment.",
+          "deduplication": "by_agent",
+          "ordering": "by_agent"
+        },
+        "aggregate": {
+          "description": "Findings from multiple agents are merged, deduplicated by file+line, and sorted by severity.",
+          "deduplication": "by_type",
+          "ordering": "by_severity"
+        }
+      }
+    }
+  }
+}

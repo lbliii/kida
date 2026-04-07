@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbliii/kida/schemas/amp/v1/pr-summary.schema.json",
+  "title": "AMP PR Summary",
+  "description": "Auto-generated pull request description with what changed, why, risk areas, test coverage, and migration notes.",
+  "type": "object",
+  "properties": {
+    "agent": { "type": "string" },
+    "model": { "type": "string" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "title": {
+      "type": "string",
+      "description": "Suggested PR title"
+    },
+    "what_changed": {
+      "type": "string",
+      "description": "Description of what this PR changes (supports markdown)"
+    },
+    "why": {
+      "type": "string",
+      "description": "Motivation — why this change is being made"
+    },
+    "change_size": {
+      "type": "string",
+      "enum": ["trivial", "small", "medium", "large", "x-large"],
+      "description": "T-shirt size estimate of the change"
+    },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/file_change" },
+      "description": "Per-file change summaries"
+    },
+    "risk_areas": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string" },
+          { "$ref": "#/$defs/risk_area" }
+        ]
+      },
+      "description": "Areas of the codebase that may be affected or need extra review"
+    },
+    "breaking_changes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of breaking changes introduced by this PR"
+    },
+    "test_coverage": {
+      "type": "string",
+      "description": "Summary of test coverage for the changes (supports markdown)"
+    },
+    "migration_notes": {
+      "type": "string",
+      "description": "Database migration or upgrade notes"
+    },
+    "suggested_labels": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Suggested GitHub labels for this PR"
+    },
+    "suggested_reviewers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Suggested reviewer usernames based on code ownership"
+    },
+    "diff_stats": {
+      "type": "object",
+      "properties": {
+        "files_changed": { "type": "integer", "minimum": 0 },
+        "insertions": { "type": "integer", "minimum": 0 },
+        "deletions": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "file_change": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "description": "Relative file path" },
+        "change_type": {
+          "type": "string",
+          "enum": ["added", "modified", "deleted", "renamed", "copied"],
+          "default": "modified"
+        },
+        "summary": {
+          "type": "string",
+          "description": "One-line summary of what changed in this file"
+        }
+      }
+    },
+    "risk_area": {
+      "type": "object",
+      "required": ["area"],
+      "properties": {
+        "area": { "type": "string", "description": "Name of the risk area" },
+        "reason": { "type": "string", "description": "Why this area is risky" }
+      }
+    }
+  }
+}

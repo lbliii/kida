@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbliii/kida/schemas/amp/v1/dependency-review.schema.json",
+  "title": "AMP Dependency Review",
+  "description": "Dependency change analysis with vulnerability detection, license compliance, and supply chain risk assessment.",
+  "type": "object",
+  "properties": {
+    "agent": { "type": "string" },
+    "risk": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Overall risk level for the dependency changes"
+    },
+    "added": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/dependency" },
+      "description": "Newly added dependencies"
+    },
+    "updated": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/dependency_update" },
+      "description": "Updated dependencies"
+    },
+    "removed": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/dependency_removed" },
+      "description": "Removed dependencies"
+    },
+    "vulnerabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/vulnerability" },
+      "description": "Known vulnerabilities in added or updated dependencies"
+    },
+    "license_issues": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/license_issue" },
+      "description": "License compatibility concerns"
+    }
+  },
+  "$defs": {
+    "dependency": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "license": { "type": "string", "description": "SPDX license identifier" },
+        "size": { "type": "string", "description": "Package size (e.g., '1.2 MB')" },
+        "transitive_count": {
+          "type": "integer", "minimum": 0,
+          "description": "Number of transitive dependencies pulled in"
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "dependency_update": {
+      "type": "object",
+      "required": ["name", "from", "to"],
+      "properties": {
+        "name": { "type": "string" },
+        "from": { "type": "string", "description": "Previous version" },
+        "to": { "type": "string", "description": "New version" },
+        "change_type": {
+          "type": "string",
+          "enum": ["major", "minor", "patch", "pre"],
+          "description": "Semver change type"
+        },
+        "changelog_url": { "type": "string", "format": "uri" }
+      }
+    },
+    "dependency_removed": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "vulnerability": {
+      "type": "object",
+      "required": ["package", "severity"],
+      "properties": {
+        "package": { "type": "string" },
+        "version": { "type": "string" },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "id": { "type": "string", "description": "Advisory ID (e.g., GHSA-xxxx)" },
+        "cve": { "type": "string", "description": "CVE identifier" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "fix_version": { "type": "string", "description": "Version that fixes this vulnerability" },
+        "url": { "type": "string", "format": "uri", "description": "Advisory URL" }
+      }
+    },
+    "license_issue": {
+      "type": "object",
+      "required": ["package", "license"],
+      "properties": {
+        "package": { "type": "string" },
+        "license": { "type": "string", "description": "SPDX license identifier" },
+        "reason": { "type": "string", "description": "Why this license is a concern" }
+      }
+    }
+  }
+}

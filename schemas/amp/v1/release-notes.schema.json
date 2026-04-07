@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbliii/kida/schemas/amp/v1/release-notes.schema.json",
+  "title": "AMP Release Notes",
+  "description": "Release notes data with categorized pull requests, breaking changes, contributor highlights, dependency digests, diff stats, and benchmark deltas.",
+  "type": "object",
+  "properties": {
+    "version": { "type": "string", "description": "Release version (e.g., '1.2.0')" },
+    "previous_version": { "type": "string", "description": "Previous release version for comparison" },
+    "release_date": { "type": "string", "format": "date", "description": "Release date (YYYY-MM-DD)" },
+    "repository": { "type": "string", "description": "owner/repo" },
+    "compare_url": { "type": "string", "format": "uri", "description": "URL to full diff between versions" },
+    "pull_requests": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pull_request" }
+    },
+    "contributors": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "All contributors to this release (GitHub usernames)"
+    },
+    "new_contributors": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "First-time contributors in this release"
+    },
+    "direct_commits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/direct_commit" },
+      "description": "Commits pushed directly to the base branch (not via PR)"
+    },
+    "diff_stats": { "$ref": "#/$defs/diff_stats" },
+    "benchmarks": {
+      "type": "object",
+      "properties": {
+        "deltas": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/benchmark_delta" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "pull_request": {
+      "type": "object",
+      "required": ["title"],
+      "properties": {
+        "number": { "type": "integer" },
+        "title": { "type": "string" },
+        "author": { "type": "string", "description": "GitHub username" },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "body": {
+          "type": "string",
+          "description": "Full PR body (markdown)"
+        },
+        "body_excerpt": {
+          "type": "string",
+          "description": "First paragraph of the PR body (max 300 chars)"
+        },
+        "release_note": {
+          "type": "string",
+          "description": "Custom release note extracted from <!-- release-note: ... --> marker in PR body. When present, templates SHOULD use this instead of the PR title."
+        },
+        "linked_issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "number": { "type": "integer" },
+              "title": { "type": "string" }
+            }
+          }
+        },
+        "dependency_updates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "from": { "type": "string" },
+              "to": { "type": "string" }
+            }
+          },
+          "description": "Parsed dependency version bumps (for dependabot/renovate PRs)"
+        }
+      }
+    },
+    "direct_commit": {
+      "type": "object",
+      "required": ["sha", "message"],
+      "properties": {
+        "sha": { "type": "string" },
+        "message": { "type": "string" },
+        "author": { "type": "string" }
+      }
+    },
+    "diff_stats": {
+      "type": "object",
+      "properties": {
+        "files_changed": { "type": "integer", "minimum": 0 },
+        "insertions": { "type": "integer", "minimum": 0 },
+        "deletions": { "type": "integer", "minimum": 0 },
+        "new_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths of files added in this release"
+        }
+      }
+    },
+    "benchmark_delta": {
+      "type": "object",
+      "required": ["name", "change"],
+      "properties": {
+        "name": { "type": "string", "description": "Benchmark name" },
+        "change": {
+          "type": "number",
+          "description": "Percent change (negative = faster/better, positive = slower/worse)"
+        },
+        "previous": { "type": "string", "description": "Previous value (human-readable)" },
+        "current": { "type": "string", "description": "Current value (human-readable)" }
+      }
+    }
+  }
+}
