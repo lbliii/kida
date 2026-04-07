@@ -7,49 +7,6 @@
 
 **A template engine that compiles to Python AST, renders to HTML/terminal/markdown, and scales across cores on free-threaded Python.**
 
-```python
-from kida import Environment
-
-env = Environment()
-template = env.from_string("Hello, {{ name }}!")
-print(template.render(name="World"))
-# Hello, World!
-```
-
----
-
-## Why Kida
-
-Most template engines generate Python source code as strings, then `exec()` it. Kida compiles directly to `ast.Module` — the same structured representation Python itself uses. This unlocks compile-time optimization, precise error mapping, and safe concurrent rendering that string-based engines can't achieve.
-
-| | Kida | Jinja2 |
-|---|---|---|
-| **Compilation target** | Python AST (`ast.Module`) | Python source strings |
-| **Free-threading (PEP 703)** | Safe under `PYTHON_GIL=0` | Not tested/supported |
-| **Rendering modes** | `render()`, `render_stream()`, `render_block()`, async variants | `render()`, `generate()` |
-| **Compile-time optimization** | Constant folding, dead branch elimination, filter eval, component inlining | None |
-| **Terminal rendering** | Built-in (`autoescape="terminal"`) with 30+ ANSI-aware filters | None |
-| **Pattern matching** | `{% match %}` / `{% case %}` | None |
-| **Null safety** | `??`, `?.`, `?|>`, `?|`, `??=` | `| default` only |
-| **Components** | `{% def %}` + `{% slot %}` + named slots | Macros (no slots) |
-| **Regions** | `{% region name(params) %}` — parameterized blocks | None |
-| **Block rendering** | `render_block()`, `render_with_blocks()` | None (third-party) |
-| **Fragment caching** | `{% cache "key" %}` built-in | Extension required |
-
-### Performance
-
-| Template complexity | Kida | vs Jinja2 |
-|---|---|---|
-| Minimal (~4µs) | Baseline | ~1x |
-| Small loop + filter (~7µs) | Baseline | ~1x |
-| Medium ~100 vars (~0.2ms) | Baseline | ~1.3x faster |
-| Large 1000-item loop (~1.6ms) | Baseline | **2.5x faster** |
-| Complex 3-level inheritance (~19µs) | Baseline | **1.5x faster** |
-| With `static_context` (compile-time folding) | **1.5-2x additional speedup** | N/A |
-| Concurrent (2-4 cores, `PYTHON_GIL=0`) | Linear scaling | Not supported |
-
----
-
 ## Installation
 
 ```bash
@@ -62,9 +19,9 @@ Requires Python 3.14+. Zero runtime dependencies.
 
 ## Render Anywhere
 
-Kida renders to three surfaces from the same template syntax.
+One template syntax, four surfaces.
 
-### HTML (default)
+### HTML
 
 ```python
 from kida import Environment, FileSystemLoader
@@ -93,8 +50,6 @@ print(template.render(services=[
 ]))
 ```
 
-30+ ANSI-aware filters (`bold`, `fg()`, `pad`, `badge`, `bar`, `kv`, `table`, `tree`, `diff`), built-in panel/box components, and `LiveRenderer` for in-place re-rendering with spinners.
-
 ### Markdown
 
 ```python
@@ -104,6 +59,21 @@ env = markdown_env()
 template = env.from_string("# {{ title }}\n\n{{ body }}")
 md = template.render(title="Report", body="All tests passed.")
 ```
+
+### CI Reports (GitHub Action)
+
+Turn pytest, coverage, ruff, and other tool output into step summaries and PR comments.
+
+```yaml
+- uses: lbliii/kida@v0.3.3
+  with:
+    template: pytest
+    data: results.xml
+    data-format: junit-xml
+    post-to: step-summary,pr-comment
+```
+
+Built-in templates for pytest, coverage, ruff, ty, jest, gotest, and sarif. [Full action docs &rarr;](https://lbliii.github.io/kida/docs/usage/github-action/)
 
 ---
 
@@ -264,72 +234,8 @@ TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaDjango", ...}]
 
 </details>
 
----
-
-## GitHub Action — CI Reports
-
-Turn pytest, coverage, ruff, and other tool output into formatted step summaries and PR comments.
-
-```yaml
-- name: Run tests
-  run: pytest --junitxml=results.xml
-
-- name: Post test report
-  uses: lbliii/kida@v0.3.3
-  with:
-    template: pytest
-    data: results.xml
-    data-format: junit-xml
-```
-
-### Built-in templates
-
-| Template | Data format | Tool |
-|----------|-------------|------|
-| `pytest` | junit-xml | pytest `--junitxml` |
-| `coverage` | json | coverage.py `--json` or lcov |
-| `ruff` | json | ruff `--output-format json` |
-| `ty` | junit-xml | ty `--output-format junit` |
-| `jest` | json | jest `--json` |
-| `gotest` | junit-xml | go-junit-report |
-| `sarif` | sarif | CodeQL, Semgrep, Trivy, ESLint |
-
-### PR comments with deduplication
-
-```yaml
-- name: Post coverage to PR
-  uses: lbliii/kida@v0.3.3
-  with:
-    template: coverage
-    data: coverage.json
-    post-to: step-summary,pr-comment
-```
-
-### Custom templates
-
-```yaml
-- uses: lbliii/kida@v0.3.3
-  with:
-    template: .github/kida-templates/my-report.md
-    data: output.json
-```
-
-### Inputs
-
-| Input | Default | Description |
-|-------|---------|-------------|
-| `template` | *(required)* | Built-in name or path to template file |
-| `data` | *(required)* | Path to data file |
-| `data-format` | `json` | `json`, `junit-xml`, `sarif`, or `lcov` |
-| `post-to` | `step-summary` | `step-summary`, `pr-comment`, or both |
-| `comment-header` | template name | Marker for PR comment deduplication |
-| `token` | `github.token` | GitHub token (needed for `pr-comment`) |
-| `python-version` | `3.14` | Python version (`skip` to use existing) |
-| `install` | `true` | Whether to `pip install kida-templates` |
-
----
-
-## CLI
+<details>
+<summary><strong>CLI</strong></summary>
 
 ```bash
 # Render a template
@@ -355,59 +261,7 @@ kida check templates/ --a11y --typed
 kida fmt templates/
 ```
 
----
-
-## API Reference
-
-| Function | Description |
-|----------|-------------|
-| `Environment()` | Create a template environment |
-| `env.from_string(src)` | Compile template from string |
-| `env.get_template(name)` | Load template from filesystem |
-| `template.render(**ctx)` | Full render (StringBuilder, fastest) |
-| `template.render_block(name, **ctx)` | Single block (HTMX partials) |
-| `template.render_stream(**ctx)` | Generator (chunked HTTP, SSE) |
-| `template.render_async(**ctx)` | Async buffered output |
-| `template.render_stream_async(**ctx)` | Async streaming |
-| `template.render_with_blocks(overrides, **ctx)` | Compose layout with pre-rendered blocks |
-| `template.list_blocks()` | Block names for validation |
-| `template.template_metadata()` | Full analysis (blocks, regions, deps) |
-
-Full documentation: **[lbliii.github.io/kida](https://lbliii.github.io/kida/)**. See also: [Kida vs Jinja2](docs/kida-vs-jinja2.md)
-
-| Section | |
-|---------|---|
-| [Get Started](https://lbliii.github.io/kida/docs/get-started/) | Installation, quickstart, coming from Jinja2 |
-| [Syntax](https://lbliii.github.io/kida/docs/syntax/) | Template language reference |
-| [Usage](https://lbliii.github.io/kida/docs/usage/) | Loading, rendering, escaping, terminal mode |
-| [Framework Integration](https://lbliii.github.io/kida/docs/usage/framework-integration/) | Flask, Starlette, Django adapters |
-| [Advanced](https://lbliii.github.io/kida/docs/advanced/) | Compiler, profiling, coverage, security |
-| [Reference](https://lbliii.github.io/kida/docs/reference/) | Complete API docs |
-
----
-
-## Architecture
-
-```
-Template Source → Lexer → Parser → Kida AST → Compiler → Python AST → exec()
-```
-
-Kida generates `ast.Module` objects directly — no intermediate source strings. This enables compile-time optimization (constant folding, dead branch elimination, filter evaluation), precise error source mapping (exact line:column in template source), and safe concurrent execution (immutable AST, no shared mutable state).
-
-Rendering uses two modes from a single compilation:
-- **`render()`** — StringBuilder pattern (`_out.append(...)`) for maximum throughput
-- **`render_stream()`** — Python generator (`yield ...`) for statement-level streaming
-
----
-
-## Development
-
-```bash
-git clone https://github.com/lbliii/kida.git
-cd kida
-uv sync --group dev --python 3.14t
-PYTHON_GIL=0 uv run --python 3.14t pytest
-```
+</details>
 
 ---
 

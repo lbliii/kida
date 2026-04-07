@@ -1,4 +1,24 @@
-# Kida Report — GitHub Action
+---
+title: GitHub Action
+description: Render CI reports from structured tool output as GitHub step summaries and PR comments
+draft: false
+weight: 25
+lang: en
+type: doc
+tags:
+- usage
+- ci
+- github-action
+keywords:
+- github action
+- ci reports
+- step summary
+- pr comment
+- pytest
+- coverage
+- ruff
+icon: github
+---
 
 Render CI reports from structured tool output as GitHub step summaries and PR comments.
 
