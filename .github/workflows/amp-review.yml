@@ -1,0 +1,205 @@
+name: AMP Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install kida
+        run: python -m pip install --quiet kida-templates
+
+      # ── Collect agent output ───────────────────────────────────
+      # Agents write AMP JSON to .amp/ directory via pre-commit,
+      # CI scripts, or as artifacts. This step also scans PR
+      # comments for amp: code blocks from local agents.
+      - name: Collect AMP messages
+        id: collect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p .amp/collected
+          FOUND=0
+
+          # ── Source 1: .amp/ directory files ───────────────────
+          # Agents or CI steps write JSON files here:
+          #   .amp/code-review.json
+          #   .amp/pr-summary.json
+          #   .amp/security-scan.json
+          for f in .amp/*.json; do
+            [ -f "$f" ] || continue
+            cp "$f" ".amp/collected/$(basename "$f")"
+            echo "Found AMP file: $f"
+            FOUND=$((FOUND + 1))
+          done
+
+          # ── Source 2: PR body amp: code blocks ────────────────
+          # Agents like Claude Code may embed amp:type blocks in
+          # the PR body itself.
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body // ""')
+
+          if [ -n "$PR_BODY" ]; then
+            python3 << 'EXTRACT_EOF'
+          import re, json, os
+
+          body = os.environ.get("PR_BODY", "")
+          # Match ```amp:type ... ``` code blocks
+          pattern = r'```amp:(\w[\w-]*)\s*\n(.*?)```'
+          matches = re.findall(pattern, body, re.DOTALL)
+
+          for msg_type, content in matches:
+              content = content.strip()
+              try:
+                  data = json.loads(content)
+                  out_path = f".amp/collected/{msg_type}.json"
+                  # Don't overwrite file-based sources (they're more authoritative)
+                  if not os.path.exists(out_path):
+                      with open(out_path, "w") as f:
+                          json.dump(data, f, indent=2)
+                      print(f"Extracted amp:{msg_type} from PR body")
+              except json.JSONDecodeError as e:
+                  print(f"Warning: invalid JSON in amp:{msg_type} block: {e}")
+          EXTRACT_EOF
+          fi
+
+          # ── Source 3: PR comment amp: code blocks ─────────────
+          # Scan bot/agent comments on the PR for amp: blocks.
+          COMMENTS=$(gh api \
+            "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --paginate --jq '.[].body' 2>/dev/null || true)
+
+          if [ -n "$COMMENTS" ]; then
+            echo "$COMMENTS" | python3 << 'COMMENT_EOF'
+          import re, json, sys, os
+
+          body = sys.stdin.read()
+          pattern = r'```amp:(\w[\w-]*)\s*\n(.*?)```'
+          matches = re.findall(pattern, body, re.DOTALL)
+
+          for msg_type, content in matches:
+              content = content.strip()
+              try:
+                  data = json.loads(content)
+                  out_path = f".amp/collected/{msg_type}-comment.json"
+                  if not os.path.exists(out_path):
+                      with open(out_path, "w") as f:
+                          json.dump(data, f, indent=2)
+                      print(f"Extracted amp:{msg_type} from PR comment")
+              except json.JSONDecodeError as e:
+                  print(f"Warning: invalid JSON in amp:{msg_type} comment block: {e}")
+          COMMENT_EOF
+          fi
+
+          # Count collected files
+          TOTAL=$(ls .amp/collected/*.json 2>/dev/null | wc -l | tr -d ' ')
+          echo "Collected $TOTAL AMP message(s)"
+          echo "count=$TOTAL" >> "$GITHUB_OUTPUT"
+
+      # ── Render each collected message ──────────────────────────
+      - name: Render AMP messages
+        if: steps.collect.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Map AMP message types to Kida template names
+          declare -A TEMPLATE_MAP=(
+            ["code-review"]="code-review"
+            ["pr-summary"]="pr-summary"
+            ["security-scan"]="security-scan"
+            ["dependency-review"]="dependency-review"
+            ["deploy-preview"]="deploy-preview"
+          )
+
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          REPO="${{ github.repository }}"
+          SHA="${{ github.event.pull_request.head.sha }}"
+          RENDERED_COUNT=0
+
+          for f in .amp/collected/*.json; do
+            [ -f "$f" ] || continue
+
+            # Derive message type from filename (e.g., code-review.json → code-review)
+            BASENAME=$(basename "$f" .json)
+            # Strip -comment suffix if from PR comments
+            MSG_TYPE="${BASENAME%-comment}"
+
+            TEMPLATE="${TEMPLATE_MAP[$MSG_TYPE]:-}"
+            if [ -z "$TEMPLATE" ]; then
+              echo "No template for message type: $MSG_TYPE (skipping $f)"
+              continue
+            fi
+
+            echo "Rendering $f with template $TEMPLATE"
+
+            # Inject repository and SHA context if not already present
+            python3 -c "
+          import json
+          with open('$f') as fh:
+              data = json.load(fh)
+          data.setdefault('repository', '$REPO')
+          data.setdefault('sha', '$SHA')
+          data.setdefault('pr_number', $PR_NUMBER)
+          with open('$f', 'w') as fh:
+              json.dump(data, fh, indent=2)
+          "
+
+            # Render and post as PR comment
+            OUTPUT=$(kida render "templates/${TEMPLATE}-report.md" \
+              --data "$f" \
+              --mode markdown)
+
+            if [ -z "$OUTPUT" ]; then
+              echo "Warning: empty render output for $f"
+              continue
+            fi
+
+            # Post to PR comment with deduplication marker
+            MARKER="<!-- amp:${MSG_TYPE} -->"
+            BODY="${MARKER}
+          ${OUTPUT}"
+
+            # Check for existing comment with this marker
+            EXISTING_ID=$(gh api \
+              "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+              --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
+              2>/dev/null | head -1)
+
+            if [ -n "$EXISTING_ID" ]; then
+              gh api \
+                "repos/${REPO}/issues/comments/${EXISTING_ID}" \
+                -X PATCH -f body="$BODY" --silent
+              echo "Updated $MSG_TYPE comment ($EXISTING_ID)"
+            else
+              gh api \
+                "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+                -f body="$BODY" --silent
+              echo "Created $MSG_TYPE comment"
+            fi
+
+            RENDERED_COUNT=$((RENDERED_COUNT + 1))
+          done
+
+          echo "Rendered $RENDERED_COUNT AMP message(s)"
+
+          # Also post to step summary
+          echo "## AMP Review Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Rendered **${RENDERED_COUNT}** agent message(s) as PR comments." >> "$GITHUB_STEP_SUMMARY"

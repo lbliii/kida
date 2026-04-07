@@ -81,3 +81,6 @@ benchmarks/output/
 # DORI (local/ephemeral)
 .dori/local/
 .dori/events/
+
+# AMP (collected agent output is ephemeral)
+.amp/collected/
