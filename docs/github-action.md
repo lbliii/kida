@@ -5,7 +5,7 @@ Render CI reports from structured tool output as GitHub step summaries and PR co
 ## Quick start
 
 ```yaml
-- uses: lbliii/kida@v0.3.2
+- uses: lbliii/kida@v0.3.3
   with:
     template: pytest
     data: reports/pytest.xml
@@ -60,7 +60,7 @@ Render CI reports from structured tool output as GitHub step summaries and PR co
 
 - name: Test report
   if: always()
-  uses: lbliii/kida@v0.3.2
+  uses: lbliii/kida@v0.3.3
   with:
     template: pytest
     data: reports/pytest.xml
@@ -69,7 +69,7 @@ Render CI reports from structured tool output as GitHub step summaries and PR co
 
 - name: Coverage report
   if: always()
-  uses: lbliii/kida@v0.3.2
+  uses: lbliii/kida@v0.3.3
   with:
     template: coverage
     data: reports/coverage.json
@@ -83,7 +83,7 @@ Use the same `comment-header` with `comment-mode: append` to build a single PR c
 
 ```yaml
 - name: Test report
-  uses: lbliii/kida@v0.3.2
+  uses: lbliii/kida@v0.3.3
   with:
     template: pytest
     data: reports/pytest.xml
@@ -92,7 +92,7 @@ Use the same `comment-header` with `comment-mode: append` to build a single PR c
     comment-header: CI Report
 
 - name: Coverage report
-  uses: lbliii/kida@v0.3.2
+  uses: lbliii/kida@v0.3.3
   with:
     template: coverage
     data: reports/coverage.json
@@ -101,7 +101,7 @@ Use the same `comment-header` with `comment-mode: append` to build a single PR c
     comment-mode: append
 
 - name: Lint report
-  uses: lbliii/kida@v0.3.2
+  uses: lbliii/kida@v0.3.3
   with:
     template: ruff
     data: reports/ruff.json
@@ -127,7 +127,7 @@ Pass changed file paths via `context` to highlight coverage for PR-touched files
     GH_TOKEN: ${{ github.token }}
 
 - name: Coverage report
-  uses: lbliii/kida@v0.3.2
+  uses: lbliii/kida@v0.3.3
   with:
     template: coverage
     data: reports/coverage.json
@@ -143,7 +143,7 @@ Pass changed file paths via `context` to highlight coverage for PR-touched files
 
 - name: Lint report
   if: always()
-  uses: lbliii/kida@v0.3.2
+  uses: lbliii/kida@v0.3.3
   with:
     template: ruff
     data: reports/ruff.json
@@ -155,7 +155,7 @@ Pass changed file paths via `context` to highlight coverage for PR-touched files
 Point `template` at any `.md` file in your repo. Data is unpacked as template variables:
 
 ```yaml
-- uses: lbliii/kida@v0.3.2
+- uses: lbliii/kida@v0.3.3
   with:
     template: .github/templates/my-report.md
     data: results.json
@@ -164,7 +164,7 @@ Point `template` at any `.md` file in your repo. Data is unpacked as template va
 ### Skip Python setup (pre-installed)
 
 ```yaml
-- uses: lbliii/kida@v0.3.2
+- uses: lbliii/kida@v0.3.3
   with:
     template: pytest
     data: results.xml
