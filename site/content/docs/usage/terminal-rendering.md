@@ -254,6 +254,28 @@ Unified diff between two strings with colored additions/deletions.
 
 Green `+` lines for additions, red `-` lines for deletions, cyan `@@` headers.
 
+#### `syntax(language="json")`
+
+Regex-based syntax highlighting for structured data formats. Supported languages: `json` and `yaml` (alias `yml`).
+
+```kida
+{{ config_json | syntax }}                    {# JSON is the default #}
+{{ config_yaml | syntax(language="yaml") }}
+```
+
+Color mapping:
+
+| Token | Color | SGR Code |
+|-------|-------|----------|
+| Keys | Cyan | 36 |
+| String values | Green | 32 |
+| Numbers | Yellow | 33 |
+| Booleans / null | Magenta | 35 |
+| Braces / brackets (JSON) | Dim | 2 |
+| Comments (YAML) | Dim | 2 |
+
+Unknown languages return the content unstyled. When colors are disabled, the content is returned as-is. Input is sanitized to prevent ANSI injection.
+
 ## Built-in Components
 
 The component library lives in `components.txt` and provides reusable template macros for structured terminal layouts. Import them in any template loaded through `terminal_env()`:

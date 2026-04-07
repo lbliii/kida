@@ -539,7 +539,7 @@ def make_terminal_filters(
     # Data: syntax
     # -----------------------------------------------------------------
     def _filter_syntax(content: Any, language: str = "json") -> Styled:
-        text = str(content)
+        text = ansi_sanitize(str(content))
         if not color:
             return Styled(text)
 
@@ -593,7 +593,7 @@ def _highlight_json(text: str) -> list[str]:
 
     def _repl(m: _re.Match[str]) -> str:
         if m.group("key"):
-            return _sgr_wrap(36, m.group("key")) + ":"
+            return _sgr_wrap(36, m.group("key")) + m.group(0)[len(m.group("key")) :]
         if m.group("strval"):
             return _sgr_wrap(32, m.group("strval"))
         if m.group("boolnull"):
@@ -617,22 +617,26 @@ def _highlight_yaml(text: str) -> list[str]:
             lines.append(_sgr_wrap(2, line))
             continue
 
-        # Keys (cyan)
-        line = _YAML_KEY.sub(lambda m: _sgr_wrap(36, m.group(1)) + ":", line)
-        # String values (green)
-        line = _YAML_STRING_VAL.sub(lambda m: ": " + _sgr_wrap(32, m.group(1)), line)
-        # Booleans (magenta)
-        line = _YAML_BOOL_VAL.sub(lambda m: ": " + _sgr_wrap(35, m.group(1)), line)
-        # Numbers (yellow)
-        line = _YAML_NUMBER_VAL.sub(lambda m: ": " + _sgr_wrap(33, m.group(1)), line)
-
-        # Inline comment
+        # Split inline comments before adding ANSI codes so indices stay aligned
+        comment = ""
+        content = line
         if cm:
-            pre = line[: cm.start()]
+            content = line[: cm.start()]
             comment = line[cm.start() :]
-            line = pre + _sgr_wrap(2, comment)
 
-        lines.append(line)
+        # Keys (cyan)
+        content = _YAML_KEY.sub(lambda m: _sgr_wrap(36, m.group(1)) + ":", content)
+        # String values (green)
+        content = _YAML_STRING_VAL.sub(lambda m: ": " + _sgr_wrap(32, m.group(1)), content)
+        # Booleans (magenta)
+        content = _YAML_BOOL_VAL.sub(lambda m: ": " + _sgr_wrap(35, m.group(1)), content)
+        # Numbers (yellow)
+        content = _YAML_NUMBER_VAL.sub(lambda m: ": " + _sgr_wrap(33, m.group(1)), content)
+
+        if comment:
+            content = content + _sgr_wrap(2, comment)
+
+        lines.append(content)
     return lines
 
 

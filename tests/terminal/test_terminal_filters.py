@@ -470,6 +470,29 @@ class TestSyntaxFilter:
         assert "\n" in result
         assert "\033[36m" in result  # cyan keys
 
+    def test_ansi_injection_sanitized(self, f_color):
+        """Dangerous ANSI sequences in input are stripped before highlighting."""
+        malicious = '{"key": "\033[2Jclear screen"}'
+        result = f_color["syntax"](malicious, language="json")
+        # Dangerous cursor/screen control sequence should be stripped
+        assert "\033[2J" not in result
+        assert "clear screen" in result
+
+    def test_json_key_whitespace_preserved(self, f_color):
+        """Whitespace between key and colon is preserved."""
+        content = '{"name" : "Alice"}'
+        result = f_color["syntax"](content, language="json")
+        # The space before colon should be preserved
+        assert " :" in result
+
+    def test_yaml_inline_comment(self, f_color):
+        """Inline YAML comments are dimmed without corrupting key styling."""
+        content = "port: 8080 # default port"
+        result = f_color["syntax"](content, language="yaml")
+        assert "\033[36m" in result  # cyan for key
+        assert "\033[2m" in result  # dim for comment
+        assert "# default port" in result or "\033[2m# default port" in result
+
 
 # =============================================================================
 # Integration: Environment with autoescape="terminal"
