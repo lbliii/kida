@@ -9,9 +9,11 @@ branding:
 inputs:
   template:
     description: >
-      Built-in template name (pytest, coverage, ruff, ty, jest, gotest, sarif,
+      Built-in template name or path to a custom template file. Built-ins:
+      pytest, coverage, ruff, ty, jest, gotest, sarif,
       release-notes, release-notes-compact, release-notes-detailed,
-      release-notes-terminal) or path to a custom template file.
+      release-notes-terminal, code-review, pr-summary, deploy-preview,
+      dependency-review, security-scan.
     required: true
   data:
     description: >
