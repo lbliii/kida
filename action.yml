@@ -1,5 +1,5 @@
 name: 'Kida Report'
-description: 'Render CI reports from structured data using kida templates. Turn pytest, coverage, ruff, and other tool output into formatted GitHub step summaries and PR comments.'
+description: 'Render CI reports from structured data using kida templates as GitHub step summaries and PR comments.'
 author: 'lbliii'
 
 branding:
