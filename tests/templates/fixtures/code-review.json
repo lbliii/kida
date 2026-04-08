@@ -1,0 +1,62 @@
+{
+  "agent": "Claude",
+  "model": "claude-sonnet-4-20250514",
+  "confidence": 0.87,
+  "summary": "Found 3 issues: 1 security warning, 1 bug, 1 suggestion. Overall code quality is good with clear intent, but the SQL query construction and missing error handling should be addressed before merge.",
+  "repository": "lbliii/kida",
+  "sha": "abc1234def5678",
+  "min_confidence": 0.5,
+  "findings": [
+    {
+      "file": "src/kida/cli.py",
+      "line": 42,
+      "severity": "warn",
+      "category": "security",
+      "title": "SQL injection risk",
+      "message": "Query built with f-string interpolation. User-controlled input could modify the query structure.",
+      "suggestion": "Use parameterized queries instead of string interpolation.",
+      "diff": "- query = f\"SELECT * FROM users WHERE id = {user_id}\"\n+ query = \"SELECT * FROM users WHERE id = %s\"\n+ cursor.execute(query, (user_id,))",
+      "confidence": 0.94
+    },
+    {
+      "file": "src/kida/environment/core.py",
+      "line": 156,
+      "severity": "warn",
+      "category": "bug",
+      "title": "Unhandled None return",
+      "message": "The `get_template()` method can return None when the loader fails silently, but the caller assumes a Template object.",
+      "suggestion": "Add a None check or raise TemplateNotFoundError explicitly.",
+      "confidence": 0.82
+    },
+    {
+      "file": "src/kida/compiler/codegen.py",
+      "line": 89,
+      "severity": "suggestion",
+      "category": "performance",
+      "title": "Repeated dict lookup in loop",
+      "message": "The `self._filters[name]` lookup happens on every iteration. Hoist it above the loop for a minor speedup in hot paths.",
+      "diff": "  def compile_filter_chain(self, node):\n+     filters = self._filters\n      for f in node.filters:\n-         handler = self._filters[f.name]\n+         handler = filters[f.name]",
+      "confidence": 0.71
+    }
+  ],
+  "stats": {
+    "files_reviewed": 8,
+    "findings_count": 3,
+    "by_severity": {
+      "error": 0,
+      "warn": 2,
+      "info": 0,
+      "suggestion": 1
+    },
+    "reviewed_files": [
+      "src/kida/cli.py",
+      "src/kida/environment/core.py",
+      "src/kida/compiler/codegen.py",
+      "src/kida/parser/lexer.py",
+      "src/kida/parser/parser.py",
+      "tests/test_kida_render.py",
+      "tests/test_kida_cli.py",
+      "src/kida/utils/html_escape.py"
+    ]
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbliii/kida/schemas/amp/v1/code-review.schema.json",
+  "title": "AMP Code Review",
+  "description": "AI code review message with file-level findings, severity badges, confidence scoring, and suggested fixes. Agents produce this schema; renderers (Kida templates) consume it.",
+  "type": "object",
+  "required": ["findings"],
+  "properties": {
+    "agent": { "type": "string", "description": "Agent name (e.g., 'Claude', 'Copilot')" },
+    "model": { "type": "string", "description": "Model identifier" },
+    "confidence": {
+      "type": "number", "minimum": 0, "maximum": 1,
+      "description": "Overall review confidence (0.0–1.0)"
+    },
+    "summary": { "type": "string", "description": "One-line review summary" },
+    "repository": { "type": "string", "description": "owner/repo" },
+    "pr_number": { "type": "integer" },
+    "sha": { "type": "string", "description": "Head commit SHA for file permalinks" },
+    "min_confidence": {
+      "type": "number", "minimum": 0, "maximum": 1, "default": 0.5,
+      "description": "Findings below this threshold are collapsed as low-confidence"
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" },
+      "description": "List of code review findings"
+    },
+    "stats": { "$ref": "#/$defs/review_stats" }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Relative file path from repo root"
+        },
+        "line": {
+          "type": "integer", "minimum": 1,
+          "description": "Line number in the file"
+        },
+        "end_line": {
+          "type": "integer", "minimum": 1,
+          "description": "End line for multi-line findings"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "suggestion"],
+          "default": "info",
+          "description": "Finding severity. error = blocking, warn = should fix, info = FYI, suggestion = optional improvement"
+        },
+        "category": {
+          "type": "string",
+          "description": "Finding category (e.g., 'security', 'performance', 'style', 'bug', 'complexity')"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short title for the finding (used in summary views)"
+        },
+        "message": {
+          "type": "string",
+          "description": "Detailed explanation of the finding"
+        },
+        "suggestion": {
+          "type": "string",
+          "description": "Suggested fix in natural language"
+        },
+        "diff": {
+          "type": "string",
+          "description": "Unified diff showing the suggested code change. Lines prefixed with - (remove) and + (add)."
+        },
+        "confidence": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Per-finding confidence score"
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "url": { "type": "string", "format": "uri" }
+            }
+          },
+          "description": "Links to documentation, style guides, or related issues"
+        }
+      }
+    },
+    "review_stats": {
+      "type": "object",
+      "properties": {
+        "files_reviewed": { "type": "integer", "minimum": 0 },
+        "findings_count": { "type": "integer", "minimum": 0 },
+        "by_severity": {
+          "type": "object",
+          "properties": {
+            "error": { "type": "integer", "minimum": 0 },
+            "warn": { "type": "integer", "minimum": 0 },
+            "info": { "type": "integer", "minimum": 0 },
+            "suggestion": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "reviewed_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of all files that were reviewed"
+        }
+      }
+    }
+  }
+}

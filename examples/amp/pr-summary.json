@@ -1,0 +1,30 @@
+{
+  "agent": "Claude",
+  "model": "claude-sonnet-4-20250514",
+  "confidence": 0.91,
+  "title": "Add Agent Message Protocol (AMP) schemas and agentic templates",
+  "what_changed": "Introduces a formal protocol for structured AI agent output with JSON Schema definitions for 6 message types (code-review, pr-summary, deploy-preview, dependency-review, security-scan, release-notes) and corresponding Kida templates that render them as GitHub PR comments, step summaries, Slack messages, and terminal output.",
+  "why": "AI agents (Copilot, Claude, custom bots) all produce ad-hoc formatted comments with no consistency or customization. AMP decouples message production from presentation — agents output structured JSON, Kida renders it beautifully on any surface. Teams control how agent comments look via templates, not agent config.",
+  "change_size": "large",
+  "files": [
+    {"path": "schemas/amp/v1/protocol.json", "change_type": "added", "summary": "Protocol definition: message types, surfaces, composition rules"},
+    {"path": "schemas/amp/v1/code-review.schema.json", "change_type": "added", "summary": "Schema for AI code review findings"},
+    {"path": "schemas/amp/v1/pr-summary.schema.json", "change_type": "added", "summary": "Schema for auto-generated PR descriptions"},
+    {"path": "templates/code-review-report.md", "change_type": "added", "summary": "Kida template: severity badges, checkboxes, confidence filtering"},
+    {"path": "templates/pr-summary-report.md", "change_type": "added", "summary": "Kida template: what/why/risk PR description"},
+    {"path": "action.yml", "change_type": "modified", "summary": "Register new built-in templates in action input description"}
+  ],
+  "risk_areas": [
+    {"area": "action.yml composite action", "reason": "New post targets (release, slack, changelog) add complexity to the post step — test each path"},
+    {"area": "Data collection script", "reason": "The github-prs collector makes multiple GitHub API calls — rate limiting could be an issue on busy repos"}
+  ],
+  "breaking_changes": [],
+  "test_coverage": "No automated tests added for templates or schemas yet. Templates should be validated with snapshot tests against the sample data in `examples/amp/`.",
+  "suggested_labels": ["enhancement", "templates", "protocol"],
+  "suggested_reviewers": ["lbliii"],
+  "diff_stats": {
+    "files_changed": 18,
+    "insertions": 2840,
+    "deletions": 8
+  }
+}

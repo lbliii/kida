@@ -1,0 +1,58 @@
+{
+  "version": "0.4.0",
+  "previous_version": "0.3.3",
+  "release_date": "2026-04-07",
+  "repository": "lbliii/kida",
+  "pull_requests": [
+    {
+      "number": 58,
+      "title": "feat: add new template engine",
+      "author": "lbliii",
+      "labels": ["enhancement"],
+      "body": "Adds a new template engine",
+      "body_excerpt": "Adds a new template engine",
+      "release_note": "New template engine with improved performance",
+      "linked_issues": [{"number": 42, "title": "Template engine too slow"}],
+      "dependency_updates": []
+    },
+    {
+      "number": 59,
+      "title": "fix: resolve caching bug",
+      "author": "contributor1",
+      "labels": ["bug"],
+      "body": "Fixes a caching issue",
+      "body_excerpt": "Fixes a caching issue",
+      "release_note": "",
+      "linked_issues": [],
+      "dependency_updates": []
+    },
+    {
+      "number": 60,
+      "title": "docs: update API reference",
+      "author": "contributor2",
+      "labels": ["documentation"],
+      "body": "",
+      "body_excerpt": "",
+      "release_note": "",
+      "linked_issues": [],
+      "dependency_updates": []
+    }
+  ],
+  "contributors": ["lbliii", "contributor1", "contributor2"],
+  "new_contributors": ["contributor2"],
+  "compare_url": "https://github.com/lbliii/kida/compare/v0.3.3...v0.4.0",
+  "diff_stats": {
+    "files_changed": 15,
+    "insertions": 420,
+    "deletions": 85,
+    "new_files": ["src/kida/engine_v2.py"]
+  },
+  "direct_commits": [
+    {
+      "sha": "abc123def456",
+      "message": "chore: update lockfile",
+      "author": "lbliii"
+    }
+  ],
+  "benchmarks": {}
+}

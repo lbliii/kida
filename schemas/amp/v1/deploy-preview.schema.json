@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbliii/kida/schemas/amp/v1/deploy-preview.schema.json",
+  "title": "AMP Deploy Preview",
+  "description": "Deploy preview status with URL, build metrics, bundle size deltas, and performance scores.",
+  "type": "object",
+  "properties": {
+    "environment": {
+      "type": "string",
+      "default": "Preview",
+      "description": "Deployment environment name (e.g., 'Preview', 'Staging', 'Production')"
+    },
+    "url": {
+      "type": "string", "format": "uri",
+      "description": "URL to the deployed preview"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "fail", "building", "cancelled"],
+      "default": "success"
+    },
+    "build_time_seconds": {
+      "type": "number", "minimum": 0,
+      "description": "Build duration in seconds"
+    },
+    "sha": { "type": "string", "description": "Deployed commit SHA" },
+    "branch": { "type": "string" },
+    "provider": {
+      "type": "string",
+      "description": "Deploy provider (e.g., 'Vercel', 'Netlify', 'Cloudflare Pages')"
+    },
+    "logs_url": {
+      "type": "string", "format": "uri",
+      "description": "URL to build logs"
+    },
+    "bundle_stats": { "$ref": "#/$defs/bundle_stats" },
+    "lighthouse": { "$ref": "#/$defs/lighthouse" },
+    "pages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/page_preview" },
+      "description": "Per-page preview details"
+    },
+    "previous_deploy": {
+      "type": "object",
+      "properties": {
+        "total_size": { "type": "string" }
+      },
+      "description": "Previous deploy metrics for comparison"
+    }
+  },
+  "$defs": {
+    "bundle_stats": {
+      "type": "object",
+      "properties": {
+        "total_size": {
+          "type": "string",
+          "description": "Human-readable total size (e.g., '245 kB')"
+        },
+        "size_delta": {
+          "type": "string",
+          "description": "Size change from previous (e.g., '+12 kB', '-3.2 kB')"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "size"],
+            "properties": {
+              "name": { "type": "string", "description": "Entry point or chunk name" },
+              "size": { "type": "string", "description": "Human-readable size" },
+              "delta": { "type": "string", "description": "Change from previous (e.g., '+1.2 kB')" }
+            }
+          }
+        }
+      }
+    },
+    "lighthouse": {
+      "type": "object",
+      "properties": {
+        "performance": {
+          "type": "integer", "minimum": 0, "maximum": 100,
+          "description": "Performance score (0–100)"
+        },
+        "accessibility": {
+          "type": "integer", "minimum": 0, "maximum": 100
+        },
+        "best_practices": {
+          "type": "integer", "minimum": 0, "maximum": 100
+        },
+        "seo": {
+          "type": "integer", "minimum": 0, "maximum": 100
+        },
+        "audits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "score": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          },
+          "description": "Individual audit results"
+        }
+      }
+    },
+    "page_preview": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "description": "Page path (e.g., '/', '/about')" },
+        "url": { "type": "string", "format": "uri" },
+        "status": { "type": "string", "enum": ["success", "fail", "skip"] },
+        "size": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

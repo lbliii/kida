@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbliii/kida/schemas/amp/v1/security-scan.schema.json",
+  "title": "AMP Security Scan",
+  "description": "Security scan results with findings grouped by severity, CWE/CVE references, remediation steps, and policy compliance status.",
+  "type": "object",
+  "required": ["findings"],
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Scanning tool name (e.g., 'Semgrep', 'CodeQL', 'Snyk', 'Claude')"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pass", "fail", "warn"],
+      "description": "Overall scan status"
+    },
+    "summary": { "type": "string" },
+    "repository": { "type": "string" },
+    "sha": { "type": "string" },
+    "report_url": {
+      "type": "string", "format": "uri",
+      "description": "Link to full scan report"
+    },
+    "policy_status": {
+      "type": "string",
+      "enum": ["pass", "fail", "warn"],
+      "description": "Whether the scan meets the configured security policy"
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/security_finding" }
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "by_severity": {
+          "type": "object",
+          "properties": {
+            "critical": { "type": "integer", "minimum": 0 },
+            "high": { "type": "integer", "minimum": 0 },
+            "medium": { "type": "integer", "minimum": 0 },
+            "low": { "type": "integer", "minimum": 0 },
+            "info": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "security_finding": {
+      "type": "object",
+      "required": ["severity"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Rule or finding identifier (e.g., 'sql-injection', 'GHSA-xxxx')"
+        },
+        "rule": {
+          "type": "string",
+          "description": "Rule name (e.g., 'python.lang.security.audit.dangerous-exec')"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info"]
+        },
+        "title": { "type": "string", "description": "Short finding title" },
+        "message": { "type": "string", "description": "Detailed finding description" },
+        "file": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "category": {
+          "type": "string",
+          "description": "Finding category (e.g., 'injection', 'auth', 'crypto', 'xss', 'exposure')"
+        },
+        "cwe": {
+          "type": "string",
+          "description": "CWE identifier (number only, e.g., '89' for CWE-89)"
+        },
+        "cve": {
+          "type": "string",
+          "description": "CVE identifier (e.g., 'CVE-2024-1234')"
+        },
+        "remediation": {
+          "type": "string",
+          "description": "How to fix this finding"
+        },
+        "diff": {
+          "type": "string",
+          "description": "Suggested fix as unified diff"
+        },
+        "url": {
+          "type": "string", "format": "uri",
+          "description": "Link to advisory or documentation"
+        },
+        "confidence": {
+          "type": "number", "minimum": 0, "maximum": 1,
+          "description": "Scanner confidence for this finding"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "environment": "Preview",
+  "url": "https://kida-docs-pr-57.vercel.app",
+  "status": "success",
+  "build_time_seconds": 34,
+  "sha": "f0daa1e",
+  "branch": "lbliii/agentic-templates",
+  "provider": "Vercel",
+  "logs_url": "https://vercel.com/lbliii/kida-docs/builds/abc123",
+  "bundle_stats": {
+    "total_size": "245 kB",
+    "size_delta": "+12 kB",
+    "entries": [
+      {"name": "main.js", "size": "142 kB", "delta": "+8 kB"},
+      {"name": "vendor.js", "size": "89 kB", "delta": "+3 kB"},
+      {"name": "styles.css", "size": "14 kB", "delta": "+1 kB"}
+    ]
+  },
+  "lighthouse": {
+    "performance": 94,
+    "accessibility": 100,
+    "best_practices": 92,
+    "seo": 100,
+    "audits": [
+      {"title": "Reduce unused JavaScript", "description": "89 kB of unused JS in vendor.js", "score": 0.6},
+      {"title": "Serve images in next-gen formats", "description": "2 images could save 45 kB with WebP", "score": 0.75}
+    ]
+  },
+  "pages": [
+    {"path": "/", "url": "https://kida-docs-pr-57.vercel.app/", "status": "success", "size": "12 kB"},
+    {"path": "/docs/getting-started", "url": "https://kida-docs-pr-57.vercel.app/docs/getting-started", "status": "success", "size": "8 kB"},
+    {"path": "/docs/templates", "url": "https://kida-docs-pr-57.vercel.app/docs/templates", "status": "success", "size": "15 kB", "notes": "New page"}
+  ]
+}
