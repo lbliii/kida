@@ -193,3 +193,17 @@ Point `template` at any `.md` file in your repo. Data is unpacked as template va
     install: 'false'
     kida-command: uv run kida
 ```
+
+## Agent templates (AMP)
+
+The Kida action also renders AI agent output via the [[docs/usage/amp|Agent Message Protocol (AMP)]]. AMP extends the built-in template set with templates for agent-produced messages:
+
+| Template | AMP type | Description |
+| --- | --- | --- |
+| `code-review` | `code-review` | AI code review with severity badges and diff suggestions |
+| `pr-summary` | `pr-summary` | Auto-generated PR description with risk analysis |
+| `deploy-preview` | `deploy-preview` | Deploy status with bundle size and Lighthouse scores |
+| `dependency-review` | `dependency-review` | Dependency changes with vulnerability and license analysis |
+| `security-scan` | `security-scan` | Security findings with CWE/CVE references and remediation |
+
+See [[docs/usage/agent-templates|Agent Templates]] for schema details and customization, or the [[docs/tutorials/agent-integration|Agent Integration Tutorial]] for a full end-to-end walkthrough.
