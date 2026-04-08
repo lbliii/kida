@@ -1,6 +1,6 @@
 ---
 title: Usage
-description: Loading templates, rendering HTML, streaming output, and integrating Kida into Python applications
+description: Loading templates, rendering HTML, streaming output, integrating Kida into Python applications, and rendering AI agent output
 draft: false
 weight: 30
 lang: en
@@ -62,6 +62,18 @@ Practical patterns for using Kida in your applications.
 :icon: alert-triangle
 :link: /docs/usage/error-handling/
 :description: Template errors, debugging, stack traces
+:::{/card}
+
+:::{card} Agent Message Protocol (AMP)
+:icon: radio
+:link: /docs/usage/amp/
+:description: Structured AI agent output for multi-surface rendering
+:::{/card}
+
+:::{card} Agent Templates
+:icon: layout
+:link: /docs/usage/agent-templates/
+:description: Built-in templates for code review, PR summary, deploy preview, and more
 :::{/card}
 
 :::{/cards}

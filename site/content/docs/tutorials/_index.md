@@ -50,4 +50,11 @@ Integrate Kida templates into your web application framework.
 Build custom filters from scratch with examples for common use cases.
 :::{/card}
 
+:::{card} Agent Integration
+:icon: cpu
+:link: /docs/tutorials/agent-integration/
+:description: Wire AI agents to Kida via AMP
+Configure Claude, Copilot, or Cursor to produce structured reviews rendered as PR comments.
+:::{/card}
+
 :::{/cards}
