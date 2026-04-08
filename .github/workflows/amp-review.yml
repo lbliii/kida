@@ -85,11 +85,12 @@ jobs:
             "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
             --paginate --jq '.[].body' 2>/dev/null || true)
 
+          export COMMENTS
           if [ -n "$COMMENTS" ]; then
-            echo "$COMMENTS" | python3 << 'COMMENT_EOF'
-          import re, json, sys, os
+            python3 << 'COMMENT_EOF'
+          import re, json, os
 
-          body = sys.stdin.read()
+          body = os.environ.get("COMMENTS", "")
           pattern = r'```amp:(\w[\w-]*)\s*\n(.*?)```'
           matches = re.findall(pattern, body, re.DOTALL)
 
@@ -108,7 +109,9 @@ jobs:
           fi
 
           # Count collected files
-          TOTAL=$(ls .amp/collected/*.json 2>/dev/null | wc -l | tr -d ' ')
+          shopt -s nullglob
+          FILES=(.amp/collected/*.json)
+          TOTAL=${#FILES[@]}
           echo "Collected $TOTAL AMP message(s)"
           echo "count=$TOTAL" >> "$GITHUB_OUTPUT"
 
