@@ -205,5 +205,6 @@ The Kida action also renders AI agent output via the [[docs/usage/amp|Agent Mess
 | `deploy-preview` | `deploy-preview` | Deploy status with bundle size and Lighthouse scores |
 | `dependency-review` | `dependency-review` | Dependency changes with vulnerability and license analysis |
 | `security-scan` | `security-scan` | Security findings with CWE/CVE references and remediation |
+| `release-notes` | `release-notes` | Generated release notes and highlights, typically posted to `release` |
 
 See [[docs/usage/agent-templates|Agent Templates]] for schema details and customization, or the [[docs/tutorials/agent-integration|Agent Integration Tutorial]] for a full end-to-end walkthrough.

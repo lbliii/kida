@@ -24,7 +24,7 @@ icon: layout
 
 # Agent Templates
 
-Kida ships six built-in templates for rendering [[docs/usage/amp|AMP]] messages as formatted GitHub comments, step summaries, and terminal output. Each template consumes structured JSON from an AI agent and produces surface-appropriate output with severity badges, collapsible sections, diff suggestions, and more.
+Kida ships six built-in [[docs/usage/amp|AMP]] message types, each backed by a primary agent-report template for rendering structured AI output as formatted GitHub comments, step summaries, releases, and terminal output. Some message types also have multiple surface-specific template variants. Each template consumes structured JSON from an AI agent and produces surface-appropriate output with severity badges, collapsible sections, diff suggestions, and more.
 
 ## Template catalog
 

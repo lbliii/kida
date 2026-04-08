@@ -132,12 +132,12 @@ When multiple agents review the same PR, AMP defines four composition modes for 
 
 | Mode | Behavior | Deduplication | Ordering |
 | --- | --- | --- | --- |
-| `replace` | Latest message overwrites existing | By header/type | Append |
+| `replace` | Latest message overwrites existing | By header/type | Latest wins |
 | `append` | New message added below existing, separated by `---` | By header | Append |
 | `thread` | Each agent gets a collapsible section in a shared comment | By agent | By agent |
 | `aggregate` | Findings merged, deduplicated by file+line, sorted by severity | By type | By severity |
 
-Set the mode via the `comment-mode` input in the [[docs/usage/github-action|GitHub Action]], or in your workflow's render step.
+Choose the composition mode in your workflow's render or data-preparation step. In the [[docs/usage/github-action|GitHub Action]], the `comment-mode` input only controls how the final PR comment is updated (`replace` or `append`); it does not select AMP composition modes such as `thread` or `aggregate`.
 
 ## Agent metadata
 

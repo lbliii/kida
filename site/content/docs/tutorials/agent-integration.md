@@ -231,13 +231,15 @@ jobs:
 
 ### How collection works
 
-The workflow collects AMP messages from three sources, in priority order:
+The workflow collects AMP messages from two sources, in priority order:
 
 1. **`.amp/` directory** — Agents or CI steps write JSON files here (e.g., `.amp/code-review.json`). Highest priority.
 2. **PR body** — Agents like Claude Code can embed `` ```amp:type `` code blocks directly in the PR description.
-3. **PR comments** — Agent comments containing `` ```amp:type `` code blocks are also collected.
 
 File-based sources take precedence — if `.amp/code-review.json` exists, a code-review block in the PR body is ignored.
+
+> [!NOTE]
+> The full workflow in `.github/workflows/amp-review.yml` also collects from PR comments. The simplified workflow above omits that step for clarity.
 
 ### How rendering works
 
@@ -285,24 +287,12 @@ kida render templates/code-review-report.md \
 
 When Claude and Copilot both review the same PR, you get separate AMP messages that render as separate PR comments (one per message type, deduplicated by the `<!-- amp:type -->` marker).
 
-To combine them into a single comment, use the `thread` composition mode:
+The current `kida render` CLI does not expose a `--compose` flag, so composition is handled as an upstream data-preparation step, not at render time.
 
-```yaml
-# In your render step, pass --compose thread
-OUTPUT=$(kida render "templates/${TEMPLATE}-report.md" \
-  --data "$f" --mode markdown --compose thread)
-```
+- **One comment per message type** (default) — The workflow above already deduplicates by type using `<!-- amp:type -->` markers, so each agent's output gets its own auto-updating comment.
+- **Threaded or aggregated views** — Merge multiple agent outputs into a single AMP JSON payload in a CI step before passing it to `kida render`. For example, combine Claude and Semgrep security findings into one `security-scan.json`, then render once.
 
-This gives each agent a collapsible `<details>` section within a shared comment.
-
-For merging findings across agents (e.g., combining security findings from Semgrep and Claude), use `aggregate`:
-
-```yaml
-OUTPUT=$(kida render "templates/${TEMPLATE}-report.md" \
-  --data "$f" --mode markdown --compose aggregate)
-```
-
-Aggregate mode deduplicates findings by file+line and sorts by severity. See [[docs/usage/amp#composition|AMP Composition]] for all four modes.
+See [[docs/usage/amp#composition|AMP Composition]] for the four composition models defined by the protocol.
 
 ## Adding new message types
 
