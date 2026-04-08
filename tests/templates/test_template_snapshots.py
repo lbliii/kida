@@ -69,8 +69,9 @@ def test_template_snapshot(template_name, request):
     snapshot_path = SNAPSHOTS_DIR / f"{template_name}-report.md"
     update = request.config.getoption("--update-snapshots")
 
-    # Normalize: strip trailing whitespace, add single newline (end-of-file-fixer compat)
-    normalized = output.rstrip() + "\n"
+    # Normalize: strip trailing whitespace per line (matches pre-commit hook behavior)
+    # and add single newline at end (end-of-file-fixer compat)
+    normalized = "\n".join(line.rstrip() for line in output.splitlines()).rstrip() + "\n"
 
     if update or not snapshot_path.exists():
         snapshot_path.write_text(normalized, encoding="utf-8")
