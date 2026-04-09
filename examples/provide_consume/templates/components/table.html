@@ -1,0 +1,27 @@
+{# Table component that provides column alignment to child rows. #}
+{% def table(headers, align=none) %}
+{% provide _table_align = align %}
+<table>
+  <thead>
+    <tr>
+      {% for h in headers %}
+      <th>{{ h }}</th>
+      {% end %}
+    </tr>
+  </thead>
+  <tbody>
+    {% slot %}
+  </tbody>
+</table>
+{% endprovide %}
+{% end %}
+
+{# Row component that consumes alignment from the nearest table. #}
+{% def row(*cells) %}
+{% set align = consume("_table_align") %}
+<tr>
+  {% for cell in cells %}
+  <td{% if align %} class="align-{{ align[loop.index0] }}"{% endif %}>{{ cell }}</td>
+  {% end %}
+</tr>
+{% end %}
