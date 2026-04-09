@@ -20,6 +20,7 @@ from kida.nodes import (
     Filter,
     FilterBlock,
     Flush,
+    Provide,
     Push,
     Raw,
     Spaceless,
@@ -654,4 +655,43 @@ class SpecialBlockParsingMixin(BlockStackMixin):
             lineno=start.lineno,
             col_offset=start.col_offset,
             stack_name=stack_name,
+        )
+
+    def _parse_provide(self) -> Provide:
+        """Parse {% provide key = expr %}...{% endprovide %}.
+
+        Provide a value to descendant consumers via render context.
+        Consumers read it with ``consume("key")``.
+
+        Example::
+
+            {% provide table_align = ["left", "center", "right"] %}
+                {{ row("Alice", "Active", "42") }}
+            {% end %}
+        """
+        start = self._advance()  # consume 'provide'
+        self._push_block("provide", start)
+
+        # Parse: key = expr
+        if self._current.type != TokenType.NAME:
+            raise self._error(
+                "Expected variable name after 'provide'",
+                suggestion="Provide syntax: {% provide key = expr %}...{% end %}",
+            )
+        name = self._advance().value
+
+        self._expect(TokenType.ASSIGN)
+        value = self._parse_expression()
+
+        self._expect(TokenType.BLOCK_END)
+
+        body = self._parse_body()
+        self._consume_end_tag("provide")
+
+        return Provide(
+            lineno=start.lineno,
+            col_offset=start.col_offset,
+            name=name,
+            value=value,
+            body=tuple(body),
         )

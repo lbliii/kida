@@ -194,6 +194,7 @@ class Compiler(
         "Spaceless": "_compile_spaceless",
         "Flush": "_compile_flush",
         "Embed": "_compile_embed",
+        "Provide": "_compile_provide",
         "Push": "_compile_push",
         "Stack": "_compile_stack",
         "TemplateContext": "_compile_template_context",

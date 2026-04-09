@@ -117,6 +117,8 @@ def _try_eval_const_only(expr: Expr) -> Any:
                 if expr.op == "**":
                     return left**right
                 if expr.op == "~":
+                    # Compile-time only: operands are constants, never Markup.
+                    # Runtime ~ uses _markup_concat for Markup preservation.
                     return str(left) + str(right)
             except _PARTIAL_EVAL_EXCEPTIONS:
                 return _UNRESOLVED
@@ -457,6 +459,8 @@ class PartialEvaluator:
             return self._try_eval(expr.if_true if test else expr.if_false, depth + 1)
 
         if isinstance(expr, Concat):
+            # Compile-time only: operands are constants, never Markup.
+            # Runtime ~ uses _markup_concat for Markup preservation.
             parts = []
             for node in expr.nodes:
                 val = self._try_eval(node, depth + 1)
@@ -571,6 +575,8 @@ class PartialEvaluator:
             if op == "**":
                 return left**right
             if op == "~":
+                # Compile-time only: operands are constants, never Markup.
+                # Runtime ~ uses _markup_concat for Markup preservation.
                 return str(left) + str(right)
         except _PARTIAL_EVAL_EXCEPTIONS:
             return _UNRESOLVED

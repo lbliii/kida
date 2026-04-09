@@ -440,19 +440,14 @@ class ExpressionCompilationMixin:
         if isinstance(node, BinOp):
             # Special handling for ~ (string concatenation)
             if node.op == "~":
-                # str(left) + str(right)
-                return ast.BinOp(
-                    left=ast.Call(
-                        func=ast.Name(id="_str", ctx=ast.Load()),
-                        args=[self._compile_expr(node.left)],
-                        keywords=[],
-                    ),
-                    op=ast.Add(),
-                    right=ast.Call(
-                        func=ast.Name(id="_str", ctx=ast.Load()),
-                        args=[self._compile_expr(node.right)],
-                        keywords=[],
-                    ),
+                # _markup_concat(left, right) — preserves Markup safety
+                return ast.Call(
+                    func=ast.Name(id="_markup_concat", ctx=ast.Load()),
+                    args=[
+                        self._compile_expr(node.left),
+                        self._compile_expr(node.right),
+                    ],
+                    keywords=[],
                 )
 
             # Polymorphic +: add if both numeric, else string concatenation

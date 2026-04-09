@@ -198,6 +198,19 @@ def getattr_preserve_none(obj: object, name: str) -> object:
 # Sentinel for region param defaults that reference ctx (evaluated at call time, not def time)
 _REGION_DEFAULT = object()
 
+
+def markup_concat(left: Any, right: Any) -> str:
+    """Concatenate for ~ operator, preserving Markup safety.
+
+    If either operand is Markup, the result is Markup and the non-Markup
+    operand is HTML-escaped via Markup.__add__/__radd__. If neither is
+    Markup, both are converted to plain strings.
+    """
+    left = left if isinstance(left, Markup) else str(left)
+    right = right if isinstance(right, Markup) else str(right)
+    return left + right
+
+
 STATIC_NAMESPACE: dict[str, Any] = {
     "__builtins__": {"__import__": __import__},
     "_Markup": Markup,
@@ -216,6 +229,7 @@ STATIC_NAMESPACE: dict[str, Any] = {
     "_get_accumulator": _get_accumulator,
     "_perf_counter": _perf_counter,
     "_UNDEFINED": UNDEFINED,
+    "_markup_concat": markup_concat,
 }
 
 
@@ -449,7 +463,7 @@ def spaceless(html: str) -> str:
     return _SPACELESS_RE.sub("><", html).strip()
 
 
-def add_polymorphic(left: Any, right: Any) -> Any:
+def add_polymorphic(left: Any, right: Any) -> str:
     """Polymorphic + operator with safe string-concatenation fallback.
 
     Goals:
@@ -471,8 +485,9 @@ def add_polymorphic(left: Any, right: Any) -> Any:
         return left + right
 
     # Keep Jinja-like ergonomics for mixed string arithmetic.
+    # Use markup_concat to preserve Markup safety (prevents double-escaping).
     if isinstance(left, str) or isinstance(right, str):
-        return str(left) + str(right)
+        return markup_concat(left, right)
 
     # Preserve Python behavior for compatible non-string types
     # (e.g. list + list, tuple + tuple), and let incompatible combinations
@@ -530,6 +545,26 @@ def str_safe(value: Any) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def consume(key: str, default: Any = None) -> Any:
+    """Read a value from the nearest ``{% provide %}`` ancestor.
+
+    Template-level function that reads from the RenderContext provider
+    stack. Returns *default* if no provider is active for *key*.
+
+    Example::
+
+        {% provide color = "red" %}
+            {{ consume("color") }}  {# outputs: red #}
+        {% end %}
+    """
+    from kida.render_context import get_render_context
+
+    rc = get_render_context()
+    if rc is None:
+        return default
+    return rc.consume(key, default)
 
 
 def optional_call(callee: Any, *args: object, **kwargs: object) -> Any:

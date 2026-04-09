@@ -361,6 +361,41 @@ class TestStringConcatenation:
         tmpl = env.from_string("{{ 'value: ' ~ 42 }}")
         assert tmpl.render() == "value: 42"
 
+    def test_tilde_preserves_markup_from_macro(self, env_autoescape):
+        """Tilde with macro output preserves Markup (no double-escaping)."""
+        tmpl = env_autoescape.from_string(
+            "{% def bold(t) %}<b>{{ t }}</b>{% end %}{{ bold('hi') ~ ' ' ~ bold('there') }}"
+        )
+        result = tmpl.render()
+        assert "<b>hi</b>" in result
+        assert "<b>there</b>" in result
+        assert "&lt;b&gt;" not in result
+
+    def test_tilde_escapes_plain_string_with_markup(self, env_autoescape):
+        """Tilde escapes plain string when concatenated with Markup."""
+        tmpl = env_autoescape.from_string(
+            "{% def safe(t) %}<em>{{ t }}</em>{% end %}{{ safe('ok') ~ '<script>' }}"
+        )
+        result = tmpl.render()
+        assert "<em>ok</em>" in result
+        assert "&lt;script&gt;" in result
+        assert "<script>" not in result.replace("&lt;script&gt;", "")
+
+    def test_tilde_chain_multiple_macros(self, env_autoescape):
+        """Chained tilde with multiple macro calls preserves all Markup."""
+        tmpl = env_autoescape.from_string(
+            "{% def tag(t) %}<span>{{ t }}</span>{% end %}"
+            "{{ tag('a') ~ ' ' ~ tag('b') ~ ' ' ~ tag('c') }}"
+        )
+        result = tmpl.render()
+        assert result.count("<span>") == 3
+        assert "&lt;span&gt;" not in result
+
+    def test_tilde_plain_strings_unchanged(self, env_autoescape):
+        """Tilde with only plain strings behaves as before (regression check)."""
+        tmpl = env_autoescape.from_string("{{ 'hello' ~ ' ' ~ 'world' }}")
+        assert tmpl.render() == "hello world"
+
 
 class TestSlicing:
     """Slice expression tests."""

@@ -41,6 +41,17 @@ from kida.template import Template
 from kida.utils.lru_cache import LRUCache
 from kida.utils.template_keys import normalize_template_name
 
+
+def _consume_global(key: str, default: Any = None) -> Any:
+    """Template global: read a value from the nearest {% provide %} ancestor."""
+    from kida.render_context import get_render_context
+
+    rc = get_render_context()
+    if rc is None:
+        return default
+    return rc.consume(key, default)
+
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -263,6 +274,7 @@ class Environment:
             "zip": zip,
             "map": map,
             "filter": filter,
+            "consume": _consume_global,
         }
     )
 
