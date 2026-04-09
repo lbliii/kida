@@ -20,7 +20,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
@@ -121,6 +121,12 @@ class RenderContext:
     # are visible to the stack emission point.
     _stacks: dict[str, list[str]] = field(default_factory=dict)
 
+    # Provided values ({% provide key = expr %} / consume("key"))
+    # Stack-based: inner {% provide %} shadows outer for same key.
+    # Shared across child contexts so providers in parent templates
+    # are visible to consumers in included/extended templates.
+    _providers: dict[str, list[Any]] = field(default_factory=dict)
+
     # Framework metadata (for HTMX, CSRF, etc.)
     # Well-known keys: hx_request, hx_target, hx_trigger, hx_boosted, csrf_token.
     # Frameworks (e.g. Chirp) populate _meta; templates access via get_meta().
@@ -176,6 +182,37 @@ class RenderContext:
                 html = template.render()
         """
         self._meta[key] = value
+
+    # --- Provide / Consume (render context for component state) ---
+
+    def provide(self, key: str, value: Any) -> None:
+        """Push a value onto the provider stack for *key*.
+
+        Used by ``{% provide key = expr %}``. Stack-based so nested
+        provides shadow outer ones for the same key.
+        """
+        self._providers.setdefault(key, []).append(value)
+
+    def unprovide(self, key: str) -> None:
+        """Pop the most recent value for *key* from the provider stack.
+
+        Called in the ``finally`` block of compiled ``{% provide %}`` to
+        guarantee cleanup even when the body raises.
+        """
+        stack = self._providers.get(key)
+        if stack:
+            stack.pop()
+            if not stack:
+                del self._providers[key]
+
+    def consume(self, key: str, default: Any = None) -> Any:
+        """Read the current value for *key* from the nearest provider.
+
+        Returns *default* if no provider is active for *key*.
+        Used by the ``consume()`` template function.
+        """
+        stack = self._providers.get(key)
+        return stack[-1] if stack else default
 
     def check_include_depth(self, template_name: str) -> None:
         """Check if include depth limit exceeded.
@@ -256,6 +293,7 @@ class RenderContext:
             cache_stats=self.cache_stats,
             import_stack=import_stack,
             _stacks=self._stacks,  # Share content stacks with child templates
+            _providers=self._providers,  # Share provided values with child templates
             _meta=self._meta,  # Share metadata with child templates
             template_stack=new_stack,  # Pass stack to child
         )
@@ -294,6 +332,7 @@ class RenderContext:
             cache_stats=self.cache_stats,
             import_stack=list(self.import_stack),
             _stacks=self._stacks,  # Share content stacks with parent templates
+            _providers=self._providers,  # Share provided values with parent templates
             _meta=self._meta,
             template_stack=new_stack,
         )

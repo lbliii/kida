@@ -71,6 +71,8 @@ _BLOCK_PARSERS: dict[str, str] = {
     # Content stacks (deferred content injection)
     "push": "_parse_push",
     "stack": "_parse_stack",
+    # Render context (parent-to-child component state)
+    "provide": "_parse_provide",
 }
 
 # Continuation keywords that are invalid outside their block context
@@ -98,6 +100,7 @@ _END_KEYWORDS: frozenset[str] = frozenset(
         "endglobals",
         "endimports",
         "endpush",
+        "endprovide",
     }
 )
 

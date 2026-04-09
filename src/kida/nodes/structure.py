@@ -165,3 +165,19 @@ class Stack(Node):
     """
 
     stack_name: str
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Provide(Node):
+    """Provide a value to descendant consumers.
+
+    ``{% provide key = expr %}...{% endprovide %}`` pushes *value* onto
+    a per-key stack in ``RenderContext``. Any descendant macro can read it
+    via ``consume("key")``. Stack-based for nesting: inner provides shadow
+    outer ones for the same key.
+    """
+
+    name: str
+    value: Expr
+    body: Sequence[Node]

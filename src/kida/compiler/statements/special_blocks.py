@@ -13,7 +13,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kida.nodes import Capture, Embed, Flush, Node, Push, Raw, Spaceless, Stack
+    from kida.nodes import Capture, Embed, Flush, Node, Provide, Push, Raw, Spaceless, Stack
 
 
 class SpecialBlockMixin:
@@ -380,6 +380,64 @@ class SpecialBlockMixin:
                 orelse=[],
             ),
         ]
+
+    def _compile_provide(self, node: Provide) -> list[ast.stmt]:
+        """Compile {% provide key = expr %}...{% endprovide %}.
+
+        Pushes a value onto the RenderContext provider stack, compiles
+        the body, then pops in a finally block to guarantee cleanup.
+
+        Generates:
+            _rc.provide("key", <value>)
+            try:
+                <body>
+            finally:
+                _rc.unprovide("key")
+        """
+        value_expr = self._compile_expr(node.value)
+
+        # _rc.provide("key", value)
+        provide_call = ast.Expr(
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                    attr="provide",
+                    ctx=ast.Load(),
+                ),
+                args=[ast.Constant(value=node.name), value_expr],
+                keywords=[],
+            )
+        )
+
+        # Compile body
+        body_stmts: list[ast.stmt] = []
+        for child in node.body:
+            body_stmts.extend(self._compile_node(child))
+
+        # _rc.unprovide("key")
+        unprovide_call = ast.Expr(
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                    attr="unprovide",
+                    ctx=ast.Load(),
+                ),
+                args=[ast.Constant(value=node.name)],
+                keywords=[],
+            )
+        )
+
+        # try: <body> finally: unprovide
+        if not body_stmts:
+            body_stmts.append(ast.Pass())
+        try_finally = ast.Try(
+            body=body_stmts,
+            handlers=[],
+            orelse=[],
+            finalbody=[unprovide_call],
+        )
+
+        return [provide_call, try_finally]
 
     def _compile_embed(self, node: Embed) -> list[ast.stmt]:
         """Compile {% embed 'template.html' %}...{% end %}.

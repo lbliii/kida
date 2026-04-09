@@ -80,6 +80,7 @@ class BlockStackMixin:
             "endfragment",
             "endglobals",
             "endimports",
+            "endprovide",
         }
     )
 
