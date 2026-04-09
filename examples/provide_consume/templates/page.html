@@ -1,0 +1,23 @@
+{# Demonstrate provide/consume for implicit state passing. #}
+{% from "components/table.html" import table, row %}
+{% from "components/theme.html" import theme_provider, button %}
+
+<h1>{{ title }}</h1>
+
+{# --- Table with aligned columns --- #}
+<h2>Team</h2>
+{% call table(headers=["Name", "Role", "Status"], align=["left", "left", "right"]) %}
+  {% for m in members %}
+  {{ row(m.name, m.role, m.status) }}
+  {% end %}
+{% end %}
+
+{# --- Nested theme providers --- #}
+<h2>Themed Buttons</h2>
+{% call theme_provider("dark") %}
+  {{ button("Save") }}
+  {% call theme_provider("accent") %}
+    {{ button("Upgrade") }}
+  {% end %}
+  {{ button("Cancel") }}
+{% end %}

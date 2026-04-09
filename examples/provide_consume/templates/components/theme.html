@@ -1,0 +1,14 @@
+{# Theme provider: wraps content in a themed container. #}
+{% def theme_provider(name="light") %}
+{% provide theme = name %}
+<div class="theme-{{ name }}">
+  {% slot %}
+</div>
+{% endprovide %}
+{% end %}
+
+{# Button that reads the current theme. #}
+{% def button(label) %}
+{% set t = consume("theme", "light") %}
+<button class="btn btn-{{ t }}">{{ label }}</button>
+{% end %}

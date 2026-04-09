@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-04-09
+
+### Added
+
+- **`provide`/`consume` render context** — `{% provide key = expr %}` / `consume("key")` primitive for parent-to-child component state flow across slot boundaries. Stack-based nesting with `try/finally` cleanup.
+- **Agentic comment templates** — GitHub Action now supports agentic comment templates with release notes rendering across multiple surfaces.
+- **Release notes action** — Multi-surface rendering and rich data collection for automated release notes generation.
+- **AMP protocol documentation** — Agent template site documentation for the AMP protocol.
+
+### Fixed
+
+- **Markup-aware `~` operator** — `code(x) ~ " " ~ copy_button(x)` no longer double-escapes HTML. Also fixes the `+` operator's string concatenation branch.
+- **GitHub Action description** — Shortened `action.yml` description to meet GitHub's 125-character limit.
+
+### Changed
+
+- **README** — Slimmed down README, promoted Render Anywhere as hero section.
+
 ## [0.3.3] - 2026-04-07
 
 ### Added

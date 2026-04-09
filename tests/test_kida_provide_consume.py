@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from kida import DictLoader, Environment
+from kida.exceptions import TemplateRuntimeError
 
 
 @pytest.fixture
@@ -197,7 +198,7 @@ class TestProvideErrorSafety:
             '{{ consume("x") }}'
             "{% end %}"
         )
-        with pytest.raises(ZeroDivisionError):
+        with pytest.raises(TemplateRuntimeError):
             t.render()
 
         # After error, a fresh render should have clean provider state
