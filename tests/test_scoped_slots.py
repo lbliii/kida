@@ -238,6 +238,41 @@ class TestScopedSlotEdgeCases:
         result = tmpl.render(row="OUTER")
         assert result == "OUTER|OUTER|[X][Y]"
 
+    def test_caller_wrapper_default_aligns_to_slot(self, env: Environment) -> None:
+        """Regression: _caller_wrapper's 'slot' param must carry the default, not '_scope_stack'.
+
+        The AST previously had 2 args and 1 default; Python's right-to-left
+        assignment put the default on _scope_stack instead of slot.
+        """
+        import ast as stdlib_ast
+
+        # Compile and inspect the AST for _caller_wrapper
+        from kida.compiler.core import Compiler
+        from kida.lexer import Lexer
+        from kida.parser.core import Parser
+
+        source = "{% def greet() %}{% slot %}{% enddef %}{% call greet() %}Hello{% endcall %}"
+        lexer = Lexer(source)
+        tokens = list(lexer.tokenize())
+        parser = Parser(tokens, "test")
+        tree = parser.parse()
+        compiler = Compiler(env)
+        module = compiler._compile_template(tree)
+        stdlib_ast.fix_missing_locations(module)
+
+        for node in stdlib_ast.walk(module):
+            if isinstance(node, stdlib_ast.FunctionDef) and node.name == "_caller_wrapper":
+                args = node.args
+                assert args.args[0].arg == "_scope_stack", (
+                    "_scope_stack must be the first (required) param"
+                )
+                assert args.args[1].arg == "slot", "slot must be the second param (with default)"
+                assert len(args.defaults) == 1
+                assert args.defaults[0].value == "default"
+                break
+        else:
+            raise AssertionError("_caller_wrapper not found in compiled AST")
+
     def test_loop_index_binding(self, env: Environment) -> None:
         """Common pattern: expose loop.index alongside item."""
         tmpl = env.from_string(

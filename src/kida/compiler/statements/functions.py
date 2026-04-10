@@ -551,7 +551,7 @@ class FunctionCompilationMixin:
             )
 
         # Build _caller(slot="default", **kwargs) wrapper
-        # def _caller_wrapper(slot="default", _scope_stack, **_slot_kwargs):
+        # def _caller_wrapper(_scope_stack, slot="default", **_slot_kwargs):
         #     f = _caller_slots.get(slot)
         #     return f(_scope_stack, **_slot_kwargs) if f else _Markup("")
         wrapper_body: list[ast.stmt] = [
@@ -599,14 +599,14 @@ class FunctionCompilationMixin:
         )
         # Use _caller_wrapper to avoid shadowing the def's _caller parameter
         # (which would cause UnboundLocalError when _def_caller = _caller runs)
-        # Wrapper takes (slot, _scope_stack, **_slot_kwargs) so slot functions get
+        # Wrapper takes (_scope_stack, slot, **_slot_kwargs) so slot functions get
         # scope for _lookup_scope and scoped bindings via kwargs
         stmts.append(
             ast.FunctionDef(
                 name="_caller_wrapper",
                 args=ast.arguments(
                     posonlyargs=[],
-                    args=[ast.arg(arg="slot"), ast.arg(arg="_scope_stack")],
+                    args=[ast.arg(arg="_scope_stack"), ast.arg(arg="slot")],
                     vararg=None,
                     kwonlyargs=[],
                     kw_defaults=[],
@@ -636,8 +636,8 @@ class FunctionCompilationMixin:
                     body=ast.Call(
                         func=ast.Name(id="_caller_wrapper", ctx=ast.Load()),
                         args=[
-                            ast.Name(id="slot", ctx=ast.Load()),
                             ast.Name(id="_scope_stack", ctx=ast.Load()),
+                            ast.Name(id="slot", ctx=ast.Load()),
                         ],
                         keywords=[
                             ast.keyword(
