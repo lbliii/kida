@@ -274,3 +274,121 @@ class TestFilterFoldingBenchmarks:
 
         result = benchmark(tpl.render)
         assert "HELLO WORLD" in result
+
+
+# =============================================================================
+# Optimization gap benchmarks — baseline for epic-partial-eval-enhancement
+# =============================================================================
+
+# Static for-loop: nav with 5 items, all known at compile time
+STATIC_FOR_TEMPLATE = """\
+<nav>
+{% for item in nav %}
+<a href="{{ item.url }}">{{ item.title }}</a>
+{% end %}
+</nav>
+"""
+
+NAV_ITEMS = (
+    {"title": "Home", "url": "/"},
+    {"title": "Docs", "url": "/docs/"},
+    {"title": "API", "url": "/api/"},
+    {"title": "Blog", "url": "/blog/"},
+    {"title": "GitHub", "url": "/github"},
+)
+
+# Set/Let chain: assignment propagation
+SET_CHAIN_TEMPLATE = """\
+{% set theme = config.theme %}\
+{% set label = config.label | upper %}\
+Theme: {{ theme }}, Label: {{ label }}\
+"""
+
+# Partial BoolOp: short-circuit with one static operand
+PARTIAL_BOOLOP_TEMPLATE = """\
+{% if show_banner and has_content %}BANNER{% end %}\
+{% if is_admin or is_guest %}ACCESS{% end %}\
+"""
+
+
+class TestStaticForLoopBenchmarks:
+    """Measure rendering of for-loops with static vs dynamic iterables."""
+
+    def test_static_for_dynamic(self, benchmark: BenchmarkFixture) -> None:
+        """Baseline: nav items passed at runtime."""
+        env = Environment(autoescape=False)
+        tpl = env.from_string(STATIC_FOR_TEMPLATE)
+
+        result = benchmark(tpl.render, nav=NAV_ITEMS)
+        assert "Home" in result
+
+    def test_static_for_with_static_context(self, benchmark: BenchmarkFixture) -> None:
+        """Optimized: nav items known at compile time."""
+        env = Environment(autoescape=False)
+        tpl = env.from_string(
+            STATIC_FOR_TEMPLATE,
+            static_context={"nav": NAV_ITEMS},
+        )
+
+        result = benchmark(tpl.render, nav=NAV_ITEMS)
+        assert "Home" in result
+
+
+class TestSetChainBenchmarks:
+    """Measure set/let chain rendering with static vs dynamic values."""
+
+    def test_set_chain_dynamic(self, benchmark: BenchmarkFixture) -> None:
+        """Baseline: config passed at runtime."""
+        env = Environment(autoescape=False)
+        tpl = env.from_string(SET_CHAIN_TEMPLATE)
+        ctx = {"config": {"theme": "dark", "label": "hello"}}
+
+        result = benchmark(tpl.render, **ctx)
+        assert "dark" in result
+
+    def test_set_chain_static(self, benchmark: BenchmarkFixture) -> None:
+        """Optimized: config known at compile time."""
+        env = Environment(autoescape=False)
+        ctx = {"config": {"theme": "dark", "label": "hello"}}
+        tpl = env.from_string(
+            SET_CHAIN_TEMPLATE,
+            static_context=ctx,
+        )
+
+        result = benchmark(tpl.render, **ctx)
+        assert "dark" in result
+
+
+class TestPartialBoolOpBenchmarks:
+    """Measure partial BoolOp simplification."""
+
+    def test_boolop_dynamic(self, benchmark: BenchmarkFixture) -> None:
+        """Baseline: all operands dynamic."""
+        env = Environment(autoescape=False)
+        tpl = env.from_string(PARTIAL_BOOLOP_TEMPLATE)
+        ctx = {
+            "show_banner": False,
+            "has_content": True,
+            "is_admin": True,
+            "is_guest": False,
+        }
+
+        result = benchmark(tpl.render, **ctx)
+        assert "ACCESS" in result
+
+    def test_boolop_partial_static(self, benchmark: BenchmarkFixture) -> None:
+        """Optimized: one operand per BoolOp is static."""
+        env = Environment(autoescape=False)
+        tpl = env.from_string(
+            PARTIAL_BOOLOP_TEMPLATE,
+            static_context={"show_banner": False, "is_admin": True},
+        )
+
+        result = benchmark(
+            tpl.render,
+            show_banner=False,
+            has_content=True,
+            is_admin=True,
+            is_guest=False,
+        )
+        assert "ACCESS" in result

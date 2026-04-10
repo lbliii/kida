@@ -574,3 +574,568 @@ class TestComponentInlining:
         )
         # Dynamic arg — falls back to runtime
         assert tmpl.render(user_name="Alice") == "Hello, Alice!"
+
+
+# =========================================================================
+# Optimization metrics — measure AST node reduction
+# =========================================================================
+
+
+def _count_nodes_by_type(nodes, node_types):
+    """Count AST nodes matching given types (recursive)."""
+    from kida.nodes import Block, CallBlock, Def, For, If, SlotBlock
+
+    count = 0
+    for node in nodes:
+        if isinstance(node, tuple(node_types)):
+            count += 1
+        # Recurse into container nodes
+        if hasattr(node, "body"):
+            count += _count_nodes_by_type(node.body, node_types)
+        if isinstance(node, If):
+            for _, branch_body in node.elif_:
+                count += _count_nodes_by_type(branch_body, node_types)
+            if node.else_:
+                count += _count_nodes_by_type(node.else_, node_types)
+        if isinstance(node, For) and node.empty:
+            count += _count_nodes_by_type(node.empty, node_types)
+        if isinstance(node, Def):
+            count += _count_nodes_by_type(node.body, node_types)
+        if isinstance(node, (Block, SlotBlock)):
+            count += _count_nodes_by_type(node.body, node_types)
+        if isinstance(node, CallBlock):
+            for slot_body in node.slots.values():
+                count += _count_nodes_by_type(slot_body, node_types)
+    return count
+
+
+class TestAssignmentPropagation:
+    """Set/Let bindings propagate through static context."""
+
+    def test_set_propagates_static_value(self):
+        """{% set x = config.theme %} makes x available for folding."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set theme = config.theme %}Theme: {{ theme }}",
+            static_context={"config": {"theme": "dark"}},
+        )
+        assert tmpl.render() == "Theme: dark"
+
+    def test_set_chain_propagates(self):
+        """Multiple sets chain: each sees the previous."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set a = x %}{% set b = a %}{{ b }}",
+            static_context={"x": "hello"},
+        )
+        assert tmpl.render() == "hello"
+
+    def test_set_with_filter_propagates(self):
+        """{% set label = name | upper %} propagates the filtered value."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set label = name | upper %}Label: {{ label }}",
+            static_context={"name": "hello"},
+        )
+        assert tmpl.render() == "Label: HELLO"
+
+    def test_let_propagates_static_value(self):
+        """{% let x = config.theme %} makes x available for folding."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% let theme = config.theme %}Theme: {{ theme }}",
+            static_context={"config": {"theme": "dark"}},
+        )
+        assert tmpl.render() == "Theme: dark"
+
+    def test_dynamic_set_does_not_propagate(self):
+        """{% set x = dynamic_val %} with no static value stays dynamic."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set label = user_name %}{{ label }}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render(user_name="Alice") == "Alice"
+
+    def test_coalesce_set_respects_existing(self):
+        """{% set x ??= fallback %} doesn't overwrite existing value."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set x ??= 'fallback' %}{{ x }}",
+            static_context={"x": "original"},
+        )
+        assert tmpl.render() == "original"
+
+    def test_coalesce_set_fills_none(self):
+        """{% set x ??= fallback %} fills when existing is None."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% set x ??= "fallback" %}{{ x }}',
+            static_context={"x": None},
+        )
+        assert tmpl.render() == "fallback"
+
+
+class TestPartialBoolOp:
+    """BoolOp short-circuits when one operand is statically known."""
+
+    def test_false_and_dynamic(self):
+        """false and X → False (short-circuit)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if show and has_content %}yes{% else %}no{% end %}",
+            static_context={"show": False},
+        )
+        assert tmpl.render(has_content=True) == "no"
+
+    def test_true_or_dynamic(self):
+        """true or X → True (short-circuit)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if is_admin or is_guest %}access{% else %}denied{% end %}",
+            static_context={"is_admin": True},
+        )
+        assert tmpl.render(is_guest=False) == "access"
+
+    def test_true_and_dynamic_simplifies(self):
+        """true and X → X (true is removed from 'and' chain)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if enabled and has_data %}yes{% else %}no{% end %}",
+            static_context={"enabled": True},
+        )
+        assert tmpl.render(has_data=True) == "yes"
+        assert tmpl.render(has_data=False) == "no"
+
+    def test_false_or_dynamic_simplifies(self):
+        """false or X → X (false is removed from 'or' chain)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if disabled or active %}yes{% else %}no{% end %}",
+            static_context={"disabled": False},
+        )
+        assert tmpl.render(active=True) == "yes"
+        assert tmpl.render(active=False) == "no"
+
+    def test_mixed_boolop_chain(self):
+        """Multiple operands: some static, some dynamic."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a and b and c %}yes{% else %}no{% end %}",
+            static_context={"a": True, "c": True},
+        )
+        assert tmpl.render(b=True) == "yes"
+        assert tmpl.render(b=False) == "no"
+
+
+class TestPartialCondExpr:
+    """CondExpr collapses when test is statically known."""
+
+    def test_true_test_takes_if_branch(self):
+        """{{ X if true else Y }} → X."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ value if enabled else 'disabled' }}",
+            static_context={"enabled": True},
+        )
+        assert tmpl.render(value="hello") == "hello"
+
+    def test_false_test_takes_else_branch(self):
+        """{{ X if false else Y }} → Y."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ value if enabled else 'disabled' }}",
+            static_context={"enabled": False},
+        )
+        assert tmpl.render(value="hello") == "disabled"
+
+    def test_condexpr_with_static_result(self):
+        """Both test and result are static → folds to constant."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ 'yes' if flag else 'no' }}",
+            static_context={"flag": True},
+        )
+        assert tmpl.render() == "yes"
+
+
+class TestStaticLoopUnrolling:
+    """Static for-loops are unrolled at compile time."""
+
+    def test_simple_unroll(self):
+        """{% for x in items %}{{ x }}{% end %} with static items unrolls."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }},{% end %}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "1,2,3,"
+
+    def test_unroll_with_attribute_access(self):
+        """Unrolled items support attribute access."""
+        env = _env()
+        nav = [{"title": "Home", "url": "/"}, {"title": "About", "url": "/about"}]
+        tmpl = env.from_string(
+            '{% for item in nav %}<a href="{{ item.url }}">{{ item.title }}</a>{% end %}',
+            static_context={"nav": nav},
+        )
+        assert tmpl.render() == '<a href="/">Home</a><a href="/about">About</a>'
+
+    def test_unroll_with_loop_index(self):
+        """loop.index works in unrolled loops."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ loop.index }}:{{ x }} {% end %}",
+            static_context={"items": ["a", "b", "c"]},
+        )
+        assert tmpl.render() == "1:a 2:b 3:c "
+
+    def test_unroll_with_loop_first_last(self):
+        """loop.first and loop.last work in unrolled loops."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}"
+            "{% if loop.first %}[{% end %}"
+            "{{ x }}"
+            "{% if loop.last %}]{% end %}"
+            "{% if not loop.last %},{% end %}"
+            "{% end %}",
+            static_context={"items": ["a", "b", "c"]},
+        )
+        assert tmpl.render() == "[a,b,c]"
+
+    def test_unroll_empty_list(self):
+        """Empty static list → empty body (or {% empty %} branch)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }}{% empty %}none{% end %}",
+            static_context={"items": []},
+        )
+        assert tmpl.render() == "none"
+
+    def test_unroll_tuple_unpacking(self):
+        """{% for k, v in items %}{{ k }}={{ v }}{% end %} unrolls."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for k, v in pairs %}{{ k }}={{ v }} {% end %}",
+            static_context={"pairs": [("a", 1), ("b", 2)]},
+        )
+        assert tmpl.render() == "a=1 b=2 "
+
+    def test_unroll_list_literal(self):
+        """{% for x in [1, 2, 3] %} unrolls with literal list."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in [1, 2, 3] %}{{ x }}{% end %}",
+        )
+        assert tmpl.render() == "123"
+
+    def test_dynamic_iter_not_unrolled(self):
+        """Dynamic iterable is not unrolled — works normally at runtime."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }}{% end %}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render(items=[1, 2]) == "12"
+
+    def test_unroll_mixed_static_dynamic_body(self):
+        """Unrolled loop body can mix static and dynamic expressions."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for item in nav %}{{ site_name }}: {{ item.title }}\n{% end %}",
+            static_context={
+                "nav": [{"title": "Home"}, {"title": "About"}],
+                "site_name": "Kida",
+            },
+        )
+        assert tmpl.render() == "Kida: Home\nKida: About\n"
+
+
+class TestListDictTupleEval:
+    """List, Dict, and Tuple literals are evaluated at compile time."""
+
+    def test_list_literal(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ [1, 2, 3] | join(', ') }}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "1, 2, 3"
+
+    def test_dict_literal(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{{ {"a": 1, "b": 2} | length }}',
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "2"
+
+    def test_tuple_literal(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ (1, 2, 3) | first }}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "1"
+
+    def test_list_with_static_vars(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ [a, b, c] | join('-') }}",
+            static_context={"a": "x", "b": "y", "c": "z"},
+        )
+        assert tmpl.render() == "x-y-z"
+
+
+class TestSafeBuiltinEvaluation:
+    """Safe builtins (range, len, sorted, etc.) evaluate at compile time."""
+
+    def test_len_of_static_list(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ len(items) }}",
+            static_context={"items": [1, 2, 3, 4, 5]},
+        )
+        assert tmpl.render() == "5"
+
+    def test_range_function(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in range(3) %}{{ x }}{% end %}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "012"
+
+    def test_range_with_start_stop(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in range(1, 4) %}{{ x }}{% end %}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "123"
+
+    def test_sorted_function(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ sorted(items) | join(', ') }}",
+            static_context={"items": [3, 1, 2]},
+        )
+        assert tmpl.render() == "1, 2, 3"
+
+    def test_min_max_functions(self):
+        env = _env()
+        tmpl = env.from_string(
+            "min={{ min(items) }} max={{ max(items) }}",
+            static_context={"items": [5, 2, 8, 1]},
+        )
+        assert tmpl.render() == "min=1 max=8"
+
+    def test_sum_function(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ sum(items) }}",
+            static_context={"items": [10, 20, 30]},
+        )
+        assert tmpl.render() == "60"
+
+    def test_abs_function(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ abs(val) }}",
+            static_context={"val": -42},
+        )
+        assert tmpl.render() == "42"
+
+    def test_str_int_float_functions(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{{ int("42") }} {{ float("3.14") }} {{ str(100) }}',
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "42 3.14 100"
+
+    def test_range_dos_protection(self):
+        """range(huge) doesn't blow up — falls back to runtime."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ len(range(1000000)) }}",
+            static_context={"_placeholder": True},
+        )
+        # Falls back to runtime, should still work
+        assert tmpl.render() == "1000000"
+
+    def test_dynamic_args_not_evaluated(self):
+        """Builtins with dynamic args stay as runtime calls."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ len(items) }}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render(items=[1, 2, 3]) == "3"
+
+    def test_range_literal(self):
+        """Range literal (1..5) evaluates at compile time."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in 1..3 %}{{ x }}{% end %}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "123"
+
+
+class TestOptimizationMetrics:
+    """Measure AST node reduction from partial evaluation."""
+
+    def test_static_vars_fold_to_data(self):
+        """Static variable expressions become Data nodes."""
+        from kida.nodes import Data, Output
+
+        env = _env()
+        # Without static context: Output nodes for each {{ }}
+        tpl_dynamic = env.from_string("{{ a }} {{ b }} {{ c }}")
+        output_count = _count_nodes_by_type(tpl_dynamic._optimized_ast.body, [Output])
+        assert output_count >= 3
+
+        # With static context: folded to Data nodes
+        tpl_static = env.from_string(
+            "{{ a }} {{ b }} {{ c }}",
+            static_context={"a": "x", "b": "y", "c": "z"},
+        )
+        data_count = _count_nodes_by_type(tpl_static._optimized_ast.body, [Data])
+        output_count_after = _count_nodes_by_type(tpl_static._optimized_ast.body, [Output])
+        # All outputs should be gone, replaced by Data
+        assert output_count_after == 0
+        assert data_count >= 1  # May be merged into fewer Data nodes
+
+    def test_dead_branch_elimination_reduces_nodes(self):
+        """False branches are eliminated entirely."""
+        from kida.nodes import If
+
+        env = _env()
+        tpl = env.from_string(
+            "{% if false %}DEAD1{% end %}{% if false %}DEAD2{% end %}LIVE",
+        )
+        if_count = _count_nodes_by_type(tpl._optimized_ast.body, [If])
+        assert if_count == 0  # Both If nodes eliminated
+
+    def test_filter_folding_reduces_outputs(self):
+        """Static filters fold to Data, eliminating runtime filter calls."""
+        from kida.nodes import Data, Output
+
+        env = _env()
+        tpl = env.from_string(
+            "{{ name | upper }} {{ val | abs }}",
+            static_context={"name": "hello", "val": -42},
+        )
+        output_count = _count_nodes_by_type(tpl._optimized_ast.body, [Output])
+        data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
+        assert output_count == 0
+        assert data_count >= 1
+
+
+# ---------------------------------------------------------------------------
+# Sprint 4: Purity analysis integration — @pure decorator
+# ---------------------------------------------------------------------------
+
+
+class TestUserPureFilters:
+    """Test that user-defined filters marked with @pure are folded at compile time."""
+
+    def test_pure_decorator_marks_function(self):
+        """The @pure decorator sets the _kida_pure attribute."""
+        from kida import pure
+
+        @pure
+        def my_filter(value):
+            return value.strip()
+
+        assert getattr(my_filter, "_kida_pure", False) is True
+
+    def test_pure_filter_via_add_filter(self):
+        """A @pure filter registered via add_filter is folded at compile time."""
+        from kida import pure
+        from kida.nodes import Data
+
+        @pure
+        def clean(value):
+            return value.strip().lower()
+
+        env = _env()
+        env.add_filter("clean", clean)
+        tpl = env.from_string(
+            "{{ name | clean }}",
+            static_context={"name": "  HELLO  "},
+        )
+        # Should fold to "hello" at compile time
+        assert tpl.render(name="  HELLO  ") == "hello"
+        data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
+        assert data_count >= 1
+
+    def test_pure_filter_via_filters_registry(self):
+        """A @pure filter registered via env.filters[name] = func is folded."""
+        from kida import pure
+        from kida.nodes import Data
+
+        @pure
+        def shout(value):
+            return value.upper() + "!"
+
+        env = _env()
+        env.filters["shout"] = shout
+        tpl = env.from_string(
+            "{{ name | shout }}",
+            static_context={"name": "hello"},
+        )
+        assert tpl.render(name="hello") == "HELLO!"
+        data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
+        assert data_count >= 1
+
+    def test_non_pure_filter_not_folded(self):
+        """A filter without @pure is NOT folded at compile time."""
+        from kida.nodes import Output
+
+        def not_pure(value):
+            return value.upper()
+
+        env = _env()
+        env.add_filter("not_pure", not_pure)
+        tpl = env.from_string(
+            "{{ name | not_pure }}",
+            static_context={"name": "hello"},
+        )
+        # Should NOT fold — filter is not in pure set
+        assert tpl.render(name="hello") == "HELLO"
+        output_count = _count_nodes_by_type(tpl._optimized_ast.body, [Output])
+        assert output_count >= 1  # Still has an Output node (not folded to Data)
+
+    def test_pure_filter_with_args(self):
+        """A @pure filter with extra arguments is folded when all args are static."""
+        from kida import pure
+        from kida.nodes import Data
+
+        @pure
+        def repeat(value, times=2):
+            return value * times
+
+        env = _env()
+        env.add_filter("repeat", repeat)
+        tpl = env.from_string(
+            "{{ word | repeat(3) }}",
+            static_context={"word": "ha"},
+        )
+        assert tpl.render(word="ha") == "hahaha"
+        data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
+        assert data_count >= 1
+
+    def test_pure_filter_preserves_function_behavior(self):
+        """The @pure decorator does not alter the function's behavior."""
+        from kida import pure
+
+        @pure
+        def add_prefix(value, prefix="pre"):
+            return f"{prefix}_{value}"
+
+        assert add_prefix("test") == "pre_test"
+        assert add_prefix("test", prefix="x") == "x_test"
+        assert add_prefix.__name__ == "add_prefix"

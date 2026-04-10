@@ -209,8 +209,13 @@ Kida is AST-native and uses several compile-time passes:
   (e.g. `{% if false %}...{% end %}`, `{% if 1+1==2 %}...{% end %}`). Skips inlining
   when the body contains block-scoped nodes (Set, Let, Capture, Export).
 - **Partial evaluation** — When `static_context` is provided, evaluates static expressions
-  and replaces them with constants. Supports Filter and Pipeline for pure filters
-  (e.g. `{{ site.title | default("x") }}`).
+  and replaces them with constants. The partial evaluator handles:
+  - **Filter and pipeline folding** for pure filters (e.g. `{{ site.title | default("x") }}`)
+  - **Assignment propagation** — `{% set %}` and `{% let %}` bindings with static values are tracked, so downstream expressions like `{{ theme }}` resolve at compile time
+  - **Static loop unrolling** — `{% for item in nav %}` with a static `nav` is unrolled into pre-rendered HTML, including `loop.index`, `loop.first`, `loop.last` properties
+  - **Literal evaluation** — `[1, 2, 3]`, `{"key": "val"}`, and list comprehensions with static inputs are evaluated at compile time
+  - **Safe builtin evaluation** — `range()`, `len()`, `sorted()`, `min()`, `max()`, and other deterministic builtins execute at compile time when all arguments are static
+  - **Partial boolean simplification** — `false and X` folds to `False`, `true or X` folds to `True`, even when the other operand is dynamic
 
 ### When to Use static_context
 
@@ -223,11 +228,15 @@ template = env.get_template("page.html")
 template.render(page=page, site=site)
 ```
 
-Benefits (~13% faster render for templates with many static expressions):
+Benefits:
 
 - Filter pipelines like `{{ site.title | default("Untitled") }}` are reduced to constants
 - Nested attribute chains (`site.nav.items`) are inlined
-- Fewer runtime lookups and filter calls
+- Static `{% for %}` loops are unrolled into pre-rendered HTML (e.g. a 5-item nav bar becomes 5 Data nodes instead of a runtime loop)
+- `{% set %}` / `{% let %}` chains with static values propagate through downstream expressions
+- Safe builtins like `range()`, `len()`, `sorted()` execute at compile time
+- Boolean short-circuits (`false and X`, `true or X`) eliminate dead branches
+- Each optimization produces more constant nodes, which cascade into better f-string coalescing downstream
 
 Only include keys whose values are immutable and known when compiling. Avoid passing user data or request-specific values in `static_context`.
 

@@ -317,11 +317,25 @@ Additional filters the compiler can treat as side-effect-free.
 |------|---------|-------------|
 | `set[str]` | `set()` | Custom pure filter names |
 
-Filters in this set are assumed to have no side effects and can be coalesced into f-strings alongside built-in pure filters (`escape`, `upper`, `lower`, `trim`, `default`, etc.).
+Filters in this set are assumed to have no side effects and can be coalesced into f-strings alongside built-in pure filters (`escape`, `upper`, `lower`, `trim`, `default`, etc.). When `static_context` is provided, pure filters with fully static inputs are evaluated at compile time and replaced with constants.
 
 ```python
-# Tell the compiler your custom filters are pure
+# Manual registration via configuration
 pure_filters={"markdown", "highlight", "currency"}
+```
+
+The preferred approach is the `@pure` decorator, which auto-registers filters as pure when added via `add_filter()`:
+
+```python
+from kida import Environment, pure
+
+@pure
+def currency(value, symbol="$"):
+    return f"{symbol}{value:,.2f}"
+
+env = Environment()
+env.add_filter("currency", currency)
+# "currency" is automatically added to pure_filters
 ```
 
 ### validate_calls

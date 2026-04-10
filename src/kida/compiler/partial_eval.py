@@ -41,6 +41,7 @@ from kida.nodes import (
     Const,
     Data,
     Def,
+    Dict,
     Export,
     Expr,
     Filter,
@@ -50,6 +51,8 @@ from kida.nodes import (
     Getitem,
     If,
     Let,
+    List,
+    ListComp,
     MarkSafe,
     Name,
     Node,
@@ -57,16 +60,66 @@ from kida.nodes import (
     OptionalFilter,
     Output,
     Pipeline,
+    Range,
     SafePipeline,
     Set,
     Slot,
     SlotBlock,
     Template,
+    Tuple,
     UnaryOp,
 )
 
 # Sentinel for "evaluation failed" — distinct from None (which is a valid result)
 _UNRESOLVED = object()
+
+# Maximum number of iterations to unroll in a static for-loop
+_MAX_UNROLL = 200
+
+# Maximum allowed result size for safe builtins that produce sequences
+_MAX_BUILTIN_RESULT = 10_000
+
+# Safe builtins that can be evaluated at compile time.
+# Each maps a function name to a callable. Only functions that:
+# 1. Have no side effects
+# 2. Are deterministic
+# 3. Cannot execute arbitrary code
+_SAFE_BUILTINS: dict[str, Callable[..., Any]] = {
+    "range": range,
+    "len": len,
+    "sorted": sorted,
+    "min": min,
+    "max": max,
+    "sum": sum,
+    "abs": abs,
+    "round": round,
+    "int": int,
+    "float": float,
+    "str": str,
+    "bool": bool,
+    "list": list,
+    "tuple": tuple,
+    "chr": chr,
+    "ord": ord,
+}
+
+
+@dataclass(frozen=True, slots=True)
+class _LoopProperties:
+    """Compile-time stand-in for LoopContext properties.
+
+    Provides the same attribute names as the runtime LoopContext so that
+    expressions like ``{{ loop.index }}`` resolve during partial evaluation.
+    """
+
+    index0: int
+    index: int
+    first: bool
+    last: bool
+    length: int
+    revindex: int
+    revindex0: int
+
 
 # Expected errors when constant folding fails — fall back to runtime evaluation.
 # Narrowing avoids silently swallowing KeyboardInterrupt, SystemExit, etc.
@@ -486,7 +539,44 @@ class PartialEvaluator:
         if isinstance(expr, MarkSafe):
             return self._try_eval(expr.value, depth + 1)
 
-        # Anything else (FuncCall, etc.) — not resolved
+        if isinstance(expr, List):
+            items = []
+            for item in expr.items:
+                val = self._try_eval(item, depth + 1)
+                if val is _UNRESOLVED:
+                    return _UNRESOLVED
+                items.append(val)
+            return items
+
+        if isinstance(expr, Tuple):
+            items = []
+            for item in expr.items:
+                val = self._try_eval(item, depth + 1)
+                if val is _UNRESOLVED:
+                    return _UNRESOLVED
+                items.append(val)
+            return tuple(items)
+
+        if isinstance(expr, Dict):
+            result: dict[Any, Any] = {}
+            for k_expr, v_expr in zip(expr.keys, expr.values, strict=True):
+                k = self._try_eval(k_expr, depth + 1)
+                v = self._try_eval(v_expr, depth + 1)
+                if k is _UNRESOLVED or v is _UNRESOLVED:
+                    return _UNRESOLVED
+                result[k] = v
+            return result
+
+        if isinstance(expr, ListComp):
+            return self._try_eval_listcomp(expr, depth)
+
+        if isinstance(expr, FuncCall):
+            return self._try_eval_funccall(expr, depth)
+
+        if isinstance(expr, Range):
+            return self._try_eval_range(expr, depth)
+
+        # Anything else — not resolved
         return _UNRESOLVED
 
     def _try_eval_filter(self, expr: Filter, depth: int = 0) -> Any:
@@ -555,6 +645,122 @@ class PartialEvaluator:
             except _PARTIAL_EVAL_EXCEPTIONS:
                 return _UNRESOLVED
         return value
+
+    def _try_eval_listcomp(self, expr: ListComp, depth: int = 0) -> Any:
+        """Evaluate a list comprehension when iterable and all parts resolve."""
+        iter_val = self._try_eval(expr.iter, depth + 1)
+        if iter_val is _UNRESOLVED:
+            return _UNRESOLVED
+        try:
+            items = list(iter_val)
+        except _PARTIAL_EVAL_EXCEPTIONS:
+            return _UNRESOLVED
+        if len(items) > _MAX_UNROLL:
+            return _UNRESOLVED
+
+        target = expr.target
+        if not isinstance(target, Name):
+            return _UNRESOLVED
+
+        result = []
+        for item in items:
+            sub_ctx = {**self._ctx, target.name: item}
+            sub_eval = PartialEvaluator(
+                sub_ctx,
+                escape_func=self._escape,
+                pure_filters=self._pure_filters,
+                filter_callables=self._filter_callables,
+                max_eval_depth=self._max_depth,
+            )
+            # Check filter conditions
+            skip = False
+            for cond in expr.ifs:
+                cond_val = sub_eval._try_eval(cond, depth + 1)
+                if cond_val is _UNRESOLVED:
+                    return _UNRESOLVED
+                if not cond_val:
+                    skip = True
+                    break
+            if skip:
+                continue
+            elt_val = sub_eval._try_eval(expr.elt, depth + 1)
+            if elt_val is _UNRESOLVED:
+                return _UNRESOLVED
+            result.append(elt_val)
+        return result
+
+    def _try_eval_funccall(self, expr: FuncCall, depth: int = 0) -> Any:
+        """Evaluate a FuncCall when it targets a safe builtin and all args resolve."""
+        # Only handle simple Name calls (not method calls or complex expressions)
+        if not isinstance(expr.func, Name):
+            return _UNRESOLVED
+        # No dynamic args/kwargs
+        if expr.dyn_args is not None or expr.dyn_kwargs is not None:
+            return _UNRESOLVED
+
+        func_name = expr.func.name
+        func = _SAFE_BUILTINS.get(func_name)
+        if func is None:
+            return _UNRESOLVED
+
+        # Resolve positional args
+        args_resolved: list[Any] = []
+        for arg in expr.args:
+            val = self._try_eval(arg, depth + 1)
+            if val is _UNRESOLVED:
+                return _UNRESOLVED
+            args_resolved.append(val)
+
+        # Resolve keyword args
+        kwargs_resolved: dict[str, Any] = {}
+        for k, v_expr in expr.kwargs.items():
+            val = self._try_eval(v_expr, depth + 1)
+            if val is _UNRESOLVED:
+                return _UNRESOLVED
+            kwargs_resolved[k] = val
+
+        # Guard against DoS: range() with large values
+        if func_name == "range":
+            try:
+                r = range(*args_resolved, **kwargs_resolved)
+            except _PARTIAL_EVAL_EXCEPTIONS:
+                return _UNRESOLVED
+            if len(r) > _MAX_BUILTIN_RESULT:
+                return _UNRESOLVED
+            return r
+
+        try:
+            result = func(*args_resolved, **kwargs_resolved)
+        except _PARTIAL_EVAL_EXCEPTIONS:
+            return _UNRESOLVED
+
+        # Guard against large sequence results
+        if isinstance(result, (list, tuple, set, frozenset)) and len(result) > _MAX_BUILTIN_RESULT:
+            return _UNRESOLVED
+
+        return result
+
+    def _try_eval_range(self, expr: Range, depth: int = 0) -> Any:
+        """Evaluate a Range literal (start..end or start...end)."""
+        start = self._try_eval(expr.start, depth + 1)
+        end = self._try_eval(expr.end, depth + 1)
+        if start is _UNRESOLVED or end is _UNRESOLVED:
+            return _UNRESOLVED
+
+        step_val = 1
+        if expr.step is not None:
+            step_val = self._try_eval(expr.step, depth + 1)
+            if step_val is _UNRESOLVED:
+                return _UNRESOLVED
+
+        try:
+            r = range(start, end + 1, step_val) if expr.inclusive else range(start, end, step_val)
+        except _PARTIAL_EVAL_EXCEPTIONS:
+            return _UNRESOLVED
+
+        if len(r) > _MAX_BUILTIN_RESULT:
+            return _UNRESOLVED
+        return list(r)
 
     @staticmethod
     def _eval_binop(op: str, left: Any, right: Any) -> Any:
@@ -650,21 +856,32 @@ class PartialEvaluator:
             if transformed is None:
                 changed = True
                 continue
-            # Merge adjacent Data nodes
-            if isinstance(transformed, Data) and new_nodes and isinstance(new_nodes[-1], Data):
-                prev = new_nodes[-1]
-                new_nodes[-1] = Data(
-                    lineno=prev.lineno,
-                    col_offset=prev.col_offset,
-                    value=prev.value + transformed.value,
-                )
+            # Flatten _InlinedBody (from branch elimination / loop unrolling)
+            if isinstance(transformed, _InlinedBody):
                 changed = True
-            else:
-                new_nodes.append(transformed)
+                for inner in transformed.nodes:
+                    self._append_and_merge(new_nodes, inner)
+                continue
+            self._append_and_merge(new_nodes, transformed)
+            if transformed is not node:
+                changed = True
 
         if not changed:
             return body
         return tuple(new_nodes)
+
+    @staticmethod
+    def _append_and_merge(nodes: list[Node], new_node: Node) -> None:
+        """Append a node, merging adjacent Data nodes."""
+        if isinstance(new_node, Data) and nodes and isinstance(nodes[-1], Data):
+            prev = nodes[-1]
+            nodes[-1] = Data(
+                lineno=prev.lineno,
+                col_offset=prev.col_offset,
+                value=prev.value + new_node.value,
+            )
+        else:
+            nodes.append(new_node)
 
     def _transform_node(self, node: Node) -> Node | None:
         """Transform a single AST node.
@@ -737,6 +954,9 @@ class PartialEvaluator:
                 body=new_body,
             )
 
+        if isinstance(node, (Set, Let)):
+            return self._transform_assignment(node)
+
         # Data, Raw, and other nodes pass through unchanged
         return node
 
@@ -781,20 +1001,33 @@ class PartialEvaluator:
         """Try to evaluate an If node's test at compile time."""
         test_val = self._try_eval(node.test)
         if test_val is _UNRESOLVED:
-            # Can't resolve test — recurse into branches
-            new_body = self._transform_body(node.body)
-            new_elif = tuple((cond, self._transform_body(body)) for cond, body in node.elif_)
-            new_else = self._transform_body(node.else_) if node.else_ else node.else_
-            if new_body is node.body and new_elif == node.elif_ and new_else is node.else_:
-                return node
-            return If(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                test=node.test,
-                body=new_body,
-                elif_=new_elif,
-                else_=new_else,
-            )
+            # Can't fully resolve test — try partial simplification
+            new_test = self._transform_expr(node.test)
+
+            # If partial simplification yielded a Const, we can eliminate branches
+            if isinstance(new_test, Const):
+                test_val = new_test.value
+                # Fall through to branch elimination below
+            else:
+                # Still unresolved — recurse into branches with simplified test
+                new_body = self._transform_body(node.body)
+                new_elif = tuple((cond, self._transform_body(body)) for cond, body in node.elif_)
+                new_else = self._transform_body(node.else_) if node.else_ else node.else_
+                if (
+                    new_test is node.test
+                    and new_body is node.body
+                    and new_elif == node.elif_
+                    and new_else is node.else_
+                ):
+                    return node
+                return If(
+                    lineno=node.lineno,
+                    col_offset=node.col_offset,
+                    test=new_test,
+                    body=new_body,
+                    elif_=new_elif,
+                    else_=new_else,
+                )
 
         # Test resolved — eliminate dead branches
         if test_val:
@@ -841,8 +1074,17 @@ class PartialEvaluator:
         # No else — remove the node entirely
         return None
 
-    def _transform_for(self, node: For) -> Node:
-        """Recurse into For loop body."""
+    def _transform_for(self, node: For) -> Node | None:
+        """Unroll for-loop when iterable is statically known, else recurse."""
+        iter_val = self._try_eval(node.iter)
+
+        if iter_val is not _UNRESOLVED and not node.recursive:
+            # Try to unroll the loop
+            unrolled = self._try_unroll_for(node, iter_val)
+            if unrolled is not None:
+                return unrolled
+
+        # Can't unroll — recurse into body as before
         new_body = self._transform_body(node.body)
         new_empty = self._transform_body(node.empty) if node.empty else node.empty
         if new_body is node.body and new_empty is node.empty:
@@ -857,6 +1099,154 @@ class PartialEvaluator:
             recursive=node.recursive,
             test=node.test,
         )
+
+    def _try_unroll_for(self, node: For, iter_val: Any) -> Node | None:
+        """Attempt to unroll a for-loop with a known iterable.
+
+        Returns an _InlinedBody of unrolled iterations, or None if
+        unrolling is not possible (too many items, complex target, etc.).
+        """
+        try:
+            items = list(iter_val)
+        except _PARTIAL_EVAL_EXCEPTIONS:
+            return None
+
+        if len(items) > _MAX_UNROLL:
+            return None
+
+        # Handle empty iterable
+        if not items:
+            if node.empty:
+                body = self._transform_body(node.empty)
+                if len(body) == 1:
+                    return body[0]
+                return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=body)
+            return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=())
+
+        # Determine target variable name(s)
+        target = node.target
+        if isinstance(target, Name):
+            target_names: tuple[str, ...] = (target.name,)
+        elif isinstance(target, Tuple):
+            names = []
+            for item in target.items:
+                if not isinstance(item, Name):
+                    return None  # Complex target — bail
+                names.append(item.name)
+            target_names = tuple(names)
+        else:
+            return None
+
+        # Unroll each iteration
+        total_items = len(items)
+        all_nodes: list[Node] = []
+
+        for idx, item in enumerate(items):
+            # Apply loop test filter if present
+            if node.test is not None:
+                sub_ctx = self._build_iter_context(target_names, item)
+                sub_eval = self._make_sub_evaluator(sub_ctx)
+                test_val = sub_eval._try_eval(node.test)
+                if test_val is _UNRESOLVED:
+                    return None  # Can't determine filter — bail
+                if not test_val:
+                    continue
+
+            # Build context with loop variable(s) + loop.* properties
+            iter_ctx = self._build_iter_context(target_names, item)
+            iter_ctx["loop"] = _LoopProperties(
+                index0=idx,
+                index=idx + 1,
+                first=idx == 0,
+                last=idx == total_items - 1,
+                length=total_items,
+                revindex=total_items - idx,
+                revindex0=total_items - idx - 1,
+            )
+
+            sub_eval = self._make_sub_evaluator(iter_ctx)
+            sub_eval._defs = dict(self._defs)
+            transformed = sub_eval._transform_body(node.body)
+            all_nodes.extend(transformed)
+
+        if len(all_nodes) == 1:
+            return all_nodes[0]
+        return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=tuple(all_nodes))
+
+    def _build_iter_context(self, target_names: tuple[str, ...], item: Any) -> dict[str, Any]:
+        """Build a sub-context mapping target variable(s) to the current item."""
+        ctx = dict(self._ctx)
+        if len(target_names) == 1:
+            ctx[target_names[0]] = item
+        else:
+            try:
+                values = list(item)
+            except _PARTIAL_EVAL_EXCEPTIONS:
+                return ctx
+            ctx.update(dict(zip(target_names, values, strict=False)))
+        return ctx
+
+    def _make_sub_evaluator(self, ctx: dict[str, Any]) -> PartialEvaluator:
+        """Create a sub-evaluator with a merged context."""
+        return PartialEvaluator(
+            ctx,
+            escape_func=self._escape,
+            pure_filters=self._pure_filters,
+            filter_callables=self._filter_callables,
+            max_eval_depth=self._max_depth,
+            inline_components=self._inline_components,
+        )
+
+    # ------------------------------------------------------------------
+    # Assignment propagation (Set/Let)
+    # ------------------------------------------------------------------
+
+    def _transform_assignment(self, node: Set | Let) -> Node:
+        """Track Set/Let bindings so downstream expressions resolve.
+
+        When the assigned value can be fully evaluated from the static context,
+        add it to self._ctx so subsequent expressions referencing this variable
+        are also foldable. The value expression is also replaced with a Const
+        so the runtime assignment doesn't fail looking up now-unnecessary vars.
+        """
+        # Get the variable name from the target expression
+        target = node.target if isinstance(node, Set) else node.name
+        if not isinstance(target, Name):
+            return node  # Complex targets (tuple unpacking) — skip
+
+        val = self._try_eval(node.value)
+        if val is not _UNRESOLVED:
+            # For coalesce assignments (??=), only propagate if the
+            # variable is not already in context or is None
+            if node.coalesce:
+                existing = self._ctx.get(target.name, _UNRESOLVED)
+                if existing is not _UNRESOLVED and existing is not None:
+                    return node
+            self._ctx[target.name] = val
+
+            # Replace the value expression with a Const so the runtime
+            # assignment doesn't reference vars only in static_context
+            const_value = Const(
+                lineno=node.value.lineno,
+                col_offset=node.value.col_offset,
+                value=val,
+            )
+            if isinstance(node, Set):
+                return Set(
+                    lineno=node.lineno,
+                    col_offset=node.col_offset,
+                    target=node.target,
+                    value=const_value,
+                    coalesce=node.coalesce,
+                )
+            return Let(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                name=node.name,
+                value=const_value,
+                coalesce=node.coalesce,
+            )
+        return node
 
     # ------------------------------------------------------------------
     # Component inlining
@@ -1106,6 +1496,74 @@ class PartialEvaluator:
                 )
             return expr
 
+        if isinstance(expr, BoolOp):
+            return self._transform_boolop(expr)
+
+        if isinstance(expr, CondExpr):
+            return self._transform_condexpr(expr)
+
+        return expr
+
+    def _transform_boolop(self, expr: BoolOp) -> Expr:
+        """Partially simplify BoolOp when some operands are statically known.
+
+        Template expressions have no side effects, so short-circuiting
+        is always safe:
+        - ``false and X`` → ``False``
+        - ``true or X`` → ``True``
+        - Mixed: filter out resolved non-terminating operands.
+        """
+        # First try full evaluation
+        val = self._try_eval(expr)
+        if val is not _UNRESOLVED:
+            return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=val)
+
+        # Partial simplification: walk operands left to right
+        remaining: list[Expr] = []
+        for val_node in expr.values:
+            resolved = self._try_eval(val_node)
+            if resolved is _UNRESOLVED:
+                remaining.append(self._transform_expr(val_node))
+                continue
+
+            if expr.op == "and":
+                if not resolved:
+                    # Short-circuit: falsy value terminates 'and'
+                    return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+                # Truthy value in 'and' — skip it (doesn't affect result)
+            else:  # "or"
+                if resolved:
+                    # Short-circuit: truthy value terminates 'or'
+                    return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+                # Falsy value in 'or' — skip it (doesn't affect result)
+
+        if not remaining:
+            # All operands were static and non-terminating — return last value
+            return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+
+        if len(remaining) == 1:
+            return remaining[0]
+
+        if len(remaining) == len(expr.values):
+            return expr  # Nothing changed
+
+        return BoolOp(
+            lineno=expr.lineno,
+            col_offset=expr.col_offset,
+            op=expr.op,
+            values=tuple(remaining),
+        )
+
+    def _transform_condexpr(self, expr: CondExpr) -> Expr:
+        """Collapse CondExpr when the test resolves statically."""
+        test_val = self._try_eval(expr.test)
+        if test_val is not _UNRESOLVED:
+            winner = expr.if_true if test_val else expr.if_false
+            # Try to fully resolve the winning branch
+            winner_val = self._try_eval(winner)
+            if winner_val is not _UNRESOLVED:
+                return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=winner_val)
+            return self._transform_expr(winner)
         return expr
 
 

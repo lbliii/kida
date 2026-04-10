@@ -68,8 +68,12 @@ empty string. Use `| default(fallback)` for optional variables:
 
 """
 
-from collections.abc import Callable
+from functools import wraps
 from importlib.metadata import version
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from kida._types import Token, TokenType
 from kida.coverage import CoverageCollector, CoverageResult
@@ -129,6 +133,32 @@ except ImportError:
 
 __version__ = version("kida-templates")
 
+
+def pure(func: Callable[..., object]) -> Callable[..., object]:
+    """Mark a filter function as pure (deterministic, no side effects).
+
+    Pure filters are eligible for compile-time evaluation by the partial
+    evaluator when all inputs are statically known::
+
+        from kida import Environment, pure
+
+        @pure
+        def clean(value: str) -> str:
+            return value.strip().lower()
+
+        env = Environment()
+        env.add_filter("clean", clean)
+
+    """
+
+    @wraps(func)
+    def wrapper(*args: object, **kwargs: object) -> object:
+        return func(*args, **kwargs)
+
+    wrapper._kida_pure = True  # type: ignore[attr-defined]
+    return wrapper
+
+
 __all__ = [
     "AnalysisConfig",
     "AsyncLoopContext",
@@ -178,6 +208,7 @@ __all__ = [
     "is_free_threading_enabled",
     "k",
     "profiled_render",
+    "pure",
     "render_context",
     "should_parallelize",
     "strip_colors",
