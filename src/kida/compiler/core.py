@@ -56,6 +56,7 @@ from kida.nodes import (
     If,
     Import,
     Let,
+    ListComp,
     Match,
     Name,
     Region,
@@ -1031,6 +1032,17 @@ class Compiler(
             if isinstance(node, Capture):
                 mutated.add(node.name)
                 _walk(node.body, count_refs=False)
+                return
+
+            # ListComp: target is a local within the comprehension scope;
+            # elt/ifs reference that local, so they must not be counted for caching.
+            # iter is evaluated in the enclosing scope (unconditional).
+            if isinstance(node, ListComp):
+                _collect_target_names(node.target)
+                _walk(node.iter, count_refs=count_refs)
+                _walk(node.elt, count_refs=False)
+                for if_expr in node.ifs:
+                    _walk(if_expr, count_refs=False)
                 return
 
             # Track For/AsyncFor loop targets — loop vars become Python locals

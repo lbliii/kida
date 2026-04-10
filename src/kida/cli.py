@@ -200,6 +200,19 @@ def _cmd_fmt(
     return 0
 
 
+def _ast_contains(node: object, cls: type) -> bool:
+    """Check if a Kida AST tree contains any node of the given type."""
+    from kida.nodes.base import Node
+
+    if isinstance(node, cls):
+        return True
+    if isinstance(node, Node):
+        for child in node.iter_child_nodes():
+            if _ast_contains(child, cls):
+                return True
+    return False
+
+
 def _print_explain(env: Environment, tpl: object) -> None:
     """Print which compile-time optimizations are active for this template."""
     import sys as _sys
@@ -250,6 +263,14 @@ def _print_explain(env: Environment, tpl: object) -> None:
             lines.append("  [off] free-threading (GIL enabled)")
     except ImportError:
         lines.append("  [off] free-threading (detection unavailable)")
+
+    # List comprehensions
+    optimized_ast = getattr(tpl, "_optimized_ast", None)
+    if optimized_ast is not None:
+        from kida.nodes import ListComp
+
+        if _ast_contains(optimized_ast, ListComp):
+            lines.append("  [on]  list comprehensions — compiled to native Python listcomp")
 
     lines.append("------------------------------")
     _sys.stderr.write("\n".join(lines) + "\n\n")

@@ -7,6 +7,7 @@ import pytest
 
 from kida import Environment
 from kida.environment.exceptions import TemplateRuntimeError
+from kida.exceptions import TemplateSyntaxError
 
 
 @pytest.fixture
@@ -559,3 +560,105 @@ class TestBuiltinFunctions:
             assert len(result) > 0
         except Exception:
             pytest.skip("lipsum not available")
+
+
+class TestListComprehensions:
+    """List comprehension expression tests."""
+
+    def test_basic_identity(self, env):
+        """Basic list comprehension: [x for x in items]."""
+        tmpl = env.from_string("{{ [x for x in items] }}")
+        assert tmpl.render(items=[1, 2, 3]) == "[1, 2, 3]"
+
+    def test_with_transform(self, env):
+        """List comprehension with expression: [x * 2 for x in items]."""
+        tmpl = env.from_string("{{ [x * 2 for x in items] }}")
+        assert tmpl.render(items=[1, 2, 3]) == "[2, 4, 6]"
+
+    def test_with_filter(self, env):
+        """List comprehension with filter: [x | upper for x in items]."""
+        tmpl = env.from_string("{{ [x | upper for x in items] }}")
+        result = tmpl.render(items=["a", "b", "c"])
+        # Autoescape encodes single quotes; check content
+        assert "A" in result and "B" in result and "C" in result
+
+    def test_with_if_clause(self, env):
+        """List comprehension with if clause: [x for x in items if x > 1]."""
+        tmpl = env.from_string("{{ [x for x in items if x > 1] }}")
+        assert tmpl.render(items=[1, 2, 3]) == "[2, 3]"
+
+    def test_dict_in_element(self, env):
+        """List comprehension with dict element expression."""
+        tmpl = env.from_string('{{ [{"v": x, "l": x | upper} for x in items] }}')
+        result = tmpl.render(items=["a", "b"])
+        assert "v" in result and "l" in result
+        assert "A" in result and "B" in result
+
+    def test_tuple_unpacking(self, env):
+        """List comprehension with tuple unpacking target."""
+        tmpl = env.from_string("{{ [x for x, y in pairs] }}")
+        assert tmpl.render(pairs=[(1, 2), (3, 4)]) == "[1, 3]"
+
+    def test_empty_list_unchanged(self, env):
+        """Empty list literal still works (regression guard)."""
+        tmpl = env.from_string("{{ [] }}")
+        assert tmpl.render() == "[]"
+
+    def test_list_literal_unchanged(self, env):
+        """List literal still works (regression guard)."""
+        tmpl = env.from_string("{{ [1, 2, 3] }}")
+        assert tmpl.render() == "[1, 2, 3]"
+
+    def test_error_missing_in(self, env):
+        """Missing 'in' in list comprehension raises parse error."""
+        with pytest.raises(TemplateSyntaxError):
+            env.from_string("{{ [x for x] }}")
+
+    def test_error_missing_iterable(self, env):
+        """Missing iterable after 'in' raises parse error."""
+        with pytest.raises(TemplateSyntaxError):
+            env.from_string("{{ [x for x in] }}")
+
+    def test_ternary_in_element(self, env):
+        """Ternary expression in element: [x if x else 'none' for x in items]."""
+        tmpl = env.from_string('{{ [x if x else "none" for x in items] }}')
+        result = tmpl.render(items=[1, 2, ""])
+        assert "1" in result and "2" in result and "none" in result
+
+    def test_empty_iterable(self, env):
+        """Comprehension over empty iterable returns empty list."""
+        tmpl = env.from_string("{{ [x for x in items] }}")
+        assert tmpl.render(items=[]) == "[]"
+
+    def test_single_item(self, env):
+        """Comprehension with single-item iterable."""
+        tmpl = env.from_string("{{ [x * 10 for x in items] }}")
+        assert tmpl.render(items=[5]) == "[50]"
+
+    def test_attribute_access_in_element(self, env):
+        """Attribute access in comprehension element expression."""
+        tmpl = env.from_string("{{ [x.name for x in items] }}")
+        result = tmpl.render(items=[{"name": "Alice"}, {"name": "Bob"}])
+        assert "Alice" in result and "Bob" in result
+
+    def test_comprehension_in_set(self, env):
+        """Comprehension result assigned via {% set %}."""
+        tmpl = env.from_string("{% set data = [x * 2 for x in items] %}{{ data }}")
+        assert tmpl.render(items=[1, 2, 3]) == "[2, 4, 6]"
+
+    def test_filter_in_if_clause(self, env):
+        """Filter applied inside the if clause."""
+        tmpl = env.from_string("{{ [x for x in items if x | length > 1] }}")
+        result = tmpl.render(items=["a", "bb", "ccc"])
+        assert "bb" in result and "ccc" in result
+        assert "'a'" not in result
+
+    def test_error_nested_for(self, env):
+        """Nested for clauses produce clear error message."""
+        with pytest.raises(Exception, match="Nested"):
+            env.from_string("{{ [x for a in items for x in a] }}")
+
+    def test_error_async_comprehension(self, env):
+        """Await in comprehension element produces clear error message."""
+        with pytest.raises(Exception, match="Async"):
+            env.from_string("{{ [await x for x in items] }}")

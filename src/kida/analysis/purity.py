@@ -43,6 +43,7 @@ if TYPE_CHECKING:
         InlinedFilter,
         Let,
         List,
+        ListComp,
         LoopVar,
         MarkSafe,
         Match,
@@ -296,6 +297,15 @@ class PurityAnalyzer:
         result: PurityLevel = "pure"
         for item in node.items:
             result = _combine_purity(result, self._visit(item))
+        return result
+
+    def _visit_listcomp(self, node: ListComp) -> PurityLevel:
+        """List comprehensions are pure if iter, elt, and ifs are all pure."""
+        result: PurityLevel = "pure"
+        result = _combine_purity(result, self._visit(node.iter))
+        result = _combine_purity(result, self._visit(node.elt))
+        for if_expr in node.ifs:
+            result = _combine_purity(result, self._visit(if_expr))
         return result
 
     def _visit_tuple(self, node: Tuple) -> PurityLevel:

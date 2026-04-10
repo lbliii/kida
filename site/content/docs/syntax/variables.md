@@ -229,6 +229,32 @@ Built-in functions available in all templates:
 
 Available globals: `range`, `dict`, `list`, `set`, `tuple`, `len`, `str`, `int`, `float`, `bool`, `abs`, `min`, `max`, `sum`, `sorted`, `reversed`, `enumerate`, `zip`, `map`, `filter`.
 
+## List Comprehensions
+
+Transform iterables inline using Python-style list comprehensions:
+
+```kida
+{# Basic comprehension #}
+{% set doubled = [x * 2 for x in items] %}
+
+{# With filter #}
+{% set names = [name | title for name in raw_names] %}
+
+{# With condition #}
+{% set visible = [item for item in items if item.active] %}
+
+{# Shaping data for components #}
+{% set opts = [{"value": s, "label": s | capitalize} for s in options] %}
+```
+
+List comprehensions support a single `for...in` clause with an optional `if` condition. Use them for presentation-level data shaping — for business logic, keep transformations in Python.
+
+Tuple unpacking in the target is supported:
+
+```kida
+{% set keys = [k for k, v in pairs] %}
+```
+
 ## See Also
 
 - [[docs/syntax/filters|Filters]] — Transform output values
