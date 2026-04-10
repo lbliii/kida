@@ -164,6 +164,115 @@ class TestScopedSlotEdgeCases:
         # Default slot content receives scoped bindings
         assert tmpl.render() == "[a][b]"
 
+    def test_multiple_binding_refs_not_cached(self, env: Environment) -> None:
+        """Regression: CSE must not cache let: binding vars across slot boundary.
+
+        When a scoped binding variable is referenced more than once in the
+        slot body, the CSE optimisation previously hoisted the lookup to
+        function entry — before _slot_kwargs were pushed onto the scope
+        stack — causing UndefinedError.  (GitHub #70)
+        """
+        tmpl = env.from_string(
+            "{% def datatable(items) %}"
+            "{% for item in items %}"
+            "{% slot row let:row=item %}{{ row.name }}{% end %}"
+            "{% end %}"
+            "{% end %}"
+            "{% call datatable(items=[{'name': 'Alice', 'age': 30},"
+            " {'name': 'Bob', 'age': 25}]) %}"
+            "{% slot row let:row %}{{ row.name }} ({{ row.age }}){% end %}"
+            "{% end %}"
+        )
+        assert tmpl.render() == "Alice (30)Bob (25)"
+
+    def test_multiple_binding_refs_cross_template(self) -> None:
+        """Regression: scoped slot bindings work across template imports.
+
+        Same CSE issue as test_multiple_binding_refs_not_cached, but with
+        the def imported from a separate template.  (GitHub #70)
+        """
+        loader = DictLoader(
+            {
+                "components.html": (
+                    "{% def datatable(items) %}"
+                    "{% for item in items %}"
+                    "{% slot row let:row=item %}{{ row.name }}{% end %}"
+                    "{% end %}"
+                    "{% end %}"
+                ),
+                "page.html": (
+                    "{% from 'components.html' import datatable %}"
+                    "{% call datatable(items=users) %}"
+                    "{% slot row let:row %}{{ row.name }} ({{ row.age }}){% end %}"
+                    "{% end %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("page.html").render(
+            users=[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
+        )
+        assert result == "Alice (30)Bob (25)"
+
+    def test_binding_name_shadows_outer_cached_var(self, env: Environment) -> None:
+        """Regression: slot binding must override an outer variable of the same name.
+
+        If a variable is referenced unconditionally outside the call block
+        (making it CSE-cacheable) AND used as a let: binding name inside a
+        slot body, the slot body must resolve via _lookup_scope (seeing the
+        scoped value), not via the cached _cv_<name> closure.  (GitHub #70)
+        """
+        tmpl = env.from_string(
+            "{% def wrapper(items) %}"
+            "{% for item in items %}"
+            "{% slot row let:row=item %}{{ row }}{% end %}"
+            "{% end %}"
+            "{% end %}"
+            "{{ row }}|{{ row }}|"
+            "{% call wrapper(items=['X', 'Y']) %}"
+            "{% slot row let:row %}[{{ row }}]{% end %}"
+            "{% end %}"
+        )
+        # 'row' is referenced 2x unconditionally (cached), but inside
+        # the slot body it must resolve to the let: binding, not the cache.
+        result = tmpl.render(row="OUTER")
+        assert result == "OUTER|OUTER|[X][Y]"
+
+    def test_caller_wrapper_default_aligns_to_slot(self, env: Environment) -> None:
+        """Regression: _caller_wrapper's 'slot' param must carry the default, not '_scope_stack'.
+
+        The AST previously had 2 args and 1 default; Python's right-to-left
+        assignment put the default on _scope_stack instead of slot.
+        """
+        import ast as stdlib_ast
+
+        # Compile and inspect the AST for _caller_wrapper
+        from kida.compiler.core import Compiler
+        from kida.lexer import Lexer
+        from kida.parser.core import Parser
+
+        source = "{% def greet() %}{% slot %}{% enddef %}{% call greet() %}Hello{% endcall %}"
+        lexer = Lexer(source)
+        tokens = list(lexer.tokenize())
+        parser = Parser(tokens, "test")
+        tree = parser.parse()
+        compiler = Compiler(env)
+        module = compiler._compile_template(tree)
+        stdlib_ast.fix_missing_locations(module)
+
+        for node in stdlib_ast.walk(module):
+            if isinstance(node, stdlib_ast.FunctionDef) and node.name == "_caller_wrapper":
+                args = node.args
+                assert args.args[0].arg == "_scope_stack", (
+                    "_scope_stack must be the first (required) param"
+                )
+                assert args.args[1].arg == "slot", "slot must be the second param (with default)"
+                assert len(args.defaults) == 1
+                assert args.defaults[0].value == "default"
+                break
+        else:
+            raise AssertionError("_caller_wrapper not found in compiled AST")
+
     def test_loop_index_binding(self, env: Environment) -> None:
         """Common pattern: expose loop.index alongside item."""
         tmpl = env.from_string(

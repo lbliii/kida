@@ -458,10 +458,18 @@ class FunctionCompilationMixin:
                             orelse=[],
                         )
                     )
+            # Disable CSE cached-var substitution while compiling slot
+            # bodies.  Slot bodies run after _slot_kwargs are pushed onto
+            # _scope_stack, so they must always resolve names via
+            # _lookup_scope — never via a _cv_<name> closure captured at
+            # function entry before the push.
+            saved_cached_vars = self._cached_vars
+            self._cached_vars = set()
             try:
                 for child in slot_body:
                     caller_body.extend(self._compile_node(child))
             finally:
+                self._cached_vars = saved_cached_vars
                 if outer is not None:
                     self._outer_caller_expr = None
             if saved_async_cb:
@@ -543,7 +551,7 @@ class FunctionCompilationMixin:
             )
 
         # Build _caller(slot="default", **kwargs) wrapper
-        # def _caller_wrapper(slot="default", _scope_stack, **_slot_kwargs):
+        # def _caller_wrapper(_scope_stack, slot="default", **_slot_kwargs):
         #     f = _caller_slots.get(slot)
         #     return f(_scope_stack, **_slot_kwargs) if f else _Markup("")
         wrapper_body: list[ast.stmt] = [
@@ -591,14 +599,14 @@ class FunctionCompilationMixin:
         )
         # Use _caller_wrapper to avoid shadowing the def's _caller parameter
         # (which would cause UnboundLocalError when _def_caller = _caller runs)
-        # Wrapper takes (slot, _scope_stack, **_slot_kwargs) so slot functions get
+        # Wrapper takes (_scope_stack, slot, **_slot_kwargs) so slot functions get
         # scope for _lookup_scope and scoped bindings via kwargs
         stmts.append(
             ast.FunctionDef(
                 name="_caller_wrapper",
                 args=ast.arguments(
                     posonlyargs=[],
-                    args=[ast.arg(arg="slot"), ast.arg(arg="_scope_stack")],
+                    args=[ast.arg(arg="_scope_stack"), ast.arg(arg="slot")],
                     vararg=None,
                     kwonlyargs=[],
                     kw_defaults=[],
@@ -628,8 +636,8 @@ class FunctionCompilationMixin:
                     body=ast.Call(
                         func=ast.Name(id="_caller_wrapper", ctx=ast.Load()),
                         args=[
-                            ast.Name(id="slot", ctx=ast.Load()),
                             ast.Name(id="_scope_stack", ctx=ast.Load()),
+                            ast.Name(id="slot", ctx=ast.Load()),
                         ],
                         keywords=[
                             ast.keyword(

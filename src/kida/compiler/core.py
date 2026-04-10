@@ -48,6 +48,7 @@ from kida.compiler.utils import OperatorUtilsMixin
 from kida.nodes import (
     AsyncFor,
     Block,
+    CallBlock,
     Capture,
     Def,
     Export,
@@ -1122,6 +1123,18 @@ class Compiler(
                     if guard is not None:
                         _walk(guard, count_refs=False)
                     _walk(case_body, count_refs=False)
+                return
+
+            # CallBlock slot bodies execute with scoped bindings pushed onto
+            # _scope_stack at runtime.  Variables provided via let: params are
+            # not available at function entry, so references inside slot bodies
+            # must NOT be counted as unconditional — otherwise the CSE cache
+            # assignment (_cv_x = _ls(...)) fires before the binding exists.
+            # The call expression itself IS unconditional.
+            if isinstance(node, CallBlock):
+                _walk(node.call, count_refs=count_refs)
+                for slot_body in node.slots.values():
+                    _walk(slot_body, count_refs=False)
                 return
 
             # Don't recurse into separate compilation scopes.
