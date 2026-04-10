@@ -60,6 +60,7 @@ from kida.nodes import (
     OptionalFilter,
     Output,
     Pipeline,
+    Range,
     SafePipeline,
     Set,
     Slot,
@@ -74,6 +75,33 @@ _UNRESOLVED = object()
 
 # Maximum number of iterations to unroll in a static for-loop
 _MAX_UNROLL = 200
+
+# Maximum allowed result size for safe builtins that produce sequences
+_MAX_BUILTIN_RESULT = 10_000
+
+# Safe builtins that can be evaluated at compile time.
+# Each maps a function name to a callable. Only functions that:
+# 1. Have no side effects
+# 2. Are deterministic
+# 3. Cannot execute arbitrary code
+_SAFE_BUILTINS: dict[str, Callable[..., Any]] = {
+    "range": range,
+    "len": len,
+    "sorted": sorted,
+    "min": min,
+    "max": max,
+    "sum": sum,
+    "abs": abs,
+    "round": round,
+    "int": int,
+    "float": float,
+    "str": str,
+    "bool": bool,
+    "list": list,
+    "tuple": tuple,
+    "chr": chr,
+    "ord": ord,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -542,7 +570,13 @@ class PartialEvaluator:
         if isinstance(expr, ListComp):
             return self._try_eval_listcomp(expr, depth)
 
-        # Anything else (FuncCall, etc.) — not resolved
+        if isinstance(expr, FuncCall):
+            return self._try_eval_funccall(expr, depth)
+
+        if isinstance(expr, Range):
+            return self._try_eval_range(expr, depth)
+
+        # Anything else — not resolved
         return _UNRESOLVED
 
     def _try_eval_filter(self, expr: Filter, depth: int = 0) -> Any:
@@ -654,6 +688,79 @@ class PartialEvaluator:
                 return _UNRESOLVED
             result.append(elt_val)
         return result
+
+    def _try_eval_funccall(self, expr: FuncCall, depth: int = 0) -> Any:
+        """Evaluate a FuncCall when it targets a safe builtin and all args resolve."""
+        # Only handle simple Name calls (not method calls or complex expressions)
+        if not isinstance(expr.func, Name):
+            return _UNRESOLVED
+        # No dynamic args/kwargs
+        if expr.dyn_args is not None or expr.dyn_kwargs is not None:
+            return _UNRESOLVED
+
+        func_name = expr.func.name
+        func = _SAFE_BUILTINS.get(func_name)
+        if func is None:
+            return _UNRESOLVED
+
+        # Resolve positional args
+        args_resolved: list[Any] = []
+        for arg in expr.args:
+            val = self._try_eval(arg, depth + 1)
+            if val is _UNRESOLVED:
+                return _UNRESOLVED
+            args_resolved.append(val)
+
+        # Resolve keyword args
+        kwargs_resolved: dict[str, Any] = {}
+        for k, v_expr in expr.kwargs.items():
+            val = self._try_eval(v_expr, depth + 1)
+            if val is _UNRESOLVED:
+                return _UNRESOLVED
+            kwargs_resolved[k] = val
+
+        # Guard against DoS: range() with large values
+        if func_name == "range":
+            try:
+                r = range(*args_resolved, **kwargs_resolved)
+            except _PARTIAL_EVAL_EXCEPTIONS:
+                return _UNRESOLVED
+            if len(r) > _MAX_BUILTIN_RESULT:
+                return _UNRESOLVED
+            return r
+
+        try:
+            result = func(*args_resolved, **kwargs_resolved)
+        except _PARTIAL_EVAL_EXCEPTIONS:
+            return _UNRESOLVED
+
+        # Guard against large sequence results
+        if isinstance(result, (list, tuple, set, frozenset)) and len(result) > _MAX_BUILTIN_RESULT:
+            return _UNRESOLVED
+
+        return result
+
+    def _try_eval_range(self, expr: Range, depth: int = 0) -> Any:
+        """Evaluate a Range literal (start..end or start...end)."""
+        start = self._try_eval(expr.start, depth + 1)
+        end = self._try_eval(expr.end, depth + 1)
+        if start is _UNRESOLVED or end is _UNRESOLVED:
+            return _UNRESOLVED
+
+        step_val = 1
+        if expr.step is not None:
+            step_val = self._try_eval(expr.step, depth + 1)
+            if step_val is _UNRESOLVED:
+                return _UNRESOLVED
+
+        try:
+            r = range(start, end + 1, step_val) if expr.inclusive else range(start, end, step_val)
+        except _PARTIAL_EVAL_EXCEPTIONS:
+            return _UNRESOLVED
+
+        if len(r) > _MAX_BUILTIN_RESULT:
+            return _UNRESOLVED
+        return list(r)
 
     @staticmethod
     def _eval_binop(op: str, left: Any, right: Any) -> Any:

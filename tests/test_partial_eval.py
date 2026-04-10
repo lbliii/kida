@@ -888,6 +888,102 @@ class TestListDictTupleEval:
         assert tmpl.render() == "x-y-z"
 
 
+class TestSafeBuiltinEvaluation:
+    """Safe builtins (range, len, sorted, etc.) evaluate at compile time."""
+
+    def test_len_of_static_list(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ len(items) }}",
+            static_context={"items": [1, 2, 3, 4, 5]},
+        )
+        assert tmpl.render() == "5"
+
+    def test_range_function(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in range(3) %}{{ x }}{% end %}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "012"
+
+    def test_range_with_start_stop(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in range(1, 4) %}{{ x }}{% end %}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "123"
+
+    def test_sorted_function(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ sorted(items) | join(', ') }}",
+            static_context={"items": [3, 1, 2]},
+        )
+        assert tmpl.render() == "1, 2, 3"
+
+    def test_min_max_functions(self):
+        env = _env()
+        tmpl = env.from_string(
+            "min={{ min(items) }} max={{ max(items) }}",
+            static_context={"items": [5, 2, 8, 1]},
+        )
+        assert tmpl.render() == "min=1 max=8"
+
+    def test_sum_function(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ sum(items) }}",
+            static_context={"items": [10, 20, 30]},
+        )
+        assert tmpl.render() == "60"
+
+    def test_abs_function(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ abs(val) }}",
+            static_context={"val": -42},
+        )
+        assert tmpl.render() == "42"
+
+    def test_str_int_float_functions(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{{ int("42") }} {{ float("3.14") }} {{ str(100) }}',
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "42 3.14 100"
+
+    def test_range_dos_protection(self):
+        """range(huge) doesn't blow up — falls back to runtime."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ len(range(1000000)) }}",
+            static_context={"_placeholder": True},
+        )
+        # Falls back to runtime, should still work
+        assert tmpl.render() == "1000000"
+
+    def test_dynamic_args_not_evaluated(self):
+        """Builtins with dynamic args stay as runtime calls."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ len(items) }}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render(items=[1, 2, 3]) == "3"
+
+    def test_range_literal(self):
+        """Range literal (1..5) evaluates at compile time."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in 1..3 %}{{ x }}{% end %}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "123"
+
+
 class TestOptimizationMetrics:
     """Measure AST node reduction from partial evaluation."""
 
