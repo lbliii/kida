@@ -737,6 +737,9 @@ class PartialEvaluator:
                 body=new_body,
             )
 
+        if isinstance(node, (Set, Let)):
+            return self._transform_assignment(node)
+
         # Data, Raw, and other nodes pass through unchanged
         return node
 
@@ -781,20 +784,33 @@ class PartialEvaluator:
         """Try to evaluate an If node's test at compile time."""
         test_val = self._try_eval(node.test)
         if test_val is _UNRESOLVED:
-            # Can't resolve test — recurse into branches
-            new_body = self._transform_body(node.body)
-            new_elif = tuple((cond, self._transform_body(body)) for cond, body in node.elif_)
-            new_else = self._transform_body(node.else_) if node.else_ else node.else_
-            if new_body is node.body and new_elif == node.elif_ and new_else is node.else_:
-                return node
-            return If(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                test=node.test,
-                body=new_body,
-                elif_=new_elif,
-                else_=new_else,
-            )
+            # Can't fully resolve test — try partial simplification
+            new_test = self._transform_expr(node.test)
+
+            # If partial simplification yielded a Const, we can eliminate branches
+            if isinstance(new_test, Const):
+                test_val = new_test.value
+                # Fall through to branch elimination below
+            else:
+                # Still unresolved — recurse into branches with simplified test
+                new_body = self._transform_body(node.body)
+                new_elif = tuple((cond, self._transform_body(body)) for cond, body in node.elif_)
+                new_else = self._transform_body(node.else_) if node.else_ else node.else_
+                if (
+                    new_test is node.test
+                    and new_body is node.body
+                    and new_elif == node.elif_
+                    and new_else is node.else_
+                ):
+                    return node
+                return If(
+                    lineno=node.lineno,
+                    col_offset=node.col_offset,
+                    test=new_test,
+                    body=new_body,
+                    elif_=new_elif,
+                    else_=new_else,
+                )
 
         # Test resolved — eliminate dead branches
         if test_val:
@@ -857,6 +873,57 @@ class PartialEvaluator:
             recursive=node.recursive,
             test=node.test,
         )
+
+    # ------------------------------------------------------------------
+    # Assignment propagation (Set/Let)
+    # ------------------------------------------------------------------
+
+    def _transform_assignment(self, node: Set | Let) -> Node:
+        """Track Set/Let bindings so downstream expressions resolve.
+
+        When the assigned value can be fully evaluated from the static context,
+        add it to self._ctx so subsequent expressions referencing this variable
+        are also foldable. The value expression is also replaced with a Const
+        so the runtime assignment doesn't fail looking up now-unnecessary vars.
+        """
+        # Get the variable name from the target expression
+        target = node.target if isinstance(node, Set) else node.name
+        if not isinstance(target, Name):
+            return node  # Complex targets (tuple unpacking) — skip
+
+        val = self._try_eval(node.value)
+        if val is not _UNRESOLVED:
+            # For coalesce assignments (??=), only propagate if the
+            # variable is not already in context or is None
+            if node.coalesce:
+                existing = self._ctx.get(target.name, _UNRESOLVED)
+                if existing is not _UNRESOLVED and existing is not None:
+                    return node
+            self._ctx[target.name] = val
+
+            # Replace the value expression with a Const so the runtime
+            # assignment doesn't reference vars only in static_context
+            const_value = Const(
+                lineno=node.value.lineno,
+                col_offset=node.value.col_offset,
+                value=val,
+            )
+            if isinstance(node, Set):
+                return Set(
+                    lineno=node.lineno,
+                    col_offset=node.col_offset,
+                    target=node.target,
+                    value=const_value,
+                    coalesce=node.coalesce,
+                )
+            return Let(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                name=node.name,
+                value=const_value,
+                coalesce=node.coalesce,
+            )
+        return node
 
     # ------------------------------------------------------------------
     # Component inlining
@@ -1106,6 +1173,74 @@ class PartialEvaluator:
                 )
             return expr
 
+        if isinstance(expr, BoolOp):
+            return self._transform_boolop(expr)
+
+        if isinstance(expr, CondExpr):
+            return self._transform_condexpr(expr)
+
+        return expr
+
+    def _transform_boolop(self, expr: BoolOp) -> Expr:
+        """Partially simplify BoolOp when some operands are statically known.
+
+        Template expressions have no side effects, so short-circuiting
+        is always safe:
+        - ``false and X`` → ``False``
+        - ``true or X`` → ``True``
+        - Mixed: filter out resolved non-terminating operands.
+        """
+        # First try full evaluation
+        val = self._try_eval(expr)
+        if val is not _UNRESOLVED:
+            return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=val)
+
+        # Partial simplification: walk operands left to right
+        remaining: list[Expr] = []
+        for val_node in expr.values:
+            resolved = self._try_eval(val_node)
+            if resolved is _UNRESOLVED:
+                remaining.append(self._transform_expr(val_node))
+                continue
+
+            if expr.op == "and":
+                if not resolved:
+                    # Short-circuit: falsy value terminates 'and'
+                    return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+                # Truthy value in 'and' — skip it (doesn't affect result)
+            else:  # "or"
+                if resolved:
+                    # Short-circuit: truthy value terminates 'or'
+                    return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+                # Falsy value in 'or' — skip it (doesn't affect result)
+
+        if not remaining:
+            # All operands were static and non-terminating — return last value
+            return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+
+        if len(remaining) == 1:
+            return remaining[0]
+
+        if len(remaining) == len(expr.values):
+            return expr  # Nothing changed
+
+        return BoolOp(
+            lineno=expr.lineno,
+            col_offset=expr.col_offset,
+            op=expr.op,
+            values=tuple(remaining),
+        )
+
+    def _transform_condexpr(self, expr: CondExpr) -> Expr:
+        """Collapse CondExpr when the test resolves statically."""
+        test_val = self._try_eval(expr.test)
+        if test_val is not _UNRESOLVED:
+            winner = expr.if_true if test_val else expr.if_false
+            # Try to fully resolve the winning branch
+            winner_val = self._try_eval(winner)
+            if winner_val is not _UNRESOLVED:
+                return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=winner_val)
+            return self._transform_expr(winner)
         return expr
 
 

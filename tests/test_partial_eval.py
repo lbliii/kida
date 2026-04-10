@@ -609,6 +609,156 @@ def _count_nodes_by_type(nodes, node_types):
     return count
 
 
+class TestAssignmentPropagation:
+    """Set/Let bindings propagate through static context."""
+
+    def test_set_propagates_static_value(self):
+        """{% set x = config.theme %} makes x available for folding."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set theme = config.theme %}Theme: {{ theme }}",
+            static_context={"config": {"theme": "dark"}},
+        )
+        assert tmpl.render() == "Theme: dark"
+
+    def test_set_chain_propagates(self):
+        """Multiple sets chain: each sees the previous."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set a = x %}{% set b = a %}{{ b }}",
+            static_context={"x": "hello"},
+        )
+        assert tmpl.render() == "hello"
+
+    def test_set_with_filter_propagates(self):
+        """{% set label = name | upper %} propagates the filtered value."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set label = name | upper %}Label: {{ label }}",
+            static_context={"name": "hello"},
+        )
+        assert tmpl.render() == "Label: HELLO"
+
+    def test_let_propagates_static_value(self):
+        """{% let x = config.theme %} makes x available for folding."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% let theme = config.theme %}Theme: {{ theme }}",
+            static_context={"config": {"theme": "dark"}},
+        )
+        assert tmpl.render() == "Theme: dark"
+
+    def test_dynamic_set_does_not_propagate(self):
+        """{% set x = dynamic_val %} with no static value stays dynamic."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set label = user_name %}{{ label }}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render(user_name="Alice") == "Alice"
+
+    def test_coalesce_set_respects_existing(self):
+        """{% set x ??= fallback %} doesn't overwrite existing value."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% set x ??= 'fallback' %}{{ x }}",
+            static_context={"x": "original"},
+        )
+        assert tmpl.render() == "original"
+
+    def test_coalesce_set_fills_none(self):
+        """{% set x ??= fallback %} fills when existing is None."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% set x ??= "fallback" %}{{ x }}',
+            static_context={"x": None},
+        )
+        assert tmpl.render() == "fallback"
+
+
+class TestPartialBoolOp:
+    """BoolOp short-circuits when one operand is statically known."""
+
+    def test_false_and_dynamic(self):
+        """false and X → False (short-circuit)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if show and has_content %}yes{% else %}no{% end %}",
+            static_context={"show": False},
+        )
+        assert tmpl.render(has_content=True) == "no"
+
+    def test_true_or_dynamic(self):
+        """true or X → True (short-circuit)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if is_admin or is_guest %}access{% else %}denied{% end %}",
+            static_context={"is_admin": True},
+        )
+        assert tmpl.render(is_guest=False) == "access"
+
+    def test_true_and_dynamic_simplifies(self):
+        """true and X → X (true is removed from 'and' chain)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if enabled and has_data %}yes{% else %}no{% end %}",
+            static_context={"enabled": True},
+        )
+        assert tmpl.render(has_data=True) == "yes"
+        assert tmpl.render(has_data=False) == "no"
+
+    def test_false_or_dynamic_simplifies(self):
+        """false or X → X (false is removed from 'or' chain)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if disabled or active %}yes{% else %}no{% end %}",
+            static_context={"disabled": False},
+        )
+        assert tmpl.render(active=True) == "yes"
+        assert tmpl.render(active=False) == "no"
+
+    def test_mixed_boolop_chain(self):
+        """Multiple operands: some static, some dynamic."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a and b and c %}yes{% else %}no{% end %}",
+            static_context={"a": True, "c": True},
+        )
+        assert tmpl.render(b=True) == "yes"
+        assert tmpl.render(b=False) == "no"
+
+
+class TestPartialCondExpr:
+    """CondExpr collapses when test is statically known."""
+
+    def test_true_test_takes_if_branch(self):
+        """{{ X if true else Y }} → X."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ value if enabled else 'disabled' }}",
+            static_context={"enabled": True},
+        )
+        assert tmpl.render(value="hello") == "hello"
+
+    def test_false_test_takes_else_branch(self):
+        """{{ X if false else Y }} → Y."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ value if enabled else 'disabled' }}",
+            static_context={"enabled": False},
+        )
+        assert tmpl.render(value="hello") == "disabled"
+
+    def test_condexpr_with_static_result(self):
+        """Both test and result are static → folds to constant."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ 'yes' if flag else 'no' }}",
+            static_context={"flag": True},
+        )
+        assert tmpl.render() == "yes"
+
+
 class TestOptimizationMetrics:
     """Measure AST node reduction from partial evaluation."""
 
