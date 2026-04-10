@@ -113,7 +113,7 @@ release: build publish
 # Strips YAML frontmatter (--- ... ---) from notes before passing to gh
 gh-release:
 	@VERSION=$$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/'); \
-	PROJECT=$$(grep '^name = ' pyproject.toml | sed 's/name = "\(.*\)"/\1/'); \
+	PROJECT=$$(grep -m1 '^name = ' pyproject.toml | sed 's/name = "\(.*\)"/\1/'); \
 	NOTES="site/content/releases/$$VERSION.md"; \
 	if [ ! -f "$$NOTES" ]; then echo "Error: $$NOTES not found"; exit 1; fi; \
 	echo "Creating release v$$VERSION for $$PROJECT..."; \
