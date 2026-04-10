@@ -574,3 +574,86 @@ class TestComponentInlining:
         )
         # Dynamic arg — falls back to runtime
         assert tmpl.render(user_name="Alice") == "Hello, Alice!"
+
+
+# =========================================================================
+# Optimization metrics — measure AST node reduction
+# =========================================================================
+
+
+def _count_nodes_by_type(nodes, node_types):
+    """Count AST nodes matching given types (recursive)."""
+    from kida.nodes import Block, CallBlock, Def, For, If, SlotBlock
+
+    count = 0
+    for node in nodes:
+        if isinstance(node, tuple(node_types)):
+            count += 1
+        # Recurse into container nodes
+        if hasattr(node, "body"):
+            count += _count_nodes_by_type(node.body, node_types)
+        if isinstance(node, If):
+            for _, branch_body in node.elif_:
+                count += _count_nodes_by_type(branch_body, node_types)
+            if node.else_:
+                count += _count_nodes_by_type(node.else_, node_types)
+        if isinstance(node, For) and node.empty:
+            count += _count_nodes_by_type(node.empty, node_types)
+        if isinstance(node, Def):
+            count += _count_nodes_by_type(node.body, node_types)
+        if isinstance(node, (Block, SlotBlock)):
+            count += _count_nodes_by_type(node.body, node_types)
+        if isinstance(node, CallBlock):
+            for slot_body in node.slots.values():
+                count += _count_nodes_by_type(slot_body, node_types)
+    return count
+
+
+class TestOptimizationMetrics:
+    """Measure AST node reduction from partial evaluation."""
+
+    def test_static_vars_fold_to_data(self):
+        """Static variable expressions become Data nodes."""
+        from kida.nodes import Data, Output
+
+        env = _env()
+        # Without static context: Output nodes for each {{ }}
+        tpl_dynamic = env.from_string("{{ a }} {{ b }} {{ c }}")
+        output_count = _count_nodes_by_type(tpl_dynamic._optimized_ast.body, [Output])
+        assert output_count >= 3
+
+        # With static context: folded to Data nodes
+        tpl_static = env.from_string(
+            "{{ a }} {{ b }} {{ c }}",
+            static_context={"a": "x", "b": "y", "c": "z"},
+        )
+        data_count = _count_nodes_by_type(tpl_static._optimized_ast.body, [Data])
+        output_count_after = _count_nodes_by_type(tpl_static._optimized_ast.body, [Output])
+        # All outputs should be gone, replaced by Data
+        assert output_count_after == 0
+        assert data_count >= 1  # May be merged into fewer Data nodes
+
+    def test_dead_branch_elimination_reduces_nodes(self):
+        """False branches are eliminated entirely."""
+        from kida.nodes import If
+
+        env = _env()
+        tpl = env.from_string(
+            "{% if false %}DEAD1{% end %}{% if false %}DEAD2{% end %}LIVE",
+        )
+        if_count = _count_nodes_by_type(tpl._optimized_ast.body, [If])
+        assert if_count == 0  # Both If nodes eliminated
+
+    def test_filter_folding_reduces_outputs(self):
+        """Static filters fold to Data, eliminating runtime filter calls."""
+        from kida.nodes import Data, Output
+
+        env = _env()
+        tpl = env.from_string(
+            "{{ name | upper }} {{ val | abs }}",
+            static_context={"name": "hello", "val": -42},
+        )
+        output_count = _count_nodes_by_type(tpl._optimized_ast.body, [Output])
+        data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
+        assert output_count == 0
+        assert data_count >= 1
