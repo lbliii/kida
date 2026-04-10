@@ -19,7 +19,7 @@ Example:
     >>> cache = BytecodeCache(Path(".kida-cache"))
     >>>
     >>> # Check cache
-    >>> code, ast = cache.get("base.html", source_hash)
+    >>> code, ast, precomputed = cache.get("base.html", source_hash)
     >>> if code is None:
     ...     code = compile_template(source)
     ...     cache.set("base.html", source_hash, code)
@@ -54,6 +54,11 @@ if TYPE_CHECKING:
 # 4-byte sentinel — which starts with 0x00 — is unambiguous.
 _FRAMED_MAGIC = b"\x00KDA"
 
+# v3 magic: includes precomputed constants section for partial evaluator.
+# Format: magic(4) + code_len(4) + code + pc_len(4) + pickle(precomputed) + pickle(ast)?
+# pc_len is 0 when there are no precomputed values.
+_FRAMED_MAGIC_V3 = b"\x01KDA"
+
 # Python version tag for cache invalidation across Python upgrades
 _PY_VERSION_TAG = f"py{sys.version_info.major}{sys.version_info.minor}"
 
@@ -75,13 +80,13 @@ class BytecodeCache:
             >>> cache = BytecodeCache(Path(".kida-cache"))
             >>>
             >>> # Miss: compile and cache
-            >>> code, ast = cache.get("base.html", source_hash)
+            >>> code, ast, precomputed = cache.get("base.html", source_hash)
             >>> if code is None:
             ...     code = compile_template(source)
             ...     cache.set("base.html", source_hash, code, ast=optimized_ast)
             >>>
             >>> # Hit: instant load (ast may be None for old cache entries)
-            >>> code, ast = cache.get("base.html", source_hash)
+            >>> code, ast, precomputed = cache.get("base.html", source_hash)
 
     """
 
@@ -125,36 +130,97 @@ class BytecodeCache:
         source_hash: str,
         *,
         context_hash: str | None = None,
-    ) -> tuple[CodeType, Node | None] | tuple[None, None]:
-        """Load cached bytecode and optional AST if available.
+    ) -> tuple[CodeType, Node | None, list | None] | tuple[None, None, None]:
+        """Load cached bytecode, optional AST, and precomputed constants.
 
         The cache file may contain either:
         - Legacy format: raw marshal-encoded code object only.
-        - Current format: the ``_FRAMED_MAGIC`` sentinel, followed by a
-          4-byte little-endian length for the marshal-encoded code bytes,
-          followed by those code bytes and then a pickle-encoded AST.
+        - v2 format: ``_FRAMED_MAGIC`` sentinel, code length, code, optional AST.
+        - v3 format: ``_FRAMED_MAGIC_V3`` sentinel, code length, code,
+          precomputed length, precomputed constants, optional AST.
 
         Args:
             name: Template name
             source_hash: Hash of template source (for invalidation)
 
         Returns:
-            ``(code, ast)`` on a cache hit — ``ast`` may be ``None`` for
-            entries written by an older version of Kida.  Returns
-            ``(None, None)`` on a cache miss or read error.
+            ``(code, ast, precomputed)`` on a cache hit — ``ast`` and
+            ``precomputed`` may be ``None``.  Returns ``(None, None, None)``
+            on a cache miss or read error.
         """
         path = self._make_path(name, source_hash, context_hash)
 
         if not path.exists():
-            return None, None
+            return None, None, None
 
         try:
             data = path.read_bytes()
         except OSError:
-            return None, None
+            return None, None, None
 
         try:
-            if data[: len(_FRAMED_MAGIC)] == _FRAMED_MAGIC:
+            if data[: len(_FRAMED_MAGIC_V3)] == _FRAMED_MAGIC_V3:
+                # Framed format (v3): magic(4) + code_len(4) + code
+                #                     + pc_len(4) + pickle(precomputed)
+                #                     + pickle(ast)?
+                offset = len(_FRAMED_MAGIC_V3)
+                (code_len,) = struct.unpack_from("<I", data, offset)
+                offset += 4
+                code_bytes = data[offset : offset + code_len]
+                if len(code_bytes) != code_len:
+                    import contextlib
+
+                    with contextlib.suppress(OSError):
+                        path.unlink(missing_ok=True)
+                    return None, None, None
+
+                code = cast("CodeType", marshal.loads(code_bytes))
+                offset += code_len
+
+                # Precomputed section — if present but corrupted, treat as
+                # cache miss so the template is recompiled with valid _pc_N
+                # bindings (returning code without precomputed would cause
+                # NameError at render time).
+                if len(data) - offset < 4:
+                    import contextlib
+
+                    with contextlib.suppress(OSError):
+                        path.unlink(missing_ok=True)
+                    return None, None, None
+
+                (pc_len,) = struct.unpack_from("<I", data, offset)
+                offset += 4
+                precomputed: list | None = None
+                if pc_len > 0:
+                    pc_bytes = data[offset : offset + pc_len]
+                    if len(pc_bytes) != pc_len:
+                        import contextlib
+
+                        with contextlib.suppress(OSError):
+                            path.unlink(missing_ok=True)
+                        return None, None, None
+                    try:
+                        precomputed = pickle.loads(pc_bytes)
+                    except Exception:
+                        import contextlib
+
+                        with contextlib.suppress(OSError):
+                            path.unlink(missing_ok=True)
+                        return None, None, None
+                    offset += pc_len
+
+                # AST section (optional)
+                ast_bytes = data[offset:]
+                ast: Node | None = None
+                if ast_bytes:
+                    try:
+                        ast = pickle.loads(ast_bytes)
+                    except Exception:
+                        ast = None
+
+                return code, ast, precomputed
+
+            elif data[: len(_FRAMED_MAGIC)] == _FRAMED_MAGIC:
                 # Framed format (v2): magic(4) + code_len(4 LE) + code + pickle(ast)?
                 offset = len(_FRAMED_MAGIC)
                 (code_len,) = struct.unpack_from("<I", data, offset)
@@ -166,14 +232,14 @@ class BytecodeCache:
 
                     with contextlib.suppress(OSError):
                         path.unlink(missing_ok=True)
-                    return None, None
+                    return None, None, None
 
                 code = cast("CodeType", marshal.loads(code_bytes))
 
                 # AST section is optional; absence means preserve_ast was False
                 # when the entry was written.
                 ast_bytes = data[offset + code_len :]
-                ast: Node | None = None
+                ast = None
                 if ast_bytes:
                     try:
                         ast = pickle.loads(ast_bytes)
@@ -182,18 +248,18 @@ class BytecodeCache:
                         # by returning None for the AST (code is still valid).
                         ast = None
 
-                return code, ast
+                return code, ast, None
             else:
                 # Legacy format: plain marshal stream, no AST.
                 code = cast("CodeType", marshal.loads(data))
-                return code, None
+                return code, None, None
         except ValueError, EOFError, struct.error:
             # Corrupted or incompatible cache file
             import contextlib
 
             with contextlib.suppress(OSError):
                 path.unlink(missing_ok=True)
-            return None, None
+            return None, None, None
 
     def set(
         self,
@@ -203,28 +269,38 @@ class BytecodeCache:
         *,
         context_hash: str | None = None,
         ast: Node | None = None,
+        precomputed: list | None = None,
     ) -> None:
-        """Cache compiled bytecode and optional AST.
+        """Cache compiled bytecode, optional precomputed constants, and optional AST.
 
-        File format (v2, framed):
-        ``[_FRAMED_MAGIC (4 B)][code_len LE uint32 (4 B)][marshal(code)][pickle(ast)?]``
+        File format (v3, framed):
+        ``[_FRAMED_MAGIC_V3 (4 B)][code_len (4 B)][marshal(code)]``
+        ``[pc_len (4 B)][pickle(precomputed)?][pickle(ast)?]``
 
-        The AST section is omitted when ``ast`` is ``None``.  Legacy entries
-        written by older Kida versions are plain ``marshal(code)`` streams
-        with no header; :meth:`get` detects and reads both formats.
+        When ``precomputed`` is ``None`` or empty, ``pc_len`` is 0 and the
+        pickle section is omitted.  Falls back to v2 format when no
+        precomputed values are present.
 
         Args:
             name: Template name
             source_hash: Hash of template source
             code: Compiled code object
-            ast: Optimised AST root node (optional).  When supplied it is
-                pickled with protocol 5 and appended after the code section.
+            ast: Optimised AST root node (optional).
+            precomputed: Non-constant-safe values folded by partial eval.
         """
         path = self._make_path(name, source_hash, context_hash)
         tmp_path: Path | None = None
 
         try:
             code_bytes = marshal.dumps(code)
+            try:
+                pc_bytes = pickle.dumps(precomputed, protocol=5) if precomputed else b""
+            except Exception:
+                # Non-picklable precomputed values (e.g. custom objects) —
+                # fall back to v2 format without precomputed section.
+                pc_bytes = b""
+            use_v3 = bool(pc_bytes)
+
             # Write to a unique temp file in the same directory, then atomically
             # replace the target path. Unique temp naming prevents producer races.
             with NamedTemporaryFile(
@@ -235,14 +311,18 @@ class BytecodeCache:
                 delete=False,
             ) as f:
                 tmp_path = Path(f.name)
-                # Framed format (v2):
-                #   _FRAMED_MAGIC (4 bytes)
-                #   code_len      (4 bytes, little-endian uint32)
-                #   code          (code_len bytes, marshal-encoded)
-                #   ast           (remaining bytes, pickle protocol 5; absent if ast is None)
-                f.write(_FRAMED_MAGIC)
-                f.write(struct.pack("<I", len(code_bytes)))
-                f.write(code_bytes)
+                if use_v3:
+                    # v3 format: includes precomputed section
+                    f.write(_FRAMED_MAGIC_V3)
+                    f.write(struct.pack("<I", len(code_bytes)))
+                    f.write(code_bytes)
+                    f.write(struct.pack("<I", len(pc_bytes)))
+                    f.write(pc_bytes)
+                else:
+                    # v2 format: no precomputed
+                    f.write(_FRAMED_MAGIC)
+                    f.write(struct.pack("<I", len(code_bytes)))
+                    f.write(code_bytes)
                 if ast is not None:
                     f.write(pickle.dumps(ast, protocol=5))
 

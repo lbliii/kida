@@ -90,6 +90,119 @@ class TestBasicPartialEvaluation:
         assert tmpl.render() == "Value: "
 
 
+class TestNonConstantSafeTypes:
+    """Non-constant-safe types (dict, list, etc.) are folded via precomputed constants.
+
+    Regression tests for https://github.com/lbliii/kida/issues/68:
+    Python's compile() rejects dict/list/set in ast.Constant nodes.
+    The compiler emits these as precomputed module-level bindings (_pc_N).
+    """
+
+    def test_let_intermediate_dict(self):
+        """{% let s = config.site %} folds dict via precomputed binding."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% let s = config.site %}{{ s.title }}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "Test"
+
+    def test_set_intermediate_dict(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% set s = config.site %}{{ s.title }}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "Test"
+
+    def test_with_intermediate_dict(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% with s = config.site %}{{ s.title }}{% endwith %}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "Test"
+
+    def test_nested_dict_leaf_still_folds(self):
+        """Scalar leaves of nested dicts should still fold normally."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ config.site.title }}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "Test"
+
+    def test_list_value_not_folded_to_const(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% let items = data.tags %}{{ items | join(', ') }}",
+            static_context={"data": {"tags": ["a", "b", "c"]}},
+        )
+        assert tmpl.render() == "a, b, c"
+
+    def test_if_with_dict_truthiness(self):
+        """Branch elimination should still work even when the value is a dict."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if config.fonts %}yes{% else %}no{% endif %}",
+            static_context={"config": {"fonts": {"body": "Arial"}}},
+        )
+        assert tmpl.render() == "yes"
+
+    def test_print_intermediate_dict(self):
+        """{{ s }} where s is a dict should render the dict string representation."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% let s = config.site %}{{ s }}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "{'title': 'Test'}"
+
+    def test_list_direct_output(self):
+        """Lists folded via precomputed should render correctly."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ items }}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "[1, 2, 3]"
+
+    def test_bytecode_cache_round_trip(self, tmp_path):
+        """Precomputed values survive bytecode cache serialization."""
+        from kida.bytecode_cache import BytecodeCache
+
+        cache = BytecodeCache(tmp_path)
+        env = Environment(autoescape=False, bytecode_cache=cache)
+
+        # First call: cache miss → compile + cache
+        t1 = env.from_string(
+            "{% let s = config.site %}{{ s.title }}",
+            name="cache_test.html",
+            static_context={"config": {"site": {"title": "Cached"}}},
+        )
+        assert t1.render() == "Cached"
+
+        # Second call: cache hit → load from cache
+        t2 = env.from_string(
+            "{% let s = config.site %}{{ s.title }}",
+            name="cache_test.html",
+            static_context={"config": {"site": {"title": "Cached"}}},
+        )
+        assert t2.render() == "Cached"
+
+    def test_precomputed_not_mutated_across_renders(self):
+        """Rendering should not mutate precomputed values."""
+        env = _env()
+        static = {"items": [1, 2, 3]}
+        tmpl = env.from_string(
+            "{{ items | join(',') }}",
+            static_context=static,
+        )
+        assert tmpl.render() == "1,2,3"
+        assert tmpl.render() == "1,2,3"
+        assert static["items"] == [1, 2, 3]
+
+
 class TestMixedContext:
     """Static and runtime values coexist correctly."""
 

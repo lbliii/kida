@@ -79,6 +79,7 @@ _UNRESOLVED = object()
 # Maximum number of iterations to unroll in a static for-loop
 _MAX_UNROLL = 200
 
+
 # Maximum allowed result size for safe builtins that produce sequences
 _MAX_BUILTIN_RESULT = 10_000
 

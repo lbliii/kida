@@ -45,10 +45,11 @@ fi
 # Jinja2 performance, and shared runners introduce noise (e.g. test_render_minimal_jinja2
 # showed 42% regression with 39x IQR spike on 2026-03-29, pure CI noise).
 # High-variance kida benchmarks: async (StdDev ~50-100%), include_depth[1] (noisy),
-# compile_complex (~3ms, fluctuates 30-40% on 4-core runners), fragment_cache_cold (cold
+# compile_complex (~3ms, fluctuates 30-40% on 4-core runners), compile_small (~2ms, 43% CoV
+# on shared runners — StdDev exceeds mean due to outliers), fragment_cache_cold (cold
 # cache timing varies with runner CPU clock speed), inherited_render_block (~6µs, 12x IQR
 # spike on shared runners), inherited_list_blocks (~µs range, same IQR noise as render_block).
-EXCLUDE_K="not (_jinja2 or test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida or test_include_depth_scaling or test_compile_complex_kida or test_render_fragment_cache_cold_kida or test_benchmark_inherited_render_block or test_benchmark_inherited_list_blocks)"
+EXCLUDE_K="not (_jinja2 or test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida or test_include_depth_scaling or test_compile_complex_kida or test_compile_small_kida or test_render_fragment_cache_cold_kida or test_benchmark_inherited_render_block or test_benchmark_inherited_list_blocks)"
 
 echo "=== Kida Benchmark Regression Check ==="
 echo "Baseline: $BASELINE"
@@ -57,7 +58,7 @@ echo "Storage: $STORAGE"
 echo "Python: $(python --version 2>&1)"
 echo "Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 if [ "${BENCHMARK_INCLUDE_ALL:-0}" != "1" ]; then
-    echo "Excluded: all *_jinja2 tests (comparison only), async_medium, async_large, render_complex, compile_complex, include_depth_scaling, fragment_cache_cold, inherited_render_block, inherited_list_blocks"
+    echo "Excluded: all *_jinja2 tests (comparison only), async_medium, async_large, render_complex, compile_complex, compile_small, include_depth_scaling, fragment_cache_cold, inherited_render_block, inherited_list_blocks"
 fi
 echo ""
 

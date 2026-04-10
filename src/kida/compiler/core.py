@@ -251,6 +251,12 @@ class Compiler(
         self._scope_override: str | None = None
         # Variable caching / CSE: names cached as locals to avoid repeated _ls() calls
         self._cached_vars: set[str] = set()
+        # Precomputed constants: values that can't be stored in ast.Constant
+        # (dict, list, set, custom objects) are injected into the exec()
+        # namespace as _pc_0, _pc_1, etc.  The list is exposed via the
+        # .precomputed property after compile().
+        self._precomputed: list[Any] = []
+        self._precomputed_ids: dict[int, int] = {}
         # Extension compiler handlers: {node_type_name: Extension instance}
         self._extension_compilers: dict[str, object] = getattr(
             env, "_extension_compilers", getattr(env, "_extension_tags", {})
@@ -400,6 +406,8 @@ class Compiler(
         self._has_async = False  # Reset async flag for each compilation
         self._def_caller_stack = []  # Lexical caller scoping: def → call → caller()
         self._outer_caller_expr = None  # Set when compiling call body inside def
+        self._precomputed = []  # Reset precomputed for each compilation
+        self._precomputed_ids = {}
 
         # Generate Python AST
         module = self._compile_template(node)
@@ -413,6 +421,11 @@ class Compiler(
             filename or "<template>",
             "exec",
         )
+
+    @property
+    def precomputed(self) -> list[Any]:
+        """Values that must be injected into the exec() namespace as ``_pc_N``."""
+        return self._precomputed
 
     def _emit_output(self, value_expr: ast.expr) -> ast.stmt:
         """Generate output statement: yield (streaming) or _append (StringBuilder).

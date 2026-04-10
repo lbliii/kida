@@ -162,6 +162,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         filename: str | None,
         optimized_ast: TemplateNode | None = None,
         source: str | None = None,
+        precomputed: list[Any] | None = None,
     ):
         """Initialize template with compiled code.
 
@@ -175,6 +176,9 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             source: Template source for runtime error snippets.
                 Stored for use by enhance_template_error() to provide source
                 context in TemplateRuntimeError exceptions.
+            precomputed: Values that the partial evaluator folded but that
+                cannot be stored in ``ast.Constant`` nodes (dict, list, etc.).
+                Injected into the exec namespace as ``_pc_0``, ``_pc_1``, ...
         """
         # Use weakref to prevent circular reference: Template <-> Environment
         self._env_ref: weakref.ref[Environment] = weakref.ref(env)
@@ -266,6 +270,13 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 "_ngettext": lambda s, p, n, _env=env: _env._ngettext(s, p, n),
             }
         )
+        # Inject precomputed constants (non-constant-safe values from partial eval).
+        # All block functions live in this same namespace, so _pc_N bindings are
+        # visible to blocks and render_block() without additional injection.
+        if precomputed is not None:
+            for idx, value in enumerate(precomputed):
+                namespace[f"_pc_{idx}"] = value
+
         # Apply sandbox restrictions if environment is sandboxed
         from kida.sandbox import SandboxedEnvironment, patch_template_namespace
 
