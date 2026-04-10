@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-10
+
+### Added
+
+- **List comprehensions** — `[expr for var in iterable if condition]` in template expressions with full parser, compiler, dependency tracking, and purity analysis integration. (#62)
+- **Error boundaries** — `{% try %}...{% fallback %}...{% end %}` catches rendering errors and substitutes fallback content without aborting the page. Supports error binding, nesting, and streaming. (#61)
+- **Scoped slots** — `{% slot let:name=expr %}` exposes data from components back to callers via `let:` bindings on `{% call %}`. (#61)
+- **`{% trans %}` / `{% pluralize %}` blocks** — Internationalization with variable interpolation, plural forms, and automatic escaping. (#61)
+- **Babel message extraction** — `kida.babel.extract` entry point for `pybabel extract` compatibility. (#63)
+- **`kida i18n` CLI** — `kida i18n extract` and `kida i18n analyze` commands for standalone message extraction and translation coverage analysis. (#63)
+- **i18n analysis module** — Tracks translatable strings, detects missing translations, integrates with dependency and purity analyzers. (#63)
+- **Partial evaluator phase 1** — Constant folding, filter inlining for pure built-in filters, assignment propagation, static loop unrolling, literal evaluation, and boolean short-circuit simplification. Opt-in via `Environment(partial_eval=True)`. (#64)
+- **Partial evaluator phase 2** — Extends optimization to conditional expressions, nested structures, string operations, comprehension folding, and cross-block constant propagation. (#65)
+- **`kida compile --optimize` CLI** — Inspect the optimized AST with before/after comparisons. (#64, #65)
+- **`@pure` decorator** — Mark custom filters for compile-time evaluation when inputs are static. (#64)
+
+### Changed
+
+- **Performance docs** — Updated to cover partial evaluation strategies and benchmarks.
+- **Compiler docs** — New sections on the optimization pipeline and `@pure` decorator.
+- **Configuration docs** — Documents `partial_eval` and related environment options.
+- **Custom filters docs** — Added `@pure` decorator usage and compile-time evaluation guide.
+
 ## [0.3.4] - 2026-04-09
 
 ### Added
