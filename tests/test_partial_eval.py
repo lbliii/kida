@@ -1139,3 +1139,925 @@ class TestUserPureFilters:
         assert add_prefix("test") == "pre_test"
         assert add_prefix("test", prefix="x") == "x_test"
         assert add_prefix.__name__ == "add_prefix"
+
+
+# =============================================================================
+# Phase 2, Sprint 1: With propagation + Test expression evaluation
+# =============================================================================
+
+
+class TestWithPropagation:
+    """{% with %} blocks propagate static bindings into their body."""
+
+    def test_simple_with_propagation(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% with title = site.title %}{{ title }}{% end %}",
+            static_context={"site": FakeSite(title="Blog", url="", nav=())},
+        )
+        assert tmpl.render() == "Blog"
+
+    def test_with_multiple_bindings(self):
+        env = _env()
+        site = FakeSite(title="Blog", url="https://example.com", nav=())
+        tmpl = env.from_string(
+            "{% with title = site.title, url = site.url %}{{ title }} at {{ url }}{% end %}",
+            static_context={"site": site},
+        )
+        assert tmpl.render() == "Blog at https://example.com"
+
+    def test_with_mixed_static_dynamic(self):
+        """Static bindings resolve, dynamic bindings pass through."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% with title = site.title, slug = page.slug %}{{ title }}: {{ slug }}{% end %}",
+            static_context={"site": FakeSite(title="Blog", url="", nav=())},
+        )
+        assert tmpl.render(page=FakePage(title="Post", slug="my-post")) == "Blog: my-post"
+
+    def test_with_nested(self):
+        """Nested {% with %} blocks propagate correctly."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% with a = site.title %}{% with b = site.url %}{{ a }} {{ b }}{% end %}{% end %}",
+            static_context={"site": FakeSite(title="Blog", url="https://x.com", nav=())},
+        )
+        assert tmpl.render() == "Blog https://x.com"
+
+    def test_with_enables_branch_elimination(self):
+        """With-bound values enable if-branch elimination."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% with debug = config.debug %}{% if debug %}DEBUG{% else %}PROD{% end %}{% end %}",
+            static_context={"config": {"debug": False}},
+        )
+        assert tmpl.render() == "PROD"
+
+    def test_with_inside_for_loop(self):
+        """With blocks inside for loops with static iterables."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for item in items %}{% with name = item.name %}{{ name }} {% end %}{% end %}",
+            static_context={"items": [{"name": "A"}, {"name": "B"}]},
+        )
+        assert tmpl.render() == "A B "
+
+    def test_with_binding_value_simplified(self):
+        """Even when binding can't fully resolve, value expr is simplified."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% with x = dynamic_val %}{{ x }}{% end %}",
+            static_context={},
+        )
+        # dynamic_val not in static context — with block preserved as-is
+        assert tmpl.render(dynamic_val="hello") == "hello"
+
+    def test_with_propagation_does_not_leak(self):
+        """With-bound variables don't leak into outer scope."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% with x = site.title %}{{ x }}{% end %}-{{ fallback }}",
+            static_context={"site": FakeSite(title="Blog", url="", nav=())},
+        )
+        assert tmpl.render(fallback="end") == "Blog-end"
+
+
+class TestTestExpressionEvaluation:
+    """Test expressions (is defined, is odd, etc.) fold at compile time."""
+
+    def test_is_defined_present(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if site is defined %}YES{% else %}NO{% end %}",
+            static_context={"site": "exists"},
+        )
+        assert tmpl.render() == "YES"
+
+    def test_is_defined_missing(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if missing is defined %}YES{% else %}NO{% end %}",
+            static_context={"site": "exists"},
+        )
+        assert tmpl.render() == "NO"
+
+    def test_is_not_defined(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if missing is not defined %}MISSING{% else %}FOUND{% end %}",
+            static_context={"site": "exists"},
+        )
+        assert tmpl.render() == "MISSING"
+
+    def test_is_undefined(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if missing is undefined %}UNDEF{% else %}DEF{% end %}",
+            static_context={"site": "exists"},
+        )
+        assert tmpl.render() == "UNDEF"
+
+    def test_is_odd(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if count is odd %}ODD{% else %}EVEN{% end %}",
+            static_context={"count": 7},
+        )
+        assert tmpl.render() == "ODD"
+
+    def test_is_even(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if count is even %}EVEN{% else %}ODD{% end %}",
+            static_context={"count": 4},
+        )
+        assert tmpl.render() == "EVEN"
+
+    def test_is_not_odd(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if count is not odd %}EVEN{% else %}ODD{% end %}",
+            static_context={"count": 4},
+        )
+        assert tmpl.render() == "EVEN"
+
+    def test_is_string(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is string %}STR{% else %}NOT{% end %}",
+            static_context={"val": "hello"},
+        )
+        assert tmpl.render() == "STR"
+
+    def test_is_number(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is number %}NUM{% else %}NOT{% end %}",
+            static_context={"val": 42},
+        )
+        assert tmpl.render() == "NUM"
+
+    def test_is_mapping(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is mapping %}MAP{% else %}NOT{% end %}",
+            static_context={"val": {"key": "value"}},
+        )
+        assert tmpl.render() == "MAP"
+
+    def test_is_sequence(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is sequence %}SEQ{% else %}NOT{% end %}",
+            static_context={"val": [1, 2, 3]},
+        )
+        assert tmpl.render() == "SEQ"
+
+    def test_is_iterable(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is iterable %}ITER{% else %}NOT{% end %}",
+            static_context={"val": [1, 2]},
+        )
+        assert tmpl.render() == "ITER"
+
+    def test_is_true(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is true %}T{% else %}F{% end %}",
+            static_context={"val": True},
+        )
+        assert tmpl.render() == "T"
+
+    def test_is_false(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is false %}F{% else %}T{% end %}",
+            static_context={"val": False},
+        )
+        assert tmpl.render() == "F"
+
+    def test_is_none_via_compare(self):
+        """'is none' parses as Compare, not Test — but still folds."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is none %}NULL{% else %}NOT{% end %}",
+            static_context={"val": None},
+        )
+        assert tmpl.render() == "NULL"
+
+    def test_is_not_none_via_compare(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is not none %}YES{% else %}NO{% end %}",
+            static_context={"val": "hello"},
+        )
+        assert tmpl.render() == "YES"
+
+    def test_test_with_unresolved_value(self):
+        """Test expressions with dynamic values are preserved."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if dynamic is defined %}YES{% else %}NO{% end %}",
+            static_context={},
+        )
+        # "dynamic" not in static context → Test can determine it's not defined
+        assert tmpl.render() == "NO"
+
+    def test_test_enables_cascade_elimination(self):
+        """Test folding enables downstream branch elimination."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if site is defined %}"
+            "{% if site.title is string %}"
+            "Title: {{ site.title }}"
+            "{% end %}"
+            "{% end %}",
+            static_context={"site": FakeSite(title="Blog", url="", nav=())},
+        )
+        assert tmpl.render() == "Title: Blog"
+
+
+class TestWithAndTestCombined:
+    """With propagation and Test evaluation work together."""
+
+    def test_with_binding_enables_test(self):
+        """Value bound via {% with %} is available for test evaluation."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% with count = config.count %}"
+            "{% if count is odd %}ODD{% else %}EVEN{% end %}"
+            "{% end %}",
+            static_context={"config": {"count": 5}},
+        )
+        assert tmpl.render() == "ODD"
+
+    def test_with_and_defined_check(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% with title = site.title %}"
+            "{% if title is defined %}{{ title }}{% else %}Untitled{% end %}"
+            "{% end %}",
+            static_context={"site": FakeSite(title="My Site", url="", nav=())},
+        )
+        assert tmpl.render() == "My Site"
+
+    def test_with_is_none_branch_elimination(self):
+        """With + is none comparison folds correctly."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% with val = config.optional %}"
+            "{% if val is none %}DEFAULT{% else %}{{ val }}{% end %}"
+            "{% end %}",
+            static_context={"config": {"optional": None}},
+        )
+        assert tmpl.render() == "DEFAULT"
+
+
+# ── Sprint 2: Match Elimination + ListComp Tuple Targets ─────────────
+
+
+class TestMatchElimination:
+    """Tests for Match node elimination when subject is compile-time-known."""
+
+    def test_match_const_subject_first_case(self):
+        """Match with literal subject — first case matches."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match "dark" %}'
+            '{% case "dark" %}DARK'
+            '{% case "light" %}LIGHT'
+            "{% case _ %}OTHER"
+            "{% end %}",
+        )
+        assert tmpl.render() == "DARK"
+
+    def test_match_const_subject_second_case(self):
+        """Match with literal subject — second case matches."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match "light" %}'
+            '{% case "dark" %}DARK'
+            '{% case "light" %}LIGHT'
+            "{% case _ %}OTHER"
+            "{% end %}",
+        )
+        assert tmpl.render() == "LIGHT"
+
+    def test_match_const_subject_wildcard(self):
+        """Match with literal subject — falls through to wildcard."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match "blue" %}'
+            '{% case "dark" %}DARK'
+            '{% case "light" %}LIGHT'
+            "{% case _ %}OTHER"
+            "{% end %}",
+        )
+        assert tmpl.render() == "OTHER"
+
+    def test_match_static_context_subject(self):
+        """Match subject resolved from static context."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match config.theme %}{% case "dark" %}DARK{% case "light" %}LIGHT{% end %}',
+            static_context={"config": {"theme": "dark"}},
+        )
+        assert tmpl.render(config={"theme": "dark"}) == "DARK"
+
+    def test_match_static_context_wildcard(self):
+        """Static context subject falls through to wildcard."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match config.theme %}{% case "dark" %}DARK{% case _ %}FALLBACK{% end %}',
+            static_context={"config": {"theme": "neon"}},
+        )
+        assert tmpl.render(config={"theme": "neon"}) == "FALLBACK"
+
+    def test_match_unresolved_subject_recurse(self):
+        """Unresolved subject — recurse into case bodies."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match user_theme %}{% case "dark" %}{{ site.title }}{% case _ %}DEFAULT{% end %}',
+            static_context={"site": FakeSite(title="My Blog", url="", nav=())},
+        )
+        assert (
+            tmpl.render(user_theme="dark", site=FakeSite(title="My Blog", url="", nav=()))
+            == "My Blog"
+        )
+
+    def test_match_integer_subject(self):
+        """Match with integer const subject."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% match 2 %}{% case 1 %}ONE{% case 2 %}TWO{% case 3 %}THREE{% end %}",
+        )
+        assert tmpl.render() == "TWO"
+
+    def test_match_static_integer_subject(self):
+        """Match with integer subject from static context."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% match config.level %}{% case 1 %}LOW{% case 2 %}MEDIUM{% case 3 %}HIGH{% end %}",
+            static_context={"config": {"level": 3}},
+        )
+        assert tmpl.render(config={"level": 3}) == "HIGH"
+
+    def test_match_no_matching_case(self):
+        """No case matches and no wildcard — empty output."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match "unknown" %}{% case "dark" %}DARK{% case "light" %}LIGHT{% end %}',
+        )
+        assert tmpl.render() == ""
+
+    def test_match_elimination_ast(self):
+        """Verify Match node is actually eliminated from AST."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            '{% match config.theme %}{% case "dark" %}DARK{% case _ %}OTHER{% end %}',
+            static_context={"config": {"theme": "dark"}},
+        )
+        ast = tmpl._optimized_ast
+        assert ast is not None
+        node_types = [type(n).__name__ for n in ast.body]
+        assert "Match" not in node_types, f"Match not eliminated: {node_types}"
+
+    def test_match_dce_const_literal(self):
+        """DCE eliminates Match with literal const subject (no static_context)."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            '{% match "dark" %}{% case "dark" %}DARK{% case "light" %}LIGHT{% end %}',
+        )
+        ast = tmpl._optimized_ast
+        assert ast is not None
+        node_types = [type(n).__name__ for n in ast.body]
+        assert "Match" not in node_types, f"Match not eliminated by DCE: {node_types}"
+
+    def test_match_with_body_content(self):
+        """Match case body with multiple nodes."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% match config.theme %}"
+            '{% case "dark" %}<div class="dark">{{ title }}</div>'
+            "{% case _ %}<div>{{ title }}</div>"
+            "{% end %}",
+            static_context={"config": {"theme": "dark"}},
+        )
+        assert (
+            tmpl.render(config={"theme": "dark"}, title="Hello") == '<div class="dark">Hello</div>'
+        )
+
+
+class TestListCompTupleUnpacking:
+    """Tests for list comprehension tuple target unpacking."""
+
+    def test_pair_unpacking(self):
+        """Basic pair unpacking: [name for name, age in pairs]."""
+        from kida.compiler.partial_eval import PartialEvaluator
+        from kida.nodes import ListComp, Name
+        from kida.nodes import Tuple as TupleNode
+
+        pe = PartialEvaluator({"pairs": [("Alice", 30), ("Bob", 25)]})
+        target = TupleNode(
+            lineno=1,
+            col_offset=0,
+            items=(
+                Name(lineno=1, col_offset=0, name="name"),
+                Name(lineno=1, col_offset=0, name="age"),
+            ),
+        )
+        lc = ListComp(
+            lineno=1,
+            col_offset=0,
+            target=target,
+            iter=Name(lineno=1, col_offset=0, name="pairs"),
+            elt=Name(lineno=1, col_offset=0, name="name"),
+            ifs=(),
+        )
+        result = pe._try_eval(lc)
+        assert result == ["Alice", "Bob"]
+
+    def test_pair_unpacking_second_element(self):
+        """Unpack second element: [age for name, age in pairs]."""
+        from kida.compiler.partial_eval import PartialEvaluator
+        from kida.nodes import ListComp, Name
+        from kida.nodes import Tuple as TupleNode
+
+        pe = PartialEvaluator({"pairs": [("Alice", 30), ("Bob", 25)]})
+        target = TupleNode(
+            lineno=1,
+            col_offset=0,
+            items=(
+                Name(lineno=1, col_offset=0, name="name"),
+                Name(lineno=1, col_offset=0, name="age"),
+            ),
+        )
+        lc = ListComp(
+            lineno=1,
+            col_offset=0,
+            target=target,
+            iter=Name(lineno=1, col_offset=0, name="pairs"),
+            elt=Name(lineno=1, col_offset=0, name="age"),
+            ifs=(),
+        )
+        result = pe._try_eval(lc)
+        assert result == [30, 25]
+
+    def test_triple_unpacking(self):
+        """Triple unpacking: [name for name, age, role in triples]."""
+        from kida.compiler.partial_eval import PartialEvaluator
+        from kida.nodes import ListComp, Name
+        from kida.nodes import Tuple as TupleNode
+
+        pe = PartialEvaluator(
+            {
+                "records": [("Alice", 30, "admin"), ("Bob", 25, "user")],
+            }
+        )
+        target = TupleNode(
+            lineno=1,
+            col_offset=0,
+            items=(
+                Name(lineno=1, col_offset=0, name="name"),
+                Name(lineno=1, col_offset=0, name="age"),
+                Name(lineno=1, col_offset=0, name="role"),
+            ),
+        )
+        lc = ListComp(
+            lineno=1,
+            col_offset=0,
+            target=target,
+            iter=Name(lineno=1, col_offset=0, name="records"),
+            elt=Name(lineno=1, col_offset=0, name="role"),
+            ifs=(),
+        )
+        result = pe._try_eval(lc)
+        assert result == ["admin", "user"]
+
+    def test_tuple_unpack_with_filter(self):
+        """Tuple unpacking with filter condition."""
+        from kida.compiler.partial_eval import PartialEvaluator
+        from kida.nodes import Compare, ListComp, Name
+        from kida.nodes import Tuple as TupleNode
+
+        pe = PartialEvaluator(
+            {
+                "pairs": [("Alice", 30), ("Bob", 25), ("Carol", 35)],
+            }
+        )
+        target = TupleNode(
+            lineno=1,
+            col_offset=0,
+            items=(
+                Name(lineno=1, col_offset=0, name="name"),
+                Name(lineno=1, col_offset=0, name="age"),
+            ),
+        )
+        # Filter: age >= 30
+        age_check = Compare(
+            lineno=1,
+            col_offset=0,
+            left=Name(lineno=1, col_offset=0, name="age"),
+            ops=(">=",),
+            comparators=(
+                __import__("kida.nodes", fromlist=["Const"]).Const(
+                    lineno=1, col_offset=0, value=30
+                ),
+            ),
+        )
+        lc = ListComp(
+            lineno=1,
+            col_offset=0,
+            target=target,
+            iter=Name(lineno=1, col_offset=0, name="pairs"),
+            elt=Name(lineno=1, col_offset=0, name="name"),
+            ifs=(age_check,),
+        )
+        result = pe._try_eval(lc)
+        assert result == ["Alice", "Carol"]
+
+    def test_tuple_unpack_dict_items(self):
+        """Simulate dict.items() unpacking: [k for k, v in items]."""
+        from kida.compiler.partial_eval import PartialEvaluator
+        from kida.nodes import ListComp, Name
+        from kida.nodes import Tuple as TupleNode
+
+        pe = PartialEvaluator(
+            {
+                "items": [("title", "Kida"), ("version", "0.3.4")],
+            }
+        )
+        target = TupleNode(
+            lineno=1,
+            col_offset=0,
+            items=(Name(lineno=1, col_offset=0, name="k"), Name(lineno=1, col_offset=0, name="v")),
+        )
+        lc = ListComp(
+            lineno=1,
+            col_offset=0,
+            target=target,
+            iter=Name(lineno=1, col_offset=0, name="items"),
+            elt=Name(lineno=1, col_offset=0, name="v"),
+            ifs=(),
+        )
+        result = pe._try_eval(lc)
+        assert result == ["Kida", "0.3.4"]
+
+    def test_tuple_unpack_length_mismatch(self):
+        """Mismatched tuple length returns _UNRESOLVED."""
+        from kida.compiler.partial_eval import _UNRESOLVED, PartialEvaluator
+        from kida.nodes import ListComp, Name
+        from kida.nodes import Tuple as TupleNode
+
+        pe = PartialEvaluator(
+            {
+                "pairs": [("Alice", 30), ("Bob",)],  # second item has wrong length
+            }
+        )
+        target = TupleNode(
+            lineno=1,
+            col_offset=0,
+            items=(
+                Name(lineno=1, col_offset=0, name="name"),
+                Name(lineno=1, col_offset=0, name="age"),
+            ),
+        )
+        lc = ListComp(
+            lineno=1,
+            col_offset=0,
+            target=target,
+            iter=Name(lineno=1, col_offset=0, name="pairs"),
+            elt=Name(lineno=1, col_offset=0, name="name"),
+            ifs=(),
+        )
+        result = pe._try_eval(lc)
+        assert result is _UNRESOLVED
+
+    def test_simple_name_target_still_works(self):
+        """Ensure single Name target still works after tuple support added."""
+        from kida.compiler.partial_eval import PartialEvaluator
+        from kida.nodes import BinOp, Const, ListComp, Name
+
+        pe = PartialEvaluator({"nums": [1, 2, 3]})
+        lc = ListComp(
+            lineno=1,
+            col_offset=0,
+            target=Name(lineno=1, col_offset=0, name="x"),
+            iter=Name(lineno=1, col_offset=0, name="nums"),
+            elt=BinOp(
+                lineno=1,
+                col_offset=0,
+                left=Name(lineno=1, col_offset=0, name="x"),
+                op="*",
+                right=Const(lineno=1, col_offset=0, value=2),
+            ),
+            ifs=(),
+        )
+        result = pe._try_eval(lc)
+        assert result == [2, 4, 6]
+
+
+class TestMatchAndListCompCombined:
+    """Combined tests ensuring Sprint 2 features work together."""
+
+    def test_match_inside_for_static(self):
+        """Match inside a for loop with static subject."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for item in items %}"
+            "{% match config.mode %}"
+            '{% case "verbose" %}[{{ item }}]'
+            "{% case _ %}{{ item }}"
+            "{% end %}"
+            "{% end %}",
+            static_context={"config": {"mode": "verbose"}},
+        )
+        assert tmpl.render(config={"mode": "verbose"}, items=["a", "b"]) == "[a][b]"
+
+    def test_match_with_output_folding(self):
+        """Match elimination cascades into output folding."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match site.theme %}{% case "dark" %}{{ site.title }}{% case _ %}Untitled{% end %}',
+            static_context={"site": {"title": "Kida", "theme": "dark"}},
+        )
+        assert tmpl.render(site={"title": "Kida", "theme": "dark"}) == "Kida"
+
+
+# ── Sprint 3: _transform_expr Sub-Expression Widening ────────────────
+
+
+class TestSubExprBinOp:
+    """Tests for BinOp sub-expression simplification."""
+
+    def test_binop_both_static(self):
+        """Both operands static — fully folds to Const."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ site.count + config.offset }}",
+            static_context={"site": {"count": 10}, "config": {"offset": 5}},
+        )
+        assert tmpl.render(site={"count": 10}, config={"offset": 5}) == "15"
+
+    def test_binop_left_static(self):
+        """Left operand static, right dynamic — left simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ site.count + dynamic_val }}",
+            static_context={"site": {"count": 10}},
+        )
+        ast = tmpl._optimized_ast
+        assert ast is not None
+        # The output expr should be a BinOp with Const left
+        out = ast.body[0]
+        assert type(out).__name__ == "Output"
+        binop = out.expr
+        assert type(binop).__name__ == "BinOp"
+        assert type(binop.left).__name__ == "Const"
+        assert binop.left.value == 10
+
+    def test_binop_concat_partial(self):
+        """String concat (~) with mixed static/dynamic operands."""
+        env = _env()
+        tmpl = env.from_string(
+            '{{ site.title ~ " | " ~ page_title }}',
+            static_context={"site": {"title": "Kida"}},
+        )
+        assert tmpl.render(site={"title": "Kida"}, page_title="Home") == "Kida | Home"
+
+    def test_binop_concat_ast_simplification(self):
+        """Nested ~ BinOps: static sub-tree folds to single Const."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            '{{ site.title ~ " | " ~ page_title }}',
+            static_context={"site": {"title": "Kida"}},
+        )
+        ast = tmpl._optimized_ast
+        assert ast is not None
+        out = ast.body[0]
+        binop = out.expr
+        assert type(binop).__name__ == "BinOp"
+        # Left should be Const("Kida | ") — inner BinOp fully folded
+        assert type(binop.left).__name__ == "Const"
+        assert binop.left.value == "Kida | "
+
+
+class TestSubExprUnaryOp:
+    """Tests for UnaryOp sub-expression simplification."""
+
+    def test_unary_not_static(self):
+        """Fully static `not` folds to Const."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if not site.debug %}PROD{% end %}",
+            static_context={"site": {"debug": False}},
+        )
+        assert tmpl.render(site={"debug": False}) == "PROD"
+
+    def test_unary_not_dynamic(self):
+        """Dynamic operand — not folded but operand preserved."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if not is_debug %}PROD{% else %}DEBUG{% end %}",
+        )
+        assert tmpl.render(is_debug=False) == "PROD"
+        assert tmpl.render(is_debug=True) == "DEBUG"
+
+    def test_unary_negative_static(self):
+        """Unary minus on static value."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ -config.offset }}",
+            static_context={"config": {"offset": 5}},
+        )
+        assert tmpl.render(config={"offset": 5}) == "-5"
+
+
+class TestSubExprCompare:
+    """Tests for Compare sub-expression simplification."""
+
+    def test_compare_both_static(self):
+        """Both sides static — folds to branch elimination."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if site.count > 5 %}BIG{% else %}SMALL{% end %}",
+            static_context={"site": {"count": 10}},
+        )
+        assert tmpl.render(site={"count": 10}) == "BIG"
+
+    def test_compare_left_static(self):
+        """Left side static, right dynamic — left simplified to Const."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{% if site.count > threshold %}BIG{% else %}SMALL{% end %}",
+            static_context={"site": {"count": 10}},
+        )
+        # Can't fully resolve (threshold is dynamic), but left is simplified
+        assert tmpl.render(site={"count": 10}, threshold=5) == "BIG"
+        assert tmpl.render(site={"count": 10}, threshold=15) == "SMALL"
+
+
+class TestSubExprConcat:
+    """Tests for Concat node sub-expression simplification."""
+
+    def test_concat_all_static(self):
+        """All nodes static — fully folds."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ site.title ~ site.version }}",
+            static_context={"site": {"title": "Kida ", "version": "0.3.4"}},
+        )
+        assert tmpl.render(site={"title": "Kida ", "version": "0.3.4"}) == "Kida 0.3.4"
+
+
+class TestSubExprFuncCall:
+    """Tests for FuncCall sub-expression simplification."""
+
+    def test_funccall_static_args(self):
+        """len() with static arg — fully folds."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ len(items) }}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render(items=[1, 2, 3]) == "3"
+
+    def test_funccall_dynamic_arg(self):
+        """len() with dynamic arg — can't fold."""
+        env = _env()
+        tmpl = env.from_string("{{ len(items) }}")
+        assert tmpl.render(items=[1, 2, 3]) == "3"
+
+    def test_funccall_mixed_args(self):
+        """FuncCall with mixed static/dynamic args — args simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ range(site.count) }}",
+            static_context={"site": {"count": 3}},
+        )
+        # range(3) with static arg should fold fully
+        assert tmpl.render(site={"count": 3}) == "range(0, 3)"
+
+
+class TestSubExprList:
+    """Tests for List sub-expression simplification."""
+
+    def test_list_all_static(self):
+        """All items static — folds to Const."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ [site.title, site.version] }}",
+            static_context={"site": {"title": "Kida", "version": "0.3.4"}},
+        )
+        assert tmpl.render(site={"title": "Kida", "version": "0.3.4"}) == "['Kida', '0.3.4']"
+
+    def test_list_mixed_items(self):
+        """Mixed static/dynamic items — static items simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ [site.title, page_name] }}",
+            static_context={"site": {"title": "Kida"}},
+        )
+        ast = tmpl._optimized_ast
+        assert ast is not None
+        out = ast.body[0]
+        list_expr = out.expr
+        assert type(list_expr).__name__ == "List"
+        assert type(list_expr.items[0]).__name__ == "Const"
+        assert list_expr.items[0].value == "Kida"
+        assert type(list_expr.items[1]).__name__ == "Name"
+
+
+class TestSubExprTuple:
+    """Tests for Tuple sub-expression simplification."""
+
+    def test_tuple_all_static(self):
+        """All items static — folds to Const."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ (site.title, site.version) }}",
+            static_context={"site": {"title": "Kida", "version": "0.3.4"}},
+        )
+        assert tmpl.render(site={"title": "Kida", "version": "0.3.4"}) == "('Kida', '0.3.4')"
+
+    def test_tuple_mixed_items(self):
+        """Mixed static/dynamic — static items simplified to Const."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ (site.title, page_name) }}",
+            static_context={"site": {"title": "Kida"}},
+        )
+        ast = tmpl._optimized_ast
+        assert ast is not None
+        out = ast.body[0]
+        tup_expr = out.expr
+        assert type(tup_expr).__name__ == "Tuple"
+        assert type(tup_expr.items[0]).__name__ == "Const"
+        assert tup_expr.items[0].value == "Kida"
+        assert type(tup_expr.items[1]).__name__ == "Name"
+
+
+class TestSubExprDict:
+    """Tests for Dict sub-expression simplification."""
+
+    def test_dict_all_static(self):
+        """All keys/values static — folds to Const."""
+        env = _env()
+        tmpl = env.from_string(
+            '{{ {"title": site.title, "version": site.version} }}',
+            static_context={"site": {"title": "Kida", "version": "0.3.4"}},
+        )
+        result = tmpl.render(site={"title": "Kida", "version": "0.3.4"})
+        assert "'title': 'Kida'" in result
+        assert "'version': '0.3.4'" in result
+
+    def test_dict_mixed_values(self):
+        """Mixed static/dynamic values — static values simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            '{{ {"title": site.title, "author": page_author} }}',
+            static_context={"site": {"title": "Kida"}},
+        )
+        ast = tmpl._optimized_ast
+        assert ast is not None
+        out = ast.body[0]
+        dict_expr = out.expr
+        assert type(dict_expr).__name__ == "Dict"
+        # First value (site.title) should be Const
+        assert type(dict_expr.values[0]).__name__ == "Const"
+        assert dict_expr.values[0].value == "Kida"
+        # Second value (page_author) should be Name
+        assert type(dict_expr.values[1]).__name__ == "Name"
+
+
+class TestSubExprMarkSafe:
+    """Tests for MarkSafe sub-expression simplification."""
+
+    def test_marksafe_static(self):
+        """Static MarkSafe — fully folds."""
+        env = Environment(autoescape=True, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ site.html | safe }}",
+            static_context={"site": {"html": "<b>Bold</b>"}},
+        )
+        assert tmpl.render(site={"html": "<b>Bold</b>"}) == "<b>Bold</b>"
+
+
+class TestSubExprFilterPipeline:
+    """Tests for Filter/Pipeline sub-expression simplification."""
+
+    def test_filter_static_value(self):
+        """Static value through filter — fully folds."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ site.title | upper }}",
+            static_context={"site": {"title": "kida"}},
+        )
+        assert tmpl.render(site={"title": "kida"}) == "KIDA"
+
+    def test_filter_dynamic_value_preserved(self):
+        """Dynamic value through filter — preserved."""
+        env = _env()
+        tmpl = env.from_string("{{ name | upper }}")
+        assert tmpl.render(name="kida") == "KIDA"

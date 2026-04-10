@@ -357,9 +357,13 @@ def _print_explain(env: Environment, tpl: object) -> None:
     # static_context — partial eval requires from_string(src, static_context={...}).
     # Report the capability rather than the current state.
     lines.append("  [off] partial evaluation (pass static_context to from_string() to enable)")
+    lines.append("        ├─ with propagation — aliases static values through {% with %} blocks")
+    lines.append("        ├─ match elimination — removes dead {% match %}/{% case %} branches")
+    lines.append("        ├─ test folding — resolves is defined/is none/is odd at compile time")
     lines.append(
-        "  [off] filter constant folding (requires partial evaluation — 67 pure filters available)"
+        "        ├─ sub-expression simplification — folds static operands in mixed expressions"
     )
+    lines.append("        └─ filter constant folding — 67 pure filters available")
 
     # Component inlining
     if env.inline_components:

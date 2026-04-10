@@ -54,6 +54,7 @@ from kida.nodes import (
     List,
     ListComp,
     MarkSafe,
+    Match,
     Name,
     Node,
     NullCoalesce,
@@ -66,8 +67,10 @@ from kida.nodes import (
     Slot,
     SlotBlock,
     Template,
+    Test,
     Tuple,
     UnaryOp,
+    With,
 )
 
 # Sentinel for "evaluation failed" — distinct from None (which is a valid result)
@@ -101,6 +104,24 @@ _SAFE_BUILTINS: dict[str, Callable[..., Any]] = {
     "tuple": tuple,
     "chr": chr,
     "ord": ord,
+}
+
+# Safe test predicates for compile-time evaluation.
+# Maps test name to a callable(value, *args) -> bool.
+# Only tests that are side-effect-free and deterministic.
+_SAFE_TESTS: dict[str, Callable[..., bool]] = {
+    "none": lambda v: v is None,
+    "odd": lambda v: isinstance(v, int) and v % 2 == 1,
+    "even": lambda v: isinstance(v, int) and v % 2 == 0,
+    "true": lambda v: v is True,
+    "false": lambda v: v is False,
+    "number": lambda v: isinstance(v, (int, float)),
+    "string": lambda v: isinstance(v, str),
+    "mapping": lambda v: isinstance(v, dict),
+    "sequence": lambda v: isinstance(v, (list, tuple, str)),
+    "iterable": lambda v: hasattr(v, "__iter__"),
+    "callable": lambda v: callable(v),
+    "boolean": lambda v: isinstance(v, bool),
 }
 
 
@@ -295,6 +316,68 @@ def _dce_transform_if(node: If) -> Node | None:
     return None
 
 
+def _dce_transform_match(node: Match) -> Node | None:
+    """Eliminate dead match/case branches when subject is a const literal."""
+    if node.subject is None:
+        return node
+    subject_val = _try_eval_const_only(node.subject)
+    if subject_val is _UNRESOLVED:
+        # Recurse into case bodies
+        new_cases: list[tuple[Expr, Expr | None, Sequence[Node]]] = []
+        changed = False
+        for pattern, guard, case_body in node.cases:
+            new_body = _dce_transform_body(case_body)
+            if new_body is not case_body:
+                changed = True
+            new_cases.append((pattern, guard, new_body))
+        if not changed:
+            return node
+        return Match(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            subject=node.subject,
+            cases=tuple(new_cases),
+        )
+
+    # Subject is a constant — find the matching case
+    for pattern, guard, case_body in node.cases:
+        if isinstance(pattern, Name) and pattern.name == "_":
+            if guard is not None:
+                guard_val = _try_eval_const_only(guard)
+                if guard_val is _UNRESOLVED:
+                    return node  # Can't resolve guard
+                if not guard_val:
+                    continue
+            if _body_has_scoping_nodes(case_body):
+                return node
+            body = _dce_transform_body(case_body)
+            if len(body) == 1:
+                return body[0]
+            return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=body)
+
+        if isinstance(pattern, Const):
+            if subject_val == pattern.value:
+                if guard is not None:
+                    guard_val = _try_eval_const_only(guard)
+                    if guard_val is _UNRESOLVED:
+                        return node
+                    if not guard_val:
+                        continue
+                if _body_has_scoping_nodes(case_body):
+                    return node
+                body = _dce_transform_body(case_body)
+                if len(body) == 1:
+                    return body[0]
+                return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=body)
+            continue
+
+        # Complex pattern — bail
+        return node
+
+    # No match found — remove the node
+    return None
+
+
 def _dce_transform_body(body: Sequence[Node]) -> Sequence[Node]:
     """Transform body, eliminating dead If nodes and flattening _InlinedBody."""
     result: list[Node] = []
@@ -311,6 +394,18 @@ def _dce_transform_body(body: Sequence[Node]) -> Sequence[Node]:
                     changed = True
                     result.extend(transformed.nodes)
                 else:
+                    result.append(transformed)
+            case Match():
+                transformed = _dce_transform_match(node)
+                if transformed is None:
+                    changed = True
+                    continue
+                if isinstance(transformed, _InlinedBody):
+                    changed = True
+                    result.extend(transformed.nodes)
+                else:
+                    if transformed is not node:
+                        changed = True
                     result.append(transformed)
             case Block():
                 new_block_body = _dce_transform_body(node.body)
@@ -576,6 +671,9 @@ class PartialEvaluator:
         if isinstance(expr, Range):
             return self._try_eval_range(expr, depth)
 
+        if isinstance(expr, Test):
+            return self._try_eval_test(expr, depth)
+
         # Anything else — not resolved
         return _UNRESOLVED
 
@@ -659,12 +757,27 @@ class PartialEvaluator:
             return _UNRESOLVED
 
         target = expr.target
-        if not isinstance(target, Name):
+        if isinstance(target, Name):
+            target_names: tuple[str, ...] = (target.name,)
+            unpack = False
+        elif isinstance(target, Tuple) and all(isinstance(e, Name) for e in target.items):
+            target_names = tuple(e.name for e in target.items)  # type: ignore[union-attr]
+            unpack = True
+        else:
             return _UNRESOLVED
 
         result = []
         for item in items:
-            sub_ctx = {**self._ctx, target.name: item}
+            if unpack:
+                try:
+                    unpacked = tuple(item)
+                except _PARTIAL_EVAL_EXCEPTIONS:
+                    return _UNRESOLVED
+                if len(unpacked) != len(target_names):
+                    return _UNRESOLVED
+                sub_ctx = {**self._ctx, **dict(zip(target_names, unpacked, strict=True))}
+            else:
+                sub_ctx = {**self._ctx, target_names[0]: item}
             sub_eval = PartialEvaluator(
                 sub_ctx,
                 escape_func=self._escape,
@@ -761,6 +874,59 @@ class PartialEvaluator:
         if len(r) > _MAX_BUILTIN_RESULT:
             return _UNRESOLVED
         return list(r)
+
+    def _try_eval_test(self, expr: Test, depth: int = 0) -> Any:
+        """Evaluate a Test node when the value can be resolved.
+
+        Handles ``is defined`` / ``is undefined`` specially (they check
+        context membership, not the value itself). All other tests require
+        a resolved value.
+        """
+        # "defined" / "undefined" check context membership, not value
+        if expr.name == "defined":
+            if isinstance(expr.value, Name):
+                result = expr.value.name in self._ctx
+                return (not result) if expr.negated else result
+            # For non-Name expressions, try to resolve and check for _UNRESOLVED
+            val = self._try_eval(expr.value, depth + 1)
+            if val is _UNRESOLVED:
+                return _UNRESOLVED
+            result = True  # If it resolved, it's "defined"
+            return (not result) if expr.negated else result
+
+        if expr.name == "undefined":
+            if isinstance(expr.value, Name):
+                result = expr.value.name not in self._ctx
+                return (not result) if expr.negated else result
+            val = self._try_eval(expr.value, depth + 1)
+            if val is _UNRESOLVED:
+                return _UNRESOLVED
+            result = False  # If it resolved, it's not "undefined"
+            return (not result) if expr.negated else result
+
+        # All other tests require a resolved value
+        value = self._try_eval(expr.value, depth + 1)
+        if value is _UNRESOLVED:
+            return _UNRESOLVED
+
+        test_func = _SAFE_TESTS.get(expr.name)
+        if test_func is None:
+            return _UNRESOLVED
+
+        # Resolve test arguments
+        args_resolved: list[Any] = []
+        for arg in expr.args:
+            a = self._try_eval(arg, depth + 1)
+            if a is _UNRESOLVED:
+                return _UNRESOLVED
+            args_resolved.append(a)
+
+        try:
+            result = test_func(value, *args_resolved)
+        except _PARTIAL_EVAL_EXCEPTIONS:
+            return _UNRESOLVED
+
+        return (not result) if expr.negated else result
 
     @staticmethod
     def _eval_binop(op: str, left: Any, right: Any) -> Any:
@@ -954,6 +1120,12 @@ class PartialEvaluator:
                 body=new_body,
             )
 
+        if isinstance(node, With):
+            return self._transform_with(node)
+
+        if isinstance(node, Match):
+            return self._transform_match(node)
+
         if isinstance(node, (Set, Let)):
             return self._transform_assignment(node)
 
@@ -1098,6 +1270,133 @@ class PartialEvaluator:
             empty=new_empty,
             recursive=node.recursive,
             test=node.test,
+        )
+
+    def _transform_with(self, node: With) -> Node:
+        """Propagate static values through {% with %} block bindings.
+
+        Evaluates each binding expression against the static context.
+        Resolved bindings are added to a sub-evaluator's context so
+        that the body can fold expressions referencing them.
+        """
+        # Evaluate bindings and build augmented context
+        aug_ctx = dict(self._ctx)
+        new_targets: list[tuple[str, Expr]] = []
+        changed = False
+
+        for name, value_expr in node.targets:
+            val = self._try_eval(value_expr)
+            if val is not _UNRESOLVED:
+                # Binding resolved — add to context, replace expr with Const
+                aug_ctx[name] = val
+                const_expr = Const(
+                    lineno=value_expr.lineno,
+                    col_offset=value_expr.col_offset,
+                    value=val,
+                )
+                new_targets.append((name, const_expr))
+                changed = True
+            else:
+                # Try partial simplification of the value expression
+                new_expr = self._transform_expr(value_expr)
+                new_targets.append((name, new_expr))
+                if new_expr is not value_expr:
+                    changed = True
+
+        # Transform body with augmented context
+        sub_eval = self._make_sub_evaluator(aug_ctx)
+        sub_eval._defs = dict(self._defs)
+        new_body = sub_eval._transform_body(node.body)
+
+        if not changed and new_body is node.body:
+            return node
+
+        return With(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            targets=tuple(new_targets),
+            body=new_body,
+        )
+
+    def _transform_match(self, node: Match) -> Node | None:
+        """Eliminate dead match/case branches when subject is compile-time-known.
+
+        When the subject resolves, iterate cases and match:
+        - Const patterns: exact equality check
+        - Name("_") wildcard: always matches
+        - Other patterns: bail (leave Match intact)
+
+        If subject is unresolved, recurse into each case body.
+        """
+        if node.subject is None:
+            return node
+
+        subject_val = self._try_eval(node.subject)
+
+        if subject_val is not _UNRESOLVED:
+            # Subject resolved — find the matching case
+            for pattern, guard, case_body in node.cases:
+                # Wildcard: Name("_") always matches
+                if isinstance(pattern, Name) and pattern.name == "_":
+                    if guard is not None:
+                        guard_val = self._try_eval(guard)
+                        if guard_val is _UNRESOLVED:
+                            break  # Can't resolve guard — bail
+                        if not guard_val:
+                            continue  # Guard failed, try next case
+                    body = self._transform_body(case_body)
+                    if len(body) == 1:
+                        return body[0]
+                    return _InlinedBody(
+                        lineno=node.lineno,
+                        col_offset=node.col_offset,
+                        nodes=body,
+                    )
+
+                # Const pattern: exact equality check
+                if isinstance(pattern, Const):
+                    if subject_val == pattern.value:
+                        if guard is not None:
+                            guard_val = self._try_eval(guard)
+                            if guard_val is _UNRESOLVED:
+                                break  # Can't resolve guard — bail
+                            if not guard_val:
+                                continue
+                        body = self._transform_body(case_body)
+                        if len(body) == 1:
+                            return body[0]
+                        return _InlinedBody(
+                            lineno=node.lineno,
+                            col_offset=node.col_offset,
+                            nodes=body,
+                        )
+                    continue  # Pattern didn't match, try next case
+
+                # Complex pattern — bail out, preserve entire Match
+                break
+
+            # Fall through: no match found or bailed — preserve with recursion
+
+        # Subject unresolved or no match — recurse into case bodies
+        new_subject = self._transform_expr(node.subject)
+        new_cases: list[tuple[Expr, Expr | None, Sequence[Node]]] = []
+        changed = new_subject is not node.subject
+
+        for pattern, guard, case_body in node.cases:
+            new_body = self._transform_body(case_body)
+            new_guard = self._transform_expr(guard) if guard is not None else guard
+            if new_body is not case_body or new_guard is not guard:
+                changed = True
+            new_cases.append((pattern, new_guard, new_body))
+
+        if not changed:
+            return node
+
+        return Match(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            subject=new_subject,
+            cases=tuple(new_cases),
         )
 
     def _try_unroll_for(self, node: For, iter_val: Any) -> Node | None:
@@ -1454,7 +1753,17 @@ class PartialEvaluator:
                     col_offset=expr.col_offset,
                     value=val,
                 )
-            return expr
+            new_left = self._transform_expr(expr.left)
+            new_right = self._transform_expr(expr.right)
+            if new_left is expr.left and new_right is expr.right:
+                return expr
+            return BinOp(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                left=new_left,
+                op=expr.op,
+                right=new_right,
+            )
 
         if isinstance(expr, NullCoalesce):
             val = self._try_eval(expr)
@@ -1484,9 +1793,16 @@ class PartialEvaluator:
                     col_offset=expr.col_offset,
                     value=val,
                 )
-            return expr
+            new_inner = self._transform_expr(expr.value)
+            if new_inner is expr.value:
+                return expr
+            return MarkSafe(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                value=new_inner,
+            )
 
-        if isinstance(expr, (Filter, Pipeline)):
+        if isinstance(expr, Filter):
             val = self._try_eval(expr)
             if val is not _UNRESOLVED:
                 return Const(
@@ -1494,13 +1810,187 @@ class PartialEvaluator:
                     col_offset=expr.col_offset,
                     value=val,
                 )
-            return expr
+            new_value = self._transform_expr(expr.value)
+            if new_value is expr.value:
+                return expr
+            return Filter(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                name=expr.name,
+                value=new_value,
+                args=expr.args,
+                kwargs=expr.kwargs,
+            )
+
+        if isinstance(expr, Pipeline):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            new_value = self._transform_expr(expr.value)
+            if new_value is expr.value:
+                return expr
+            return type(expr)(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                value=new_value,
+                steps=expr.steps,
+            )
 
         if isinstance(expr, BoolOp):
             return self._transform_boolop(expr)
 
         if isinstance(expr, CondExpr):
             return self._transform_condexpr(expr)
+
+        if isinstance(expr, UnaryOp):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            new_operand = self._transform_expr(expr.operand)
+            if new_operand is expr.operand:
+                return expr
+            return UnaryOp(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                op=expr.op,
+                operand=new_operand,
+            )
+
+        if isinstance(expr, Compare):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            new_left = self._transform_expr(expr.left)
+            new_comps = tuple(self._transform_expr(c) for c in expr.comparators)
+            if new_left is expr.left and all(
+                n is o for n, o in zip(new_comps, expr.comparators, strict=True)
+            ):
+                return expr
+            return Compare(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                left=new_left,
+                ops=expr.ops,
+                comparators=new_comps,
+            )
+
+        if isinstance(expr, Concat):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            new_nodes = tuple(self._transform_expr(n) for n in expr.nodes)
+            if all(n is o for n, o in zip(new_nodes, expr.nodes, strict=True)):
+                return expr
+            return Concat(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                nodes=new_nodes,
+            )
+
+        if isinstance(expr, FuncCall):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            new_func = self._transform_expr(expr.func)
+            new_args = tuple(self._transform_expr(a) for a in expr.args)
+            new_kwargs = {k: self._transform_expr(v) for k, v in expr.kwargs.items()}
+            new_dyn_args = self._transform_expr(expr.dyn_args) if expr.dyn_args else expr.dyn_args
+            new_dyn_kwargs = (
+                self._transform_expr(expr.dyn_kwargs) if expr.dyn_kwargs else expr.dyn_kwargs
+            )
+            if (
+                new_func is expr.func
+                and all(n is o for n, o in zip(new_args, expr.args, strict=True))
+                and all(new_kwargs[k] is expr.kwargs[k] for k in expr.kwargs)
+                and new_dyn_args is expr.dyn_args
+                and new_dyn_kwargs is expr.dyn_kwargs
+            ):
+                return expr
+            return FuncCall(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                func=new_func,
+                args=new_args,
+                kwargs=new_kwargs,
+                dyn_args=new_dyn_args,
+                dyn_kwargs=new_dyn_kwargs,
+            )
+
+        if isinstance(expr, List):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            new_items = tuple(self._transform_expr(i) for i in expr.items)
+            if all(n is o for n, o in zip(new_items, expr.items, strict=True)):
+                return expr
+            return List(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                items=new_items,
+            )
+
+        if isinstance(expr, Tuple):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            new_items = tuple(self._transform_expr(i) for i in expr.items)
+            if all(n is o for n, o in zip(new_items, expr.items, strict=True)):
+                return expr
+            return Tuple(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                items=new_items,
+                ctx=expr.ctx,
+            )
+
+        if isinstance(expr, Dict):
+            val = self._try_eval(expr)
+            if val is not _UNRESOLVED:
+                return Const(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    value=val,
+                )
+            new_keys = tuple(self._transform_expr(k) for k in expr.keys)
+            new_vals = tuple(self._transform_expr(v) for v in expr.values)
+            if all(n is o for n, o in zip(new_keys, expr.keys, strict=True)) and all(
+                n is o for n, o in zip(new_vals, expr.values, strict=True)
+            ):
+                return expr
+            return Dict(
+                lineno=expr.lineno,
+                col_offset=expr.col_offset,
+                keys=new_keys,
+                values=new_vals,
+            )
 
         return expr
 
@@ -1598,6 +2088,10 @@ def _compare_op(op: str, left: Any, right: Any) -> bool:
         return left in right
     if op == "not in":
         return left not in right
+    if op == "is":
+        return left is right
+    if op == "is not":
+        return left is not right
     msg = f"Unknown comparison operator: {op}"
     raise ValueError(msg)
 
