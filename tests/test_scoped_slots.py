@@ -164,6 +164,56 @@ class TestScopedSlotEdgeCases:
         # Default slot content receives scoped bindings
         assert tmpl.render() == "[a][b]"
 
+    def test_multiple_binding_refs_not_cached(self, env: Environment) -> None:
+        """Regression: CSE must not cache let: binding vars across slot boundary.
+
+        When a scoped binding variable is referenced more than once in the
+        slot body, the CSE optimisation previously hoisted the lookup to
+        function entry — before _slot_kwargs were pushed onto the scope
+        stack — causing UndefinedError.  (GitHub #70)
+        """
+        tmpl = env.from_string(
+            "{% def datatable(items) %}"
+            "{% for item in items %}"
+            "{% slot row let:row=item %}{{ row.name }}{% end %}"
+            "{% end %}"
+            "{% end %}"
+            "{% call datatable(items=[{'name': 'Alice', 'age': 30},"
+            " {'name': 'Bob', 'age': 25}]) %}"
+            "{% slot row let:row %}{{ row.name }} ({{ row.age }}){% end %}"
+            "{% end %}"
+        )
+        assert tmpl.render() == "Alice (30)Bob (25)"
+
+    def test_multiple_binding_refs_cross_template(self) -> None:
+        """Regression: scoped slot bindings work across template imports.
+
+        Same CSE issue as test_multiple_binding_refs_not_cached, but with
+        the def imported from a separate template.  (GitHub #70)
+        """
+        loader = DictLoader(
+            {
+                "components.html": (
+                    "{% def datatable(items) %}"
+                    "{% for item in items %}"
+                    "{% slot row let:row=item %}{{ row.name }}{% end %}"
+                    "{% end %}"
+                    "{% end %}"
+                ),
+                "page.html": (
+                    "{% from 'components.html' import datatable %}"
+                    "{% call datatable(items=users) %}"
+                    "{% slot row let:row %}{{ row.name }} ({{ row.age }}){% end %}"
+                    "{% end %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("page.html").render(
+            users=[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
+        )
+        assert result == "Alice (30)Bob (25)"
+
     def test_loop_index_binding(self, env: Environment) -> None:
         """Common pattern: expose loop.index alongside item."""
         tmpl = env.from_string(
