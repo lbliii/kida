@@ -89,7 +89,31 @@ length, count, first, last, join, center, ljust, rjust, truncate,
 wordwrap, indent, urlencode
 ```
 
-Register your own pure filters so the compiler can coalesce them:
+Pure filters benefit from two optimizations:
+
+1. **F-string coalescing** — Pure filter expressions are merged into single f-string appends alongside static text and variables
+2. **Compile-time evaluation** — When `static_context` is provided and all inputs are known, the partial evaluator executes pure filters during compilation and replaces the expression with a constant
+
+#### The `@pure` decorator
+
+The preferred way to register a custom pure filter:
+
+```python
+from kida import Environment, pure
+
+@pure
+def clean(value):
+    return value.strip().lower()
+
+env = Environment()
+env.add_filter("clean", clean)
+```
+
+The `@pure` decorator marks the function so that `add_filter()` (and `env.filters[name] = func`) automatically registers it as pure — no separate configuration needed.
+
+#### Manual registration
+
+Alternatively, pass filter names directly via the `pure_filters` configuration option:
 
 ```python
 env = Environment(

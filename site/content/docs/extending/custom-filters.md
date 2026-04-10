@@ -190,6 +190,8 @@ Usage:
 
 ### Keep Filters Pure
 
+Filters should be deterministic with no side effects. This allows Kida to optimize them at compile time.
+
 ```python
 # ✅ Pure: no side effects
 @env.filter()
@@ -204,6 +206,34 @@ def count_calls(value):
     counter += 1  # Side effect
     return value
 ```
+
+### The `@pure` Decorator
+
+Mark your filter with `@pure` to enable **compile-time evaluation**. When all inputs are statically known (via `static_context`), the partial evaluator executes the filter during compilation and replaces it with a constant — eliminating the filter call entirely at render time.
+
+```python
+from kida import Environment, pure
+
+@pure
+def clean(value):
+    return value.strip().lower()
+
+env = Environment()
+env.add_filter("clean", clean)
+```
+
+With `static_context`, the filter is evaluated at compile time:
+
+```python
+# "  HELLO  " | clean is folded to "hello" during compilation
+tpl = env.from_string(
+    '{{ name | clean }}',
+    static_context={"name": "  HELLO  "},
+)
+tpl.render()  # "hello" — no filter call at render time
+```
+
+Without `@pure`, filters still work normally at render time — the decorator only enables the compile-time optimization. See [[docs/advanced/compiler|Compiler Internals]] for more on how pure filters interact with f-string coalescing and partial evaluation.
 
 ### Handle Edge Cases
 
