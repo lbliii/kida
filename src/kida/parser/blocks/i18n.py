@@ -33,7 +33,6 @@ class I18nParsingMixin(BlockStackMixin):
     if TYPE_CHECKING:
         _tokens: list[Token]
         _pos: int
-        _block_stack: list[tuple[str, int, int]]
 
         @property
         def _current(self) -> Token: ...
@@ -64,15 +63,6 @@ class I18nParsingMixin(BlockStackMixin):
             - All referenced names must be declared in the {% trans %} tag
         """
         start = self._advance()  # consume 'trans'
-
-        # Reject nested {% trans %} blocks
-        for block_type, _lineno, _col in self._block_stack:
-            if block_type == "trans":
-                raise self._error(
-                    "Nested {% trans %} blocks are not allowed",
-                    token=start,
-                    suggestion="Extract the inner translation into a separate variable",
-                )
 
         # Parse variable bindings: name=expr, name=expr
         variables: list[TransVar] = []

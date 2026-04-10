@@ -265,6 +265,25 @@ class TestCLIExtract:
         assert rc == 0
         assert 'msgid "Greetings"' in captured.getvalue()
 
+    def test_extract_ext_without_dot(self, tmp_path: Path) -> None:
+        """--ext txt (no dot) should be normalized to .txt."""
+        (tmp_path / "email.txt").write_text("{% trans %}Hi{% endtrans %}", encoding="utf-8")
+        import io
+        import sys
+
+        from kida.cli import main
+
+        captured = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured
+        try:
+            rc = main(["extract", str(tmp_path), "--ext", "txt"])
+        finally:
+            sys.stdout = old_stdout
+
+        assert rc == 0
+        assert 'msgid "Hi"' in captured.getvalue()
+
 
 class TestBabelExtractor:
     """Tests for the Babel extractor plugin."""

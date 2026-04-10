@@ -87,7 +87,7 @@ class ExtractMessagesVisitor(NodeVisitor):
                     )
                 )
 
-        elif node.func.name == "_n" and len(node.args) >= 2:
+        elif node.func.name == "_n" and len(node.args) >= 3:
             singular_arg = node.args[0]
             plural_arg = node.args[1]
             if (

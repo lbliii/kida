@@ -53,12 +53,24 @@ class I18nStatementMixin:
             4. No-variable case: escape translated string via _escape()
 
         optimize_translations:
-            When enabled, constant trans blocks (no variables, no plural) are
-            compiled to a direct string append, bypassing the gettext call.
+            When enabled and the identity gettext is still installed at compile
+            time, constant trans blocks (no variables, no plural) are compiled
+            to a pre-escaped string append, bypassing the gettext call.
         """
-        # Optimization: constant trans blocks bypass gettext entirely
+        # Optimization: constant trans blocks bypass gettext entirely,
+        # but only when identity gettext is installed (no real translations).
         if self._env.optimize_translations and not node.variables and node.plural is None:
-            return [self._emit_output(ast.Constant(value=node.singular))]
+            from kida.environment.core import _identity_gettext
+
+            if self._env._gettext is _identity_gettext:
+                # Preserve escaping semantics: wrap in _escape() like the
+                # normal no-variable path does.
+                result = ast.Call(
+                    func=ast.Name(id="_escape", ctx=ast.Load()),
+                    args=[ast.Constant(value=node.singular)],
+                    keywords=[],
+                )
+                return [self._emit_output(result)]
 
         stmts: list[ast.stmt] = []
 

@@ -7,6 +7,10 @@ import contextlib
 import sys
 from datetime import UTC
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kida.analysis.i18n import ExtractedMessage
 
 from kida import Environment, FileSystemLoader
 from kida.analysis.analyzer import BlockAnalyzer
@@ -157,7 +161,7 @@ def _cmd_check(
     return 0
 
 
-def _format_pot(messages: list[object], *, template_dir: Path | None = None) -> str:
+def _format_pot(messages: list[ExtractedMessage], *, template_dir: Path | None = None) -> str:
     """Format extracted messages as a PO template (.pot) file."""
     from datetime import datetime
 
@@ -168,7 +172,6 @@ def _format_pot(messages: list[object], *, template_dir: Path | None = None) -> 
     lines.append("# This file is distributed under the same license as the PACKAGE package.")
     lines.append("# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.")
     lines.append("#")
-    lines.append("#, fuzzy")
     lines.append('msgid ""')
     lines.append('msgstr ""')
     lines.append(f'"POT-Creation-Date: {now}\\n"')
@@ -176,28 +179,31 @@ def _format_pot(messages: list[object], *, template_dir: Path | None = None) -> 
     lines.append('"Content-Transfer-Encoding: 8bit\\n"')
     lines.append("")
 
-    seen: set[str | tuple[str, str]] = set()
-    for msg in messages:
-        key = msg.message  # type: ignore[attr-defined]
-        if key in seen:
-            continue
-        seen.add(key)
+    # Aggregate locations per unique message key
+    from collections import OrderedDict
 
-        # Location comment
-        filename = msg.filename  # type: ignore[attr-defined]
+    locations: OrderedDict[str | tuple[str, str], list[str]] = OrderedDict()
+    for msg in messages:
+        key = msg.message
+        filename = msg.filename
         if template_dir is not None:
             with contextlib.suppress(ValueError):
                 filename = str(Path(filename).relative_to(template_dir))
-        lines.append(f"#: {filename}:{msg.lineno}")  # type: ignore[attr-defined]
+        loc = f"{filename}:{msg.lineno}"
+        locations.setdefault(key, []).append(loc)
 
-        if isinstance(msg.message, tuple):  # type: ignore[attr-defined]
-            singular, plural = msg.message  # type: ignore[attr-defined]
+    for key, locs in locations.items():
+        # Location comments (one #: line per occurrence)
+        lines.extend(f"#: {loc}" for loc in locs)
+
+        if isinstance(key, tuple):
+            singular, plural = key
             lines.append(f'msgid "{_pot_escape(singular)}"')
             lines.append(f'msgid_plural "{_pot_escape(plural)}"')
             lines.append('msgstr[0] ""')
             lines.append('msgstr[1] ""')
         else:
-            lines.append(f'msgid "{_pot_escape(msg.message)}"')  # type: ignore[attr-defined]
+            lines.append(f'msgid "{_pot_escape(key)}"')
             lines.append('msgstr ""')
         lines.append("")
 
@@ -224,7 +230,7 @@ def _cmd_extract(
         return 2
 
     env = Environment(loader=FileSystemLoader(str(root)))
-    all_messages: list[object] = []
+    all_messages: list[ExtractedMessage] = []
 
     for ext in extensions:
         for path in sorted(root.rglob(f"*{ext}")):
@@ -249,11 +255,12 @@ def _cmd_extract(
                 continue
 
     pot_content = _format_pot(all_messages, template_dir=root)
+    unique_count = len({m.message for m in all_messages})
 
     if output is not None:
         output.write_text(pot_content, encoding="utf-8")
         print(
-            f"Extracted {len(all_messages)} message(s) to {output}",
+            f"Extracted {unique_count} unique message(s) to {output}",
             file=sys.stderr,
         )
     else:
@@ -682,6 +689,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "extract":
         exts = args.ext or [".html", ".txt", ".xml"]
+        # Normalize: ensure each extension has a leading dot
+        exts = [e if e.startswith(".") else f".{e}" for e in exts]
         return _cmd_extract(args.template_dir, output=args.output, extensions=exts)
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)

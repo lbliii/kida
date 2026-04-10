@@ -250,13 +250,13 @@ This ensures `kida check` reports undefined variables used inside trans blocks.
 ### Task 3.2 — Add Trans handling to purity analysis
 
 In `src/kida/analysis/purity.py`:
-- Trans nodes are **impure** by default (gettext calls have side effects — locale state)
-- When `optimize_translations` is enabled, Trans nodes with no variables and constant messages are **pure** (foldable)
+- Trans nodes are **always impure** (gettext calls depend on locale state at render time)
+- The `optimize_translations` optimization is a compile-time concern handled by the compiler,
+  not the purity analyzer — purity analysis is conservative and does not inspect environment flags
 
-**Files**: `src/kida/analysis/purity.py` (~10 lines added)
+**Files**: `src/kida/analysis/purity.py` (~5 lines added)
 **Acceptance**:
 - Purity analyzer marks `Trans` nodes as impure
-- With `optimize_translations=True`, constant trans blocks are marked pure
 
 ### Task 3.3 — Add `optimize_translations` environment flag
 

@@ -243,9 +243,11 @@ class Environment:
     inline_components: bool = False
 
     # i18n optimization (RFC: i18n)
-    # When True, {% trans %} blocks with no variables and constant messages are
-    # compiled to direct string appends when the identity gettext is installed,
-    # bypassing the gettext call at render time.
+    # When True, {% trans %} blocks with no variables and no plural form are
+    # compiled to direct string appends — but only when the identity gettext is
+    # still installed at compile time. If real translations are later installed,
+    # templates compiled under identity gettext keep the optimized path; re-compile
+    # to pick up the new translations.
     optimize_translations: bool = False
 
     # HTMX integration (Feature 1.1: HTMX Context Detection)
