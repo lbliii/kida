@@ -13,6 +13,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from kida.environment.core import Environment
     from kida.nodes import Node
     from kida.nodes.structure import Trans
 
@@ -26,9 +27,11 @@ class I18nStatementMixin:
 
     if TYPE_CHECKING:
         _streaming: bool
+        _env: Environment
 
         def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
+        def _emit_data(self, text: str) -> ast.stmt: ...
 
     def _compile_trans(self, node: Trans) -> list[ast.stmt]:
         """Compile {% trans %}...{% endtrans %} to gettext/ngettext calls.
@@ -48,7 +51,15 @@ class I18nStatementMixin:
             2. Wrap result in Markup() for %-formatting
             3. Markup.__mod__ auto-escapes non-Markup variable values
             4. No-variable case: escape translated string via _escape()
+
+        optimize_translations:
+            When enabled, constant trans blocks (no variables, no plural) are
+            compiled to a direct string append, bypassing the gettext call.
         """
+        # Optimization: constant trans blocks bypass gettext entirely
+        if self._env.optimize_translations and not node.variables and node.plural is None:
+            return [self._emit_output(ast.Constant(value=node.singular))]
+
         stmts: list[ast.stmt] = []
 
         # Build the variable dict: {"name": compiled_expr, ...}

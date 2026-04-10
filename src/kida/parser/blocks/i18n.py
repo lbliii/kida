@@ -65,6 +65,15 @@ class I18nParsingMixin(BlockStackMixin):
         """
         start = self._advance()  # consume 'trans'
 
+        # Reject nested {% trans %} blocks
+        for block_type, _lineno, _col in self._block_stack:
+            if block_type == "trans":
+                raise self._error(
+                    "Nested {% trans %} blocks are not allowed",
+                    token=start,
+                    suggestion="Extract the inner translation into a separate variable",
+                )
+
         # Parse variable bindings: name=expr, name=expr
         variables: list[TransVar] = []
         count_expr: Expr | None = None
