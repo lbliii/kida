@@ -162,6 +162,7 @@ class ExpressionCompilationMixin:
             Getattr,
             Getitem,
             InlinedFilter,
+            ListComp,
             Name,
             NullCoalesce,
             OptionalFilter,
@@ -225,6 +226,33 @@ class ExpressionCompilationMixin:
                 elts=[self._compile_expr(e) for e in node.items],
                 ctx=ast.Load(),
             )
+
+        if isinstance(node, ListComp):
+            # Register comprehension variables as locals so elt/ifs compile
+            # as LOAD_FAST (Name) instead of _ls() context lookups.
+            var_names = self._extract_names(node.target)  # type: ignore[attr-defined]
+            prev_locals = {v for v in var_names if v in self._locals}
+            for v in var_names:
+                self._locals.add(v)
+
+            result = ast.ListComp(
+                elt=self._compile_expr(node.elt),
+                generators=[
+                    ast.comprehension(
+                        target=self._compile_expr(node.target, store=True),
+                        iter=self._compile_expr(node.iter),
+                        ifs=[self._compile_expr(c) for c in node.ifs],
+                        is_async=0,
+                    )
+                ],
+            )
+
+            # Restore locals — only discard what this comprehension added
+            for v in var_names:
+                if v not in prev_locals:
+                    self._locals.discard(v)
+
+            return result
 
         if isinstance(node, KidaDict):
             return ast.Dict(

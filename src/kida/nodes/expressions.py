@@ -52,6 +52,17 @@ class List(Expr):
 
 @final
 @dataclass(frozen=True, slots=True)
+class ListComp(Expr):
+    """List comprehension: [expr for x in iterable if cond]"""
+
+    elt: Expr
+    target: Expr
+    iter: Expr
+    ifs: Sequence[Expr] = ()
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class Dict(Expr):
     """Dict expression: {a: b, c: d}"""
 
@@ -280,6 +291,7 @@ AnyExpr = (
     | Name
     | Tuple
     | List
+    | ListComp
     | Dict
     | Getattr
     | OptionalGetattr

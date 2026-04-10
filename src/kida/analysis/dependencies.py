@@ -53,6 +53,7 @@ if TYPE_CHECKING:
         InlinedFilter,
         Let,
         List,
+        ListComp,
         LoopVar,
         MarkSafe,
         Match,
@@ -484,6 +485,26 @@ class DependencyWalker(NodeVisitor):
         """Handle list literal: [a, b, c]"""
         for item in node.items:
             self.visit(item)
+
+    def visit_ListComp(self, node: ListComp) -> None:  # noqa: N802
+        """Handle list comprehension: [expr for x in iterable if cond]
+
+        The iterable is a context dependency. The target variable is local
+        to the comprehension — elt and ifs must be visited with it in scope.
+        """
+        # Iterable is evaluated in the enclosing scope
+        self.visit(node.iter)
+
+        # Push comprehension variable(s) into scope
+        loop_vars = self._extract_targets(node.target)
+        self._push_scope(loop_vars)
+
+        # Visit element expression and conditions with target in scope
+        self.visit(node.elt)
+        for if_expr in node.ifs:
+            self.visit(if_expr)
+
+        self._pop_scope()
 
     def visit_Tuple(self, node: Tuple) -> None:  # noqa: N802
         """Handle tuple literal: (a, b, c)"""

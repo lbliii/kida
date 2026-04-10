@@ -24,6 +24,7 @@ from kida.nodes import (
     Getattr,
     Getitem,
     List,
+    ListComp,
     Name,
     NullCoalesce,
     OptionalFilter,
@@ -91,6 +92,9 @@ class ExpressionParsingMixin:
             token: Token | None = None,
             suggestion: str | None = None,
         ) -> ParseError: ...
+
+        # From StatementParsingMixin
+        def _parse_for_target(self) -> Expr: ...
 
     def _parse_expression(self) -> Expr:
         """Parse expression with ternary and null coalescing.
@@ -389,6 +393,70 @@ class ExpressionParsingMixin:
             )
 
         return left
+
+    def _parse_list_comprehension(self, start_token: Token, elt: Expr) -> ListComp:
+        """Parse list comprehension after '[expr for ...'.
+
+        Called when _parse_primary() has consumed '[' and the element expression,
+        and the current token is NAME 'for'.
+        """
+        # Consume 'for'
+        self._advance()
+
+        # Parse target (reuse from StatementParsingMixin via mixin composition)
+        target = self._parse_for_target()
+
+        # Expect 'in'
+        self._expect(TokenType.IN)
+
+        # Parse iterable — use _parse_or() to avoid consuming 'if' as ternary
+        iter_expr = self._parse_or()
+
+        # Optional 'if' clause
+        ifs: list[Expr] = []
+        if self._current.type == TokenType.NAME and self._current.value == "if":
+            self._advance()
+            ifs.append(self._parse_or())
+
+        # Reject nested 'for' clauses (not supported in v1)
+        if self._current.type == TokenType.NAME and self._current.value == "for":
+            raise self._error(
+                "Nested 'for' clauses are not supported in list comprehensions. "
+                "Use a {% for %} block instead.",
+                suggestion="[expr for x in iterable if condition]",
+            )
+
+        # Reject async comprehensions (await in element expression)
+        if self._contains_await(elt):
+            raise self._error(
+                "Async list comprehensions are not supported. "
+                "Use a {% for %} block with await instead.",
+            )
+
+        # Expect closing ']'
+        self._expect(TokenType.RBRACKET)
+
+        return ListComp(
+            lineno=start_token.lineno,
+            col_offset=start_token.col_offset,
+            elt=elt,
+            target=target,
+            iter=iter_expr,
+            ifs=tuple(ifs),
+        )
+
+    @staticmethod
+    def _contains_await(node: object) -> bool:
+        """Check if an expression tree contains an Await node."""
+        if isinstance(node, Await):
+            return True
+        from kida.nodes.base import Node
+
+        if isinstance(node, Node):
+            for child in node.iter_child_nodes():
+                if ExpressionParsingMixin._contains_await(child):
+                    return True
+        return False
 
     def _parse_primary_postfix(self) -> Expr:
         """Parse primary expressions with postfix operators (., [], (), ?., ?[).
@@ -786,14 +854,25 @@ class ExpressionParsingMixin:
         # List
         if token.type == TokenType.LBRACKET:
             self._advance()
-            items = []
-            if not self._match(TokenType.RBRACKET):
+            # Empty list: []
+            if self._match(TokenType.RBRACKET):
+                self._advance()
+                return List(token.lineno, token.col_offset, ())
+
+            # Parse first element
+            elt = self._parse_expression()
+
+            # List comprehension: [expr for x in iterable if cond]
+            if self._current.type == TokenType.NAME and self._current.value == "for":
+                return self._parse_list_comprehension(token, elt)
+
+            # List literal: [a, b, c]
+            items = [elt]
+            while self._match(TokenType.COMMA):
+                self._advance()
+                if self._match(TokenType.RBRACKET):
+                    break
                 items.append(self._parse_expression())
-                while self._match(TokenType.COMMA):
-                    self._advance()
-                    if self._match(TokenType.RBRACKET):
-                        break
-                    items.append(self._parse_expression())
             self._expect(TokenType.RBRACKET)
             return List(token.lineno, token.col_offset, tuple(items))
 
