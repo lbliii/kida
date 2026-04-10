@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-10
+
+### Fixed
+
+- Partial evaluator now folds all types from `static_context`, including dicts, lists, and custom objects. Non-constant-safe types that Python's `compile()` rejects in `ast.Constant` nodes are emitted as precomputed module-level bindings (`_pc_N`), injected into the exec namespace at template load time. (`#68`)
+- Scoped slot `let:` bindings now work correctly when the binding variable is referenced more than once in the slot body. The CSE (common subexpression elimination) optimisation previously hoisted the variable lookup to function entry — before `_slot_kwargs` were pushed onto the scope stack — causing `UndefinedError`. Slot bodies are now excluded from eager caching. (`#70`)
+
 ## [0.4.0] - 2026-04-10
 
 ### Added
