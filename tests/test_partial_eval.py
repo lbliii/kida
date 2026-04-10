@@ -1032,3 +1032,110 @@ class TestOptimizationMetrics:
         data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
         assert output_count == 0
         assert data_count >= 1
+
+
+# ---------------------------------------------------------------------------
+# Sprint 4: Purity analysis integration — @pure decorator
+# ---------------------------------------------------------------------------
+
+
+class TestUserPureFilters:
+    """Test that user-defined filters marked with @pure are folded at compile time."""
+
+    def test_pure_decorator_marks_function(self):
+        """The @pure decorator sets the _kida_pure attribute."""
+        from kida import pure
+
+        @pure
+        def my_filter(value):
+            return value.strip()
+
+        assert getattr(my_filter, "_kida_pure", False) is True
+
+    def test_pure_filter_via_add_filter(self):
+        """A @pure filter registered via add_filter is folded at compile time."""
+        from kida import pure
+        from kida.nodes import Data
+
+        @pure
+        def clean(value):
+            return value.strip().lower()
+
+        env = _env()
+        env.add_filter("clean", clean)
+        tpl = env.from_string(
+            "{{ name | clean }}",
+            static_context={"name": "  HELLO  "},
+        )
+        # Should fold to "hello" at compile time
+        assert tpl.render(name="  HELLO  ") == "hello"
+        data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
+        assert data_count >= 1
+
+    def test_pure_filter_via_filters_registry(self):
+        """A @pure filter registered via env.filters[name] = func is folded."""
+        from kida import pure
+        from kida.nodes import Data
+
+        @pure
+        def shout(value):
+            return value.upper() + "!"
+
+        env = _env()
+        env.filters["shout"] = shout
+        tpl = env.from_string(
+            "{{ name | shout }}",
+            static_context={"name": "hello"},
+        )
+        assert tpl.render(name="hello") == "HELLO!"
+        data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
+        assert data_count >= 1
+
+    def test_non_pure_filter_not_folded(self):
+        """A filter without @pure is NOT folded at compile time."""
+        from kida.nodes import Output
+
+        def not_pure(value):
+            return value.upper()
+
+        env = _env()
+        env.add_filter("not_pure", not_pure)
+        tpl = env.from_string(
+            "{{ name | not_pure }}",
+            static_context={"name": "hello"},
+        )
+        # Should NOT fold — filter is not in pure set
+        assert tpl.render(name="hello") == "HELLO"
+        output_count = _count_nodes_by_type(tpl._optimized_ast.body, [Output])
+        assert output_count >= 1  # Still has an Output node (not folded to Data)
+
+    def test_pure_filter_with_args(self):
+        """A @pure filter with extra arguments is folded when all args are static."""
+        from kida import pure
+        from kida.nodes import Data
+
+        @pure
+        def repeat(value, times=2):
+            return value * times
+
+        env = _env()
+        env.add_filter("repeat", repeat)
+        tpl = env.from_string(
+            "{{ word | repeat(3) }}",
+            static_context={"word": "ha"},
+        )
+        assert tpl.render(word="ha") == "hahaha"
+        data_count = _count_nodes_by_type(tpl._optimized_ast.body, [Data])
+        assert data_count >= 1
+
+    def test_pure_filter_preserves_function_behavior(self):
+        """The @pure decorator does not alter the function's behavior."""
+        from kida import pure
+
+        @pure
+        def add_prefix(value, prefix="pre"):
+            return f"{prefix}_{value}"
+
+        assert add_prefix("test") == "pre_test"
+        assert add_prefix("test", prefix="x") == "x_test"
+        assert add_prefix.__name__ == "add_prefix"

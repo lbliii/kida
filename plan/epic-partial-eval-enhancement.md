@@ -1,6 +1,6 @@
 # Epic: Partial Evaluator Enhancement — Close the Optimization Gaps
 
-**Status**: In Progress (Sprints 0-3 complete, Sprint 4 pending)
+**Status**: Complete (All sprints delivered)
 **Created**: 2026-04-10
 **Target**: v0.5.0
 **Estimated Effort**: 28-40h
@@ -310,3 +310,4 @@ env.add_filter("clean", my_filter)
 - 2026-04-10: Sprint 1 complete — Set/Let propagation, partial BoolOp, CondExpr simplification
 - 2026-04-10: Sprint 2 complete — static loop unrolling, List/Dict/Tuple/ListComp literal evaluation
 - 2026-04-10: Sprint 3 complete — safe builtin evaluation (range, len, sorted, etc.) + Range literals
+- 2026-04-10: Sprint 4 complete — @pure decorator, auto-detection in add_filter/FilterRegistry, 6 new tests (106 total)

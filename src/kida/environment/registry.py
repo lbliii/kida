@@ -47,6 +47,10 @@ class FilterRegistry:
         new[name] = func
         self._set_dict(new)
 
+        # Auto-detect @pure decorator for filter registrations
+        if self._attr == "_filters" and getattr(func, "_kida_pure", False):
+            self._env.pure_filters = self._env.pure_filters | {name}
+
     def __contains__(self, name: object) -> bool:
         return name in self._get_dict()
 

@@ -501,10 +501,18 @@ class Environment:
         Args:
             name: Filter name (used in templates as {{ x | name }})
             func: Filter function
+
+        If *func* was decorated with :func:`kida.pure`, the filter is
+        automatically registered as pure, enabling compile-time evaluation
+        when all inputs are statically known.
         """
         new_filters = self._filters.copy()
         new_filters[name] = func
         self._filters = new_filters
+
+        # Auto-detect @pure decorator and register for partial evaluation
+        if getattr(func, "_kida_pure", False):
+            self.pure_filters = self.pure_filters | {name}
 
     def add_test(self, name: str, func: Callable[..., Any]) -> None:
         """Add a test (copy-on-write).
