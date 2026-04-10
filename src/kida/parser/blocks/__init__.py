@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from kida.parser.blocks.control_flow import ControlFlowBlockParsingMixin
 from kida.parser.blocks.core import BlockStackMixin
+from kida.parser.blocks.error_handling import ErrorHandlingBlockParsingMixin
 from kida.parser.blocks.functions import FunctionBlockParsingMixin
+from kida.parser.blocks.i18n import I18nParsingMixin
 from kida.parser.blocks.special_blocks import SpecialBlockParsingMixin
 from kida.parser.blocks.template_structure import (
     TemplateStructureBlockParsingMixin,
@@ -18,6 +20,8 @@ from kida.parser.blocks.variables import VariableBlockParsingMixin
 
 class BlockParsingMixin(
     ControlFlowBlockParsingMixin,
+    ErrorHandlingBlockParsingMixin,
+    I18nParsingMixin,
     VariableBlockParsingMixin,
     TemplateStructureBlockParsingMixin,
     FunctionBlockParsingMixin,

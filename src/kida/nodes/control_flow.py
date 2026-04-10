@@ -77,3 +77,18 @@ class Break(Node):
 @dataclass(frozen=True, slots=True)
 class Continue(Node):
     """Skip to next iteration: {% continue %}"""
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Try(Node):
+    """Error boundary: {% try %}...{% fallback [error] %}...{% end %}
+
+    Catches rendering errors in body and renders fallback content instead.
+    If error_name is set, the caught exception is bound as a dict in the
+    fallback scope with keys: message, type, template, line.
+    """
+
+    body: Sequence[Node]
+    fallback: Sequence[Node]
+    error_name: str | None = None

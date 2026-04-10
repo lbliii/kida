@@ -181,3 +181,33 @@ class Provide(Node):
     name: str
     value: Expr
     body: Sequence[Node]
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class TransVar(Node):
+    """Variable binding in {% trans name=expr %}.
+
+    Binds a template expression to a simple name for use inside
+    the trans body as {{ name }}.
+    """
+
+    name: str
+    expr: Expr
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Trans(Node):
+    """{% trans %}...{% endtrans %} block.
+
+    Represents a translatable string region. The singular field holds
+    the message ID with %(name)s placeholders. When {% plural %} is
+    present, the plural field holds the plural form and count_expr
+    provides the ngettext dispatch value.
+    """
+
+    singular: str
+    plural: str | None = None
+    variables: tuple[TransVar, ...] = ()
+    count_expr: Expr | None = None

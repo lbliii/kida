@@ -169,6 +169,7 @@ class Compiler(
         "For": "_compile_for",
         "AsyncFor": "_compile_async_for",
         "While": "_compile_while",
+        "Try": "_compile_try",
         "Match": "_compile_match",
         "Set": "_compile_set",
         "Let": "_compile_let",
@@ -198,6 +199,7 @@ class Compiler(
         "Push": "_compile_push",
         "Stack": "_compile_stack",
         "TemplateContext": "_compile_template_context",
+        "Trans": "_compile_trans",
     }
 
     # Resolved dispatch table (unbound functions, built once per class)

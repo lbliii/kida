@@ -66,6 +66,7 @@ _BLOCK_PARSERS: dict[str, str] = {
     "slot": "_parse_slot",
     "yield": "_parse_yield",
     "match": "_parse_match",
+    "try": "_parse_try",
     "spaceless": "_parse_spaceless",  # RFC: kida-modern-syntax-features
     "embed": "_parse_embed",  # RFC: kida-modern-syntax-features
     # Content stacks (deferred content injection)
@@ -73,10 +74,12 @@ _BLOCK_PARSERS: dict[str, str] = {
     "stack": "_parse_stack",
     # Render context (parent-to-child component state)
     "provide": "_parse_provide",
+    # i18n
+    "trans": "_parse_trans",
 }
 
 # Continuation keywords that are invalid outside their block context
-_CONTINUATION_KEYWORDS: frozenset[str] = frozenset({"elif", "else", "empty", "case"})
+_CONTINUATION_KEYWORDS: frozenset[str] = frozenset({"elif", "else", "empty", "case", "fallback"})
 
 # End keywords that close blocks
 _END_KEYWORDS: frozenset[str] = frozenset(
@@ -101,6 +104,8 @@ _END_KEYWORDS: frozenset[str] = frozenset(
         "endimports",
         "endpush",
         "endprovide",
+        "endtrans",
+        "endtry",
     }
 )
 

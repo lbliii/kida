@@ -325,6 +325,7 @@ def render_safely(template, **context):
 
 ## See Also
 
+- [Error Boundaries]({{< ref "docs/usage/error-boundaries" >}}) — Catch rendering errors inside templates with `{% try %}`/`{% fallback %}`
 - [[/docs/troubleshooting/undefined-variable/|Undefined Variable]] — Debug undefined errors
 - [[/docs/troubleshooting/template-not-found/|Template Not Found]] — Fix loading issues
 - [[docs/reference/api|API Reference]] — Exception classes

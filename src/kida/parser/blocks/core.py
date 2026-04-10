@@ -91,6 +91,7 @@ class BlockStackMixin:
             "elif",
             "empty",
             "case",
+            "fallback",
         }
     )
 

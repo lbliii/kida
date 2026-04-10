@@ -387,6 +387,10 @@ class FunctionCompilationMixin:
 
         Builds a caller that supports named slots. Passes _caller(slot="default")
         so both _caller() and _caller("header_actions") work.
+
+        With scoped slots: slot functions accept **_slot_kwargs from the def-side
+        bindings and push them onto the scope stack so let: params are available
+        as local variables in the slot body.
         """
         stmts: list[ast.stmt] = []
         slots = node.slots
@@ -398,6 +402,33 @@ class FunctionCompilationMixin:
             fn_name = f"_caller_{safe_name}"
 
             caller_body: list[ast.stmt] = self._make_callable_preamble()
+
+            # Scoped slots: if this slot has params, push _slot_kwargs onto scope_stack
+            # so that let: bindings from the def-side are available as local variables.
+            # The **_slot_kwargs parameter is always accepted (no-op when empty).
+            # Wrapped in try/finally to ensure scope_stack is popped after use.
+            caller_body.append(
+                ast.If(
+                    test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                    body=[
+                        ast.Expr(
+                            value=ast.Call(
+                                func=ast.Attribute(
+                                    value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                    attr="append",
+                                    ctx=ast.Load(),
+                                ),
+                                args=[ast.Name(id="_slot_kwargs", ctx=ast.Load())],
+                                keywords=[],
+                            ),
+                        )
+                    ],
+                    orelse=[],
+                )
+            )
+            # Record where the scope push ends so we can wrap subsequent
+            # statements in try/finally for cleanup.
+            _scope_push_idx = len(caller_body)
 
             saved_async_cb = getattr(self, "_async_mode", False)
             if saved_async_cb:
@@ -436,28 +467,58 @@ class FunctionCompilationMixin:
             if saved_async_cb:
                 self._async_mode = saved_async_cb
 
-            caller_body.append(
-                ast.Return(
-                    value=ast.Call(
-                        func=ast.Name(id="_Markup", ctx=ast.Load()),
-                        args=[
-                            ast.Call(
-                                func=ast.Attribute(
-                                    value=ast.Constant(value=""),
-                                    attr="join",
-                                    ctx=ast.Load(),
-                                ),
-                                args=[ast.Name(id="buf", ctx=ast.Load())],
-                                keywords=[],
+            return_stmt = ast.Return(
+                value=ast.Call(
+                    func=ast.Name(id="_Markup", ctx=ast.Load()),
+                    args=[
+                        ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Constant(value=""),
+                                attr="join",
+                                ctx=ast.Load(),
                             ),
-                        ],
-                        keywords=[],
+                            args=[ast.Name(id="buf", ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                    ],
+                    keywords=[],
+                ),
+            )
+
+            # Wrap the body+return in try/finally to pop _slot_kwargs from scope_stack.
+            # Everything after _scope_push_idx was compiled with the scope push active.
+            scope_pop = ast.Expr(
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                        attr="pop",
+                        ctx=ast.Load(),
                     ),
+                    args=[],
+                    keywords=[],
                 )
             )
+            # Extract body statements after scope push, wrap in try/finally
+            inner_body = caller_body[_scope_push_idx:]
+            inner_body.append(return_stmt)
+            caller_body[_scope_push_idx:] = [
+                ast.Try(
+                    body=inner_body,
+                    handlers=[],
+                    orelse=[],
+                    finalbody=[
+                        ast.If(
+                            test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                            body=[scope_pop],
+                            orelse=[],
+                        )
+                    ],
+                )
+            ]
 
             slot_fns[slot_name] = fn_name
             # _scope_stack required for _lookup_scope; _outer_caller for def nesting
+            # **_slot_kwargs accepts scoped slot bindings from the def-side
             slot_args: list[ast.arg] = [ast.arg(arg="_scope_stack")]
             slot_defaults: list[ast.expr] = []
             if outer is not None:
@@ -472,7 +533,7 @@ class FunctionCompilationMixin:
                         vararg=None,
                         kwonlyargs=[],
                         kw_defaults=[],
-                        kwarg=None,
+                        kwarg=ast.arg(arg="_slot_kwargs"),
                         defaults=slot_defaults,
                     ),
                     body=caller_body,
@@ -481,10 +542,10 @@ class FunctionCompilationMixin:
                 )
             )
 
-        # Build _caller(slot="default") wrapper
-        # def _caller(slot="default"):
+        # Build _caller(slot="default", **kwargs) wrapper
+        # def _caller_wrapper(slot="default", _scope_stack, **_slot_kwargs):
         #     f = _caller_slots.get(slot)
-        #     return f(_scope_stack) if f else _Markup("")
+        #     return f(_scope_stack, **_slot_kwargs) if f else _Markup("")
         wrapper_body: list[ast.stmt] = [
             ast.Assign(
                 targets=[ast.Name(id="_f", ctx=ast.Store())],
@@ -504,7 +565,12 @@ class FunctionCompilationMixin:
                     body=ast.Call(
                         func=ast.Name(id="_f", ctx=ast.Load()),
                         args=[ast.Name(id="_scope_stack", ctx=ast.Load())],
-                        keywords=[],
+                        keywords=[
+                            ast.keyword(
+                                arg=None,
+                                value=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                            ),
+                        ],
                     ),
                     orelse=ast.Call(
                         func=ast.Name(id="_Markup", ctx=ast.Load()),
@@ -525,7 +591,8 @@ class FunctionCompilationMixin:
         )
         # Use _caller_wrapper to avoid shadowing the def's _caller parameter
         # (which would cause UnboundLocalError when _def_caller = _caller runs)
-        # Wrapper takes (slot, _scope_stack) so slot functions get scope for _lookup_scope
+        # Wrapper takes (slot, _scope_stack, **_slot_kwargs) so slot functions get
+        # scope for _lookup_scope and scoped bindings via kwargs
         stmts.append(
             ast.FunctionDef(
                 name="_caller_wrapper",
@@ -535,7 +602,7 @@ class FunctionCompilationMixin:
                     vararg=None,
                     kwonlyargs=[],
                     kw_defaults=[],
-                    kwarg=None,
+                    kwarg=ast.arg(arg="_slot_kwargs"),
                     defaults=[ast.Constant(value="default")],
                 ),
                 body=wrapper_body,
@@ -544,6 +611,7 @@ class FunctionCompilationMixin:
             )
         )
         # Lambda captures _scope_stack from render scope; macro calls _caller() or _caller(slot)
+        # **_slot_kwargs passes scoped bindings through the chain
         stmts.append(
             ast.Assign(
                 targets=[ast.Name(id="_caller_with_scope", ctx=ast.Store())],
@@ -554,7 +622,7 @@ class FunctionCompilationMixin:
                         vararg=None,
                         kwonlyargs=[],
                         kw_defaults=[],
-                        kwarg=None,
+                        kwarg=ast.arg(arg="_slot_kwargs"),
                         defaults=[ast.Constant(value="default")],
                     ),
                     body=ast.Call(
@@ -563,7 +631,12 @@ class FunctionCompilationMixin:
                             ast.Name(id="slot", ctx=ast.Load()),
                             ast.Name(id="_scope_stack", ctx=ast.Load()),
                         ],
-                        keywords=[],
+                        keywords=[
+                            ast.keyword(
+                                arg=None,
+                                value=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                            ),
+                        ],
                     ),
                 ),
             )
@@ -832,12 +905,79 @@ class FunctionCompilationMixin:
         ]
 
     def _compile_slot(self, node: Slot) -> list[ast.stmt]:
-        """Compile {% slot %} or {% slot name %.
+        """Compile {% slot %} or {% slot name %} with optional scoped bindings.
 
         Renders the caller content for the given slot name.
         _caller(slot="default") supports both _caller() and _caller("name").
+
+        With scoped bindings: {% slot row let:item=item, let:index=loop.index %}
+        Passes bindings as keyword arguments to the caller function:
+            _caller("row", item=item, index=loop.index)
+
+        With body (default content): renders body when no caller is present.
         """
         slot_name = node.name
+
+        # Build caller() call with optional scoped binding kwargs
+        caller_call_keywords: list[ast.keyword] = []
+        for binding_name, binding_expr in node.bindings:
+            caller_call_keywords.append(
+                ast.keyword(
+                    arg=binding_name,
+                    value=self._compile_expr(binding_expr),
+                )
+            )
+
+        # Compile default body content (orelse branch)
+        # When bindings exist, push them onto scope_stack so the default body
+        # can reference binding names, then pop in a finally block.
+        orelse: list[ast.stmt] = []
+        if node.body:
+            body_stmts: list[ast.stmt] = []
+            for child in node.body:
+                body_stmts.extend(self._compile_node(child))
+            if node.bindings and body_stmts:
+                # Push binding values onto scope, wrap body in try/finally pop
+                binding_dict = ast.Dict(
+                    keys=[ast.Constant(value=name) for name, _ in node.bindings],
+                    values=[self._compile_expr(expr) for _, expr in node.bindings],
+                )
+                orelse.append(
+                    ast.Expr(
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                attr="append",
+                                ctx=ast.Load(),
+                            ),
+                            args=[binding_dict],
+                            keywords=[],
+                        )
+                    )
+                )
+                orelse.append(
+                    ast.Try(
+                        body=body_stmts,
+                        handlers=[],
+                        orelse=[],
+                        finalbody=[
+                            ast.Expr(
+                                value=ast.Call(
+                                    func=ast.Attribute(
+                                        value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                        attr="pop",
+                                        ctx=ast.Load(),
+                                    ),
+                                    args=[],
+                                    keywords=[],
+                                )
+                            )
+                        ],
+                    )
+                )
+            else:
+                orelse.extend(body_stmts)
+
         return [
             ast.If(
                 test=ast.Call(
@@ -861,13 +1001,13 @@ class FunctionCompilationMixin:
                                         ctx=ast.Load(),
                                     ),
                                     args=[ast.Constant(value=slot_name)],
-                                    keywords=[],
+                                    keywords=caller_call_keywords,
                                 ),
                             ],
                             keywords=[],
                         ),
                     )
                 ],
-                orelse=[],
+                orelse=orelse,
             )
         ]
