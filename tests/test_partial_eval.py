@@ -90,6 +90,65 @@ class TestBasicPartialEvaluation:
         assert tmpl.render() == "Value: "
 
 
+class TestNonConstantSafeTypes:
+    """Non-constant-safe types (dict, list, etc.) must not be folded into Const nodes.
+
+    Regression tests for https://github.com/lbliii/kida/issues/68:
+    Python's compile() rejects dict/list/set in ast.Constant nodes.
+    """
+
+    def test_let_intermediate_dict(self):
+        """{% let s = config.site %} must not fold dict into Const."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% let s = config.site %}{{ s.title }}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "Test"
+
+    def test_set_intermediate_dict(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% set s = config.site %}{{ s.title }}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "Test"
+
+    def test_with_intermediate_dict(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% with s = config.site %}{{ s.title }}{% endwith %}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "Test"
+
+    def test_nested_dict_leaf_still_folds(self):
+        """Scalar leaves of nested dicts should still fold normally."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ config.site.title }}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "Test"
+
+    def test_list_value_not_folded_to_const(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% let items = data.tags %}{{ items | join(', ') }}",
+            static_context={"data": {"tags": ["a", "b", "c"]}},
+        )
+        assert tmpl.render() == "a, b, c"
+
+    def test_if_with_dict_truthiness(self):
+        """Branch elimination should still work even when the value is a dict."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if config.fonts %}yes{% else %}no{% endif %}",
+            static_context={"config": {"fonts": {"body": "Arial"}}},
+        )
+        assert tmpl.render() == "yes"
+
+
 class TestMixedContext:
     """Static and runtime values coexist correctly."""
 

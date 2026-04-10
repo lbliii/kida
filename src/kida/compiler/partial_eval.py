@@ -79,6 +79,17 @@ _UNRESOLVED = object()
 # Maximum number of iterations to unroll in a static for-loop
 _MAX_UNROLL = 200
 
+# Types that Python's AST compiler accepts in ast.Constant nodes.
+# Non-constant-safe types (dict, list, set, custom objects) must NOT be folded
+# into Const nodes — they cause TypeError from compile().
+_CONSTANT_SAFE = (str, int, float, bool, type(None), bytes, tuple, frozenset)
+
+
+def _is_constant_safe(value: object) -> bool:
+    """Return True if *value* can be stored in an AST Constant node."""
+    return isinstance(value, _CONSTANT_SAFE)
+
+
 # Maximum allowed result size for safe builtins that produce sequences
 _MAX_BUILTIN_RESULT = 10_000
 
@@ -1287,14 +1298,20 @@ class PartialEvaluator:
         for name, value_expr in node.targets:
             val = self._try_eval(value_expr)
             if val is not _UNRESOLVED:
-                # Binding resolved — add to context, replace expr with Const
+                # Binding resolved — add to context for downstream folding
                 aug_ctx[name] = val
-                const_expr = Const(
-                    lineno=value_expr.lineno,
-                    col_offset=value_expr.col_offset,
-                    value=val,
-                )
-                new_targets.append((name, const_expr))
+                if _is_constant_safe(val):
+                    const_expr = Const(
+                        lineno=value_expr.lineno,
+                        col_offset=value_expr.col_offset,
+                        value=val,
+                    )
+                    new_targets.append((name, const_expr))
+                else:
+                    # Value not safe for Const (dict, list, etc.) — drop this
+                    # binding.  The value is in aug_ctx so the body can still
+                    # fold expressions that reference it.
+                    pass
                 changed = True
             else:
                 # Try partial simplification of the value expression
@@ -1310,6 +1327,14 @@ class PartialEvaluator:
 
         if not changed and new_body is node.body:
             return node
+
+        # If all bindings were resolved/dropped, inline the body
+        if not new_targets:
+            return _InlinedBody(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                nodes=new_body,
+            )
 
         return With(
             lineno=node.lineno,
@@ -1500,7 +1525,7 @@ class PartialEvaluator:
     # Assignment propagation (Set/Let)
     # ------------------------------------------------------------------
 
-    def _transform_assignment(self, node: Set | Let) -> Node:
+    def _transform_assignment(self, node: Set | Let) -> Node | None:
         """Track Set/Let bindings so downstream expressions resolve.
 
         When the assigned value can be fully evaluated from the static context,
@@ -1522,6 +1547,13 @@ class PartialEvaluator:
                 if existing is not _UNRESOLVED and existing is not None:
                     return node
             self._ctx[target.name] = val
+
+            if not _is_constant_safe(val):
+                # Value resolved but can't be folded into an AST Const node
+                # (e.g. dict, list, set). The value is in _ctx for downstream
+                # folding; drop the assignment since its original expression
+                # references vars only in static_context.
+                return None
 
             # Replace the value expression with a Const so the runtime
             # assignment doesn't reference vars only in static_context
@@ -1700,7 +1732,7 @@ class PartialEvaluator:
         """
         if isinstance(expr, (Const, Name)):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1710,7 +1742,7 @@ class PartialEvaluator:
 
         if isinstance(expr, Getattr):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1728,7 +1760,7 @@ class PartialEvaluator:
 
         if isinstance(expr, Getitem):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1747,7 +1779,7 @@ class PartialEvaluator:
 
         if isinstance(expr, BinOp):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1767,7 +1799,7 @@ class PartialEvaluator:
 
         if isinstance(expr, NullCoalesce):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1787,7 +1819,7 @@ class PartialEvaluator:
 
         if isinstance(expr, MarkSafe):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1804,7 +1836,7 @@ class PartialEvaluator:
 
         if isinstance(expr, Filter):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1824,7 +1856,7 @@ class PartialEvaluator:
 
         if isinstance(expr, Pipeline):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1848,7 +1880,7 @@ class PartialEvaluator:
 
         if isinstance(expr, UnaryOp):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1866,7 +1898,7 @@ class PartialEvaluator:
 
         if isinstance(expr, Compare):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1888,7 +1920,7 @@ class PartialEvaluator:
 
         if isinstance(expr, Concat):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1905,7 +1937,7 @@ class PartialEvaluator:
 
         if isinstance(expr, FuncCall):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1938,7 +1970,7 @@ class PartialEvaluator:
 
         if isinstance(expr, List):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1955,7 +1987,7 @@ class PartialEvaluator:
 
         if isinstance(expr, Tuple):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -1973,7 +2005,7 @@ class PartialEvaluator:
 
         if isinstance(expr, Dict):
             val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
+            if val is not _UNRESOLVED and _is_constant_safe(val):
                 return Const(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
@@ -2005,7 +2037,7 @@ class PartialEvaluator:
         """
         # First try full evaluation
         val = self._try_eval(expr)
-        if val is not _UNRESOLVED:
+        if val is not _UNRESOLVED and _is_constant_safe(val):
             return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=val)
 
         # Partial simplification: walk operands left to right
@@ -2019,17 +2051,23 @@ class PartialEvaluator:
             if expr.op == "and":
                 if not resolved:
                     # Short-circuit: falsy value terminates 'and'
-                    return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+                    if _is_constant_safe(resolved):
+                        return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+                    remaining.append(self._transform_expr(val_node))
                 # Truthy value in 'and' — skip it (doesn't affect result)
             else:  # "or"
                 if resolved:
                     # Short-circuit: truthy value terminates 'or'
-                    return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+                    if _is_constant_safe(resolved):
+                        return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+                    remaining.append(self._transform_expr(val_node))
                 # Falsy value in 'or' — skip it (doesn't affect result)
 
         if not remaining:
             # All operands were static and non-terminating — return last value
-            return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+            if _is_constant_safe(resolved):
+                return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=resolved)
+            return expr
 
         if len(remaining) == 1:
             return remaining[0]
@@ -2051,7 +2089,7 @@ class PartialEvaluator:
             winner = expr.if_true if test_val else expr.if_false
             # Try to fully resolve the winning branch
             winner_val = self._try_eval(winner)
-            if winner_val is not _UNRESOLVED:
+            if winner_val is not _UNRESOLVED and _is_constant_safe(winner_val):
                 return Const(lineno=expr.lineno, col_offset=expr.col_offset, value=winner_val)
             return self._transform_expr(winner)
         return expr
