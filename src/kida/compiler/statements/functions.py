@@ -458,10 +458,18 @@ class FunctionCompilationMixin:
                             orelse=[],
                         )
                     )
+            # Disable CSE cached-var substitution while compiling slot
+            # bodies.  Slot bodies run after _slot_kwargs are pushed onto
+            # _scope_stack, so they must always resolve names via
+            # _lookup_scope — never via a _cv_<name> closure captured at
+            # function entry before the push.
+            saved_cached_vars = self._cached_vars
+            self._cached_vars = set()
             try:
                 for child in slot_body:
                     caller_body.extend(self._compile_node(child))
             finally:
+                self._cached_vars = saved_cached_vars
                 if outer is not None:
                     self._outer_caller_expr = None
             if saved_async_cb:

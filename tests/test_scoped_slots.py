@@ -214,6 +214,30 @@ class TestScopedSlotEdgeCases:
         )
         assert result == "Alice (30)Bob (25)"
 
+    def test_binding_name_shadows_outer_cached_var(self, env: Environment) -> None:
+        """Regression: slot binding must override an outer variable of the same name.
+
+        If a variable is referenced unconditionally outside the call block
+        (making it CSE-cacheable) AND used as a let: binding name inside a
+        slot body, the slot body must resolve via _lookup_scope (seeing the
+        scoped value), not via the cached _cv_<name> closure.  (GitHub #70)
+        """
+        tmpl = env.from_string(
+            "{% def wrapper(items) %}"
+            "{% for item in items %}"
+            "{% slot row let:row=item %}{{ row }}{% end %}"
+            "{% end %}"
+            "{% end %}"
+            "{{ row }}|{{ row }}|"
+            "{% call wrapper(items=['X', 'Y']) %}"
+            "{% slot row let:row %}[{{ row }}]{% end %}"
+            "{% end %}"
+        )
+        # 'row' is referenced 2x unconditionally (cached), but inside
+        # the slot body it must resolve to the let: binding, not the cache.
+        result = tmpl.render(row="OUTER")
+        assert result == "OUTER|OUTER|[X][Y]"
+
     def test_loop_index_binding(self, env: Environment) -> None:
         """Common pattern: expose loop.index alongside item."""
         tmpl = env.from_string(
