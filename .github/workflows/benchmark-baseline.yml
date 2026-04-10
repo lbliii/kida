@@ -38,7 +38,7 @@ jobs:
           ./scripts/benchmark_baseline.sh
 
       - name: Upload baseline
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-baseline-linux
           path: benchmarks/
