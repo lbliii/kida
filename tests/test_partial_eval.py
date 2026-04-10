@@ -167,6 +167,41 @@ class TestNonConstantSafeTypes:
         )
         assert tmpl.render() == "[1, 2, 3]"
 
+    def test_bytecode_cache_round_trip(self, tmp_path):
+        """Precomputed values survive bytecode cache serialization."""
+        from kida.bytecode_cache import BytecodeCache
+
+        cache = BytecodeCache(tmp_path)
+        env = Environment(autoescape=False, bytecode_cache=cache)
+
+        # First call: cache miss → compile + cache
+        t1 = env.from_string(
+            "{% let s = config.site %}{{ s.title }}",
+            name="cache_test.html",
+            static_context={"config": {"site": {"title": "Cached"}}},
+        )
+        assert t1.render() == "Cached"
+
+        # Second call: cache hit → load from cache
+        t2 = env.from_string(
+            "{% let s = config.site %}{{ s.title }}",
+            name="cache_test.html",
+            static_context={"config": {"site": {"title": "Cached"}}},
+        )
+        assert t2.render() == "Cached"
+
+    def test_precomputed_not_mutated_across_renders(self):
+        """Rendering should not mutate precomputed values."""
+        env = _env()
+        static = {"items": [1, 2, 3]}
+        tmpl = env.from_string(
+            "{{ items | join(',') }}",
+            static_context=static,
+        )
+        assert tmpl.render() == "1,2,3"
+        assert tmpl.render() == "1,2,3"
+        assert static["items"] == [1, 2, 3]
+
 
 class TestMixedContext:
     """Static and runtime values coexist correctly."""

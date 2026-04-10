@@ -730,7 +730,7 @@ class Environment:
             from kida.bytecode_cache import hash_source
 
             source_hash = hash_source(source)
-            cached_code, cached_ast = self._bytecode_cache.get(
+            cached_code, cached_ast, cached_precomputed = self._bytecode_cache.get(
                 name, source_hash, context_hash=context_hash
             )
             if cached_code is not None:
@@ -764,6 +764,7 @@ class Environment:
                     filename,
                     optimized_ast=optimized_ast,
                     source=source,
+                    precomputed=cached_precomputed,
                 )
 
         # Tokenize
@@ -846,7 +847,12 @@ class Environment:
         # in which case the cache entry simply contains no AST section.
         if self._bytecode_cache is not None and name is not None and source_hash is not None:
             self._bytecode_cache.set(
-                name, source_hash, code, context_hash=context_hash, ast=optimized_ast
+                name,
+                source_hash,
+                code,
+                context_hash=context_hash,
+                ast=optimized_ast,
+                precomputed=precomputed,
             )
 
         return Template(

@@ -32,9 +32,9 @@ class TestBytecodeCache:
         assert cache_dir.exists()
 
     def test_get_miss(self, cache):
-        """Get returns (None, None) for missing cache entry."""
+        """Get returns (None, None, None) for missing cache entry."""
         result = cache.get("missing.html", "abc123")
-        assert result == (None, None)
+        assert result == (None, None, None)
 
     def test_set_and_get(self, cache):
         """Set stores bytecode and get retrieves it."""
@@ -46,7 +46,7 @@ class TestBytecodeCache:
         cache.set("test.html", source_hash, code)
 
         # Retrieve it
-        result_code, _result_ast = cache.get("test.html", source_hash)
+        result_code, _result_ast, _result_pc = cache.get("test.html", source_hash)
         assert result_code is not None
         assert result_code.co_code == code.co_code
 
@@ -64,7 +64,7 @@ class TestBytecodeCache:
                 future.result()
 
         # Cache must remain loadable (winner may be any writer).
-        cached_code, _ = cache.get("shared.html", source_hash)
+        cached_code, _, _ = cache.get("shared.html", source_hash)
         assert cached_code is not None
 
     def test_set_does_not_leave_tmp_artifacts_under_contention(self, cache_dir):
@@ -96,7 +96,7 @@ class TestBytecodeCache:
         assert cache.get("test.html", hash1)[0] is not None
 
         # Different hash misses
-        assert cache.get("test.html", hash2) == (None, None)
+        assert cache.get("test.html", hash2) == (None, None, None)
 
     def test_clear_all(self, cache):
         """Clear removes all cache entries."""
@@ -237,7 +237,7 @@ class TestBytecodeCache:
         cache.set("dir/subdir/test.html", hash_source("test"), code)
 
         # Should be retrievable
-        result_code, _ = cache.get("dir/subdir/test.html", hash_source("test"))
+        result_code, _, _ = cache.get("dir/subdir/test.html", hash_source("test"))
         assert result_code is not None
 
     def test_corrupted_cache_file_handled(self, cache, cache_dir):
@@ -250,7 +250,7 @@ class TestBytecodeCache:
 
         # Should return (None, None), not crash
         result = cache.get("test.html", source_hash)
-        assert result == (None, None)
+        assert result == (None, None, None)
 
         # Corrupted file should be removed
         assert not corrupted_path.exists()
