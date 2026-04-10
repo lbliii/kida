@@ -270,7 +270,9 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 "_ngettext": lambda s, p, n, _env=env: _env._ngettext(s, p, n),
             }
         )
-        # Inject precomputed constants (non-constant-safe values from partial eval)
+        # Inject precomputed constants (non-constant-safe values from partial eval).
+        # All block functions live in this same namespace, so _pc_N bindings are
+        # visible to blocks and render_block() without additional injection.
         if precomputed is not None:
             for idx, value in enumerate(precomputed):
                 namespace[f"_pc_{idx}"] = value

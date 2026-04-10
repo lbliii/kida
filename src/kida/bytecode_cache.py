@@ -177,16 +177,36 @@ class BytecodeCache:
                 code = cast("CodeType", marshal.loads(code_bytes))
                 offset += code_len
 
-                # Precomputed section
+                # Precomputed section — if present but corrupted, treat as
+                # cache miss so the template is recompiled with valid _pc_N
+                # bindings (returning code without precomputed would cause
+                # NameError at render time).
+                if len(data) - offset < 4:
+                    import contextlib
+
+                    with contextlib.suppress(OSError):
+                        path.unlink(missing_ok=True)
+                    return None, None, None
+
                 (pc_len,) = struct.unpack_from("<I", data, offset)
                 offset += 4
                 precomputed: list | None = None
                 if pc_len > 0:
                     pc_bytes = data[offset : offset + pc_len]
+                    if len(pc_bytes) != pc_len:
+                        import contextlib
+
+                        with contextlib.suppress(OSError):
+                            path.unlink(missing_ok=True)
+                        return None, None, None
                     try:
                         precomputed = pickle.loads(pc_bytes)
                     except Exception:
-                        precomputed = None
+                        import contextlib
+
+                        with contextlib.suppress(OSError):
+                            path.unlink(missing_ok=True)
+                        return None, None, None
                     offset += pc_len
 
                 # AST section (optional)
@@ -273,7 +293,12 @@ class BytecodeCache:
 
         try:
             code_bytes = marshal.dumps(code)
-            pc_bytes = pickle.dumps(precomputed, protocol=5) if precomputed else b""
+            try:
+                pc_bytes = pickle.dumps(precomputed, protocol=5) if precomputed else b""
+            except Exception:
+                # Non-picklable precomputed values (e.g. custom objects) —
+                # fall back to v2 format without precomputed section.
+                pc_bytes = b""
             use_v3 = bool(pc_bytes)
 
             # Write to a unique temp file in the same directory, then atomically

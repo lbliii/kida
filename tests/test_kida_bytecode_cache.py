@@ -248,7 +248,7 @@ class TestBytecodeCache:
         corrupted_path = cache._make_path("test.html", source_hash)
         corrupted_path.write_bytes(b"not valid bytecode")
 
-        # Should return (None, None), not crash
+        # Should return (None, None, None), not crash
         result = cache.get("test.html", source_hash)
         assert result == (None, None, None)
 

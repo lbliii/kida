@@ -33,8 +33,22 @@ if TYPE_CHECKING:
 # Arithmetic operators that require numeric operands (excludes +, which is polymorphic)
 _ARITHMETIC_OPS = frozenset({"*", "/", "-", "**", "//", "%"})
 
-# Types that Python's AST compiler accepts in ast.Constant nodes.
-_CONSTANT_SAFE = (str, int, float, bool, type(None), bytes, tuple, frozenset, type(...))
+# Scalar types that Python's AST compiler accepts directly in ast.Constant nodes.
+# Container constants (tuple, frozenset) are only safe when all nested values are
+# also constant-safe.
+_CONSTANT_SAFE_SCALARS = (str, int, float, complex, bool, type(None), bytes, type(...))
+
+
+def _is_constant_safe(value: object) -> bool:
+    """Return True if *value* can be stored in an ``ast.Constant`` node."""
+    if isinstance(value, _CONSTANT_SAFE_SCALARS):
+        return True
+    if isinstance(value, tuple):
+        return all(_is_constant_safe(item) for item in value)
+    if isinstance(value, frozenset):
+        return all(_is_constant_safe(item) for item in value)
+    return False
+
 
 # Node types that may produce string values (like Markup from macros)
 _POTENTIALLY_STRING_NODES = frozenset({"FuncCall", "Filter"})
@@ -201,7 +215,7 @@ class ExpressionCompilationMixin:
 
         # Fast path for common types
         if isinstance(node, Const):
-            if isinstance(node.value, _CONSTANT_SAFE):
+            if _is_constant_safe(node.value):
                 return ast.Constant(value=node.value)
             return self._precomputed_ref(node.value)
 
