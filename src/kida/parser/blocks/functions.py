@@ -533,11 +533,7 @@ class FunctionBlockParsingMixin(BlockStackMixin):
         # Parse optional body (default content) — only when the slot has bindings
         # or when the next token sequence indicates a body before {% end %}
         body: tuple[Node, ...] = ()
-        if bindings and not (
-            self._current.type == TokenType.BLOCK_BEGIN
-            and self._peek(1).type == TokenType.NAME
-            and self._peek(1).value in self._end_keywords
-        ):
+        if bindings:
             self._push_block("slot", start)
             body = tuple(self._parse_body())
             self._consume_end_tag("slot")

@@ -260,8 +260,10 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 "_ValueError": ValueError,
                 "_make_error_dict": _make_error_dict,
                 # i18n: gettext/ngettext for {% trans %} blocks
-                "_gettext": env._gettext,
-                "_ngettext": env._ngettext,
+                # Use lambdas to read env._gettext/_ngettext at render time,
+                # not compile time — allows install_translations() after compilation.
+                "_gettext": lambda s, _env=env: _env._gettext(s),
+                "_ngettext": lambda s, p, n, _env=env: _env._ngettext(s, p, n),
             }
         )
         # Apply sandbox restrictions if environment is sandboxed

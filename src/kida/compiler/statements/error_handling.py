@@ -209,8 +209,34 @@ class ErrorHandlingMixin:
             )
 
         # Compile fallback body (in current mode — _append for SB, yield for streaming)
+        fallback_stmts: list[ast.stmt] = []
         for child in node.fallback:
-            except_body.extend(self._compile_node(child))
+            fallback_stmts.extend(self._compile_node(child))
+
+        if node.error_name and fallback_stmts:
+            # Wrap in try/finally to pop scope_stack after fallback completes
+            except_body.append(
+                ast.Try(
+                    body=fallback_stmts,
+                    handlers=[],
+                    orelse=[],
+                    finalbody=[
+                        ast.Expr(
+                            value=ast.Call(
+                                func=ast.Attribute(
+                                    value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                    attr="pop",
+                                    ctx=ast.Load(),
+                                ),
+                                args=[],
+                                keywords=[],
+                            )
+                        )
+                    ],
+                )
+            )
+        else:
+            except_body.extend(fallback_stmts)
 
         if not except_body:
             except_body = [ast.Pass()]

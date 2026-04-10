@@ -406,6 +406,7 @@ class FunctionCompilationMixin:
             # Scoped slots: if this slot has params, push _slot_kwargs onto scope_stack
             # so that let: bindings from the def-side are available as local variables.
             # The **_slot_kwargs parameter is always accepted (no-op when empty).
+            # Wrapped in try/finally to ensure scope_stack is popped after use.
             caller_body.append(
                 ast.If(
                     test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
@@ -425,6 +426,9 @@ class FunctionCompilationMixin:
                     orelse=[],
                 )
             )
+            # Record where the scope push ends so we can wrap subsequent
+            # statements in try/finally for cleanup.
+            _scope_push_idx = len(caller_body)
 
             saved_async_cb = getattr(self, "_async_mode", False)
             if saved_async_cb:
@@ -463,25 +467,54 @@ class FunctionCompilationMixin:
             if saved_async_cb:
                 self._async_mode = saved_async_cb
 
-            caller_body.append(
-                ast.Return(
-                    value=ast.Call(
-                        func=ast.Name(id="_Markup", ctx=ast.Load()),
-                        args=[
-                            ast.Call(
-                                func=ast.Attribute(
-                                    value=ast.Constant(value=""),
-                                    attr="join",
-                                    ctx=ast.Load(),
-                                ),
-                                args=[ast.Name(id="buf", ctx=ast.Load())],
-                                keywords=[],
+            return_stmt = ast.Return(
+                value=ast.Call(
+                    func=ast.Name(id="_Markup", ctx=ast.Load()),
+                    args=[
+                        ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Constant(value=""),
+                                attr="join",
+                                ctx=ast.Load(),
                             ),
-                        ],
-                        keywords=[],
+                            args=[ast.Name(id="buf", ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                    ],
+                    keywords=[],
+                ),
+            )
+
+            # Wrap the body+return in try/finally to pop _slot_kwargs from scope_stack.
+            # Everything after _scope_push_idx was compiled with the scope push active.
+            scope_pop = ast.Expr(
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                        attr="pop",
+                        ctx=ast.Load(),
                     ),
+                    args=[],
+                    keywords=[],
                 )
             )
+            # Extract body statements after scope push, wrap in try/finally
+            inner_body = caller_body[_scope_push_idx:]
+            inner_body.append(return_stmt)
+            caller_body[_scope_push_idx:] = [
+                ast.Try(
+                    body=inner_body,
+                    handlers=[],
+                    orelse=[],
+                    finalbody=[
+                        ast.If(
+                            test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                            body=[scope_pop],
+                            orelse=[],
+                        )
+                    ],
+                )
+            ]
 
             slot_fns[slot_name] = fn_name
             # _scope_stack required for _lookup_scope; _outer_caller for def nesting
@@ -896,10 +929,54 @@ class FunctionCompilationMixin:
             )
 
         # Compile default body content (orelse branch)
+        # When bindings exist, push them onto scope_stack so the default body
+        # can reference binding names, then pop in a finally block.
         orelse: list[ast.stmt] = []
         if node.body:
+            body_stmts: list[ast.stmt] = []
             for child in node.body:
-                orelse.extend(self._compile_node(child))
+                body_stmts.extend(self._compile_node(child))
+            if node.bindings and body_stmts:
+                # Push binding values onto scope, wrap body in try/finally pop
+                binding_dict = ast.Dict(
+                    keys=[ast.Constant(value=name) for name, _ in node.bindings],
+                    values=[self._compile_expr(expr) for _, expr in node.bindings],
+                )
+                orelse.append(
+                    ast.Expr(
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                attr="append",
+                                ctx=ast.Load(),
+                            ),
+                            args=[binding_dict],
+                            keywords=[],
+                        )
+                    )
+                )
+                orelse.append(
+                    ast.Try(
+                        body=body_stmts,
+                        handlers=[],
+                        orelse=[],
+                        finalbody=[
+                            ast.Expr(
+                                value=ast.Call(
+                                    func=ast.Attribute(
+                                        value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                        attr="pop",
+                                        ctx=ast.Load(),
+                                    ),
+                                    args=[],
+                                    keywords=[],
+                                )
+                            )
+                        ],
+                    )
+                )
+            else:
+                orelse.extend(body_stmts)
 
         return [
             ast.If(

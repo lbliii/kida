@@ -213,3 +213,17 @@ class TestTransIntegration:
         env.install_translations(MockTranslations())
         tmpl = env.from_string("{% trans %}Hello{% endtrans %}")
         assert tmpl.render() == "Hola"
+
+    def test_late_binding_translations(self) -> None:
+        """Translations installed after compilation take effect at render time."""
+        env = Environment()
+        tmpl = env.from_string("{% trans %}Hello{% endtrans %}")
+        # Before installing translations — identity pass-through
+        assert tmpl.render() == "Hello"
+        # Install translations after compilation
+        env.install_gettext_callables(
+            gettext=lambda s: "Bonjour" if s == "Hello" else s,
+            ngettext=lambda s, p, n: s if n == 1 else p,
+        )
+        # Same compiled template now uses the new translations
+        assert tmpl.render() == "Bonjour"
