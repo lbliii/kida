@@ -759,6 +759,135 @@ class TestPartialCondExpr:
         assert tmpl.render() == "yes"
 
 
+class TestStaticLoopUnrolling:
+    """Static for-loops are unrolled at compile time."""
+
+    def test_simple_unroll(self):
+        """{% for x in items %}{{ x }}{% end %} with static items unrolls."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }},{% end %}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "1,2,3,"
+
+    def test_unroll_with_attribute_access(self):
+        """Unrolled items support attribute access."""
+        env = _env()
+        nav = [{"title": "Home", "url": "/"}, {"title": "About", "url": "/about"}]
+        tmpl = env.from_string(
+            '{% for item in nav %}<a href="{{ item.url }}">{{ item.title }}</a>{% end %}',
+            static_context={"nav": nav},
+        )
+        assert tmpl.render() == '<a href="/">Home</a><a href="/about">About</a>'
+
+    def test_unroll_with_loop_index(self):
+        """loop.index works in unrolled loops."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ loop.index }}:{{ x }} {% end %}",
+            static_context={"items": ["a", "b", "c"]},
+        )
+        assert tmpl.render() == "1:a 2:b 3:c "
+
+    def test_unroll_with_loop_first_last(self):
+        """loop.first and loop.last work in unrolled loops."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}"
+            "{% if loop.first %}[{% end %}"
+            "{{ x }}"
+            "{% if loop.last %}]{% end %}"
+            "{% if not loop.last %},{% end %}"
+            "{% end %}",
+            static_context={"items": ["a", "b", "c"]},
+        )
+        assert tmpl.render() == "[a,b,c]"
+
+    def test_unroll_empty_list(self):
+        """Empty static list → empty body (or {% empty %} branch)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }}{% empty %}none{% end %}",
+            static_context={"items": []},
+        )
+        assert tmpl.render() == "none"
+
+    def test_unroll_tuple_unpacking(self):
+        """{% for k, v in items %}{{ k }}={{ v }}{% end %} unrolls."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for k, v in pairs %}{{ k }}={{ v }} {% end %}",
+            static_context={"pairs": [("a", 1), ("b", 2)]},
+        )
+        assert tmpl.render() == "a=1 b=2 "
+
+    def test_unroll_list_literal(self):
+        """{% for x in [1, 2, 3] %} unrolls with literal list."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in [1, 2, 3] %}{{ x }}{% end %}",
+        )
+        assert tmpl.render() == "123"
+
+    def test_dynamic_iter_not_unrolled(self):
+        """Dynamic iterable is not unrolled — works normally at runtime."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }}{% end %}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render(items=[1, 2]) == "12"
+
+    def test_unroll_mixed_static_dynamic_body(self):
+        """Unrolled loop body can mix static and dynamic expressions."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for item in nav %}{{ site_name }}: {{ item.title }}\n{% end %}",
+            static_context={
+                "nav": [{"title": "Home"}, {"title": "About"}],
+                "site_name": "Kida",
+            },
+        )
+        assert tmpl.render() == "Kida: Home\nKida: About\n"
+
+
+class TestListDictTupleEval:
+    """List, Dict, and Tuple literals are evaluated at compile time."""
+
+    def test_list_literal(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ [1, 2, 3] | join(', ') }}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "1, 2, 3"
+
+    def test_dict_literal(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{{ {"a": 1, "b": 2} | length }}',
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "2"
+
+    def test_tuple_literal(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ (1, 2, 3) | first }}",
+            static_context={"_placeholder": True},
+        )
+        assert tmpl.render() == "1"
+
+    def test_list_with_static_vars(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ [a, b, c] | join('-') }}",
+            static_context={"a": "x", "b": "y", "c": "z"},
+        )
+        assert tmpl.render() == "x-y-z"
+
+
 class TestOptimizationMetrics:
     """Measure AST node reduction from partial evaluation."""
 
