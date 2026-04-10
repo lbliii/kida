@@ -39,6 +39,7 @@ from kida.analysis.analyzer import BlockAnalyzer
 from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.dependencies import DependencyWalker
+from kida.analysis.i18n import ExtractedMessage, ExtractMessagesVisitor
 from kida.analysis.landmarks import LandmarkDetector
 from kida.analysis.metadata import (
     BlockMetadata,
@@ -56,6 +57,8 @@ __all__ = [
     "BlockMetadata",
     "CallValidation",
     "DependencyWalker",
+    "ExtractMessagesVisitor",
+    "ExtractedMessage",
     "LandmarkDetector",
     "PurityAnalyzer",
     "TemplateMetadata",

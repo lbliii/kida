@@ -242,6 +242,14 @@ class Environment:
     # overhead and enables further f-string coalescing of the inlined output.
     inline_components: bool = False
 
+    # i18n optimization (RFC: i18n)
+    # When True, {% trans %} blocks with no variables and no plural form are
+    # compiled to direct string appends — but only when the identity gettext is
+    # still installed at compile time. If real translations are later installed,
+    # templates compiled under identity gettext keep the optimized path; re-compile
+    # to pick up the new translations.
+    optimize_translations: bool = False
+
     # HTMX integration (Feature 1.1: HTMX Context Detection)
     # When True (default), registers HTMX helper globals:
     #   - hx_request(), hx_target(), hx_trigger(), hx_boosted()

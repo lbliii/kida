@@ -29,6 +29,9 @@ perf = ["markupsafe"]
 [project.scripts]
 kida = "kida.cli:main"
 
+[project.entry-points."babel.extractors"]
+kida = "kida.babel:extract"
+
 [project.urls]
 Homepage = "https://lbliii.github.io/kida/"
 Documentation = "https://lbliii.github.io/kida/"
@@ -146,7 +149,7 @@ ignore = ["E501"] # Line length handled by formatter
 # Per-file ignore rules
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]   # Allow unused imports in __init__ files
-"tests/**/*.py" = ["S101", "T201"]  # Allow assert and print in tests
+"tests/**/*.py" = ["S101", "T201", "TC003"]  # Allow assert, print, and runtime stdlib imports in tests
 "src/kida/cli.py" = ["T201"]  # CLI legitimately uses print()
 "src/kida/environment/filters/_debug.py" = ["T201"]  # Debug filter uses print()
 "benchmarks/**/*.py" = ["T201"]  # Benchmarks legitimately use print()

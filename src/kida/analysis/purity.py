@@ -60,6 +60,7 @@ if TYPE_CHECKING:
         Slice,
         Slot,
         Test,
+        Trans,
         Tuple,
         UnaryOp,
         With,
@@ -584,3 +585,7 @@ class PurityAnalyzer:
 
     def _visit_loopvar(self, node: LoopVar) -> PurityLevel:
         return "pure"
+
+    def _visit_trans(self, node: Trans) -> PurityLevel:
+        """Trans blocks are impure — gettext/ngettext depend on locale state."""
+        return "impure"

@@ -13,6 +13,7 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from kida.environment.core import Environment
     from kida.nodes import Node
     from kida.nodes.structure import Trans
 
@@ -26,9 +27,11 @@ class I18nStatementMixin:
 
     if TYPE_CHECKING:
         _streaming: bool
+        _env: Environment
 
         def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
+        def _emit_data(self, text: str) -> ast.stmt: ...
 
     def _compile_trans(self, node: Trans) -> list[ast.stmt]:
         """Compile {% trans %}...{% endtrans %} to gettext/ngettext calls.
@@ -48,7 +51,27 @@ class I18nStatementMixin:
             2. Wrap result in Markup() for %-formatting
             3. Markup.__mod__ auto-escapes non-Markup variable values
             4. No-variable case: escape translated string via _escape()
+
+        optimize_translations:
+            When enabled and the identity gettext is still installed at compile
+            time, constant trans blocks (no variables, no plural) are compiled
+            to a pre-escaped string append, bypassing the gettext call.
         """
+        # Optimization: constant trans blocks bypass gettext entirely,
+        # but only when identity gettext is installed (no real translations).
+        if self._env.optimize_translations and not node.variables and node.plural is None:
+            from kida.environment.core import _identity_gettext
+
+            if self._env._gettext is _identity_gettext:
+                # Preserve escaping semantics: wrap in _escape() like the
+                # normal no-variable path does.
+                result = ast.Call(
+                    func=ast.Name(id="_escape", ctx=ast.Load()),
+                    args=[ast.Constant(value=node.singular)],
+                    keywords=[],
+                )
+                return [self._emit_output(result)]
+
         stmts: list[ast.stmt] = []
 
         # Build the variable dict: {"name": compiled_expr, ...}

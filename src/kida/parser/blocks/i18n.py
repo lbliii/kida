@@ -33,7 +33,6 @@ class I18nParsingMixin(BlockStackMixin):
     if TYPE_CHECKING:
         _tokens: list[Token]
         _pos: int
-        _block_stack: list[tuple[str, int, int]]
 
         @property
         def _current(self) -> Token: ...

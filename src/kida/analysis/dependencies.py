@@ -71,6 +71,8 @@ if TYPE_CHECKING:
         Spaceless,
         Template,
         Test,
+        Trans,
+        TransVar,
         Trim,
         UnaryOp,
         While,
@@ -536,6 +538,17 @@ class DependencyWalker(NodeVisitor):
                 self.visit(guard)
             for child in body:
                 self.visit(child)
+
+    def visit_Trans(self, node: Trans) -> None:  # noqa: N802
+        """Handle trans block: walk variable expressions and count_expr."""
+        for tv in node.variables:
+            self.visit(tv)
+        if node.count_expr is not None:
+            self.visit(node.count_expr)
+
+    def visit_TransVar(self, node: TransVar) -> None:  # noqa: N802
+        """Handle trans variable binding: walk the expression."""
+        self.visit(node.expr)
 
     def visit_Cache(self, node: Cache) -> None:  # noqa: N802
         """Handle cache block: {% cache key %}...{% end %}"""

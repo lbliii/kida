@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
+from datetime import UTC
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kida.analysis.i18n import ExtractedMessage
 
 from kida import Environment, FileSystemLoader
 from kida.analysis.analyzer import BlockAnalyzer
@@ -152,6 +158,114 @@ def _cmd_check(
     if errors:
         print(f"kida check: {errors} problem(s)", file=sys.stderr)
         return 1
+    return 0
+
+
+def _format_pot(messages: list[ExtractedMessage], *, template_dir: Path | None = None) -> str:
+    """Format extracted messages as a PO template (.pot) file."""
+    from datetime import datetime
+
+    lines: list[str] = []
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M%z")
+    lines.append("# SOME DESCRIPTIVE TITLE.")
+    lines.append("# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER")
+    lines.append("# This file is distributed under the same license as the PACKAGE package.")
+    lines.append("# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.")
+    lines.append("#")
+    lines.append('msgid ""')
+    lines.append('msgstr ""')
+    lines.append(f'"POT-Creation-Date: {now}\\n"')
+    lines.append('"Content-Type: text/plain; charset=UTF-8\\n"')
+    lines.append('"Content-Transfer-Encoding: 8bit\\n"')
+    lines.append("")
+
+    # Aggregate locations per unique message key
+    from collections import OrderedDict
+
+    locations: OrderedDict[str | tuple[str, str], list[str]] = OrderedDict()
+    for msg in messages:
+        key = msg.message
+        filename = msg.filename
+        if template_dir is not None:
+            with contextlib.suppress(ValueError):
+                filename = str(Path(filename).relative_to(template_dir))
+        loc = f"{filename}:{msg.lineno}"
+        locations.setdefault(key, []).append(loc)
+
+    for key, locs in locations.items():
+        # Location comments (one #: line per occurrence)
+        lines.extend(f"#: {loc}" for loc in locs)
+
+        if isinstance(key, tuple):
+            singular, plural = key
+            lines.append(f'msgid "{_pot_escape(singular)}"')
+            lines.append(f'msgid_plural "{_pot_escape(plural)}"')
+            lines.append('msgstr[0] ""')
+            lines.append('msgstr[1] ""')
+        else:
+            lines.append(f'msgid "{_pot_escape(key)}"')
+            lines.append('msgstr ""')
+        lines.append("")
+
+    return "\n".join(lines) + "\n"
+
+
+def _pot_escape(s: str) -> str:
+    """Escape a string for POT file output."""
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def _cmd_extract(
+    template_dir: Path,
+    *,
+    output: Path | None,
+    extensions: list[str],
+) -> int:
+    """Extract translatable messages from templates under *template_dir*."""
+    from kida.analysis.i18n import ExtractMessagesVisitor
+
+    root = template_dir.resolve()
+    if not root.is_dir():
+        print(f"kida extract: not a directory: {root}", file=sys.stderr)
+        return 2
+
+    env = Environment(loader=FileSystemLoader(str(root)))
+    all_messages: list[ExtractedMessage] = []
+
+    for ext in extensions:
+        for path in sorted(root.rglob(f"*{ext}")):
+            rel = path.relative_to(root).as_posix()
+            try:
+                source = path.read_text(encoding="utf-8")
+                lexer = Lexer(source, env._lexer_config)
+                tokens = list(lexer.tokenize())
+                should_escape = env.select_autoescape(rel)
+                sparser = Parser(
+                    tokens,
+                    name=rel,
+                    filename=str(path),
+                    source=source,
+                    autoescape=should_escape,
+                )
+                ast = sparser.parse()
+                visitor = ExtractMessagesVisitor(filename=rel)
+                all_messages.extend(visitor.extract(ast))
+            except Exception as e:
+                print(f"kida extract: {rel}: {e}", file=sys.stderr)
+                continue
+
+    pot_content = _format_pot(all_messages, template_dir=root)
+    unique_count = len({m.message for m in all_messages})
+
+    if output is not None:
+        output.write_text(pot_content, encoding="utf-8")
+        print(
+            f"Extracted {unique_count} unique message(s) to {output}",
+            file=sys.stderr,
+        )
+    else:
+        sys.stdout.write(pot_content)
+
     return 0
 
 
@@ -503,6 +617,31 @@ def main(argv: list[str] | None = None) -> int:
         help="Set extra template variables (value is parsed as JSON, falls back to string). Repeatable.",
     )
 
+    p_extract = sub.add_parser(
+        "extract",
+        help="Extract translatable messages from templates into a .pot file",
+    )
+    p_extract.add_argument(
+        "template_dir",
+        type=Path,
+        help="Root directory to scan for templates",
+    )
+    p_extract.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Write output to FILE instead of stdout",
+    )
+    p_extract.add_argument(
+        "--ext",
+        action="append",
+        default=None,
+        metavar=".EXT",
+        help="File extensions to scan (default: .html .txt .xml). Repeatable.",
+    )
+
     p_fmt = sub.add_parser(
         "fmt",
         help="Auto-format Kida template files",
@@ -548,6 +687,11 @@ def main(argv: list[str] | None = None) -> int:
             explain=args.explain,
             set_vars=args.set,
         )
+    if args.command == "extract":
+        exts = args.ext or [".html", ".txt", ".xml"]
+        # Normalize: ensure each extension has a leading dot
+        exts = [e if e.startswith(".") else f".{e}" for e in exts]
+        return _cmd_extract(args.template_dir, output=args.output, extensions=exts)
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)
     return 2
