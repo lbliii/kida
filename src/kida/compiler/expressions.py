@@ -33,6 +33,9 @@ if TYPE_CHECKING:
 # Arithmetic operators that require numeric operands (excludes +, which is polymorphic)
 _ARITHMETIC_OPS = frozenset({"*", "/", "-", "**", "//", "%"})
 
+# Types that Python's AST compiler accepts in ast.Constant nodes.
+_CONSTANT_SAFE = (str, int, float, bool, type(None), bytes, tuple, frozenset, type(...))
+
 # Node types that may produce string values (like Markup from macros)
 _POTENTIALLY_STRING_NODES = frozenset({"FuncCall", "Filter"})
 
@@ -57,11 +60,28 @@ class ExpressionCompilationMixin:
         _blocks: dict[str, Block | Region]
         _cached_vars: set[str]
         _def_caller_stack: list[ast.expr]
+        _precomputed: list[Any]
+        _precomputed_ids: dict[int, int]
 
         # From OperatorUtilsMixin
         def _get_binop(self, op: str) -> ast.operator: ...
         def _get_unaryop(self, op: str) -> ast.unaryop: ...
         def _get_cmpop(self, op: str) -> ast.cmpop: ...
+
+    def _precomputed_ref(self, value: object) -> ast.Name:
+        """Return an ``ast.Name`` referencing a precomputed module-level binding.
+
+        Non-constant-safe values (dict, list, set, custom objects) cannot be
+        stored in ``ast.Constant`` nodes.  Instead they are collected during
+        compilation and injected into the ``exec()`` namespace as ``_pc_N``.
+        """
+        obj_id = id(value)
+        idx = self._precomputed_ids.get(obj_id)
+        if idx is None:
+            idx = len(self._precomputed)
+            self._precomputed.append(value)
+            self._precomputed_ids[obj_id] = idx
+        return ast.Name(id=f"_pc_{idx}", ctx=ast.Load())
 
     def _get_filter_suggestion(self, name: str) -> str | None:
         """Find closest matching filter name for typo suggestions."""
@@ -181,7 +201,9 @@ class ExpressionCompilationMixin:
 
         # Fast path for common types
         if isinstance(node, Const):
-            return ast.Constant(value=node.value)
+            if isinstance(node.value, _CONSTANT_SAFE):
+                return ast.Constant(value=node.value)
+            return self._precomputed_ref(node.value)
 
         if isinstance(node, Name):
             ctx = ast.Store() if store else ast.Load()

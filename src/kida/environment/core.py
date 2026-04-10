@@ -838,6 +838,7 @@ class Environment:
         # Compile
         compiler = Compiler(self)
         code = compiler.compile(ast, name, filename)
+        precomputed = compiler.precomputed or None
 
         # Cache bytecode (and AST when available) for future cold-starts.
         # Serialising the AST avoids re-lexing/re-parsing on cache hits when
@@ -848,7 +849,15 @@ class Environment:
                 name, source_hash, code, context_hash=context_hash, ast=optimized_ast
             )
 
-        return Template(self, code, name, filename, optimized_ast=optimized_ast, source=source)
+        return Template(
+            self,
+            code,
+            name,
+            filename,
+            optimized_ast=optimized_ast,
+            source=source,
+            precomputed=precomputed,
+        )
 
     def _is_template_stale(self, name: str) -> bool:
         """Check if a cached template is stale (source changed).

@@ -91,14 +91,15 @@ class TestBasicPartialEvaluation:
 
 
 class TestNonConstantSafeTypes:
-    """Non-constant-safe types (dict, list, etc.) must not be folded into Const nodes.
+    """Non-constant-safe types (dict, list, etc.) are folded via precomputed constants.
 
     Regression tests for https://github.com/lbliii/kida/issues/68:
     Python's compile() rejects dict/list/set in ast.Constant nodes.
+    The compiler emits these as precomputed module-level bindings (_pc_N).
     """
 
     def test_let_intermediate_dict(self):
-        """{% let s = config.site %} must not fold dict into Const."""
+        """{% let s = config.site %} folds dict via precomputed binding."""
         env = _env()
         tmpl = env.from_string(
             "{% let s = config.site %}{{ s.title }}",
@@ -147,6 +148,24 @@ class TestNonConstantSafeTypes:
             static_context={"config": {"fonts": {"body": "Arial"}}},
         )
         assert tmpl.render() == "yes"
+
+    def test_print_intermediate_dict(self):
+        """{{ s }} where s is a dict should render the dict string representation."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% let s = config.site %}{{ s }}",
+            static_context={"config": {"site": {"title": "Test"}}},
+        )
+        assert tmpl.render() == "{'title': 'Test'}"
+
+    def test_list_direct_output(self):
+        """Lists folded via precomputed should render correctly."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ items }}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "[1, 2, 3]"
 
 
 class TestMixedContext:
