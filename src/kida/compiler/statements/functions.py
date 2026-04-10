@@ -387,6 +387,10 @@ class FunctionCompilationMixin:
 
         Builds a caller that supports named slots. Passes _caller(slot="default")
         so both _caller() and _caller("header_actions") work.
+
+        With scoped slots: slot functions accept **_slot_kwargs from the def-side
+        bindings and push them onto the scope stack so let: params are available
+        as local variables in the slot body.
         """
         stmts: list[ast.stmt] = []
         slots = node.slots
@@ -398,6 +402,29 @@ class FunctionCompilationMixin:
             fn_name = f"_caller_{safe_name}"
 
             caller_body: list[ast.stmt] = self._make_callable_preamble()
+
+            # Scoped slots: if this slot has params, push _slot_kwargs onto scope_stack
+            # so that let: bindings from the def-side are available as local variables.
+            # The **_slot_kwargs parameter is always accepted (no-op when empty).
+            caller_body.append(
+                ast.If(
+                    test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                    body=[
+                        ast.Expr(
+                            value=ast.Call(
+                                func=ast.Attribute(
+                                    value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                    attr="append",
+                                    ctx=ast.Load(),
+                                ),
+                                args=[ast.Name(id="_slot_kwargs", ctx=ast.Load())],
+                                keywords=[],
+                            ),
+                        )
+                    ],
+                    orelse=[],
+                )
+            )
 
             saved_async_cb = getattr(self, "_async_mode", False)
             if saved_async_cb:
@@ -458,6 +485,7 @@ class FunctionCompilationMixin:
 
             slot_fns[slot_name] = fn_name
             # _scope_stack required for _lookup_scope; _outer_caller for def nesting
+            # **_slot_kwargs accepts scoped slot bindings from the def-side
             slot_args: list[ast.arg] = [ast.arg(arg="_scope_stack")]
             slot_defaults: list[ast.expr] = []
             if outer is not None:
@@ -472,7 +500,7 @@ class FunctionCompilationMixin:
                         vararg=None,
                         kwonlyargs=[],
                         kw_defaults=[],
-                        kwarg=None,
+                        kwarg=ast.arg(arg="_slot_kwargs"),
                         defaults=slot_defaults,
                     ),
                     body=caller_body,
@@ -481,10 +509,10 @@ class FunctionCompilationMixin:
                 )
             )
 
-        # Build _caller(slot="default") wrapper
-        # def _caller(slot="default"):
+        # Build _caller(slot="default", **kwargs) wrapper
+        # def _caller_wrapper(slot="default", _scope_stack, **_slot_kwargs):
         #     f = _caller_slots.get(slot)
-        #     return f(_scope_stack) if f else _Markup("")
+        #     return f(_scope_stack, **_slot_kwargs) if f else _Markup("")
         wrapper_body: list[ast.stmt] = [
             ast.Assign(
                 targets=[ast.Name(id="_f", ctx=ast.Store())],
@@ -504,7 +532,12 @@ class FunctionCompilationMixin:
                     body=ast.Call(
                         func=ast.Name(id="_f", ctx=ast.Load()),
                         args=[ast.Name(id="_scope_stack", ctx=ast.Load())],
-                        keywords=[],
+                        keywords=[
+                            ast.keyword(
+                                arg=None,
+                                value=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                            ),
+                        ],
                     ),
                     orelse=ast.Call(
                         func=ast.Name(id="_Markup", ctx=ast.Load()),
@@ -525,7 +558,8 @@ class FunctionCompilationMixin:
         )
         # Use _caller_wrapper to avoid shadowing the def's _caller parameter
         # (which would cause UnboundLocalError when _def_caller = _caller runs)
-        # Wrapper takes (slot, _scope_stack) so slot functions get scope for _lookup_scope
+        # Wrapper takes (slot, _scope_stack, **_slot_kwargs) so slot functions get
+        # scope for _lookup_scope and scoped bindings via kwargs
         stmts.append(
             ast.FunctionDef(
                 name="_caller_wrapper",
@@ -535,7 +569,7 @@ class FunctionCompilationMixin:
                     vararg=None,
                     kwonlyargs=[],
                     kw_defaults=[],
-                    kwarg=None,
+                    kwarg=ast.arg(arg="_slot_kwargs"),
                     defaults=[ast.Constant(value="default")],
                 ),
                 body=wrapper_body,
@@ -544,6 +578,7 @@ class FunctionCompilationMixin:
             )
         )
         # Lambda captures _scope_stack from render scope; macro calls _caller() or _caller(slot)
+        # **_slot_kwargs passes scoped bindings through the chain
         stmts.append(
             ast.Assign(
                 targets=[ast.Name(id="_caller_with_scope", ctx=ast.Store())],
@@ -554,7 +589,7 @@ class FunctionCompilationMixin:
                         vararg=None,
                         kwonlyargs=[],
                         kw_defaults=[],
-                        kwarg=None,
+                        kwarg=ast.arg(arg="_slot_kwargs"),
                         defaults=[ast.Constant(value="default")],
                     ),
                     body=ast.Call(
@@ -563,7 +598,12 @@ class FunctionCompilationMixin:
                             ast.Name(id="slot", ctx=ast.Load()),
                             ast.Name(id="_scope_stack", ctx=ast.Load()),
                         ],
-                        keywords=[],
+                        keywords=[
+                            ast.keyword(
+                                arg=None,
+                                value=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                            ),
+                        ],
                     ),
                 ),
             )
@@ -832,12 +872,35 @@ class FunctionCompilationMixin:
         ]
 
     def _compile_slot(self, node: Slot) -> list[ast.stmt]:
-        """Compile {% slot %} or {% slot name %.
+        """Compile {% slot %} or {% slot name %} with optional scoped bindings.
 
         Renders the caller content for the given slot name.
         _caller(slot="default") supports both _caller() and _caller("name").
+
+        With scoped bindings: {% slot row let:item=item, let:index=loop.index %}
+        Passes bindings as keyword arguments to the caller function:
+            _caller("row", item=item, index=loop.index)
+
+        With body (default content): renders body when no caller is present.
         """
         slot_name = node.name
+
+        # Build caller() call with optional scoped binding kwargs
+        caller_call_keywords: list[ast.keyword] = []
+        for binding_name, binding_expr in node.bindings:
+            caller_call_keywords.append(
+                ast.keyword(
+                    arg=binding_name,
+                    value=self._compile_expr(binding_expr),
+                )
+            )
+
+        # Compile default body content (orelse branch)
+        orelse: list[ast.stmt] = []
+        if node.body:
+            for child in node.body:
+                orelse.extend(self._compile_node(child))
+
         return [
             ast.If(
                 test=ast.Call(
@@ -861,13 +924,13 @@ class FunctionCompilationMixin:
                                         ctx=ast.Load(),
                                     ),
                                     args=[ast.Constant(value=slot_name)],
-                                    keywords=[],
+                                    keywords=caller_call_keywords,
                                 ),
                             ],
                             keywords=[],
                         ),
                     )
                 ],
-                orelse=[],
+                orelse=orelse,
             )
         ]

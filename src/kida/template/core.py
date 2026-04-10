@@ -67,6 +67,17 @@ from kida.template.loop_context import AsyncLoopContext, LoopContext
 from kida.template.render_helpers import make_render_helpers
 from kida.utils.html import html_escape
 
+
+def _make_error_dict(exc: BaseException) -> dict[str, Any]:
+    """Build error dict for {% try %}...{% fallback name %} error binding."""
+    return {
+        "message": str(exc),
+        "type": type(exc).__name__,
+        "template": getattr(exc, "template_name", getattr(exc, "template", None)),
+        "line": getattr(exc, "lineno", None),
+    }
+
+
 if TYPE_CHECKING:
     import types
     from collections.abc import AsyncIterator, Callable, Iterator
@@ -185,6 +196,8 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         namespace: dict[str, Any] = STATIC_NAMESPACE.copy()
 
         # Import RenderContext getter for generated code
+        # Import exception types for {% try %}...{% fallback %} error boundaries
+        from kida.exceptions import TemplateRuntimeError, UndefinedError
         from kida.render_context import NULL_RENDER_CONTEXT, get_render_context
 
         # Select escape function based on autoescape mode
@@ -240,6 +253,15 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 # RFC: kida-contextvar-patterns - for generated code line tracking
                 "_get_render_ctx": get_render_context,
                 "_null_rc": NULL_RENDER_CONTEXT,
+                # Error boundary exception types for {% try %}...{% fallback %}
+                "_TemplateRuntimeError": TemplateRuntimeError,
+                "_UndefinedError": UndefinedError,
+                "_TypeError": TypeError,
+                "_ValueError": ValueError,
+                "_make_error_dict": _make_error_dict,
+                # i18n: gettext/ngettext for {% trans %} blocks
+                "_gettext": env._gettext,
+                "_ngettext": env._ngettext,
             }
         )
         # Apply sandbox restrictions if environment is sandboxed

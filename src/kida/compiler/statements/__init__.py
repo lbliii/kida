@@ -23,7 +23,9 @@ from __future__ import annotations
 from kida.compiler.statements.basic import BasicStatementMixin
 from kida.compiler.statements.caching import CachingMixin
 from kida.compiler.statements.control_flow import ControlFlowMixin
+from kida.compiler.statements.error_handling import ErrorHandlingMixin
 from kida.compiler.statements.functions import FunctionCompilationMixin
+from kida.compiler.statements.i18n import I18nStatementMixin
 from kida.compiler.statements.pattern_matching import PatternMatchingMixin
 from kida.compiler.statements.special_blocks import SpecialBlockMixin
 from kida.compiler.statements.template_structure import TemplateStructureMixin
@@ -34,6 +36,8 @@ from kida.compiler.statements.with_blocks import WithBlockMixin
 class StatementCompilationMixin(
     BasicStatementMixin,
     ControlFlowMixin,
+    ErrorHandlingMixin,
+    I18nStatementMixin,
     PatternMatchingMixin,
     VariableAssignmentMixin,
     TemplateStructureMixin,

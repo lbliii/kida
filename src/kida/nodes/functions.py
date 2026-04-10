@@ -66,18 +66,31 @@ class Region(Node):
 @final
 @dataclass(frozen=True, slots=True)
 class Slot(Node):
-    """Slot placeholder inside {% def %}: {% slot %} or {% slot name %}"""
+    """Slot placeholder inside {% def %}: {% slot %} or {% slot name %}
+
+    With scoped bindings: {% slot name let:item=expr %}...default...{% end %}
+    Bindings expose data from the def body to the caller's slot content.
+    When a body is present, it serves as default content when no caller
+    overrides this slot.
+    """
 
     name: str = "default"
+    bindings: tuple[tuple[str, Expr], ...] = ()
+    body: Sequence[Node] = ()
 
 
 @final
 @dataclass(frozen=True, slots=True)
 class SlotBlock(Node):
-    """Named slot content inside {% call %}: {% slot name %}...{% end %}"""
+    """Named slot content inside {% call %}: {% slot name %}...{% end %}
+
+    With scoped params: {% slot name let:item, let:index %}...{% end %}
+    Params declare which scoped bindings the slot body consumes.
+    """
 
     name: str
     body: Sequence[Node]
+    params: tuple[str, ...] = ()
 
 
 @final

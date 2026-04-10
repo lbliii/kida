@@ -42,6 +42,16 @@ from kida.utils.lru_cache import LRUCache
 from kida.utils.template_keys import normalize_template_name
 
 
+def _identity_gettext(message: str) -> str:
+    """Default gettext: return message unchanged."""
+    return message
+
+
+def _identity_ngettext(singular: str, plural: str, n: int) -> str:
+    """Default ngettext: select form by count."""
+    return singular if n == 1 else plural
+
+
 def _consume_global(key: str, default: Any = None) -> Any:
     """Template global: read a value from the nearest {% provide %} ancestor."""
     from kida.render_context import get_render_context
@@ -364,6 +374,13 @@ class Environment:
         if self.extensions:
             self._init_extensions()
 
+        # i18n defaults: identity functions when no translations installed
+        if "_" not in self.globals:
+            self.globals["_"] = _identity_gettext
+            self.globals["_n"] = _identity_ngettext
+        self._gettext = self.globals.get("_", _identity_gettext)
+        self._ngettext = self.globals.get("_n", _identity_ngettext)
+
     def _init_extensions(self) -> None:
         """Initialize registered extensions."""
 
@@ -394,6 +411,32 @@ class Environment:
         self._extension_tags = tag_map
         self._extension_compilers = compiler_map
         self._extension_end_keywords = frozenset(end_kw)
+
+    def install_translations(self, translations: Any) -> None:
+        """Install a gettext translations object.
+
+        The object must have gettext() and ngettext() methods
+        (standard library gettext.GNUTranslations interface).
+        """
+        self.install_gettext_callables(
+            gettext=translations.gettext,
+            ngettext=translations.ngettext,
+        )
+
+    def install_gettext_callables(
+        self,
+        gettext: Any,
+        ngettext: Any,
+    ) -> None:
+        """Install gettext/ngettext functions directly.
+
+        These are registered as template globals `_` and `_n`, and
+        stored as `_gettext`/`_ngettext` for compiler namespace access.
+        """
+        self.globals["_"] = gettext
+        self.globals["_n"] = ngettext
+        self._gettext = gettext
+        self._ngettext = ngettext
 
     def _resolve_bytecode_cache(self) -> BytecodeCache | None:
         """Resolve bytecode cache from configuration.

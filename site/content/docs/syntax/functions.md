@@ -279,6 +279,11 @@ When called with `{% call %}`, `has_slot()` returns `true`:
 
 This pattern is useful for components that should adapt their markup depending on whether slot content is provided, for example rendering a wrapper `<div>` only when there is something to wrap.
 
+### Scoped Slots
+
+Slots can also pass data **back up** to the caller using `let:` bindings.
+See [Scoped Slots]({{< ref "docs/syntax/scoped-slots" >}}) for the full guide.
+
 ---
 
 ## Islands Wrapper Pattern

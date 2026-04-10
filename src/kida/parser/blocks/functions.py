@@ -432,23 +432,86 @@ class FunctionBlockParsingMixin(BlockStackMixin):
 
         return {k: tuple(v) for k, v in slots.items()}
 
+    def _parse_let_bindings(self) -> list[tuple[str, Expr]]:
+        """Parse let:name=expr pairs for scoped slot bindings (def-side).
+
+        Grammar::
+            let_binding := 'let' ':' NAME '=' expression
+            let_bindings := let_binding (',' let_binding)*
+
+        Returns:
+            List of (name, expr) tuples.
+        """
+        bindings: list[tuple[str, Expr]] = []
+        while (
+            self._current.type == TokenType.NAME
+            and self._current.value == "let"
+            and self._peek(1).type == TokenType.COLON
+        ):
+            self._advance()  # consume 'let'
+            self._advance()  # consume ':'
+            if self._current.type != TokenType.NAME:
+                raise self._error(
+                    "Expected binding name after 'let:'",
+                    suggestion="Scoped slot syntax: {% slot name let:item=expr %}",
+                )
+            binding_name = self._advance().value
+            self._expect(TokenType.ASSIGN)
+            expr = self._parse_expression()
+            bindings.append((binding_name, expr))
+            # Optional comma between bindings
+            if self._match(TokenType.COMMA):
+                self._advance()
+        return bindings
+
+    def _parse_let_params(self) -> list[str]:
+        """Parse let:name declarations for scoped slot params (call-site).
+
+        Grammar::
+            let_param := 'let' ':' NAME
+            let_params := let_param (',' let_param)*
+
+        Returns:
+            List of parameter names.
+        """
+        params: list[str] = []
+        while (
+            self._current.type == TokenType.NAME
+            and self._current.value == "let"
+            and self._peek(1).type == TokenType.COLON
+        ):
+            self._advance()  # consume 'let'
+            self._advance()  # consume ':'
+            if self._current.type != TokenType.NAME:
+                raise self._error(
+                    "Expected parameter name after 'let:'",
+                    suggestion="Scoped slot syntax: {% slot name let:item, let:index %}",
+                )
+            params.append(self._advance().value)
+            # Optional comma between params
+            if self._match(TokenType.COMMA):
+                self._advance()
+        return params
+
     def _parse_slot(self) -> Slot | SlotBlock:
         """Parse {% slot %} or {% slot name %} — context-dependent.
 
         Inside {% call %}: parse {% slot name %}...{% end %} as SlotBlock.
+          With scoped params: {% slot name let:item, let:index %}...{% end %}
         Inside {% def %}: parse self-closing {% slot %} or {% slot name %} as Slot.
+          With scoped bindings: {% slot name let:item=expr, let:index=loop.index %}
         """
         start = self._advance()  # consume 'slot'
 
         # Optional slot name (default is "default")
         name = "default"
-        if self._current.type == TokenType.NAME:
+        if self._current.type == TokenType.NAME and self._current.value != "let":
             name = self._advance().value
 
-        self._expect(TokenType.BLOCK_END)
-
-        # Inside call block: parse as block with body
+        # Inside call block: parse as block with body (+ optional let: params)
         if self._block_stack and self._block_stack[-1][0] == "call":
+            params = tuple(self._parse_let_params())
+            self._expect(TokenType.BLOCK_END)
             self._push_block("slot", start)
             body = self._parse_body()
             self._consume_end_tag("slot")
@@ -457,13 +520,34 @@ class FunctionBlockParsingMixin(BlockStackMixin):
                 col_offset=start.col_offset,
                 name=name,
                 body=tuple(body),
+                params=params,
             )
 
-        # Inside def: self-closing placeholder
+        # Inside def: placeholder with optional let: bindings and optional body.
+        # When bindings are present, the slot may have a body for default content:
+        #   {% slot row let:item=item %}default {{ item }}{% end %}
+        # Without bindings, the slot is self-closing: {% slot %} or {% slot name %}
+        bindings = tuple(self._parse_let_bindings())
+        self._expect(TokenType.BLOCK_END)
+
+        # Parse optional body (default content) — only when the slot has bindings
+        # or when the next token sequence indicates a body before {% end %}
+        body: tuple[Node, ...] = ()
+        if bindings and not (
+            self._current.type == TokenType.BLOCK_BEGIN
+            and self._peek(1).type == TokenType.NAME
+            and self._peek(1).value in self._end_keywords
+        ):
+            self._push_block("slot", start)
+            body = tuple(self._parse_body())
+            self._consume_end_tag("slot")
+
         return Slot(
             lineno=start.lineno,
             col_offset=start.col_offset,
             name=name,
+            bindings=bindings,
+            body=body,
         )
 
     def _parse_yield(self) -> Slot:

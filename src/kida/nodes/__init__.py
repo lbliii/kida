@@ -13,6 +13,7 @@ from kida.nodes.control_flow import (
     For,
     If,
     Match,
+    Try,
     While,
 )
 from kida.nodes.expressions import (
@@ -73,6 +74,8 @@ from kida.nodes.structure import (
     Stack,
     Template,
     TemplateContext,
+    Trans,
+    TransVar,
     With,
     WithConditional,
 )
@@ -145,7 +148,10 @@ __all__ = [
     "Template",
     "TemplateContext",
     "Test",
+    "Trans",
+    "TransVar",
     "Trim",
+    "Try",
     "Tuple",
     "UnaryOp",
     "While",
