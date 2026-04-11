@@ -172,7 +172,7 @@ The browser decodes to `{"message": "He said \"hello\""}` — valid JSON. The ba
 
 ### Non-ASCII Characters
 
-`json.dumps` with `ensure_ascii=False` (Python default since 3.x) passes non-ASCII through. HTML entity encoding does not affect non-ASCII characters — they pass through unchanged. No issue.
+`json.dumps` defaults to `ensure_ascii=True`, so non-ASCII characters are emitted as `\uXXXX` escapes. If `ensure_ascii=False` is set explicitly, non-ASCII characters pass through unchanged. In either case, HTML entity encoding does not alter non-ASCII characters. No issue.
 
 ### None / Null Values
 

@@ -610,13 +610,16 @@ Convert a value to a JSON string (marked safe so the autoescaper does not double
 | `indent` | `int \| None` | `None` | JSON indentation level |
 | `attr` | `bool` | `False` | HTML-entity-encode for safe use in double-quoted HTML attributes |
 
-**In `<script>` tags** (default — raw JSON, correct for `<script>` and `JSON.parse`):
+**In `<script>` tags** (default — raw JSON; fine for trusted data and `<script type="application/json">`):
 
 ```kida
 <script type="application/json">{{ data | tojson }}</script>
 <script>const data = {{ config | tojson }};</script>
 {{ data | tojson(indent=2) }}
 ```
+
+Raw `tojson` output does not escape `</script>` or `<` inside the JSON text. If the serialized data is not trusted, avoid inlining it in an executable `<script>` block; use `type="application/json"` and parse in JS, or fetch JSON separately.
+
 
 **In HTML attributes** (use `attr=true` so quotes do not break the attribute):
 

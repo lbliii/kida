@@ -136,13 +136,15 @@ template.render(content=Markup(html))
 
 ### HTML in JSON
 
-The `tojson` filter outputs JSON marked safe for the template engine. Inside `<script>` tags, that is what you want:
+The `tojson` filter outputs JSON marked safe for the template engine. For **trusted** data, embedding that JSON inside a classic `<script>` block is often convenient:
 
 ```kida
 <script>
 const data = {{ user_data | tojson }};
 </script>
 ```
+
+Untrusted or attacker-controlled data can contain `</script>` (or `<`) and **close the script element early**, which breaks parsing and can enable XSS. Prefer `<script type="application/json">` plus `JSON.parse` on `textContent`, or serve JSON from an endpoint, instead of inlining raw `tojson` output in executable script for untrusted content.
 
 ### JSON in HTML attributes
 

@@ -7,7 +7,7 @@ from pathlib import PurePath
 from typing import Any
 
 from kida.exceptions import TemplateRuntimeError
-from kida.utils.html import Markup
+from kida.utils.html import Markup, html_escape
 
 
 def _filter_string(value: Any) -> str:
@@ -131,10 +131,5 @@ def _filter_tojson(
     """
     raw = json.dumps(value, indent=indent, default=str)
     if attr:
-        raw = (
-            raw.replace("&", "&amp;")
-            .replace('"', "&quot;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
+        raw = html_escape(raw)
     return Markup(raw)

@@ -42,7 +42,6 @@ Complexity:
 from __future__ import annotations
 
 import weakref
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from kida.template.cached_blocks import CachedBlocksDict
