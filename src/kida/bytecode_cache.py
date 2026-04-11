@@ -32,6 +32,7 @@ Example:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import marshal
 import pickle
@@ -168,8 +169,6 @@ class BytecodeCache:
                 offset += 4
                 code_bytes = data[offset : offset + code_len]
                 if len(code_bytes) != code_len:
-                    import contextlib
-
                     with contextlib.suppress(OSError):
                         path.unlink(missing_ok=True)
                     return None, None, None
@@ -182,8 +181,6 @@ class BytecodeCache:
                 # bindings (returning code without precomputed would cause
                 # NameError at render time).
                 if len(data) - offset < 4:
-                    import contextlib
-
                     with contextlib.suppress(OSError):
                         path.unlink(missing_ok=True)
                     return None, None, None
@@ -194,16 +191,12 @@ class BytecodeCache:
                 if pc_len > 0:
                     pc_bytes = data[offset : offset + pc_len]
                     if len(pc_bytes) != pc_len:
-                        import contextlib
-
                         with contextlib.suppress(OSError):
                             path.unlink(missing_ok=True)
                         return None, None, None
                     try:
                         precomputed = pickle.loads(pc_bytes)
                     except Exception:
-                        import contextlib
-
                         with contextlib.suppress(OSError):
                             path.unlink(missing_ok=True)
                         return None, None, None
@@ -228,8 +221,6 @@ class BytecodeCache:
                 code_bytes = data[offset : offset + code_len]
                 if len(code_bytes) != code_len:
                     # Truncated file — discard and signal miss.
-                    import contextlib
-
                     with contextlib.suppress(OSError):
                         path.unlink(missing_ok=True)
                     return None, None, None
@@ -255,8 +246,6 @@ class BytecodeCache:
                 return code, None, None
         except ValueError, EOFError, struct.error:
             # Corrupted or incompatible cache file
-            import contextlib
-
             with contextlib.suppress(OSError):
                 path.unlink(missing_ok=True)
             return None, None, None
@@ -330,8 +319,6 @@ class BytecodeCache:
             tmp_path.replace(path)
         except OSError:
             # Best effort - caching failure shouldn't break compilation
-            import contextlib
-
             with contextlib.suppress(OSError):
                 if tmp_path is not None:
                     tmp_path.unlink(missing_ok=True)

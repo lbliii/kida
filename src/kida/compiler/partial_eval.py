@@ -1130,6 +1130,12 @@ class PartialEvaluator:
         if isinstance(node, (Set, Let)):
             return self._transform_assignment(node)
 
+        if isinstance(node, Export):
+            return self._transform_export(node)
+
+        if isinstance(node, Capture):
+            return self._transform_capture(node)
+
         # Data, Raw, and other nodes pass through unchanged
         return node
 
@@ -1546,7 +1552,83 @@ class PartialEvaluator:
                 value=const_value,
                 coalesce=node.coalesce,
             )
-        return node
+        # Value not fully resolvable — still partially transform the
+        # expression so that any resolvable sub-expressions (e.g. loop
+        # variable attribute accesses inside an unrolled for-loop) are
+        # replaced with Const nodes.  Without this, loop unrolling can
+        # remove the For node while the Let/Set value still references
+        # the (now-absent) loop variable, causing an UndefinedError at
+        # runtime.
+        new_value = self._transform_expr(node.value)
+        if new_value is node.value:
+            return node
+        if isinstance(node, Set):
+            return Set(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                target=node.target,
+                value=new_value,
+                coalesce=node.coalesce,
+            )
+        return Let(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            name=node.name,
+            value=new_value,
+            coalesce=node.coalesce,
+        )
+
+    def _transform_export(self, node: Export) -> Node:
+        """Partially transform Export value expression.
+
+        Export has the same structure as Let (name + value), but with
+        export-from-scope semantics.  We need to partially transform the
+        value expression so loop variable references are replaced with
+        constants when the enclosing for-loop is unrolled.
+        """
+        if not isinstance(node.name, Name):
+            return node
+        val = self._try_eval(node.value)
+        if val is not _UNRESOLVED:
+            self._ctx[node.name.name] = val
+            return Export(
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                name=node.name,
+                value=Const(
+                    lineno=node.value.lineno,
+                    col_offset=node.value.col_offset,
+                    value=val,
+                ),
+                coalesce=node.coalesce,
+            )
+        new_value = self._transform_expr(node.value)
+        if new_value is node.value:
+            return node
+        return Export(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            name=node.name,
+            value=new_value,
+            coalesce=node.coalesce,
+        )
+
+    def _transform_capture(self, node: Capture) -> Node:
+        """Recurse into Capture body so expressions are partially transformed.
+
+        Without this, a Capture inside an unrolled for-loop would retain
+        references to the (now-removed) loop variable.
+        """
+        new_body = self._transform_body(node.body)
+        if new_body is node.body:
+            return node
+        return Capture(
+            lineno=node.lineno,
+            col_offset=node.col_offset,
+            name=node.name,
+            body=new_body,
+            filter=node.filter,
+        )
 
     # ------------------------------------------------------------------
     # Component inlining
