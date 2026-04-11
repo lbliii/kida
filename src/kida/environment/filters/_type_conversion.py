@@ -114,6 +114,27 @@ def _filter_typeof(value: Any) -> str:
     return type(value).__name__
 
 
-def _filter_tojson(value: Any, indent: int | None = None) -> Markup:
-    """Convert value to JSON string (marked safe to prevent escaping)."""
-    return Markup(json.dumps(value, indent=indent, default=str))
+def _filter_tojson(
+    value: Any,
+    indent: int | None = None,
+    *,
+    attr: bool = False,
+) -> Markup:
+    """Convert value to JSON string (marked safe to prevent escaping).
+
+    Args:
+        value: Value to serialize as JSON.
+        indent: JSON indentation level (``None`` for compact).
+        attr: If True, HTML-entity-encode the output for safe embedding in
+            double-quoted HTML attributes. The browser decodes entities before
+            JavaScript reads the attribute value.
+    """
+    raw = json.dumps(value, indent=indent, default=str)
+    if attr:
+        raw = (
+            raw.replace("&", "&amp;")
+            .replace('"', "&quot;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+    return Markup(raw)

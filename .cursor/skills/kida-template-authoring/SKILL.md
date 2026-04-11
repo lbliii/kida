@@ -25,10 +25,10 @@ description: Write correct Kida templates from scratch. Use when creating templa
     <span class="badge">Mod</span>
 {% else %}
     <span class="badge">User</span>
-{% endif %}
+{% end %}
 ```
 
-You can always use the unified `{% end %}`, or use explicit closers (`{% endif %}`, `{% endfor %}`, `{% endblock %}`, `{% endcall %}`, `{% enddef %}`) — especially when nesting is deep (3+ levels), explicit tags improve readability.
+Kida uses unified `{% end %}` to close all blocks. Explicit closers (`{% endif %}`, `{% endfor %}`, `{% endblock %}`) are also accepted for readability in deep nesting, but `{% end %}` is the canonical style.
 
 ### Loops
 
@@ -61,11 +61,14 @@ You can always use the unified `{% end %}`, or use explicit closers (`{% endif %
 
 ## Scoping
 
-| Keyword | Scope |
-|---------|-------|
-| `{% set x = ... %}` | Current scope |
-| `{% let x = ... %}` | Block-local, does not leak |
-| `{% export x = ... %}` | Exports to parent scope |
+| Keyword | Scope | Jinja2 equivalent |
+|---------|-------|-------------------|
+| `{% let x = ... %}` | Template-wide — visible everywhere after assignment | `{% set %}` at top level |
+| `{% set x = ... %}` | Block-scoped — does NOT leak out of `{% if %}`, `{% for %}`, etc. | No equivalent |
+| `{% export x = ... %}` | Promotes to template (outermost) scope from any depth | `namespace()` pattern |
+
+> **Jinja2 trap:** In Jinja2, `{% set %}` inside a block modifies the outer variable.
+> In Kida, `{% set %}` is block-scoped. Use `{% let %}` for template-wide variables.
 
 ## Inheritance
 
@@ -89,6 +92,75 @@ You can always use the unified `{% end %}`, or use explicit closers (`{% endif %
 ```kida
 {% include "partials/header.html" %}
 {% include "partials/user-card.html" with user=current_user %}
+```
+
+## Components (def + call + slot)
+
+Define reusable components with `{% def %}` and use them with `{% call %}`:
+
+```kida
+{% def card(title) %}
+<div class="card">
+    <h3>{{ title }}</h3>
+    <div class="body">{{ caller() }}</div>
+</div>
+{% end %}
+
+{% call card("Settings") %}
+    <p>This becomes the card body (default slot).</p>
+{% end %}
+```
+
+### Named Slots
+
+Components can define multiple insertion points with named slots:
+
+```kida
+{% def modal(title) %}
+<dialog>
+    <h2>{{ title }}</h2>
+    <div class="body">{% slot %}</div>
+    <footer>{% slot footer %}<button>Close</button>{% end %}</footer>
+</dialog>
+{% end %}
+
+{% call modal("Confirm") %}
+    {% slot footer %}<button>Cancel</button> <button>OK</button>{% end %}
+    <p>Are you sure?</p>
+{% end %}
+```
+
+- `{% slot %}` in a `{% def %}` = default slot placeholder
+- `{% slot name %}` in a `{% def %}` = named slot placeholder (with optional default content)
+- `{% slot name %}...{% end %}` inside `{% call %}` = provides content for a named slot
+- Bare content inside `{% call %}` = provides content for the default slot
+- There is NO `{% fill %}` tag — always use `{% slot %}` inside `{% call %}`
+
+### Importing Components
+
+```kida
+{% from "chirpui/modal.html" import modal %}
+{% from "chirpui/button.html" import button %}
+
+{% call modal("Delete Item") %}
+    <p>This cannot be undone.</p>
+    {% slot footer %}{{ button("Delete", variant="danger") }}{% end %}
+{% end %}
+```
+
+### Slot Detection
+
+Use `has_slot()` inside a def to conditionally render wrappers:
+
+```kida
+{% def card(title) %}
+<div class="card">
+    <h3>{{ title }}</h3>
+    {% if has_slot() %}
+        <div class="body">{{ caller() }}</div>
+    {% end %}
+</div>
+{% end %}
 ```
 
 ## Block Rendering
@@ -125,7 +197,7 @@ Output is escaped by default. Use `| safe` for trusted HTML.
 
 ## Block Endings
 
-All blocks use unified `{% end %}` — no `{% endif %}`, `{% endfor %}`, `{% endblock %}`.
+All blocks use unified `{% end %}`. Explicit closers (`{% endif %}`, `{% endfor %}`, `{% endblock %}`) are accepted but `{% end %}` is preferred.
 
 ## Best Practices
 

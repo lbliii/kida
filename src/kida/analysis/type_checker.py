@@ -125,19 +125,25 @@ class _TypeCheckVisitor(NodeVisitor):
         if hasattr(node, "target"):
             target = node.target
             if hasattr(target, "name"):
-                self._locals.add(target.name)  # type: ignore[arg-type]
+                n = getattr(target, "name", None)
+                if isinstance(n, str):
+                    self._locals.add(n)
         self.generic_visit(node)
 
     def visit_Let(self, node: Let) -> None:  # noqa: N802
         name_node = node.name
         if hasattr(name_node, "name"):
-            self._locals.add(name_node.name)  # type: ignore[arg-type]
+            n = getattr(name_node, "name", None)
+            if isinstance(n, str):
+                self._locals.add(n)
         self.generic_visit(node)
 
     def visit_Export(self, node: Export) -> None:  # noqa: N802
         name_node = node.name
         if hasattr(name_node, "name"):
-            self._locals.add(name_node.name)  # type: ignore[arg-type]
+            n = getattr(name_node, "name", None)
+            if isinstance(n, str):
+                self._locals.add(n)
         self.generic_visit(node)
 
     def visit_Capture(self, node: Capture) -> None:  # noqa: N802

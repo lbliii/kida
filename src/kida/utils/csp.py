@@ -115,7 +115,8 @@ def csp_nonce_filter(value: Any, nonce: str | None = None) -> Markup:
 
         ctx = get_render_context()
         if ctx is not None:
-            nonce = ctx.get_meta("csp_nonce", None)  # type: ignore[assignment]
+            meta = ctx.get_meta("csp_nonce", None)
+            nonce = meta if isinstance(meta, str) else None
 
     if not nonce:
         return Markup(value) if not isinstance(value, Markup) else value

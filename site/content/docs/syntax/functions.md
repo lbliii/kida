@@ -349,7 +349,7 @@ A region compiles to both:
 
 {% block content %}
   {{ sidebar(current_path="/about") }}
-{% endblock %}
+{% end %}
 ```
 
 ```python

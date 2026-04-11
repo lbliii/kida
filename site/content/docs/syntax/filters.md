@@ -115,9 +115,11 @@ and only short-circuits on `None`.
 | Filter | Description | Example |
 |--------|-------------|---------|
 | `default` | Fallback value | `{{ x \| default("N/A") }}` |
-| `tojson` | JSON encode | `{{ data \| tojson }}` |
+| `tojson` | JSON encode | `{{ data \| tojson }}` · double-quoted attrs: `{{ cfg \| tojson(attr=true) }}` |
 | `pprint` | Pretty print | `{{ data \| pprint }}` |
 | `debug` | Debug output | `{{ items \| debug }}` |
+
+See [[docs/reference/filters|Filter reference]] for all `tojson` parameters (`indent`, `attr`, etc.).
 
 ## Filter Arguments
 

@@ -173,8 +173,8 @@ class LRUCache[K, V]:
             if not self._enabled:
                 self._misses += 1
                 if pass_key:
-                    return factory(key)  # type: ignore[call-arg]
-                return factory()  # type: ignore[call-arg]
+                    return cast("Callable[[K], V]", factory)(key)
+                return cast("Callable[[], V]", factory)()
 
             if key in self._cache:
                 # Check TTL
@@ -199,7 +199,11 @@ class LRUCache[K, V]:
             self._misses += 1
 
         # Compute outside lock to avoid blocking other threads
-        value = cast("V", factory(key) if pass_key else factory())  # type: ignore[call-arg]
+        value = (
+            cast("Callable[[K], V]", factory)(key)
+            if pass_key
+            else cast("Callable[[], V]", factory)()
+        )
 
         # Store result
         with self._lock:

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import difflib
 import re as _re
-from typing import Any
+from typing import Any, cast
 
 from kida.utils.ansi_width import (
     ansi_center,
@@ -209,7 +209,7 @@ def make_terminal_filters(
                 return Styled(f"\033[{val}m{s}{_RESET}")
 
             if mode == "rgb":
-                r, g, b = val  # type: ignore[misc]
+                r, g, b = cast("tuple[int, int, int]", val)
                 if _depth == "truecolor":
                     return Styled(f"\033[38;2;{r};{g};{b}m{s}{_RESET}")
                 if _depth == "256":
@@ -233,7 +233,7 @@ def make_terminal_filters(
                 return Styled(f"\033[{val + 10}m{s}{_RESET}")
 
             if mode == "rgb":
-                r, g, b = val  # type: ignore[misc]
+                r, g, b = cast("tuple[int, int, int]", val)
                 if _depth == "truecolor":
                     return Styled(f"\033[48;2;{r};{g};{b}m{s}{_RESET}")
                 if _depth == "256":

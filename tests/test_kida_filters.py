@@ -4,9 +4,13 @@ Based on Jinja2's test_filters.py.
 Tests all built-in filters for correctness.
 """
 
+import html
+import json
+
 import pytest
 
 from kida import Environment, Markup
+from kida.environment.filters._type_conversion import _filter_tojson
 
 
 @pytest.fixture
@@ -455,6 +459,52 @@ class TestJsonFilter:
         tmpl = env.from_string("{{ data|tojson(2) }}")
         result = tmpl.render(data={"a": 1})
         assert "\n" in result  # Indented JSON has newlines
+
+    def test_tojson_attr_basic(self, env):
+        """tojson(attr=true) entity-encodes quotes for HTML attributes."""
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data={"key": "value"})
+        assert result == "{&quot;key&quot;: &quot;value&quot;}"
+        assert '"' not in result
+
+    def test_tojson_attr_round_trip(self, env):
+        """Decoded attr-mode output is valid JSON matching input."""
+        data = {"rows": 6, "nested": {"a": 1}, "msg": 'He said "hello"'}
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data=data)
+        assert json.loads(html.unescape(result)) == data
+
+    def test_tojson_attr_special_html_chars(self, env):
+        """tojson(attr=true) encodes <, >, & in JSON text."""
+        data = {"x": "a < b & c > d"}
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data=data)
+        assert "&lt;" in result and "&gt;" in result and "&amp;" in result
+        assert json.loads(html.unescape(result)) == data
+
+    def test_tojson_attr_none(self, env):
+        """tojson(attr=true) with None serializes to null."""
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        assert tmpl.render(data=None) == "null"
+
+    def test_tojson_attr_with_indent(self, env):
+        """tojson with indent and attr encodes quotes in indented JSON."""
+        tmpl = env.from_string("{{ data|tojson(2, attr=true) }}")
+        result = tmpl.render(data={"a": 1})
+        assert "&quot;" in result
+        assert "\n" in result
+        assert json.loads(html.unescape(result)) == {"a": 1}
+
+    def test_tojson_attr_markup_type(self, env):
+        """tojson(attr=true) returns Markup."""
+        out = _filter_tojson({"x": 1}, attr=True)
+        assert isinstance(out, Markup)
+
+    def test_tojson_indent_keyword_attr(self, env):
+        """tojson(indent=2, attr=true) works."""
+        tmpl = env.from_string("{{ data|tojson(indent=2, attr=true) }}")
+        result = tmpl.render(data={"a": 1})
+        assert json.loads(html.unescape(result)) == {"a": 1}
 
 
 class TestFilterChaining:

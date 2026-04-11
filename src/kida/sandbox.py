@@ -29,7 +29,10 @@ Custom policy::
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast, final
+from typing import TYPE_CHECKING, Any, cast, final
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 from kida.environment.core import Environment
 
@@ -250,8 +253,9 @@ def _make_sandboxed_getattr(policy: SandboxPolicy):
                 return "" if val is None else val
             return UNDEFINED
         if isinstance(obj, dict):
+            d = cast("dict[str, Any]", obj)
             try:
-                val = obj[name]  # type: ignore[index]
+                val = d[name]
                 return "" if val is None else val
             except KeyError:
                 try:
@@ -263,7 +267,7 @@ def _make_sandboxed_getattr(policy: SandboxPolicy):
         if val is not _MISS:
             return "" if val is None else val
         try:
-            val = obj[name]  # type: ignore[index]
+            val = cast("Mapping[str, Any]", obj)[name]
             return "" if val is None else val
         except KeyError, TypeError:
             return UNDEFINED
@@ -292,8 +296,9 @@ def _make_sandboxed_getattr_none(policy: SandboxPolicy):
                 return val
             return None
         if isinstance(obj, dict):
+            d = cast("dict[str, Any]", obj)
             try:
-                return obj[name]  # type: ignore[index]
+                return d[name]
             except KeyError:
                 try:
                     return getattr(obj, name)
@@ -303,7 +308,7 @@ def _make_sandboxed_getattr_none(policy: SandboxPolicy):
         if val is not _MISS:
             return val
         try:
-            return obj[name]  # type: ignore[index]
+            return cast("Mapping[str, Any]", obj)[name]
         except KeyError, TypeError:
             return None
 

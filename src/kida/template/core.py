@@ -42,7 +42,8 @@ Complexity:
 from __future__ import annotations
 
 import weakref
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
 
 from kida.template.cached_blocks import CachedBlocksDict
 from kida.template.error_enhancement import enhance_template_error
@@ -217,7 +218,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             namespace["_Markup"] = Marked
         elif callable(_autoescape):
             # Per-template callable — resolve for this template name
-            _autoescape_fn: Callable[[str | None], bool] = _autoescape  # type: ignore[assignment]
+            _autoescape_fn = cast("Callable[[str | None], bool]", _autoescape)
             escape_func = html_escape if _autoescape_fn(name) else str
         elif _autoescape:
             escape_func = html_escape

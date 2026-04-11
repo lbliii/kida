@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`tojson` attribute mode** — `{{ value | tojson(attr=true) }}` HTML-entity-encodes JSON for safe use in double-quoted HTML attributes (e.g. Alpine `x-data`). Default `tojson` behavior is unchanged for `<script>` tags and JSON-in-script contexts.
+
 ## [0.4.1] - 2026-04-10
 
 ### Fixed
