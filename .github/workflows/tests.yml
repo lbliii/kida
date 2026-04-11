@@ -364,7 +364,7 @@ jobs:
           uv run pytest benchmarks/ --benchmark-only --benchmark-json=benchmark-results.json -q
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-${{ github.sha }}
           path: benchmark-results.json
