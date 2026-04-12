@@ -1,88 +1,82 @@
 # Kida Strategic Roadmap: Unlocking the Potential
 
+**Status**: CLOSED — superseded by `plan/epic-kida-milo-integration.md`
+
 ## Context
 
 Kida is architecturally excellent — AST-native compilation, immutable-everything thread safety, multi-surface rendering, modern operators. The vision (Bengal ecosystem, Milo, CI reporting) is ambitious and coherent. But the genius is locked behind three barriers: (1) the compiler doesn't yet exploit what AST-native makes possible, (2) the most differentiated feature (terminal rendering) needs its application layer (Milo) hardened, and (3) the product that's ready to ship (CI reports) has no distribution. This plan sequences work to build compounding leverage across all three.
 
 ---
 
-## Phase 1: Compiler Intelligence (Weeks 1-4)
+## Phase 1: Compiler Intelligence ✅ COMPLETE
 
 **Goal**: Make kida categorically faster, not incrementally faster. Move the benchmark story from "1.5-2.5x Jinja2" to "5-10x on real templates with static context."
 
 This work is multiplicative — every downstream product (Milo, CI reports, web adapters) gets faster for free.
 
-### 1.1 Constant Folding Through Pure Filters
+### 1.1 Constant Folding Through Pure Filters ✅
 
-The partial evaluator (`src/kida/compiler/partial_eval.py`) currently stops at `Filter` node boundaries. A `{{ site.title | upper }}` where `site.title` is static still generates a runtime filter call. Since the purity analyzer already classifies 67 filters as pure, the evaluator can execute them at compile time and replace the entire chain with a `Const` node.
+Implemented in `partial_eval.py` (lines 621–711, 1888–1906). The `_try_eval_filter()` method checks filter purity, resolves value/args/kwargs at compile time, and replaces the chain with a `Const` node. 67 pure filters available.
 
-**Deliverable**: Extend `PartialEvaluator` to evaluate `Filter` nodes when the input expression, the filter, and all arguments are resolvable constants.
+### 1.2 Dead Branch Elimination with Static Context ✅
 
-### 1.2 Dead Branch Elimination with Static Context
+Implemented in `partial_eval.py` (lines 1179–1254). `_transform_if()` evaluates the test expression; when constant, it selects the winning branch and inlines its body, or removes the `If` entirely when all branches are false. Also handles `elif` cascades (lines 270–316).
 
-When `static_context` provides enough info, entire `{% if %}` branches can be removed at compile time. The partial evaluator can already resolve conditions — it just needs to prune the dead branch from the AST entirely.
+### 1.3 Component Inlining ✅
 
-**Deliverable**: When an `If` node's test resolves to a constant, replace the `If` with its live branch's body (or nothing). Cascade through `elif` chains.
+Implemented in `partial_eval.py` (lines 1637–1745). `_try_inline_call()` inlines `CallBlock` → `Def` when body < 20 AST nodes, all args are constant, and no slots/yields. Gated behind `Environment(inline_components=True)`.
 
-### 1.3 Component Inlining
+### 1.4 Free-Threading Benchmarks as Proof ✅
 
-Small `{% def %}` components called with all-constant arguments can be inlined at compile time: expand the body with arguments substituted. Eliminates function call overhead and enables further coalescing.
-
-**Deliverable**: Inline `CallBlock` → `Def` when body is small (< 20 AST nodes), all arguments are `Const`, and no `{% slot %}` or `{% yield %}`. Gate behind `Environment(inline_components=True)`.
-
-### 1.4 Free-Threading Benchmarks as Proof
-
-The single-threaded benchmarks undersell kida. The real story is: "Nx faster single-threaded, and it scales linearly with cores under `PYTHON_GIL=0`." No other template engine can make that claim.
-
-**Deliverable**:
-- Benchmark suite with/without `static_context` showing optimization delta
-- Prominent concurrent benchmark: 1/2/4/8 workers under `PYTHON_GIL=0`
-- `kida render --explain` flag showing applied optimizations
+All deliverables shipped:
+- `benchmarks/test_benchmark_concurrent.py` — multi-worker rendering under `PYTHON_GIL=0`
+- `kida render --explain` flag implemented in `cli.py` (lines 330–395, 552–622)
+- `_Py_mod_gil = 0` declared in `__init__.py` (PEP 703)
 - Headline numbers in README
 
 ---
 
-## Phase 2: Advance Milo + Tighten the Kida Integration (Weeks 5-10)
+## Phase 2: Advance Milo + Tighten the Kida Integration — PARTIAL
 
 **Goal**: Milo v0.1.1 is shipped. This phase hardens the kida-milo integration, proves the free-threading story end-to-end, and builds the showcase apps that make people want both libraries.
 
-### 2.1 Stabilize Kida Terminal API Contract
+### 2.1 Stabilize Kida Terminal API Contract ✅
 
-Document what Milo can rely on: `terminal_env()`, `LiveRenderer`, component filters, color depth detection. Explicit stability guarantee.
+Formal API stability doc published at `docs/terminal-api-contract.md` (v0.3.0+). Documents `terminal_env()`, `LiveRenderer`, `Spinner`, component filters, color depth detection with thread-safety guarantees.
 
-### 2.2 Free-Threading Showcase: Concurrent Sagas
+### 2.2 Free-Threading Showcase: Concurrent Sagas — UNBLOCKED (Milo 0.2.1 shipped)
 
-Milo's saga system (`Fork`, `Call`, `Delay`) under `PYTHON_GIL=0` — HTTP fetches, file I/O, and rendering on real threads with zero locks. Benchmark saga concurrency GIL=0 vs GIL-enabled. Example: deploy pipeline fetching 5 services concurrently.
+Milo 0.2.1 (released 2026-04-12) ships full saga system: `Fork`, `Call`, `Delay`, `Put`, `Select`, `Race`, `All`, `Retry`, `Take`/`TakeEvery`/`TakeLatest`, `Timeout`, `TryCall`, `Batch`, `Sequence`, `Debounce`. Runs on `ThreadPoolExecutor`. Kida-side work can now proceed.
 
-### 2.3 Showcase Tutorials
+### 2.3 Showcase Tutorials — PARTIAL
 
-Ship the three tutorials in development: dashboard (concurrent fetches), file browser (keyboard nav), test runner (watch mode). Each demonstrates a different kida + milo strength.
+Kida-side examples exist (`examples/terminal_dashboard/`, `terminal_deploy/`, `terminal_monitor/`). Framework integration tutorials published (Flask, Django, Starlette). Milo 0.2.1 now ships `App`, `Store`, `Flow`, `form()`, `KeyReader` — file browser and test runner tutorials are unblocked.
 
-### 2.4 Kida Compiler Optimizations for Terminal Mode
+### 2.4 Kida Compiler Optimizations for Terminal Mode — PARTIAL
 
-Validate Phase 1 compiler gains against Milo-style terminal templates. Profile `LiveRenderer.update()` with `static_context`. Ensure f-string coalescing works with terminal filter chains.
+`benchmarks/test_benchmark_terminal.py` validates Phase 1 optimizations against terminal templates. `--explain` flag works for all modes. No terminal-specific compiler paths needed — general optimizations apply uniformly.
 
 ---
 
-## Phase 3: Distribution and Adoption (Weeks 8-14, overlaps Phase 2)
+## Phase 3: Distribution and Adoption — PARTIAL
 
 **Goal**: Get kida and kida-render into hands. Reposition messaging. Create the adoption flywheel.
 
-### 3.1 Decouple Messaging from b-stack
+### 3.1 Decouple Messaging from b-stack — PARTIAL
 
-Rewrite README to lead with kida's standalone value. Move ecosystem section to bottom. Lead with: "A Python template engine that compiles to AST, renders anywhere, and runs on free-threaded Python."
+README leads with standalone value: "A template engine that compiles to Python AST, renders to HTML/terminal/markdown, and scales across cores on free-threaded Python." Bengal ecosystem positioned at bottom. Could be further tightened.
 
-### 3.2 GitHub Action Marketplace Listing
+### 3.2 GitHub Action Marketplace Listing ✅
 
-Register on Marketplace with screenshots, copy-paste YAML, and search-optimized description.
+`action.yml` complete with branding, 21+ built-in templates, PR comment deduplication. Self-dogfooded in `.github/workflows/tests.yml`. Marketplace listing guide at `docs/marketplace-listing.md`.
 
-### 3.3 Dogfood Externally
+### 3.3 Dogfood Externally — NOT STARTED
 
-Add kida-render to 3-5 open source repos. Blog post: "Replace 5 CI actions with one template."
+No external adoption tracked yet. Requires identifying 3-5 target repos and submitting PRs.
 
-### 3.4 "Kida vs Jinja2" Comparison
+### 3.4 "Kida vs Jinja2" Comparison ✅
 
-Standalone comparison page: side-by-side syntax, feature matrix, benchmark results. Honest about differences, clear about advantages.
+Published at `site/content/docs/about/comparison.md`. Side-by-side syntax, feature matrix, honest limitations section. Migration guide at `site/content/docs/get-started/coming-from-jinja2.md`.
 
 ---
 
@@ -101,10 +95,19 @@ Standalone comparison page: side-by-side syntax, feature matrix, benchmark resul
 
 | Phase | Metric | Target |
 |-------|--------|--------|
-| Phase 1 | Benchmark with static_context | 5x+ faster than Jinja2 on large templates |
-| Phase 1 | Optimization explainer | `kida render --explain` |
-| Phase 2 | Milo tutorials | Dashboard, file browser, test runner published |
-| Phase 2 | Free-threading proof | Concurrent saga speedup under GIL=0 |
-| Phase 3 | Marketplace listing | Listed and discoverable |
-| Phase 3 | External dogfooding | 5+ repos using kida-render |
-| Phase 3 | README rewrite | Standalone value proposition |
+| Phase 1 | Benchmark with static_context | 5x+ faster than Jinja2 on large templates | ✅ Shipped |
+| Phase 1 | Optimization explainer | `kida render --explain` | ✅ Shipped |
+| Phase 2 | Milo tutorials | Dashboard, file browser, test runner published | Partial — Kida examples done, Milo items now unblocked (0.2.1) |
+| Phase 2 | Free-threading proof | Concurrent saga speedup under GIL=0 | Unblocked — Milo 0.2.1 ships sagas |
+| Phase 3 | Marketplace listing | Listed and discoverable | ✅ Ready to publish |
+| Phase 3 | External dogfooding | 5+ repos using kida-render | Not started |
+| Phase 3 | README rewrite | Standalone value proposition | ✅ Done |
+
+---
+
+## Changelog
+
+| Date | Change | Reason |
+|------|--------|--------|
+| 2026-04-12 | Marked Phase 1 complete (all 4 items shipped). Updated Phase 2/3 with per-item status. Added status column to success criteria. | Roadmap was stale — Phase 1 delivered across epics (partial-eval-enhancement, partial-eval-phase-2, tstring-dogfooding) but roadmap not updated. |
+| 2026-04-12 | Closed roadmap. Milo 0.2.1 ships full saga system + App/Store/Flow/form — Phase 2 items 2.2 and 2.3 are unblocked. Remaining work moved to `plan/epic-kida-milo-integration.md`. | All Phase 1 complete, Phase 2/3 remaining items better tracked as a focused epic. |
