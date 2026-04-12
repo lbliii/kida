@@ -574,8 +574,8 @@ def xmlattr(
                     stacklevel=2,
                 )
 
-        safe_key = Markup(key)  # Already validated — mark safe to skip escaping
-        parts.append(_k_attr(safe_key, val))
+        escaped = html_escape(str(val))
+        parts.append(f'{key}="{escaped}"')
 
     return Markup(" ".join(parts))
 

@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kida.exceptions import ErrorCode, TemplateSyntaxError
-from kida.tstring import plain as _plain
 
 if TYPE_CHECKING:
     from kida._types import Token
@@ -63,37 +62,38 @@ class ParseError(TemplateSyntaxError):
         # Header with Kida branding and error code
         location = self.filename or "<template>"
         code_str = self.code.value if self.code else "K-PAR-001"
-        message = self.message
-        lineno = self.token.lineno
-        col_offset = self.token.col_offset
-        header = _plain(
-            t"Kida Parse Error [{code_str}]: {message}\n  --> {location}:{lineno}:{col_offset}"
+        header = (
+            f"Kida Parse Error [{code_str}]: {self.message}\n"
+            f"  --> {location}:{self.token.lineno}:{self.token.col_offset}"
         )
 
         # Source context (if available)
         if self.source:
             lines = self.source.splitlines()
-            if 0 < lineno <= len(lines):
-                error_line = lines[lineno - 1]
+            if 0 < self.token.lineno <= len(lines):
+                error_line = lines[self.token.lineno - 1]
                 # Create pointer to error location
-                pointer = " " * col_offset + "^"
+                pointer = " " * self.token.col_offset + "^"
 
                 # Build the error display
-                msg = _plain(t"\n{header}\n   |\n{lineno:>3} | {error_line}\n   | {pointer}")
+                line_num = self.token.lineno
+                msg = f"""
+{header}
+   |
+{line_num:>3} | {error_line}
+   | {pointer}"""
             else:
-                msg = _plain(t"\n{header}")
+                msg = f"\n{header}"
         else:
             # Fallback without source
-            msg = _plain(t"\n{header}")
+            msg = f"\n{header}"
 
         # Add suggestion if available
         if self.suggestion:
-            suggestion = self.suggestion
-            msg += _plain(t"\n\nSuggestion: {suggestion}")
+            msg += f"\n\nSuggestion: {self.suggestion}"
 
         # Add docs URL
         if self.code:
-            docs_url = self.code.docs_url
-            msg += _plain(t"\n\nDocs: {docs_url}")
+            msg += f"\n\nDocs: {self.code.docs_url}"
 
         return msg
