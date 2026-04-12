@@ -84,11 +84,11 @@ Use Python 3.14 t-strings for auto-escaped HTML snippets.
 Learn the template language from basics to advanced.
 :::{/card}
 
-:::{card} Streaming
-:icon: zap
-:link: /docs/usage/streaming/
-:description: Chunked rendering for HTMX and SSE
-Yield HTML chunks as they render for progressive delivery.
+:::{card} Tutorials
+:icon: book-open
+:link: /docs/tutorials/
+:description: Step-by-step guides
+Flask, Django, Starlette integration and more.
 :::{/card}
 
 :::{/cards}

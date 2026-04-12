@@ -54,6 +54,13 @@ Boolean predicates for conditionals.
 All configuration options explained.
 :::{/card}
 
+:::{card} CLI Reference
+:icon: terminal
+:link: /docs/reference/cli/
+:description: kida check, render, fmt
+Command-line tools and flags.
+:::{/card}
+
 :::{card} Error Codes
 :icon: alert-triangle
 :link: /docs/errors/

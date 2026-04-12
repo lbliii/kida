@@ -243,10 +243,10 @@ The overhead of `k()`/`plain()` comes from the PEP 750 `Interpolation` object pr
 ### Import Paths
 
 ```python
-# From top-level package
-from kida import k, plain, r, ComposablePattern
+# From top-level package (k and plain only)
+from kida import k, plain
 
-# From tstring module
+# From tstring module (full API)
 from kida.tstring import k, plain, r, ComposablePattern, PatternError
 ```
 

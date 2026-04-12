@@ -55,6 +55,13 @@ Make utilities available everywhere.
 Build custom template sources.
 :::{/card}
 
+:::{card} Extensions
+:icon: puzzle
+:link: /docs/extending/extensions/
+:description: Build custom template tags
+Create new AST nodes with compilation dispatch.
+:::{/card}
+
 :::{/cards}
 
 ## Quick Reference

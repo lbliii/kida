@@ -39,8 +39,22 @@ Step-by-step migration with before/after examples, API mapping table, and verifi
 :::{card} Flask Integration
 :icon: globe
 :link: /docs/tutorials/flask-integration/
-:description: Use Kida with Flask/FastAPI
-Integrate Kida templates into your web application framework.
+:description: Use Kida with Flask
+Set up Kida as Flask's template engine with custom filters and error handling.
+:::{/card}
+
+:::{card} Django Integration
+:icon: globe
+:link: /docs/tutorials/django-integration/
+:description: Use Kida with Django
+Configure Kida as a Django template backend with settings and views.
+:::{/card}
+
+:::{card} Starlette Integration
+:icon: zap
+:link: /docs/tutorials/starlette-integration/
+:description: Use Kida with Starlette and FastAPI
+Async rendering, streaming responses, and HTMX patterns.
 :::{/card}
 
 :::{card} Build Custom Filters

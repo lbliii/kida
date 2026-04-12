@@ -129,11 +129,11 @@ Template inheritance, filters, and multi-page rendering.
 Learn the template language from basics to advanced.
 :::{/card}
 
-:::{card} Streaming
-:icon: zap
-:link: /docs/usage/streaming/
-:description: Chunked rendering for HTMX and SSE
-Yield HTML chunks as they render for progressive delivery.
+:::{card} Coming from Jinja2
+:icon: arrow-right
+:link: /docs/get-started/coming-from-jinja2/
+:description: Quick syntax cheat sheet
+See what's familiar, what changed, and what Kida adds.
 :::{/card}
 
 :::{/cards}

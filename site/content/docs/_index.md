@@ -115,6 +115,12 @@ Technical specifications, troubleshooting, and design details.
 :description: Common errors and how to fix them
 :::{/card}
 
+:::{card} Advanced
+:icon: cpu
+:link: ./advanced/
+:description: Compiler, profiling, coverage, sandboxing, and free-threading
+:::{/card}
+
 :::{card} About
 :icon: info
 :link: ./about/

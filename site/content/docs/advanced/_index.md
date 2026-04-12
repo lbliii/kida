@@ -74,4 +74,60 @@ Track block timings, macro calls, includes, and filter usage.
 Cache site-scoped blocks for 40-60% faster builds.
 :::{/card}
 
+:::{card} Scoped Slots
+:icon: layers
+:link: /docs/advanced/scoped-slots/
+:description: Pass data back from components to callers
+Use `let:` bindings on slots for data-driven component APIs.
+:::{/card}
+
+:::{card} Content Stacks
+:icon: stack
+:link: /docs/advanced/content-stacks/
+:description: Collect content from nested templates
+Use `{% push %}` and `{% stack %}` for deferred CSS, JS, and meta tags.
+:::{/card}
+
+:::{card} Sandbox
+:icon: lock
+:link: /docs/advanced/sandbox/
+:description: Restricted execution for untrusted templates
+Limit attribute access, function calls, and imports.
+:::{/card}
+
+:::{card} CSP Nonces
+:icon: shield-check
+:link: /docs/advanced/csp/
+:description: Content Security Policy nonce injection
+Auto-inject nonces into `<script>` and `<style>` tags.
+:::{/card}
+
+:::{card} Coverage
+:icon: check-circle
+:link: /docs/advanced/coverage/
+:description: Measure template render coverage
+Track which blocks, branches, and filters execute.
+:::{/card}
+
+:::{card} Type Checking
+:icon: type
+:link: /docs/advanced/type-checking/
+:description: Static type analysis for template contexts
+Catch missing variables and type mismatches before rendering.
+:::{/card}
+
+:::{card} Accessibility Linting
+:icon: eye
+:link: /docs/advanced/a11y-linting/
+:description: Check templates for accessibility issues
+Detect missing alt text, form labels, and ARIA attributes.
+:::{/card}
+
+:::{card} Formatter
+:icon: align-left
+:link: /docs/advanced/formatter/
+:description: Auto-format template source code
+Normalize indentation, whitespace, and tag style.
+:::{/card}
+
 :::{/cards}

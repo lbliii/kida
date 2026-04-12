@@ -37,3 +37,13 @@ framework-integration:
     - docs/extending/custom-filters
     - docs/extending/custom-loaders
     - docs/reference/api
+
+terminal-rendering:
+  title: "Terminal Rendering"
+  description: "Build rich CLI output with Kida's terminal mode."
+  duration: "30 min"
+  audience: "CLI tool developers"
+  items:
+    - docs/usage/terminal-rendering
+    - docs/tutorials/terminal-rendering
+    - docs/advanced/workers
