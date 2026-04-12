@@ -130,6 +130,7 @@ def _filter_tojson(
             JavaScript reads the attribute value.
     """
     raw = json.dumps(value, indent=indent, default=str)
-    if attr:
-        raw = html_escape(raw)
+    # attr mode: entity-encode for double-quoted HTML attributes.
+    # default mode: escape "</" to prevent </script> XSS breakout.
+    raw = html_escape(raw) if attr else raw.replace("</", "\\u003c/")
     return Markup(raw)
