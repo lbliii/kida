@@ -9,7 +9,7 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from kida.exceptions import TemplateSyntaxError
 from kida.utils.typo_suggestions import suggest_closest
@@ -179,436 +179,436 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
+    # Dispatch table: node class __name__ → method name.
+    # Keyed by exact type name so subclass ordering is irrelevant
+    # (SafePipeline and OptionalFilter get their own entries).
+    _EXPR_DISPATCH: ClassVar[dict[str, str]] = {
+        "Const": "_compile_const",
+        "Name": "_compile_name",
+        "Tuple": "_compile_tuple",
+        "List": "_compile_list",
+        "ListComp": "_compile_list_comp",
+        "Dict": "_compile_dict",
+        "Getattr": "_compile_getattr",
+        "Getitem": "_compile_getitem",
+        "Slice": "_compile_slice",
+        "Test": "_compile_test",
+        "FuncCall": "_compile_func_call",
+        "OptionalFilter": "_compile_optional_filter",
+        "Filter": "_compile_filter",
+        "BinOp": "_compile_binop",
+        "UnaryOp": "_compile_unaryop",
+        "Compare": "_compile_compare",
+        "BoolOp": "_compile_boolop",
+        "CondExpr": "_compile_cond_expr",
+        "SafePipeline": "_compile_safe_pipeline",
+        "Pipeline": "_compile_pipeline",
+        "InlinedFilter": "_compile_inlined_filter",
+        "NullCoalesce": "_compile_null_coalesce",
+        "OptionalGetattr": "_compile_optional_getattr",
+        "OptionalGetitem": "_compile_optional_getitem",
+        "Range": "_compile_range",
+        "Await": "_compile_await",
+    }
+
+    # Methods that accept a ``store`` keyword argument (assignment targets).
+    _STORE_METHODS: frozenset[str] = frozenset({"_compile_name", "_compile_tuple"})
+
     def _compile_expr(self, node: Node, store: bool = False) -> ast.expr:
         """Compile expression node to Python AST expression.
 
-        Complexity: O(1) dispatch + O(d) for recursive expressions.
+        O(1) dict dispatch by ``type(node).__name__``.
         """
-        from kida.nodes import (
-            Await,
-            BinOp,
-            BoolOp,
-            Compare,
-            CondExpr,
-            Const,
-            Filter,
-            FuncCall,
-            Getattr,
-            Getitem,
-            InlinedFilter,
-            ListComp,
-            Name,
-            NullCoalesce,
-            OptionalFilter,
-            OptionalGetattr,
-            OptionalGetitem,
-            Pipeline,
-            Range,
-            SafePipeline,
-            Slice,
-            Test,
-            UnaryOp,
+        method_name = self._EXPR_DISPATCH.get(type(node).__name__)
+        if method_name is None:
+            return ast.Constant(value=None)
+        method = getattr(self, method_name)
+        if store and method_name in self._STORE_METHODS:
+            return method(node, store=True)
+        return method(node)
+
+    # ------------------------------------------------------------------
+    # Per-node-type compilation methods (extracted from _compile_expr)
+    # ------------------------------------------------------------------
+
+    def _compile_const(self, node: Node) -> ast.expr:
+        """Compile constant literal."""
+        if _is_constant_safe(node.value):
+            return ast.Constant(value=node.value)
+        return self._precomputed_ref(node.value)
+
+    def _compile_name(self, node: Node, *, store: bool = False) -> ast.expr:
+        """Compile variable reference."""
+        ctx = ast.Store() if store else ast.Load()
+        if store:
+            return ast.Name(id=node.name, ctx=ctx)
+        # Optimization: check if this is a local variable (loop var, etc.)
+        # Locals use O(1) LOAD_FAST instead of O(1) dict lookup + hash
+        if node.name in self._locals:
+            return ast.Name(id=node.name, ctx=ast.Load())
+
+        # CSE: use cached variable if available (avoids repeated _ls() calls)
+        if node.name in self._cached_vars:
+            return ast.Name(id=f"_cv_{node.name}", ctx=ast.Load())
+
+        # Strict mode: check scope stack first, then ctx
+        # _ls(ctx, _scope_stack, name) checks scopes then ctx
+        # _ls is a LOAD_FAST alias for _lookup_scope (cached in preamble)
+        # When compiling for thunks, use override names (e.g. _thunk_ctx, _thunk_scope)
+        ctx_name = getattr(self, "_ctx_override", None) or "ctx"
+        scope_name = getattr(self, "_scope_override", None) or "_scope_stack"
+        # Use _ls (cached local) when available, fall back to _lookup_scope for thunks
+        lookup_name = "_ls" if ctx_name == "ctx" else "_lookup_scope"
+        return ast.Call(
+            func=ast.Name(id=lookup_name, ctx=ast.Load()),
+            args=[
+                ast.Name(id=ctx_name, ctx=ast.Load()),
+                ast.Name(id=scope_name, ctx=ast.Load()),
+                ast.Constant(value=node.name),
+            ],
+            keywords=[],
         )
-        from kida.nodes import Dict as KidaDict
-        from kida.nodes import List as KidaList
-        from kida.nodes import Tuple as KidaTuple
 
-        # Fast path for common types
-        if isinstance(node, Const):
-            if _is_constant_safe(node.value):
-                return ast.Constant(value=node.value)
-            return self._precomputed_ref(node.value)
+    def _compile_tuple(self, node: Node, *, store: bool = False) -> ast.expr:
+        """Compile tuple expression."""
+        ctx = ast.Store() if store else ast.Load()
+        return ast.Tuple(
+            elts=[self._compile_expr(e, store) for e in node.items],
+            ctx=ctx,
+        )
 
-        if isinstance(node, Name):
-            ctx = ast.Store() if store else ast.Load()
-            if store:
-                return ast.Name(id=node.name, ctx=ctx)
-            # Optimization: check if this is a local variable (loop var, etc.)
-            # Locals use O(1) LOAD_FAST instead of O(1) dict lookup + hash
-            if node.name in self._locals:
-                return ast.Name(id=node.name, ctx=ast.Load())
+    def _compile_list(self, node: Node) -> ast.expr:
+        """Compile list expression."""
+        return ast.List(
+            elts=[self._compile_expr(e) for e in node.items],
+            ctx=ast.Load(),
+        )
 
-            # CSE: use cached variable if available (avoids repeated _ls() calls)
-            if node.name in self._cached_vars:
-                return ast.Name(id=f"_cv_{node.name}", ctx=ast.Load())
+    def _compile_list_comp(self, node: Node) -> ast.expr:
+        """Compile list comprehension."""
+        # Register comprehension variables as locals so elt/ifs compile
+        # as LOAD_FAST (Name) instead of _ls() context lookups.
+        var_names = self._extract_names(node.target)  # type: ignore[attr-defined]
+        prev_locals = {v for v in var_names if v in self._locals}
+        for v in var_names:
+            self._locals.add(v)
 
-            # Strict mode: check scope stack first, then ctx
-            # _ls(ctx, _scope_stack, name) checks scopes then ctx
-            # _ls is a LOAD_FAST alias for _lookup_scope (cached in preamble)
-            # When compiling for thunks, use override names (e.g. _thunk_ctx, _thunk_scope)
-            ctx_name = getattr(self, "_ctx_override", None) or "ctx"
-            scope_name = getattr(self, "_scope_override", None) or "_scope_stack"
-            # Use _ls (cached local) when available, fall back to _lookup_scope for thunks
-            lookup_name = "_ls" if ctx_name == "ctx" else "_lookup_scope"
-            return ast.Call(
-                func=ast.Name(id=lookup_name, ctx=ast.Load()),
-                args=[
-                    ast.Name(id=ctx_name, ctx=ast.Load()),
-                    ast.Name(id=scope_name, ctx=ast.Load()),
-                    ast.Constant(value=node.name),
-                ],
-                keywords=[],
-            )
-
-        if isinstance(node, KidaTuple):
-            ctx = ast.Store() if store else ast.Load()
-            return ast.Tuple(
-                elts=[self._compile_expr(e, store) for e in node.items],
-                ctx=ctx,
-            )
-
-        if isinstance(node, KidaList):
-            return ast.List(
-                elts=[self._compile_expr(e) for e in node.items],
-                ctx=ast.Load(),
-            )
-
-        if isinstance(node, ListComp):
-            # Register comprehension variables as locals so elt/ifs compile
-            # as LOAD_FAST (Name) instead of _ls() context lookups.
-            var_names = self._extract_names(node.target)  # type: ignore[attr-defined]
-            prev_locals = {v for v in var_names if v in self._locals}
-            for v in var_names:
-                self._locals.add(v)
-
-            result = ast.ListComp(
-                elt=self._compile_expr(node.elt),
-                generators=[
-                    ast.comprehension(
-                        target=self._compile_expr(node.target, store=True),
-                        iter=self._compile_expr(node.iter),
-                        ifs=[self._compile_expr(c) for c in node.ifs],
-                        is_async=0,
-                    )
-                ],
-            )
-
-            # Restore locals — only discard what this comprehension added
-            for v in var_names:
-                if v not in prev_locals:
-                    self._locals.discard(v)
-
-            return result
-
-        if isinstance(node, KidaDict):
-            return ast.Dict(
-                keys=[self._compile_expr(k) for k in node.keys],
-                values=[self._compile_expr(v) for v in node.values],
-            )
-
-        if isinstance(node, Getattr):
-            # Use _ga (cached _getattr) for LOAD_FAST instead of LOAD_GLOBAL.
-            # Thunk mode uses _getattr directly (no preamble in thunk functions).
-            ga_name = "_getattr" if getattr(self, "_ctx_override", None) else "_ga"
-            return ast.Call(
-                func=ast.Name(id=ga_name, ctx=ast.Load()),
-                args=[
-                    self._compile_expr(node.obj),
-                    ast.Constant(value=node.attr),
-                ],
-                keywords=[],
-            )
-
-        if isinstance(node, Getitem):
-            return ast.Subscript(
-                value=self._compile_expr(node.obj),
-                slice=self._compile_expr(node.key),
-                ctx=ast.Load(),
-            )
-
-        if isinstance(node, Slice):
-            # Compile slice to Python slice object
-            return ast.Slice(
-                lower=self._compile_expr(node.start) if node.start else None,
-                upper=self._compile_expr(node.stop) if node.stop else None,
-                step=self._compile_expr(node.step) if node.step else None,
-            )
-
-        if isinstance(node, Test):
-            # Special handling for 'defined' and 'undefined' tests
-            # These need to work even when the value is undefined
-            if node.name in ("defined", "undefined"):
-                # Generate: _is_defined(lambda: <value>) or not _is_defined(lambda: <value>)
-                value_lambda = self._make_deferred_lambda(self._compile_expr(node.value))
-                test_call = ast.Call(
-                    func=ast.Name(id="_is_defined", ctx=ast.Load()),
-                    args=[value_lambda],
-                    keywords=[],
+        result = ast.ListComp(
+            elt=self._compile_expr(node.elt),
+            generators=[
+                ast.comprehension(
+                    target=self._compile_expr(node.target, store=True),
+                    iter=self._compile_expr(node.iter),
+                    ifs=[self._compile_expr(c) for c in node.ifs],
+                    is_async=0,
                 )
-                # For 'undefined' test, negate the result
-                if node.name == "undefined":
-                    test_call = ast.UnaryOp(op=ast.Not(), operand=test_call)
-                # Handle negated tests (is not defined, is not undefined)
-                if node.negated:
-                    return ast.UnaryOp(op=ast.Not(), operand=test_call)
-                return test_call
+            ],
+        )
 
-            # Validate test exists at compile time
-            if node.name not in self._env._tests:
-                suggestion = self._get_test_suggestion(node.name)
-                msg = f"Unknown test '{node.name}'"
-                if suggestion:
-                    msg += f". Did you mean '{suggestion}'?"
-                raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+        # Restore locals — only discard what this comprehension added
+        for v in var_names:
+            if v not in prev_locals:
+                self._locals.discard(v)
 
-            # Compile test: _tests['name'](value, *args, **kwargs)
-            # If negated: not _tests['name'](value, *args, **kwargs)
-            value = self._compile_expr(node.value)
+        return result
+
+    def _compile_dict(self, node: Node) -> ast.expr:
+        """Compile dict expression."""
+        return ast.Dict(
+            keys=[self._compile_expr(k) for k in node.keys],
+            values=[self._compile_expr(v) for v in node.values],
+        )
+
+    def _compile_getattr(self, node: Node) -> ast.expr:
+        """Compile attribute access (obj.attr)."""
+        # Use _ga (cached _getattr) for LOAD_FAST instead of LOAD_GLOBAL.
+        # Thunk mode uses _getattr directly (no preamble in thunk functions).
+        ga_name = "_getattr" if getattr(self, "_ctx_override", None) else "_ga"
+        return ast.Call(
+            func=ast.Name(id=ga_name, ctx=ast.Load()),
+            args=[
+                self._compile_expr(node.obj),
+                ast.Constant(value=node.attr),
+            ],
+            keywords=[],
+        )
+
+    def _compile_getitem(self, node: Node) -> ast.expr:
+        """Compile subscript access (obj[key])."""
+        return ast.Subscript(
+            value=self._compile_expr(node.obj),
+            slice=self._compile_expr(node.key),
+            ctx=ast.Load(),
+        )
+
+    def _compile_slice(self, node: Node) -> ast.expr:
+        """Compile slice expression (start:stop:step)."""
+        return ast.Slice(
+            lower=self._compile_expr(node.start) if node.start else None,
+            upper=self._compile_expr(node.stop) if node.stop else None,
+            step=self._compile_expr(node.step) if node.step else None,
+        )
+
+    def _compile_test(self, node: Node) -> ast.expr:
+        """Compile test expression (is defined, is none, etc.)."""
+        # Special handling for 'defined' and 'undefined' tests
+        # These need to work even when the value is undefined
+        if node.name in ("defined", "undefined"):
+            # Generate: _is_defined(lambda: <value>) or not _is_defined(lambda: <value>)
+            value_lambda = self._make_deferred_lambda(self._compile_expr(node.value))
             test_call = ast.Call(
-                func=ast.Subscript(
-                    value=ast.Name(id="_tests", ctx=ast.Load()),
-                    slice=ast.Constant(value=node.name),
-                    ctx=ast.Load(),
-                ),
-                args=[value] + [self._compile_expr(a) for a in node.args],
-                keywords=[
-                    ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
-                ],
+                func=ast.Name(id="_is_defined", ctx=ast.Load()),
+                args=[value_lambda],
+                keywords=[],
             )
+            # For 'undefined' test, negate the result
+            if node.name == "undefined":
+                test_call = ast.UnaryOp(op=ast.Not(), operand=test_call)
+            # Handle negated tests (is not defined, is not undefined)
             if node.negated:
                 return ast.UnaryOp(op=ast.Not(), operand=test_call)
             return test_call
 
-        if isinstance(node, FuncCall):
-            # obj?.method() — short-circuit call when obj is None or attr is UNDEFINED
-            if isinstance(node.func, OptionalGetattr):
-                return self._compile_optional_method_call(node.func, node.args, node.kwargs)
+        # Validate test exists at compile time
+        if node.name not in self._env._tests:
+            suggestion = self._get_test_suggestion(node.name)
+            msg = f"Unknown test '{node.name}'"
+            if suggestion:
+                msg += f". Did you mean '{suggestion}'?"
+            raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
 
-            # Lexical caller scoping: caller() in call body inside def → use enclosing _caller
-            outer = getattr(self, "_outer_caller_expr", None)
-            if outer is not None and isinstance(node.func, Name) and node.func.name == "caller":
-                return ast.Call(
-                    func=outer,
-                    args=[self._compile_expr(a) for a in node.args],
-                    keywords=[
-                        ast.keyword(arg=k, value=self._compile_expr(v))
-                        for k, v in node.kwargs.items()
-                    ],
-                )
-
-            keywords = [
+        # Compile test: _tests['name'](value, *args, **kwargs)
+        # If negated: not _tests['name'](value, *args, **kwargs)
+        value = self._compile_expr(node.value)
+        test_call = ast.Call(
+            func=ast.Subscript(
+                value=ast.Name(id="_tests", ctx=ast.Load()),
+                slice=ast.Constant(value=node.name),
+                ctx=ast.Load(),
+            ),
+            args=[value] + [self._compile_expr(a) for a in node.args],
+            keywords=[
                 ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
-            ]
-            # Region callables require _outer_ctx=ctx and _blocks (RFC: kida-regions)
-            func_name = getattr(node.func, "name", None)
-            if func_name and func_name in getattr(self, "_blocks", {}):
-                from kida.nodes import Region
+            ],
+        )
+        if node.negated:
+            return ast.UnaryOp(op=ast.Not(), operand=test_call)
+        return test_call
 
-                if isinstance(self._blocks.get(func_name), Region):
-                    keywords.append(
-                        ast.keyword(
-                            arg="_outer_ctx",
-                            value=ast.Name(id="ctx", ctx=ast.Load()),
-                        )
-                    )
-                    blocks_value = (
-                        ast.Dict(keys=[], values=[])
-                        if self._def_caller_stack
-                        else ast.Name(id="_blocks", ctx=ast.Load())
-                    )
-                    keywords.append(ast.keyword(arg="_blocks", value=blocks_value))
-            call_node = ast.Call(
-                func=self._compile_expr(node.func),
+    def _compile_func_call(self, node: Node) -> ast.expr:
+        """Compile function call expression."""
+        from kida.nodes import Name, OptionalGetattr, Region
+
+        # obj?.method() — short-circuit call when obj is None or attr is UNDEFINED
+        if isinstance(node.func, OptionalGetattr):
+            return self._compile_optional_method_call(node.func, node.args, node.kwargs)
+
+        # Lexical caller scoping: caller() in call body inside def → use enclosing _caller
+        outer = getattr(self, "_outer_caller_expr", None)
+        if outer is not None and isinstance(node.func, Name) and node.func.name == "caller":
+            return ast.Call(
+                func=outer,
                 args=[self._compile_expr(a) for a in node.args],
-                keywords=keywords,
-            )
-            # Profiling: record macro call when target is a known {% def %} name
-            # Skip when inside {% call %} block (needs raw ast.Call for _caller kwarg)
-            # Skip entirely when profiling is disabled at compile time
-            func_name = getattr(node.func, "name", None)
-            skip = getattr(self, "_skip_macro_instrumentation", False)
-            if (
-                self._env.enable_profiling
-                and func_name
-                and func_name in self._def_names
-                and not skip
-            ):
-                return ast.Call(
-                    func=ast.Name(id="_record_macro", ctx=ast.Load()),
-                    args=[
-                        ast.Name(id="_acc", ctx=ast.Load()),
-                        ast.Constant(value=func_name),
-                        call_node,
-                    ],
-                    keywords=[],
-                )
-            return call_node
-
-        # OptionalFilter before Filter (subclass before parent)
-        if isinstance(node, OptionalFilter):
-            return self._compile_optional_filter(node)
-
-        if isinstance(node, Filter):
-            # Validate filter exists at compile time
-            # Special case: 'default' and 'd' are handled specially below but still valid
-            if node.name not in self._env._filters:
-                suggestion = self._get_filter_suggestion(node.name)
-                msg = f"Unknown filter '{node.name}'"
-                if suggestion:
-                    msg += f". Did you mean '{suggestion}'?"
-                raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
-
-            # Special handling for 'default' filter
-            # The default filter needs to work even when the value is undefined
-            if node.name in ("default", "d"):
-                # Generate: _default_safe(lambda: <value>, <default>, <boolean>)
-                # This catches UndefinedError and returns the default value
-                value_lambda = self._make_deferred_lambda(self._compile_expr(node.value))
-                # Build args: default_value and boolean flag
-                filter_args = [self._compile_expr(a) for a in node.args]
-                filter_kwargs = {k: self._compile_expr(v) for k, v in node.kwargs.items()}
-
-                default_call = ast.Call(
-                    func=ast.Name(id="_default_safe", ctx=ast.Load()),
-                    args=[value_lambda, *filter_args],
-                    keywords=[ast.keyword(arg=k, value=v) for k, v in filter_kwargs.items()],
-                )
-                # Thunk mode or profiling disabled: skip profiling wrapper
-                if getattr(self, "_ctx_override", None) or not self._env.enable_profiling:
-                    return default_call
-                return ast.Call(
-                    func=ast.Name(id="_record_filter", ctx=ast.Load()),
-                    args=[
-                        ast.Name(id="_acc", ctx=ast.Load()),
-                        ast.Constant(value="default"),
-                        default_call,
-                    ],
-                    keywords=[],
-                )
-
-            value = self._compile_expr(node.value)
-            filter_call = ast.Call(
-                func=ast.Subscript(
-                    value=ast.Name(id="_filters", ctx=ast.Load()),
-                    slice=ast.Constant(value=node.name),
-                    ctx=ast.Load(),
-                ),
-                args=[value] + [self._compile_expr(a) for a in node.args],
                 keywords=[
                     ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
                 ],
             )
+
+        keywords = [ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()]
+        # Region callables require _outer_ctx=ctx and _blocks (RFC: kida-regions)
+        func_name = getattr(node.func, "name", None)
+        if (
+            func_name
+            and func_name in getattr(self, "_blocks", {})
+            and isinstance(self._blocks.get(func_name), Region)
+        ):
+            keywords.append(
+                ast.keyword(
+                    arg="_outer_ctx",
+                    value=ast.Name(id="ctx", ctx=ast.Load()),
+                )
+            )
+            blocks_value = (
+                ast.Dict(keys=[], values=[])
+                if self._def_caller_stack
+                else ast.Name(id="_blocks", ctx=ast.Load())
+            )
+            keywords.append(ast.keyword(arg="_blocks", value=blocks_value))
+        call_node = ast.Call(
+            func=self._compile_expr(node.func),
+            args=[self._compile_expr(a) for a in node.args],
+            keywords=keywords,
+        )
+        # Profiling: record macro call when target is a known {% def %} name
+        # Skip when inside {% call %} block (needs raw ast.Call for _caller kwarg)
+        # Skip entirely when profiling is disabled at compile time
+        func_name = getattr(node.func, "name", None)
+        skip = getattr(self, "_skip_macro_instrumentation", False)
+        if self._env.enable_profiling and func_name and func_name in self._def_names and not skip:
+            return ast.Call(
+                func=ast.Name(id="_record_macro", ctx=ast.Load()),
+                args=[
+                    ast.Name(id="_acc", ctx=ast.Load()),
+                    ast.Constant(value=func_name),
+                    call_node,
+                ],
+                keywords=[],
+            )
+        return call_node
+
+    def _compile_filter(self, node: Node) -> ast.expr:
+        """Compile filter expression (value | filter_name)."""
+        # Validate filter exists at compile time
+        # Special case: 'default' and 'd' are handled specially below but still valid
+        if node.name not in self._env._filters:
+            suggestion = self._get_filter_suggestion(node.name)
+            msg = f"Unknown filter '{node.name}'"
+            if suggestion:
+                msg += f". Did you mean '{suggestion}'?"
+            raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+
+        # Special handling for 'default' filter
+        # The default filter needs to work even when the value is undefined
+        if node.name in ("default", "d"):
+            # Generate: _default_safe(lambda: <value>, <default>, <boolean>)
+            # This catches UndefinedError and returns the default value
+            value_lambda = self._make_deferred_lambda(self._compile_expr(node.value))
+            # Build args: default_value and boolean flag
+            filter_args = [self._compile_expr(a) for a in node.args]
+            filter_kwargs = {k: self._compile_expr(v) for k, v in node.kwargs.items()}
+
+            default_call = ast.Call(
+                func=ast.Name(id="_default_safe", ctx=ast.Load()),
+                args=[value_lambda, *filter_args],
+                keywords=[ast.keyword(arg=k, value=v) for k, v in filter_kwargs.items()],
+            )
             # Thunk mode or profiling disabled: skip profiling wrapper
             if getattr(self, "_ctx_override", None) or not self._env.enable_profiling:
-                return filter_call
+                return default_call
             return ast.Call(
                 func=ast.Name(id="_record_filter", ctx=ast.Load()),
                 args=[
                     ast.Name(id="_acc", ctx=ast.Load()),
-                    ast.Constant(value=node.name),
-                    filter_call,
+                    ast.Constant(value="default"),
+                    default_call,
                 ],
                 keywords=[],
             )
 
-        if isinstance(node, BinOp):
-            # Special handling for ~ (string concatenation)
-            if node.op == "~":
-                # _markup_concat(left, right) — preserves Markup safety
-                return ast.Call(
-                    func=ast.Name(id="_markup_concat", ctx=ast.Load()),
-                    args=[
-                        self._compile_expr(node.left),
-                        self._compile_expr(node.right),
-                    ],
-                    keywords=[],
-                )
+        value = self._compile_expr(node.value)
+        filter_call = ast.Call(
+            func=ast.Subscript(
+                value=ast.Name(id="_filters", ctx=ast.Load()),
+                slice=ast.Constant(value=node.name),
+                ctx=ast.Load(),
+            ),
+            args=[value] + [self._compile_expr(a) for a in node.args],
+            keywords=[
+                ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
+            ],
+        )
+        # Thunk mode or profiling disabled: skip profiling wrapper
+        if getattr(self, "_ctx_override", None) or not self._env.enable_profiling:
+            return filter_call
+        return ast.Call(
+            func=ast.Name(id="_record_filter", ctx=ast.Load()),
+            args=[
+                ast.Name(id="_acc", ctx=ast.Load()),
+                ast.Constant(value=node.name),
+                filter_call,
+            ],
+            keywords=[],
+        )
 
-            # Polymorphic +: add if both numeric, else string concatenation
-            if node.op == "+":
-                left = self._compile_expr(node.left)
-                right = self._compile_expr(node.right)
-                return ast.Call(
-                    func=ast.Name(id="_add_polymorphic", ctx=ast.Load()),
-                    args=[left, right],
-                    keywords=[],
-                )
+    def _compile_binop(self, node: Node) -> ast.expr:
+        """Compile binary operation."""
+        # Special handling for ~ (string concatenation)
+        if node.op == "~":
+            # _markup_concat(left, right) — preserves Markup safety
+            return ast.Call(
+                func=ast.Name(id="_markup_concat", ctx=ast.Load()),
+                args=[
+                    self._compile_expr(node.left),
+                    self._compile_expr(node.right),
+                ],
+                keywords=[],
+            )
 
-            # For arithmetic ops, coerce potential string operands (from macros) to numeric
-            # This prevents string multiplication when macro returns Markup('1')
-            if node.op in _ARITHMETIC_OPS:
-                left = self._compile_expr(node.left)
-                right = self._compile_expr(node.right)
+        # Polymorphic +: add if both numeric, else string concatenation
+        if node.op == "+":
+            left = self._compile_expr(node.left)
+            right = self._compile_expr(node.right)
+            return ast.Call(
+                func=ast.Name(id="_add_polymorphic", ctx=ast.Load()),
+                args=[left, right],
+                keywords=[],
+            )
 
-                # Wrap FuncCall/Filter results in numeric coercion
-                if self._is_potentially_string(node.left):
-                    left = self._wrap_coerce_numeric(left)
-                if self._is_potentially_string(node.right):
-                    right = self._wrap_coerce_numeric(right)
+        # For arithmetic ops, coerce potential string operands (from macros) to numeric
+        # This prevents string multiplication when macro returns Markup('1')
+        if node.op in _ARITHMETIC_OPS:
+            left = self._compile_expr(node.left)
+            right = self._compile_expr(node.right)
 
-                return ast.BinOp(
-                    left=left,
-                    op=self._get_binop(node.op),
-                    right=right,
-                )
+            # Wrap FuncCall/Filter results in numeric coercion
+            if self._is_potentially_string(node.left):
+                left = self._wrap_coerce_numeric(left)
+            if self._is_potentially_string(node.right):
+                right = self._wrap_coerce_numeric(right)
 
             return ast.BinOp(
-                left=self._compile_expr(node.left),
+                left=left,
                 op=self._get_binop(node.op),
-                right=self._compile_expr(node.right),
+                right=right,
             )
 
-        if isinstance(node, UnaryOp):
-            return ast.UnaryOp(
-                op=self._get_unaryop(node.op),
-                operand=self._compile_expr(node.operand),
-            )
+        return ast.BinOp(
+            left=self._compile_expr(node.left),
+            op=self._get_binop(node.op),
+            right=self._compile_expr(node.right),
+        )
 
-        if isinstance(node, Compare):
-            return ast.Compare(
-                left=self._compile_expr(node.left),
-                ops=[self._get_cmpop(op) for op in node.ops],
-                comparators=[self._compile_expr(c) for c in node.comparators],
-            )
+    def _compile_unaryop(self, node: Node) -> ast.expr:
+        """Compile unary operation."""
+        return ast.UnaryOp(
+            op=self._get_unaryop(node.op),
+            operand=self._compile_expr(node.operand),
+        )
 
-        if isinstance(node, BoolOp):
-            op = ast.And() if node.op == "and" else ast.Or()
-            return ast.BoolOp(
-                op=op,
-                values=[self._compile_expr(v) for v in node.values],
-            )
+    def _compile_compare(self, node: Node) -> ast.expr:
+        """Compile comparison expression."""
+        return ast.Compare(
+            left=self._compile_expr(node.left),
+            ops=[self._get_cmpop(op) for op in node.ops],
+            comparators=[self._compile_expr(c) for c in node.comparators],
+        )
 
-        if isinstance(node, CondExpr):
-            return ast.IfExp(
-                test=self._compile_expr(node.test),
-                body=self._compile_expr(node.if_true),
-                orelse=self._compile_expr(node.if_false),
-            )
+    def _compile_boolop(self, node: Node) -> ast.expr:
+        """Compile boolean operation (and/or)."""
+        op = ast.And() if node.op == "and" else ast.Or()
+        return ast.BoolOp(
+            op=op,
+            values=[self._compile_expr(v) for v in node.values],
+        )
 
-        # SafePipeline before Pipeline (subclass before parent)
-        if isinstance(node, SafePipeline):
-            return self._compile_safe_pipeline(node)
+    def _compile_cond_expr(self, node: Node) -> ast.expr:
+        """Compile conditional (ternary) expression."""
+        return ast.IfExp(
+            test=self._compile_expr(node.test),
+            body=self._compile_expr(node.if_true),
+            orelse=self._compile_expr(node.if_false),
+        )
 
-        if isinstance(node, Pipeline):
-            return self._compile_pipeline(node)
-
-        if isinstance(node, InlinedFilter):
-            return self._compile_inlined_filter(node)
-
-        if isinstance(node, NullCoalesce):
-            return self._compile_null_coalesce(node)
-
-        if isinstance(node, OptionalGetattr):
-            return self._compile_optional_getattr(node)
-
-        if isinstance(node, OptionalGetitem):
-            return self._compile_optional_getitem(node)
-
-        if isinstance(node, Range):
-            return self._compile_range(node)
-
-        if isinstance(node, Await):
-            # Compile {{ await expr }} to ast.Await(value=compiled_expr)
-            # Part of RFC: rfc-async-rendering
-            self._has_async = True
-            if getattr(self, "_async_mode", False):
-                return ast.Await(value=self._compile_expr(node.value))
-            # In sync mode, Await can't appear in a regular def.
-            # Return a placeholder — the Template guard prevents this path.
-            return ast.Constant(value="")
-
-        # Fallback
-        return ast.Constant(value=None)
+    def _compile_await(self, node: Node) -> ast.expr:
+        """Compile await expression."""
+        # Compile {{ await expr }} to ast.Await(value=compiled_expr)
+        # Part of RFC: rfc-async-rendering
+        self._has_async = True
+        if getattr(self, "_async_mode", False):
+            return ast.Await(value=self._compile_expr(node.value))
+        # In sync mode, Await can't appear in a regular def.
+        # Return a placeholder — the Template guard prevents this path.
+        return ast.Constant(value="")
 
     def _compile_null_coalesce(self, node: NullCoalesce) -> ast.expr:
         """Compile a ?? b to handle both None and undefined variables.
