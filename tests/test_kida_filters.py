@@ -506,6 +506,138 @@ class TestJsonFilter:
         result = tmpl.render(data={"a": 1})
         assert json.loads(html.unescape(result)) == {"a": 1}
 
+    # -- Edge cases --------------------------------------------------------
+
+    def test_tojson_empty_dict(self, env):
+        """tojson with empty dict."""
+        tmpl = env.from_string("{{ data|tojson }}")
+        assert tmpl.render(data={}) == "{}"
+
+    def test_tojson_empty_list(self, env):
+        """tojson with empty list."""
+        tmpl = env.from_string("{{ data|tojson }}")
+        assert tmpl.render(data=[]) == "[]"
+
+    def test_tojson_bool(self, env):
+        """tojson with booleans (no quotes to encode)."""
+        tmpl = env.from_string("{{ data|tojson }}")
+        assert tmpl.render(data=True) == "true"
+        assert tmpl.render(data=False) == "false"
+
+    def test_tojson_attr_bool(self, env):
+        """tojson(attr=true) with booleans — no entities needed."""
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        assert tmpl.render(data=True) == "true"
+
+    def test_tojson_attr_number(self, env):
+        """tojson(attr=true) with numbers — no entities needed."""
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        assert tmpl.render(data=42) == "42"
+        assert tmpl.render(data=3.14) == "3.14"
+
+    def test_tojson_attr_empty_string(self, env):
+        """tojson(attr=true) with empty string."""
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data="")
+        assert json.loads(html.unescape(result)) == ""
+
+    def test_tojson_non_serializable_default_str(self, env):
+        """tojson falls back to str() for non-JSON-serializable types."""
+        from pathlib import PurePosixPath
+
+        tmpl = env.from_string("{{ data|tojson }}")
+        result = tmpl.render(data={"path": PurePosixPath("/tmp/foo")})
+        parsed = json.loads(result)
+        assert parsed == {"path": "/tmp/foo"}
+
+    def test_tojson_attr_single_quotes_in_values(self, env):
+        """tojson(attr=true) encodes single quotes (&#39;) for safety."""
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data={"msg": "it's fine"})
+        # Single quote must be encoded so it's safe in both ' and " attributes
+        assert "'" not in result
+        assert json.loads(html.unescape(result)) == {"msg": "it's fine"}
+
+    def test_tojson_no_double_escape_with_autoescape(self, env):
+        """tojson Markup output is not double-escaped by autoescape."""
+        tmpl = env.from_string('<script type="application/json">{{ data|tojson }}</script>')
+        result = tmpl.render(data={"key": "val"})
+        assert "&quot;" not in result
+        assert '"key"' in result
+
+    def test_tojson_no_double_escape_without_autoescape(self, env_no_autoescape):
+        """tojson behaves the same with autoescape off."""
+        tmpl = env_no_autoescape.from_string("{{ data|tojson }}")
+        result = tmpl.render(data={"key": "val"})
+        assert '"key"' in result
+
+    def test_tojson_attr_without_autoescape(self, env_no_autoescape):
+        """tojson(attr=true) works correctly even with autoescape off."""
+        tmpl = env_no_autoescape.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data={"a": 1})
+        assert "&quot;" in result
+        assert json.loads(html.unescape(result)) == {"a": 1}
+
+    # -- Security ----------------------------------------------------------
+
+    def test_tojson_attr_xss_attribute_breakout(self, env):
+        """tojson(attr=true) prevents attribute breakout via crafted values."""
+        # An attacker might try to break out of an attribute with " onmouseover=...
+        data = {"x": '" onmouseover="alert(1)'}
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data=data)
+        # No raw " should appear — all encoded as &quot;
+        assert '"' not in result
+        assert json.loads(html.unescape(result)) == data
+
+    def test_tojson_attr_xss_html_injection(self, env):
+        """tojson(attr=true) encodes angle brackets to prevent tag injection."""
+        data = {"x": "<img src=x onerror=alert(1)>"}
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data=data)
+        assert "<img" not in result
+        assert "&lt;img" in result
+        assert json.loads(html.unescape(result)) == data
+
+    def test_tojson_escapes_script_close_tag(self, env):
+        """tojson escapes </script> to prevent XSS in <script> context."""
+        data = {"x": "</script><script>alert(1)</script>"}
+        tmpl = env.from_string("{{ data|tojson }}")
+        result = tmpl.render(data=data)
+        # "</" replaced with "\u003c/" so it can't close <script> tags
+        assert "</script>" not in result
+        assert "\\u003c/" in result
+        # Round-trip: JSON.parse decodes \u003c back to <
+        assert json.loads(result) == data
+
+    def test_tojson_escapes_script_close_case_insensitive(self, env):
+        """tojson escapes all </ sequences, not just </script>."""
+        data = {"x": "</Script>", "y": "</style>"}
+        tmpl = env.from_string("{{ data|tojson }}")
+        result = tmpl.render(data=data)
+        assert "</" not in result
+        assert json.loads(result) == data
+
+    def test_tojson_attr_deeply_nested_round_trip(self, env):
+        """Round-trip with deeply nested structure."""
+        data = {"a": {"b": {"c": {"d": [1, "two", None, True, {"e": "f&g"}]}}}}
+        tmpl = env.from_string("{{ data|tojson(attr=true) }}")
+        result = tmpl.render(data=data)
+        assert json.loads(html.unescape(result)) == data
+
+    def test_tojson_pipeline_operator(self, env):
+        """tojson works with the |> pipeline operator."""
+        tmpl = env.from_string("{{ data |> tojson }}")
+        result = tmpl.render(data={"a": 1})
+        assert '"a"' in result
+
+    def test_tojson_pipeline_operator_attr(self, env):
+        """tojson(attr=true) works with the |> pipeline operator."""
+        tmpl = env.from_string("{{ data |> tojson(attr=true) }}")
+        result = tmpl.render(data={"a": 1})
+        assert "&quot;" in result
+        assert json.loads(html.unescape(result)) == {"a": 1}
+
 
 class TestFilterChaining:
     """Test chaining multiple filters."""
