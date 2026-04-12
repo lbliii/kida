@@ -1,19 +1,20 @@
 """Tests for expression compilation dispatch refactor.
 
-Sprint 0: AST baseline + dispatch-dict validation.
-These tests ensure the _compile_expr refactor is behavior-preserving.
+Validates dispatch-dict integrity, node type coverage, and AST output
+stability via committed SHA-256 snapshots.
 """
 
 from __future__ import annotations
 
 import ast
+import hashlib
 
 import pytest
 
 from kida import DictLoader, Environment
 
 # ---------------------------------------------------------------------------
-# Sprint 0.2: Validate that node class names are unique (no collisions)
+# Dispatch table validation
 # ---------------------------------------------------------------------------
 
 
@@ -92,6 +93,26 @@ def test_expression_node_names_are_unique():
     )
 
 
+def test_dispatch_table_keys_are_valid_expr_types():
+    """Every key in _EXPR_DISPATCH must name a real Expr subclass.
+
+    A typo in a dispatch key would silently cause that node type to fall
+    through to the None fallback at compile time.
+    """
+    import kida.nodes.expressions as expr_mod
+    from kida.compiler.expressions import ExpressionCompilationMixin
+    from kida.nodes.expressions import Expr
+
+    for node_type in ExpressionCompilationMixin._EXPR_DISPATCH:
+        cls = getattr(expr_mod, node_type, None)
+        assert cls is not None, (
+            f"Dispatch key '{node_type}' does not match any class in kida.nodes.expressions"
+        )
+        assert issubclass(cls, Expr), (
+            f"Dispatch key '{node_type}' maps to {cls} which is not an Expr subclass"
+        )
+
+
 def test_dispatch_table_methods_exist():
     """Every method in _EXPR_DISPATCH must exist on ExpressionCompilationMixin."""
     from kida.compiler.expressions import ExpressionCompilationMixin
@@ -106,13 +127,14 @@ def test_dispatch_table_methods_exist():
 
 
 # ---------------------------------------------------------------------------
-# Sprint 0.1: AST baseline — compile representative templates, snapshot the
-# generated Python AST so any refactor that changes output is caught.
+# AST baseline — compile representative templates and compare against
+# committed SHA-256 hashes of ast.dump() output.
 # ---------------------------------------------------------------------------
 
-# Templates designed to exercise every expression node type that _compile_expr handles.
+# Coverage templates exercise the dispatched expression node types.
+# Node types covered by each template are noted in comments.
 _EXPR_COVERAGE_TEMPLATES = {
-    # Const, Name, Output
+    # Const, Name
     "const_and_name": "{{ 42 }}{{ name }}{{ true }}{{ none }}",
     # Tuple, List, Dict
     "containers": "{% let t = (1, 2) %}{% let l = [1, 2] %}{% let d = {'a': 1} %}",
@@ -128,29 +150,57 @@ _EXPR_COVERAGE_TEMPLATES = {
     "tests": "{% if x is defined %}yes{% end %}{% if x is not none %}no{% end %}",
     # FuncCall
     "funccall": "{{ range(10) }}{{ items | join(', ') }}",
-    # For loop (exercises ListComp indirectly through loop context)
+    # For loop (exercises loop context)
     "for_loop": "{% for i in items %}{{ i }}{% end %}",
     # NullCoalesce
     "null_coalesce": "{{ x ?? 'default' }}",
     # OptionalGetattr, OptionalGetitem
     "optional_access": "{{ obj?.attr }}{{ obj?['key'] }}",
-    # Range literal
+    # Range
     "range_literal": "{% for i in 1..5 %}{{ i }}{% end %}",
-    # Def + Call (exercises FuncCall with known def names)
+    # FuncCall with known def names
     "def_and_call": "{% def greet(name) %}Hello {{ name }}{% end %}{{ greet('world') }}",
     # ListComp
     "listcomp": "{% let evens = [x for x in items if x % 2 == 0] %}",
-    # Nested expressions (uses * to trigger _coerce_numeric for filter results)
+    # BinOp with _coerce_numeric (Filter in arithmetic)
     "nested": "{{ (a | length) * (b | length) }}",
-    # default filter (special-cased in compiler)
+    # Filter (default special case)
     "default_filter": "{{ missing | default('fallback') }}",
     # OptionalFilter
     "optional_filter": "{{ value ?| upper ?? 'N/A' }}",
-    # Block + extends (ensures block compilation paths aren't broken)
+    # Block + extends
     "child": "{% extends 'base' %}{% block content %}Hello{% end %}",
+    # SafePipeline (?|>)
+    "safe_pipeline": "{{ name ?|> lower ?|> title }}",
 }
 
 _BASE_TEMPLATE = "<html>{% block content %}{% end %}</html>"
+
+# Committed SHA-256 hashes (first 16 hex chars) of ast.dump() output.
+# To regenerate after an intentional compilation change, run the tests
+# with --update-snapshots (not implemented) or copy hashes from the
+# failure output.
+_EXPECTED_AST_HASHES: dict[str, str] = {
+    "access": "e2e4ee0881f95ba2",
+    "binop": "1de4deac7b95f642",
+    "child": "7866afbc6d92b913",
+    "const_and_name": "87a61754d36ef694",
+    "containers": "26373c505ec09244",
+    "def_and_call": "855d4dc03df62b12",
+    "default_filter": "b0f5e5f48f94e080",
+    "filters": "0b65fde459a4b770",
+    "for_loop": "c6fc1d50e4b98d9e",
+    "funccall": "cd1550bc3c852ab3",
+    "listcomp": "176bf00e2ec88f4a",
+    "nested": "39a2bab34c06c2c1",
+    "null_coalesce": "db80e79371f7a3e9",
+    "operators": "af0725bae372e16f",
+    "optional_access": "a42bf5297a56fb70",
+    "optional_filter": "0294b44c79d97f35",
+    "range_literal": "d63b224b5efbb6bb",
+    "safe_pipeline": "9106218c63cfb03a",
+    "tests": "8b1d2579bba72a2a",
+}
 
 
 def _compile_to_ast_dump(templates: dict[str, str]) -> dict[str, str]:
@@ -182,10 +232,11 @@ def baseline_asts():
 
 
 class TestASTBaseline:
-    """Verify that expression compilation produces consistent AST output.
+    """Verify expression compilation against committed AST snapshots.
 
-    These tests act as a regression gate during the _compile_expr refactor.
-    If any test fails after a refactor, the compiled output has changed.
+    Each template's ast.dump() output is hashed and compared to the
+    committed hash in _EXPECTED_AST_HASHES. This catches both accidental
+    changes and intentional ones (which require updating the hashes).
     """
 
     def test_all_templates_compile(self, baseline_asts):
@@ -194,9 +245,7 @@ class TestASTBaseline:
 
     def test_const_and_name(self, baseline_asts):
         dump = baseline_asts["const_and_name"]
-        # Const 42 should appear as ast.Constant(value=42)
         assert "Constant(value=42)" in dump
-        # Name lookup should use _ls (scope lookup)
         assert "_ls" in dump
 
     def test_containers(self, baseline_asts):
@@ -205,9 +254,7 @@ class TestASTBaseline:
 
     def test_binop(self, baseline_asts):
         dump = baseline_asts["binop"]
-        # ~ compiles to _markup_concat
         assert "_markup_concat" in dump
-        # + compiles to _add_polymorphic
         assert "_add_polymorphic" in dump
 
     def test_filters(self, baseline_asts):
@@ -236,17 +283,26 @@ class TestASTBaseline:
 
     def test_nested_arithmetic_with_filters(self, baseline_asts):
         dump = baseline_asts["nested"]
-        # Filter results in arithmetic should be coerced
         assert "_coerce_numeric" in dump
 
-    def test_ast_snapshot_stability(self, baseline_asts):
-        """Compile templates twice and verify AST output is deterministic.
+    def test_safe_pipeline(self, baseline_asts):
+        dump = baseline_asts["safe_pipeline"]
+        assert "_filters" in dump
 
-        This is the core regression gate: if the refactor changes compiled
-        output, the second compilation will produce different AST dumps.
+    def test_ast_hashes_match_committed_snapshots(self, baseline_asts):
+        """Verify compiled AST output matches committed SHA-256 hashes.
+
+        This is the true regression gate: it catches any change to compiled
+        output, whether the change is deterministic or not. If an intentional
+        compilation change breaks this test, update _EXPECTED_AST_HASHES.
         """
-        second_pass = _compile_to_ast_dump(_EXPR_COVERAGE_TEMPLATES)
-        for name in _EXPR_COVERAGE_TEMPLATES:
-            assert baseline_asts[name] == second_pass[name], (
-                f"AST dump for '{name}' is not deterministic across compilations"
+        for name, dump in baseline_asts.items():
+            actual = hashlib.sha256(dump.encode()).hexdigest()[:16]
+            expected = _EXPECTED_AST_HASHES.get(name)
+            assert expected is not None, (
+                f"No committed hash for template '{name}' — add it to _EXPECTED_AST_HASHES"
+            )
+            assert actual == expected, (
+                f"AST hash mismatch for '{name}': expected {expected}, got {actual}. "
+                f"If this is intentional, update _EXPECTED_AST_HASHES."
             )
