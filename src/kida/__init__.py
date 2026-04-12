@@ -68,6 +68,8 @@ empty string. Use `| default(fallback)` for optional variables:
 
 """
 
+from __future__ import annotations
+
 from functools import wraps
 from importlib.metadata import version
 from typing import TYPE_CHECKING
@@ -125,6 +127,7 @@ from kida.utils.workers import (
 
 # Python 3.14+ t-string support (PEP 750)
 # Only import if string.templatelib is available
+k: Callable[..., str] | None
 try:
     from kida.tstring import k, plain
 except ImportError:
@@ -156,7 +159,7 @@ def pure(func: Callable[..., object]) -> Callable[..., object]:
     def wrapper(*args: object, **kwargs: object) -> object:
         return func(*args, **kwargs)
 
-    wrapper._kida_pure = True  # type: ignore[attr-defined]
+    object.__setattr__(wrapper, "_kida_pure", True)
     return wrapper
 
 

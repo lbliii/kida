@@ -543,8 +543,9 @@ def _surface_scan(block_node: Block | Region) -> _SurfaceScanResult:
                         visit(child)
 
         # Handle embed blocks
-        if hasattr(node, "blocks") and isinstance(getattr(node, "blocks", None), dict):
-            for block in node.blocks.values():  # type: ignore[union-attr]
+        blocks = getattr(node, "blocks", None)
+        if isinstance(blocks, dict):
+            for block in blocks.values():
                 if isinstance(block, Node):
                     visit(block)
 

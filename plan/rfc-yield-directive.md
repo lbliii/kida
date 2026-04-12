@@ -1,6 +1,6 @@
 # RFC: `{% yield %}` Directive for Slot Rendering in Nested Calls
 
-**Status**: Draft
+**Status**: Implemented (Kida); Phase 2 (chirp-ui migration) in progress
 **Created**: 2026-03-16
 **Updated**: 2026-03-16 (rev 2 — implementation notes, expanded tests, migration gates)
 **Related**: Nested slot passthrough (v0.2.7), Named slots (v0.2.2)

@@ -119,6 +119,18 @@ include = [
 [tool.ty.overrides.rules]
 unresolved-attribute = "warn"
 
+# Optional framework integrations (not installed in minimal dev env).
+[[tool.ty.overrides]]
+include = ["src/kida/contrib/flask.py", "src/kida/contrib/starlette.py"]
+[tool.ty.overrides.rules]
+unresolved-import = "ignore"
+
+# Optional wcwidth (wider than Unicode East Asian width in stdlib).
+[[tool.ty.overrides]]
+include = ["src/kida/environment/terminal.py", "src/kida/utils/ansi_width.py"]
+[tool.ty.overrides.rules]
+unresolved-import = "ignore"
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"

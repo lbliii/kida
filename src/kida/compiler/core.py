@@ -52,6 +52,7 @@ from kida.nodes import (
     Capture,
     Def,
     Export,
+    Extends,
     For,
     FromImport,
     If,
@@ -72,7 +73,7 @@ if TYPE_CHECKING:
     import types
 
     from kida.environment import Environment
-    from kida.nodes import Extends, Node
+    from kida.nodes import Node
     from kida.nodes import Template as TemplateNode
 
 _TOP_LEVEL_STATEMENTS = frozenset(
@@ -1482,7 +1483,7 @@ class Compiler(
         self._collect_blocks(node.body)
         for child in node.body:
             if type(child).__name__ == "Extends":
-                extends_node = child  # type: ignore[assignment]
+                extends_node = cast("Extends", child)
                 break
 
         body: list[ast.stmt] = self._make_render_preamble()
@@ -1555,7 +1556,7 @@ class Compiler(
         extends_node: Extends | None = None
         for child in node.body:
             if type(child).__name__ == "Extends":
-                extends_node = child  # type: ignore[assignment]
+                extends_node = cast("Extends", child)
                 break
 
         body: list[ast.stmt] = self._make_render_preamble()
@@ -1688,7 +1689,7 @@ class Compiler(
         extends_node: Extends | None = None
         for child in node.body:
             if type(child).__name__ == "Extends":
-                extends_node = child  # type: ignore[assignment]
+                extends_node = cast("Extends", child)
                 break
 
         body: list[ast.stmt] = self._make_render_preamble()
@@ -1791,7 +1792,7 @@ class Compiler(
             # Direct node_type→extension dispatch (O(1) lookup)
             ext = self._extension_compilers.get(node_type)
             if ext is not None:
-                result = ext.compile(self, node)  # type: ignore[union-attr]
+                result = cast("Any", ext).compile(self, node)
                 stmts.extend(result)
 
         return stmts

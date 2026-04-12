@@ -29,7 +29,7 @@ This is the same pattern as Svelte's `let:` directive or Vue's scoped slots.
 
 A component provides data with `let:name=expr` on `{% slot %}`:
 
-```jinja2
+```kida
 {# components/user-list.html #}
 {% def user_list(users) %}
 <ul>
@@ -42,7 +42,7 @@ A component provides data with `let:name=expr` on `{% slot %}`:
 
 The caller receives that data with `let:name` on `{% call %}`:
 
-```jinja2
+```kida
 {% from "components/user-list.html" import user_list %}
 
 {% call(let:item) user_list(users=people) %}
@@ -67,7 +67,7 @@ The `let:` bindings flow **up** from the slot to the caller's block. Inside the
 
 A slot can expose more than one value:
 
-```jinja2
+```kida
 {% def data_table(rows) %}
 <table>
   {% for row in rows %}
@@ -77,7 +77,7 @@ A slot can expose more than one value:
 {% end %}
 ```
 
-```jinja2
+```kida
 {% call(let:item, let:index) data_table(rows=data) %}
   <td>{{ index }}</td>
   <td>{{ item.name }}</td>
@@ -90,7 +90,7 @@ A slot can expose more than one value:
 The `let:` value can be any expression -- attribute access, filters, function
 calls:
 
-```jinja2
+```kida
 {% slot let:label=item.name | upper, let:active=item.is_active %}
   {{ label }}
 {% end %}
@@ -101,7 +101,7 @@ calls:
 When the slot has `let:` bindings and a body, that body is the **default
 content** -- rendered when no caller provides a block:
 
-```jinja2
+```kida
 {% def card(user) %}
 <div class="card">
   {% slot let:item=user %}
@@ -114,14 +114,14 @@ content** -- rendered when no caller provides a block:
 
 Called without a block, the default renders:
 
-```jinja2
+```kida
 {{ card(user=alice) }}
 {# <div class="card"><span>Alice</span></div> #}
 ```
 
 Called with a block, the caller takes over:
 
-```jinja2
+```kida
 {% call(let:item) card(user=alice) %}
   <img src="{{ item.avatar }}"> <b>{{ item.name }}</b>
 {% end %}
@@ -131,14 +131,14 @@ Called with a block, the caller takes over:
 
 Scoped slots work with named slots too:
 
-```jinja2
+```kida
 {% def layout(page) %}
 <header>{% slot header %}<h1>{{ page.title }}</h1>{% end %}</header>
 <main>{% slot body let:data=page.content %}{{ data }}{% end %}</main>
 {% end %}
 ```
 
-```jinja2
+```kida
 {% call(let:data) layout(page=p) %}
   {% slot header %}<h1 class="fancy">{{ p.title }}</h1>{% end %}
   <div class="prose">{{ data | markdown }}</div>
@@ -157,7 +157,7 @@ cleanly:
 
 They can be used together:
 
-```jinja2
+```kida
 {% def themed_list(items) %}
 {% provide theme = "dark" %}
 <ul>
@@ -175,7 +175,7 @@ They can be used together:
 
 ## Real-world example: sortable table
 
-```jinja2
+```kida
 {# components/sortable-table.html #}
 {% def sortable_table(rows, columns) %}
 <table>
@@ -202,7 +202,7 @@ They can be used together:
 Default rendering works out of the box. Callers override when they need custom
 cell rendering:
 
-```jinja2
+```kida
 {% call(let:row, let:cols) sortable_table(rows=users, columns=cols) %}
   <td>{{ row.name }}</td>
   <td>{{ row.email }}</td>

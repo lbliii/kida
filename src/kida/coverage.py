@@ -73,10 +73,15 @@ class CoverageResult:
 def _coverage_setattr(self: RenderContext, name: str, value: object) -> None:
     """Patched __setattr__ that records line hits for coverage."""
     object.__setattr__(self, name, value)
-    if name == "line" and value:
+    if name == "line" and value is not None:
         cov = _coverage_data.get(None)
-        if cov is not None and self.template_name:
-            cov.setdefault(self.template_name, set()).add(value)  # type: ignore[arg-type]
+        if (
+            cov is not None
+            and self.template_name
+            and isinstance(value, int)
+            and not isinstance(value, bool)
+        ):
+            cov.setdefault(self.template_name, set()).add(value)
 
 
 class CoverageCollector:
@@ -100,7 +105,7 @@ class CoverageCollector:
         with _patch_lock:
             CoverageCollector._active_count += 1
             if CoverageCollector._active_count == 1:
-                RenderContext.__setattr__ = _coverage_setattr  # type: ignore[assignment]
+                type.__setattr__(RenderContext, "__setattr__", _coverage_setattr)
 
     def stop(self) -> None:
         """Stop collecting coverage data."""

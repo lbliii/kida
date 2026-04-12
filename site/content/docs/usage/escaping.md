@@ -136,13 +136,32 @@ template.render(content=Markup(html))
 
 ### HTML in JSON
 
-The `tojson` filter escapes for JavaScript:
+The `tojson` filter outputs JSON marked safe for the template engine. For **trusted** data, embedding that JSON inside a classic `<script>` block is often convenient:
 
 ```kida
 <script>
 const data = {{ user_data | tojson }};
 </script>
 ```
+
+Untrusted or attacker-controlled data can contain `</script>` (or `<`) and **close the script element early**, which breaks parsing and can enable XSS. Prefer `<script type="application/json">` plus `JSON.parse` on `textContent`, or serve JSON from an endpoint, instead of inlining raw `tojson` output in executable script for untrusted content.
+
+### JSON in HTML attributes
+
+Double-quoted attributes must not contain raw `"` in the value. Default `tojson` output includes double quotes, so this breaks the attribute:
+
+```kida
+{# Broken — quotes terminate the attribute early #}
+<div x-data="setup({{ config | tojson }})">
+```
+
+Use `tojson(attr=true)` so the JSON is HTML-entity-encoded (`"` → `&quot;`, etc.). The browser decodes entities before JavaScript reads the attribute (e.g. Alpine `x-data`):
+
+```kida
+<div x-data="{{ config | tojson(attr=true) }}">
+```
+
+Alternatively, keep default `tojson` and wrap the attribute in single quotes, or put JSON in `<script type="application/json">` and read it from script.
 
 ## Security Best Practices
 
