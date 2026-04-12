@@ -6,6 +6,8 @@ import sys
 from pprint import pformat
 from typing import Any
 
+from kida.tstring import plain as _plain
+
 
 def _debug_repr(value: Any, max_len: int = 60) -> str:
     """Create a compact repr for debug output."""
@@ -24,8 +26,8 @@ def _debug_repr(value: Any, max_len: int = 60) -> str:
         )
         if title is not None:
             if weight is not None:
-                return f"{type_name}(title={title!r}, weight={weight})"
-            return f"{type_name}(title={title!r})"
+                return _plain(t"{type_name}(title={title!r}, weight={weight})")
+            return _plain(t"{type_name}(title={title!r})")
 
     # Truncate long reprs
     r = repr(value)
@@ -58,48 +60,55 @@ def _filter_debug(value: Any, label: str | None = None, max_items: int = 5) -> A
 
     """
     type_name = type(value).__name__
-    label_str = f"[{label}]" if label else ""
+    label_str = _plain(t"[{label}]") if label else ""
 
     # Build output
-    lines = []
+    lines: list[str] = []
 
     if value is None:
-        lines.append(f"DEBUG {label_str}: None")
+        lines.append(_plain(t"DEBUG {label_str}: None"))
     elif isinstance(value, (list, tuple)):
-        lines.append(f"DEBUG {label_str}: <{type_name}[{len(value)}]>")
+        lines.append(_plain(t"DEBUG {label_str}: <{type_name}[{len(value)}]>"))
         for idx, item in enumerate(value[:max_items]):
             item_repr = _debug_repr(item)
             # Flag None values prominently
             none_warning = ""
             if hasattr(item, "__dict__"):
                 none_attrs = [
-                    k for k, v in vars(item).items() if v is None and not k.startswith("_")
+                    attr
+                    for attr, val in vars(item).items()
+                    if val is None and not attr.startswith("_")
                 ]
                 if none_attrs:
-                    none_warning = f"  <-- None: {', '.join(none_attrs[:3])}"
-            lines.append(f"  [{idx}] {item_repr}{none_warning}")
+                    joined = ", ".join(none_attrs[:3])
+                    none_warning = _plain(t"  <-- None: {joined}")
+            lines.append(_plain(t"  [{idx}] {item_repr}{none_warning}"))
         if len(value) > max_items:
-            lines.append(f"  ... ({len(value) - max_items} more items)")
+            remaining = len(value) - max_items
+            lines.append(_plain(t"  ... ({remaining} more items)"))
     elif isinstance(value, dict):
-        lines.append(f"DEBUG {label_str}: <{type_name}[{len(value)} keys]>")
-        for k, v in list(value.items())[:max_items]:
-            v_repr = _debug_repr(v)
-            none_warning = " <-- None!" if v is None else ""
-            lines.append(f"  {k!r}: {v_repr}{none_warning}")
+        lines.append(_plain(t"DEBUG {label_str}: <{type_name}[{len(value)} keys]>"))
+        for key, val in list(value.items())[:max_items]:
+            v_repr = _debug_repr(val)
+            none_warning = " <-- None!" if val is None else ""
+            lines.append(_plain(t"  {key!r}: {v_repr}{none_warning}"))
         if len(value) > max_items:
-            lines.append(f"  ... ({len(value) - max_items} more keys)")
+            remaining = len(value) - max_items
+            lines.append(_plain(t"  ... ({remaining} more keys)"))
     elif hasattr(value, "__dict__"):
         # Object with attributes
-        attrs = {k: v for k, v in vars(value).items() if not k.startswith("_")}
-        lines.append(f"DEBUG {label_str}: <{type_name}>")
-        for k, v in list(attrs.items())[:max_items]:
-            v_repr = _debug_repr(v)
-            none_warning = " <-- None!" if v is None else ""
-            lines.append(f"  .{k} = {v_repr}{none_warning}")
+        attrs = {attr: val for attr, val in vars(value).items() if not attr.startswith("_")}
+        lines.append(_plain(t"DEBUG {label_str}: <{type_name}>"))
+        for attr, val in list(attrs.items())[:max_items]:
+            v_repr = _debug_repr(val)
+            none_warning = " <-- None!" if val is None else ""
+            lines.append(_plain(t"  .{attr} = {v_repr}{none_warning}"))
         if len(attrs) > max_items:
-            lines.append(f"  ... ({len(attrs) - max_items} more attributes)")
+            remaining = len(attrs) - max_items
+            lines.append(_plain(t"  ... ({remaining} more attributes)"))
     else:
-        lines.append(f"DEBUG {label_str}: {_debug_repr(value)} ({type_name})")
+        debug_repr = _debug_repr(value)
+        lines.append(_plain(t"DEBUG {label_str}: {debug_repr} ({type_name})"))
 
     # Print to stderr
     print("\n".join(lines), file=sys.stderr)
