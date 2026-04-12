@@ -208,6 +208,7 @@ __all__ = [
     "html_escape",
     "is_free_threading_enabled",
     "k",
+    "plain",
     "profiled_render",
     "pure",
     "render_context",

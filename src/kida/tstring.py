@@ -274,12 +274,14 @@ def k(template: TemplateProtocol) -> str:
             val = getattr(interp, "value", interp)
             conversion = getattr(interp, "conversion", None) or ""
             format_spec = getattr(interp, "format_spec", None) or ""
-            converted = _convert(val, conversion, format_spec)
-            # Auto-escape if it's not already Markup (Kida principle)
-            if hasattr(val, "__html__"):
+            # If conversion or format_spec is requested, apply it and escape
+            # the result — the converted string is no longer safe Markup.
+            if conversion or format_spec:
+                parts.append(html_escape(_convert(val, conversion, format_spec)))
+            elif hasattr(val, "__html__"):
                 parts.append(val.__html__())
             else:
-                parts.append(html_escape(converted))
+                parts.append(html_escape(str(val)))
 
     return "".join(parts)
 

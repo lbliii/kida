@@ -38,9 +38,10 @@ class ParseError(TemplateSyntaxError):
         # Initialize parent with TemplateSyntaxError signature
         # Note: we override _format_message so the formatted output comes from there
         super().__init__(message, token.lineno, filename, filename)
-        # Set source AFTER super().__init__() — parent sets self.source = None
-        # when source is not passed, which clobbers our value.
+        # Restore source after parent initialization, then rebuild the stored
+        # exception message so str(ParseError) includes source context.
         self.source = source
+        self.args = (self._format_message(),)
 
     def _format_message(self) -> str:
         """Override parent's formatting with rich source context."""

@@ -98,7 +98,7 @@ msg = plain(t"Logged in: {user}")
 # 'Logged in: <admin>'  — no escaping
 ```
 
-`plain()` supports conversion specs (`!r`, `!s`) and format specs (`:>3`, `:.2f`). See [T-Strings (PEP 750)]({{< relref "/docs/advanced/t-strings#the-plain-tag--no-escape-concatenation" >}}) for details.
+`plain()` supports conversion specs (`!r`, `!s`, `!a`) and format specs (`:>3`, `:.2f`). See [T-Strings (PEP 750)]({{< relref "/docs/advanced/t-strings#the-plain-tag--no-escape-concatenation" >}}) for details.
 
 ## Requirements
 
