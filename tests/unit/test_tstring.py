@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from kida.tstring import ComposablePattern, PatternError, k, r
+from kida.tstring import ComposablePattern, PatternError, k, plain, r
 
 # ---------------------------------------------------------------------------
 # Helpers — build SimpleNamespace t-string stand-ins
@@ -18,6 +18,19 @@ def _make_tstr(strings: list[str], interpolations: list[object]) -> SimpleNamesp
         strings=strings,
         interpolations=[SimpleNamespace(value=v) for v in interpolations],
     )
+
+
+def _make_interp(
+    value: object,
+    conversion: str | None = None,
+    format_spec: str | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(value=value, conversion=conversion, format_spec=format_spec)
+
+
+def _make_tstr_full(strings: list[str], interpolations: list[SimpleNamespace]) -> SimpleNamespace:
+    """Build a t-string mock with full Interpolation-like objects."""
+    return SimpleNamespace(strings=strings, interpolations=interpolations)
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +93,123 @@ class TestKTag:
         """Strings list has empty string between consecutive interpolations."""
         tmpl = _make_tstr(["", "", ""], ["<a>", "<b>"])
         assert k(tmpl) == "&lt;a&gt;&lt;b&gt;"
+
+
+# ---------------------------------------------------------------------------
+# k-tag: conversion and format_spec handling
+# ---------------------------------------------------------------------------
+
+
+class TestKTagConversion:
+    def test_repr_conversion(self) -> None:
+        tmpl = _make_tstr_full(["", ""], [_make_interp("hello", conversion="r")])
+        assert k(tmpl) == "&#39;hello&#39;"
+
+    def test_str_conversion(self) -> None:
+        tmpl = _make_tstr_full(["", ""], [_make_interp(42, conversion="s")])
+        assert k(tmpl) == "42"
+
+    def test_ascii_conversion(self) -> None:
+        tmpl = _make_tstr_full(["", ""], [_make_interp("caf\u00e9", conversion="a")])
+        result = k(tmpl)
+        assert "\\xe9" in result
+
+    def test_format_spec(self) -> None:
+        tmpl = _make_tstr_full(["pi=", ""], [_make_interp(3.14159, format_spec=".2f")])
+        assert k(tmpl) == "pi=3.14"
+
+    def test_format_spec_with_html(self) -> None:
+        """Format spec on a string with HTML chars should still escape."""
+        tmpl = _make_tstr_full(["", ""], [_make_interp("<b>", format_spec=">10")])
+        result = k(tmpl)
+        assert "&lt;" in result
+        assert "<b>" not in result
+
+    def test_html_object_no_conversion_passes_through(self) -> None:
+        """__html__ objects with no conversion/format_spec use the fast path."""
+
+        class Safe:
+            def __html__(self) -> str:
+                return "<em>safe</em>"
+
+        tmpl = _make_tstr_full(["", ""], [_make_interp(Safe())])
+        assert k(tmpl) == "<em>safe</em>"
+
+    def test_html_object_with_conversion_is_escaped(self) -> None:
+        """__html__ objects with !r should be converted and escaped, not passed through."""
+
+        class Safe:
+            def __html__(self) -> str:
+                return "<em>safe</em>"
+
+            def __repr__(self) -> str:
+                return "Safe(<em>safe</em>)"
+
+        tmpl = _make_tstr_full(["", ""], [_make_interp(Safe(), conversion="r")])
+        result = k(tmpl)
+        # !r should repr the object and escape the result
+        assert "&lt;em&gt;" in result
+        assert "<em>" not in result
+
+    def test_no_conversion_no_format_spec(self) -> None:
+        """Without conversion or format_spec, behaves like basic k()."""
+        tmpl = _make_tstr_full(["", ""], [_make_interp("<script>")])
+        assert k(tmpl) == "&lt;script&gt;"
+
+
+# ---------------------------------------------------------------------------
+# plain-tag
+# ---------------------------------------------------------------------------
+
+
+class TestPlainTag:
+    def test_basic_concatenation(self) -> None:
+        tmpl = _make_tstr(["Hello ", "!"], ["<World>"])
+        assert plain(tmpl) == "Hello <World>!"
+
+    def test_no_escaping(self) -> None:
+        tmpl = _make_tstr(["", ""], ['<script>alert("xss")</script>'])
+        assert plain(tmpl) == '<script>alert("xss")</script>'
+
+    def test_empty(self) -> None:
+        tmpl = _make_tstr([""], [])
+        assert plain(tmpl) == ""
+
+    def test_repr_conversion(self) -> None:
+        tmpl = _make_tstr_full(["", ""], [_make_interp("hello", conversion="r")])
+        assert plain(tmpl) == "'hello'"
+
+    def test_str_conversion(self) -> None:
+        tmpl = _make_tstr_full(["", ""], [_make_interp(42, conversion="s")])
+        assert plain(tmpl) == "42"
+
+    def test_ascii_conversion(self) -> None:
+        tmpl = _make_tstr_full(["", ""], [_make_interp("caf\u00e9", conversion="a")])
+        assert plain(tmpl) == "'caf\\xe9'"
+
+    def test_format_spec(self) -> None:
+        tmpl = _make_tstr_full(["pi=", ""], [_make_interp(3.14159, format_spec=".2f")])
+        assert plain(tmpl) == "pi=3.14"
+
+    def test_conversion_and_format_spec(self) -> None:
+        tmpl = _make_tstr_full(["", ""], [_make_interp("hi", conversion="r", format_spec=">10")])
+        result = plain(tmpl)
+        assert result == "      'hi'"
+
+    def test_multiple_interpolations(self) -> None:
+        tmpl = _make_tstr_full(
+            ["", " -> ", ""],
+            [_make_interp("<a>"), _make_interp("<b>")],
+        )
+        assert plain(tmpl) == "<a> -> <b>"
+
+    def test_integer(self) -> None:
+        tmpl = _make_tstr(["count: ", ""], [42])
+        assert plain(tmpl) == "count: 42"
+
+    def test_none(self) -> None:
+        tmpl = _make_tstr(["value: ", ""], [None])
+        assert plain(tmpl) == "value: None"
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,9 @@
 # RFC: Typed Parameters for `{% def %}`
 
-**Status**: Draft  
+**Status**: Implemented  
 **Created**: 2026-02-10  
-**Updated**: 2026-02-10  
+**Updated**: 2026-04-12  
+**Completed**: Shipped in v0.4.0  
 **Related**: Gap Analysis — Kida/Chirp Strategic Plan  
 **Priority**: P1 (foundational — unlocks contract validation and component library)
 

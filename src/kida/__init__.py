@@ -126,10 +126,11 @@ from kida.utils.workers import (
 # Python 3.14+ t-string support (PEP 750)
 # Only import if string.templatelib is available
 try:
-    from kida.tstring import k
+    from kida.tstring import k, plain
 except ImportError:
     # Pre-3.14 Python - t-strings not available
     k = None  # type: ignore[assignment]
+    plain = None  # type: ignore[assignment]
 
 __version__ = version("kida-templates")
 
@@ -207,6 +208,7 @@ __all__ = [
     "html_escape",
     "is_free_threading_enabled",
     "k",
+    "plain",
     "profiled_render",
     "pure",
     "render_context",
