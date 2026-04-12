@@ -272,11 +272,66 @@ def k(template: TemplateProtocol) -> str:
         if i < len(interpolations):
             interp = interpolations[i]
             val = getattr(interp, "value", interp)
-            # Auto-escape if it's not already Markup (Kida principle)
-            if hasattr(val, "__html__"):
+            conversion = getattr(interp, "conversion", None) or ""
+            format_spec = getattr(interp, "format_spec", None) or ""
+            # If conversion or format_spec is requested, apply it and escape
+            # the result — the converted string is no longer safe Markup.
+            if conversion or format_spec:
+                parts.append(html_escape(_convert(val, conversion, format_spec)))
+            elif hasattr(val, "__html__"):
                 parts.append(val.__html__())
             else:
                 parts.append(html_escape(str(val)))
+
+    return "".join(parts)
+
+
+# =============================================================================
+# plain-tag: No-Escape Template Strings
+# =============================================================================
+
+
+def _convert(val: object, conversion: str, format_spec: str) -> str:
+    """Apply PEP 750 conversion and format_spec to a value."""
+    if conversion == "r":
+        val = repr(val)
+    elif conversion == "s":
+        val = str(val)
+    elif conversion == "a":
+        val = ascii(val)
+    if format_spec:
+        return format(val, format_spec)
+    return str(val)
+
+
+def plain(template: TemplateProtocol) -> str:
+    """The ``plain`` tag for non-HTML t-string concatenation.
+
+    Processes a PEP 750 t-string by concatenating strings and interpolated
+    values **without** HTML escaping. Respects ``!r``/``!s``/``!a`` conversions
+    and format specs. Use this for contexts where escaping is unwanted: error
+    messages, debug output, terminal text, log lines.
+
+    For HTML-safe output, use :func:`k` instead.
+
+    Example:
+            >>> name = "<admin>"
+            >>> plain(t"User: {name}")
+            'User: <admin>'
+
+    """
+    strings = template.strings
+    interpolations = template.interpolations
+    parts: list[str] = []
+
+    for i in range(len(strings)):
+        parts.append(strings[i])
+        if i < len(interpolations):
+            interp = interpolations[i]
+            val = getattr(interp, "value", interp)
+            conversion = getattr(interp, "conversion", None) or ""
+            format_spec = getattr(interp, "format_spec", None) or ""
+            parts.append(_convert(val, conversion, format_spec))
 
     return "".join(parts)
 
@@ -290,6 +345,7 @@ __all__ = [
     "PatternError",
     "TemplateProtocol",
     "k",
+    "plain",
     "r",
     "templatelib",
 ]

@@ -804,11 +804,13 @@ class Environment:
 
                 escape_fn = Markup.escape
 
+            from kida.utils.constants import PURE_FILTERS_ALL
+
             ast = partial_evaluate(
                 ast,
                 static_context,
                 escape_func=escape_fn,
-                pure_filters=frozenset(self.pure_filters),
+                pure_filters=PURE_FILTERS_ALL | frozenset(self.pure_filters),
                 filter_callables=self._filters,
                 inline_components=self.inline_components,
             )

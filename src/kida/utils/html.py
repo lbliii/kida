@@ -488,6 +488,20 @@ def _is_valid_attr_name(name: str) -> bool:
     return all(char not in _INVALID_ATTR_CHARS for char in name)
 
 
+def _k_attr(safe_key: Markup, val: Any) -> str:
+    """Format a single HTML attribute using t-string auto-escaping.
+
+    ``safe_key`` must be a :class:`Markup` instance so ``k()`` passes it through.
+    ``val`` is auto-escaped by ``k()``.
+
+    Late-imports ``k`` to avoid circular import (``tstring`` imports ``html_escape``
+    from this module).
+    """
+    from kida.tstring import k
+
+    return k(t'{safe_key}="{val}"')
+
+
 def xmlattr(
     value: dict[str, Any],
     *,

@@ -32,13 +32,16 @@ class ParseError(TemplateSyntaxError):
         code: ErrorCode | None = None,
     ):
         self.token = token
-        self.source = source
         self.suggestion = suggestion
         self._col_offset = token.col_offset
         self.code = code if code is not None else ErrorCode.UNEXPECTED_TOKEN
         # Initialize parent with TemplateSyntaxError signature
         # Note: we override _format_message so the formatted output comes from there
         super().__init__(message, token.lineno, filename, filename)
+        # Restore source after parent initialization, then rebuild the stored
+        # exception message so str(ParseError) includes source context.
+        self.source = source
+        self.args = (self._format_message(),)
 
     def _format_message(self) -> str:
         """Override parent's formatting with rich source context."""

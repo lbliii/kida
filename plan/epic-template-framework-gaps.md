@@ -1,7 +1,8 @@
 # Epic: Template Framework Composition Gaps
 
-**Status**: Draft
+**Status**: Complete
 **Created**: 2026-04-09
+**Completed**: 2026-04-10 (shipped in v0.4.0)
 **Priority**: P1 (positioning — these are the gaps between "template engine" and "template framework")
 **Affects**: kida core, downstream consumers
 

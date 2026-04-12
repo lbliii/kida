@@ -804,6 +804,15 @@ class Compiler(
                             ctx=ast.Load(),
                         ),
                     ),
+                    # Cache ''.join as _join for LOAD_FAST on return path
+                    ast.Assign(
+                        targets=[ast.Name(id="_join", ctx=ast.Store())],
+                        value=ast.Attribute(
+                            value=ast.Constant(value=""),
+                            attr="join",
+                            ctx=ast.Load(),
+                        ),
+                    ),
                 ]
             )
         if include_acc:
@@ -1328,15 +1337,11 @@ class Compiler(
         body.extend(self._emit_cache_assignments(cacheable))
         body.extend(compiled_stmts)
 
-        # return ''.join(buf)
+        # return _join(buf)  — _join cached in preamble for LOAD_FAST
         body.append(
             ast.Return(
                 value=ast.Call(
-                    func=ast.Attribute(
-                        value=ast.Constant(value=""),
-                        attr="join",
-                        ctx=ast.Load(),
-                    ),
+                    func=ast.Name(id="_join", ctx=ast.Load()),
                     args=[ast.Name(id="buf", ctx=ast.Load())],
                     keywords=[],
                 ),
@@ -1451,11 +1456,7 @@ class Compiler(
             body.append(
                 ast.Return(
                     value=ast.Call(
-                        func=ast.Attribute(
-                            value=ast.Constant(value=""),
-                            attr="join",
-                            ctx=ast.Load(),
-                        ),
+                        func=ast.Name(id="_join", ctx=ast.Load()),
                         args=[ast.Name(id="buf", ctx=ast.Load())],
                         keywords=[],
                     ),

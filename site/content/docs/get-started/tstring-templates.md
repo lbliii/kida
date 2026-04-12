@@ -60,9 +60,15 @@ print(html)
 
 | Approach | Best For |
 |----------|----------|
-| `k(t"...")` | Quick inline snippets, string building in Python code |
+| `k(t"...")` | Quick inline HTML snippets with auto-escaping |
+| `plain(t"...")` | Non-HTML string assembly (logs, errors, terminal output) |
 | `env.from_string(...)` | Dynamic templates with filters, control flow |
 | `env.get_template(...)` | File-based templates, inheritance, caching |
+
+> **Performance note:** `k()` and `plain()` are ~1.5-4x slower than equivalent f-strings
+> due to PEP 750 `Interpolation` object overhead. Use them when you need auto-escaping
+> (`k`) or t-string composability (`plain`), not as a general f-string replacement.
+> See [T-Strings (PEP 750)]({{< relref "/docs/advanced/t-strings#performance-t-strings-vs-f-strings" >}}) for benchmark data.
 
 T-strings are ideal when you need a few lines of safe HTML without loading a full template:
 
@@ -80,9 +86,23 @@ def render_user_list(users: list[dict]) -> str:
     return k(t"<ul>{items}</ul>")
 ```
 
+## The `plain` Tag
+
+For non-HTML contexts where escaping is unwanted, use `plain()`:
+
+```python
+from kida import plain
+
+user = "<admin>"
+msg = plain(t"Logged in: {user}")
+# 'Logged in: <admin>'  — no escaping
+```
+
+`plain()` supports conversion specs (`!r`, `!s`, `!a`) and format specs (`:>3`, `:.2f`). See [T-Strings (PEP 750)]({{< relref "/docs/advanced/t-strings#the-plain-tag--no-escape-concatenation" >}}) for details.
+
 ## Requirements
 
-T-strings require Python 3.14+ (PEP 750). On earlier Python versions, `k` is `None` and importing it will not raise an error, but calling it will.
+T-strings require Python 3.14+ (PEP 750). On earlier Python versions, `k` and `plain` are `None` and importing them will not raise an error, but calling them will.
 
 ```python
 from kida import k
@@ -98,5 +118,6 @@ else:
 
 ## See Also
 
+- [[docs/advanced/t-strings|T-Strings (PEP 750)]] — Full reference for `k()`, `plain()`, and `r()` tags, plus performance data
 - [[docs/usage/escaping|Escaping]] — HTML escaping and the Markup class
 - [[docs/reference/api|API Reference]] — Full `k` tag API

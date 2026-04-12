@@ -86,6 +86,8 @@ jobs:
           data-format: junit-xml
           post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
           comment-header: CI Report
+          app-id: ${{ secrets.KIDA_APP_ID }}
+          app-private-key: ${{ secrets.KIDA_APP_PRIVATE_KEY }}
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -101,6 +103,8 @@ jobs:
           comment-header: CI Report
           comment-mode: append
           context: "${{ steps.changed.outputs.files && format('{0}{1}{2}', '{\"changed_files\": ', steps.changed.outputs.files, '}') || '' }}"
+          app-id: ${{ secrets.KIDA_APP_ID }}
+          app-private-key: ${{ secrets.KIDA_APP_PRIVATE_KEY }}
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -156,6 +160,8 @@ jobs:
           post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
           comment-header: CI Report
           comment-mode: append
+          app-id: ${{ secrets.KIDA_APP_ID }}
+          app-private-key: ${{ secrets.KIDA_APP_PRIVATE_KEY }}
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -204,6 +210,8 @@ jobs:
           post-to: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'step-summary,pr-comment' || 'step-summary' }}
           comment-header: CI Report
           comment-mode: append
+          app-id: ${{ secrets.KIDA_APP_ID }}
+          app-private-key: ${{ secrets.KIDA_APP_PRIVATE_KEY }}
           python-version: skip
           install: 'false'
           kida-command: uv run kida
@@ -364,7 +372,7 @@ jobs:
           uv run pytest benchmarks/ --benchmark-only --benchmark-json=benchmark-results.json -q
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-${{ github.sha }}
           path: benchmark-results.json
