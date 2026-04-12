@@ -179,14 +179,14 @@ Both templates share the same base layout, but each fills in its own title and c
 :::{card} Template Inheritance
 :icon: layers
 :link: /docs/syntax/inheritance/
-:description: Extends, blocks, super()
+:description: Extends, blocks, and multi-level layouts
 Deep dive into Kida's inheritance model.
 :::{/card}
 
 :::{card} Filters Reference
 :icon: filter
 :link: ../reference/filters
-:description: 40+ built-in filters
+:description: 60+ built-in filters
 Browse all available filters with examples.
 :::{/card}
 

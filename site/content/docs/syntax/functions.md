@@ -282,7 +282,7 @@ This pattern is useful for components that should adapt their markup depending o
 ### Scoped Slots
 
 Slots can also pass data **back up** to the caller using `let:` bindings.
-See [Scoped Slots]({{< ref "docs/syntax/scoped-slots" >}}) for the full guide.
+See [Scoped Slots]({{< ref "docs/advanced/scoped-slots" >}}) for the full guide.
 
 ---
 
