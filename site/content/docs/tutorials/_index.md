@@ -57,4 +57,11 @@ Build custom filters from scratch with examples for common use cases.
 Configure Claude, Copilot, or Cursor to produce structured reviews rendered as PR comments.
 :::{/card}
 
+:::{card} Terminal Rendering
+:icon: terminal
+:link: /docs/tutorials/terminal-rendering/
+:description: Build rich terminal output with colors, components, and live updates
+Render templates to the terminal with ANSI colors, LiveRenderer animation, and static_context optimization.
+:::{/card}
+
 :::{/cards}

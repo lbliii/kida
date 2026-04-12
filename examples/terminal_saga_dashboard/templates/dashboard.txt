@@ -1,0 +1,14 @@
+{%- set w = 64 -%}
+{{ app_icon | bold | bright_cyan }} {{ app_title | bold }} v{{ version | dim }}
+{{ hr(w) }}
+
+{% if loading -%}
+  {{ spinner() }} Fetching service status...
+{% else -%}
+{% for svc in services -%}
+{% if svc.status == "healthy" -%}{{ icons.check | green }} {% elif svc.status == "degraded" -%}{{ icons.warn | yellow }} {% else -%}{{ icons.cross | red }} {% end -%}{{ svc.name | pad(14) }} {{ svc.latency | dim }}
+{% end -%}
+{% end -%}
+
+{{ hr(w) }}
+{{ "cycle" | dim }} {{ cycle_count | dim }} {{ separator | dim }} {{ "refresh: 2s" | dim }}

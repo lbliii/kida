@@ -179,6 +179,7 @@ dev = [
     "pytest-timeout>=2.3.0",   # Prevent hung tests
     "hypothesis>=6.100.0",     # Property-based testing
     "jinja2>=3.1.6,<3.2",
+    "milo-cli>=0.2.1",         # Saga benchmarks + examples (dev-only)
     # Linting & Type Checking
     "ty>=0.0.11",   # Astral type checker (Rust-based)
     "ruff>=0.15.1", # 0.15.1+ fixes except-parenthesis bug (PEP 758 + as clause)

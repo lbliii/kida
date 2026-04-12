@@ -404,6 +404,7 @@ perf = [
 dev = [
     { name = "hypothesis" },
     { name = "jinja2" },
+    { name = "milo-cli" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -430,6 +431,7 @@ provides-extras = ["docs", "perf"]
 dev = [
     { name = "hypothesis", specifier = ">=6.100.0" },
     { name = "jinja2", specifier = ">=3.1.6,<3.2" },
+    { name = "milo-cli", specifier = ">=0.2.1" },
     { name = "pre-commit", specifier = ">=4.0.0" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.23" },
@@ -521,6 +523,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "milo-cli"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "kida-templates" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d3/c9/6cce62e724207f8c40ef521a28c60b4b3e385d67e518737bab4767326ed0/milo_cli-0.2.1.tar.gz", hash = "sha256:0960931c15a14d8a50435bbbcac6467cfe0e8027db79672ccbf2e84f90afe469", size = 184817, upload-time = "2026-04-12T15:23:58.977Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/a4/4787334a897986b35adc4990b0dd70194bd8ec5142e0310c87a1be33b462/milo_cli-0.2.1-py3-none-any.whl", hash = "sha256:ab97ac6936fa5ae50dd792b13053ea6f9e28395e7c112ba8df8eba3c2f18f052", size = 117442, upload-time = "2026-04-12T15:23:57.635Z" },
 ]
 
 [[package]]
