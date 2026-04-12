@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kida.exceptions import ErrorCode, TemplateSyntaxError
+from kida.tstring import plain as _plain
 
 if TYPE_CHECKING:
     from kida._types import Token
@@ -32,13 +33,15 @@ class ParseError(TemplateSyntaxError):
         code: ErrorCode | None = None,
     ):
         self.token = token
-        self.source = source
         self.suggestion = suggestion
         self._col_offset = token.col_offset
         self.code = code if code is not None else ErrorCode.UNEXPECTED_TOKEN
         # Initialize parent with TemplateSyntaxError signature
         # Note: we override _format_message so the formatted output comes from there
         super().__init__(message, token.lineno, filename, filename)
+        # Set source AFTER super().__init__() — parent sets self.source = None
+        # when source is not passed, which clobbers our value.
+        self.source = source
 
     def _format_message(self) -> str:
         """Override parent's formatting with rich source context."""
@@ -60,38 +63,37 @@ class ParseError(TemplateSyntaxError):
         # Header with Kida branding and error code
         location = self.filename or "<template>"
         code_str = self.code.value if self.code else "K-PAR-001"
-        header = (
-            f"Kida Parse Error [{code_str}]: {self.message}\n"
-            f"  --> {location}:{self.token.lineno}:{self.token.col_offset}"
+        message = self.message
+        lineno = self.token.lineno
+        col_offset = self.token.col_offset
+        header = _plain(
+            t"Kida Parse Error [{code_str}]: {message}\n  --> {location}:{lineno}:{col_offset}"
         )
 
         # Source context (if available)
         if self.source:
             lines = self.source.splitlines()
-            if 0 < self.token.lineno <= len(lines):
-                error_line = lines[self.token.lineno - 1]
+            if 0 < lineno <= len(lines):
+                error_line = lines[lineno - 1]
                 # Create pointer to error location
-                pointer = " " * self.token.col_offset + "^"
+                pointer = " " * col_offset + "^"
 
                 # Build the error display
-                line_num = self.token.lineno
-                msg = f"""
-{header}
-   |
-{line_num:>3} | {error_line}
-   | {pointer}"""
+                msg = _plain(t"\n{header}\n   |\n{lineno:>3} | {error_line}\n   | {pointer}")
             else:
-                msg = f"\n{header}"
+                msg = _plain(t"\n{header}")
         else:
             # Fallback without source
-            msg = f"\n{header}"
+            msg = _plain(t"\n{header}")
 
         # Add suggestion if available
         if self.suggestion:
-            msg += f"\n\nSuggestion: {self.suggestion}"
+            suggestion = self.suggestion
+            msg += _plain(t"\n\nSuggestion: {suggestion}")
 
         # Add docs URL
         if self.code:
-            msg += f"\n\nDocs: {self.code.docs_url}"
+            docs_url = self.code.docs_url
+            msg += _plain(t"\n\nDocs: {docs_url}")
 
         return msg
