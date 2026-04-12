@@ -82,9 +82,21 @@ inputs:
     required: false
     default: ''
   token:
-    description: 'GitHub token for posting PR comments. Only needed when post-to includes pr-comment.'
+    description: 'GitHub token for posting PR comments. Only needed when post-to includes pr-comment. Ignored when app-id is provided.'
     required: false
     default: ${{ github.token }}
+  app-id:
+    description: >
+      GitHub App ID for posting PR comments with a branded identity.
+      When provided (along with app-private-key), a short-lived token is
+      generated automatically and used instead of the token input.
+    required: false
+    default: ''
+  app-private-key:
+    description: >
+      Private key (PEM) for the GitHub App. Required when app-id is set.
+    required: false
+    default: ''
   python-version:
     description: 'Python version to use (3.12+). Set to "skip" to skip Python setup.'
     required: false
@@ -547,11 +559,19 @@ runs:
 
         echo "output_file=$OUTPUT_FILE" >> "$GITHUB_OUTPUT"
 
+    - name: Generate app token
+      id: app-token
+      if: inputs.app-id != ''
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-private-key }}
+
     - name: Post report
       id: post
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
+        GH_TOKEN: ${{ inputs.app-id != '' && steps.app-token.outputs.token || inputs.token }}
       run: |
         set -euo pipefail
 
