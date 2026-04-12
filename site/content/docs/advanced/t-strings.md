@@ -27,6 +27,7 @@ Kida ships two t-string tag functions that leverage Python 3.14's native templat
 | Tag | Purpose | Returns |
 |-----|---------|---------|
 | `k()` | Auto-escaping HTML interpolation | `str` |
+| `plain()` | No-escape concatenation for non-HTML contexts | `str` |
 | `r()` | Composable regex with ReDoS validation | `ComposablePattern` |
 
 Both are available from the top-level `kida` package and from `kida.tstring`.
@@ -76,6 +77,36 @@ def render_user_card(name: str, bio: str) -> str:
 # User input is automatically escaped
 render_user_card("<script>", "I'm a <b>hacker</b>")
 ```
+
+## The `plain` Tag — No-Escape Concatenation
+
+`plain()` processes a t-string by concatenating strings and interpolated values **without** HTML escaping. Use it for contexts where escaping is unwanted: error messages, debug output, terminal text, log lines.
+
+```python
+from kida.tstring import plain
+
+name = "<admin>"
+msg = plain(t"User: {name}")
+# 'User: <admin>'  — no escaping applied
+```
+
+`plain()` respects conversion specs (`!r`, `!s`, `!a`) and format specs (`:>3`, `:.2f`, etc.):
+
+```python
+from kida.tstring import plain
+
+title = "Hello"
+count = 3.14159
+line = plain(t"{title!r} has {count:.2f} points")
+# "'Hello' has 3.14 points"
+```
+
+### When to Use `plain` vs `k`
+
+| Tag | Escapes? | Use for |
+|-----|----------|---------|
+| `k()` | Yes (HTML) | User-facing HTML output |
+| `plain()` | No | Logs, errors, debug output, terminal text |
 
 ## The `r` Tag — Composable Regex
 
@@ -155,6 +186,42 @@ string_pat = ComposablePattern(r"'[^']*'")
 token = r(t"{ident_pat}|{string_pat}")
 ```
 
+## Performance: T-Strings vs F-Strings
+
+T-string tag functions (`k()`, `plain()`) have measurable overhead compared to f-strings due to the function call and per-interpolation attribute access on `Interpolation` objects. Benchmarking from the [t-string dogfooding epic](https://github.com/lbliii/kida/blob/main/plan/epic-tstring-dogfooding.md) measured this on real internal code:
+
+| Pattern | f-string | t-string | Slowdown |
+|---------|----------|----------|----------|
+| 1 attribute (`xmlattr`) | ~1.0 us | ~1.7 us | 1.7x |
+| 10 attributes (`xmlattr`) | ~7.5 us | ~14.3 us | 1.9x |
+| List debug output (5 items) | ~9.3 us | ~15.2 us | 1.6x |
+| Multi-line error format (5 vars) | ~0.9 us | ~3.3 us | 3.8x |
+
+### When t-strings are worth the cost
+
+Use t-strings when **safety matters more than nanoseconds**:
+
+- **User-facing HTML** — `k()` prevents XSS. The escaping cost is the point.
+- **Composing regex** — `r()` prevents ReDoS and group collision. Correctness over speed.
+- **Template boundary code** — Code that bridges user input and rendered output.
+
+### When f-strings are the right choice
+
+Use f-strings for **internal string assembly** where escaping adds no value:
+
+- Error messages and exception formatting
+- Debug/log output
+- Internal string building (list + join patterns)
+- Terminal output and CLI formatting
+
+The overhead of `k()`/`plain()` comes from the PEP 750 `Interpolation` object protocol — each interpolation requires `getattr` calls for `.value`, `.conversion`, and `.format_spec`. For hot paths with many interpolations, this adds up. f-strings compile to direct `FORMAT_VALUE` bytecode with no function call overhead.
+
+### Rule of thumb
+
+> If the string will be rendered as HTML to a user, use `k()`.
+> For everything else, use f-strings.
+> Use `plain()` only when you need t-string composability without escaping.
+
 ## API Reference
 
 ### Functions
@@ -162,6 +229,7 @@ token = r(t"{ident_pat}|{string_pat}")
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `k()` | `(template: TemplateProtocol) -> str` | Auto-escaping HTML interpolation |
+| `plain()` | `(template: TemplateProtocol) -> str` | No-escape concatenation (respects conversion/format specs) |
 | `r()` | `(template: TemplateProtocol) -> ComposablePattern` | Safe regex composition |
 
 ### Classes
@@ -176,10 +244,10 @@ token = r(t"{ident_pat}|{string_pat}")
 
 ```python
 # From top-level package
-from kida import k, r, ComposablePattern
+from kida import k, plain, r, ComposablePattern
 
 # From tstring module
-from kida.tstring import k, r, ComposablePattern, PatternError
+from kida.tstring import k, plain, r, ComposablePattern, PatternError
 ```
 
 ## See Also
