@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: Command-line tools for checking, rendering, and formatting Kida templates
+description: Command-line tools for checking, rendering, formatting, inspecting, and generating with Kida templates
 draft: false
 weight: 35
 lang: en
@@ -11,10 +11,16 @@ tags:
   - check
   - render
   - fmt
+  - components
+  - readme
+  - extract
 keywords:
   - kida check
   - kida render
   - kida fmt
+  - kida components
+  - kida readme
+  - kida extract
   - command line
   - template validation
 icon: terminal
@@ -22,7 +28,7 @@ icon: terminal
 
 # CLI Reference
 
-Kida ships three subcommands: `check` for validation, `render` for output, and `fmt` for formatting. All are available through the `kida` entry point or `python -m kida`.
+Kida ships six subcommands: `check`, `render`, `fmt`, `components`, `readme`, and `extract`. All are available through the `kida` entry point or `python -m kida`.
 
 ```bash
 kida <command> [options]
@@ -101,9 +107,12 @@ kida render <template> [flags]
 |------|---------|-------------|
 | `--data FILE` | none | JSON file providing template context variables. |
 | `--data-str JSON` | none | Inline JSON string providing template context variables. |
-| `--mode {html,terminal}` | `terminal` | Rendering mode. `terminal` enables ANSI styling and width-aware layout. |
+| `--mode {html,terminal,markdown}` | `html` | Rendering mode. `terminal` enables ANSI styling and width-aware layout. |
 | `--width INT` | auto | Override terminal width (terminal mode only). |
 | `--color {none,basic,256,truecolor}` | auto | Override color depth (terminal mode only). |
+| `--data-format {json,junit-xml,sarif,lcov}` | `json` | Format of the data file. |
+| `--set KEY=VALUE` | none | Set template variables (repeatable). Values are parsed as JSON if valid, otherwise kept as strings. |
+| `--explain` | off | Show which compile-time optimizations were applied. |
 | `--stream` | off | Progressive output: reveal template chunks with a brief delay. |
 | `--stream-delay SECONDS` | `0.02` | Delay between stream chunks. Requires `--stream`. |
 
@@ -172,6 +181,190 @@ CI check (no writes, non-zero exit on drift):
 
 ```bash
 kida fmt templates/ --check
+```
+
+## kida components
+
+List all `{% def %}` components across templates in a directory. Useful for auditing component libraries and generating documentation.
+
+```bash
+kida components <template_dir> [flags]
+```
+
+**Positional argument:**
+
+| Argument | Description |
+|----------|-------------|
+| `template_dir` | Root directory passed to `FileSystemLoader`. All `*.html` files are scanned recursively. |
+
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--json` | off | Output as JSON for machine consumption. |
+| `--filter NAME` | none | Filter components by name (case-insensitive substring match). |
+
+### Examples
+
+List all components:
+
+```bash
+kida components templates/
+```
+
+Filter by name:
+
+```bash
+kida components templates/ --filter card
+```
+
+Machine-readable output:
+
+```bash
+kida components templates/ --json
+```
+
+### Output format
+
+Human-readable output groups by template file:
+
+```
+components/card.html
+  def card(title: str, variant: str = ...)
+    slots: (default), actions
+
+components/nav.html
+  def nav_link(href: str, label: str)
+
+2 component(s) found.
+```
+
+JSON output produces an array of objects with `name`, `template`, `lineno`, `params`, `slots`, and `has_default_slot` fields.
+
+## kida readme
+
+Auto-generate a README from project metadata. Detects project structure from `pyproject.toml`, filesystem, and git, then renders a styled markdown README using Kida's own template engine.
+
+```bash
+kida readme [root] [flags]
+```
+
+**Positional argument:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `root` | `.` (current directory) | Project root directory to scan. |
+
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o, --output FILE` | stdout | Write to file instead of stdout. |
+| `--preset {default,minimal,library,cli}` | auto-detected | Built-in template preset. Auto-detected from project type if not specified. |
+| `--template FILE` | none | Path to a custom Kida template (overrides `--preset`). |
+| `--set KEY=VALUE` | none | Override detected values (repeatable). Value is parsed as JSON, falls back to string. |
+| `--depth INT` | `2` | Directory tree depth for project scanning. |
+| `--json` | off | Dump auto-detected context as JSON instead of rendering. |
+
+### Examples
+
+Generate a README for the current project:
+
+```bash
+kida readme
+```
+
+Write to a file with a specific preset:
+
+```bash
+kida readme -o README.md --preset library
+```
+
+Override detected values:
+
+```bash
+kida readme --set description="A fast template engine" --set license=MIT
+```
+
+Inspect detected metadata:
+
+```bash
+kida readme --json
+```
+
+Use a custom template:
+
+```bash
+kida readme --template .github/readme.kida -o README.md
+```
+
+### Presets
+
+| Preset | Best For |
+|--------|----------|
+| `default` | General projects with standard structure |
+| `minimal` | Small projects or packages |
+| `library` | Python libraries with API documentation focus |
+| `cli` | CLI tools with command documentation focus |
+
+### Python API
+
+```python
+from kida.readme import detect_project, render_readme
+
+# Auto-detect metadata
+ctx = detect_project(root_path, depth=2)
+
+# Render with a preset
+md = render_readme(root_path, preset="library")
+
+# Render with custom template and overrides
+md = render_readme(
+    root_path,
+    template=Path("custom.kida"),
+    context={"description": "Override"},
+)
+```
+
+## kida extract
+
+Extract translatable messages from templates into a `.pot` (PO Template) file for internationalization workflows.
+
+```bash
+kida extract <template_dir> [flags]
+```
+
+**Positional argument:**
+
+| Argument | Description |
+|----------|-------------|
+| `template_dir` | Root directory to scan for templates. |
+
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o, --output FILE` | stdout | Write output to file instead of stdout. |
+| `--ext .EXT` | `.html .kida .txt .xml` | File extensions to scan (repeatable). |
+
+### Examples
+
+Extract messages to stdout:
+
+```bash
+kida extract templates/
+```
+
+Write to a `.pot` file:
+
+```bash
+kida extract templates/ -o messages.pot
+```
+
+Scan only `.html` and `.kida` files:
+
+```bash
+kida extract templates/ --ext .html --ext .kida
 ```
 
 ## Exit Codes
