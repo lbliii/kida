@@ -378,7 +378,14 @@ def get_render_context_required() -> RenderContext:
     """
     ctx = _render_context.get()
     if ctx is None:
-        raise RuntimeError("Not in a render context")
+        from kida.exceptions import ErrorCode, TemplateRuntimeError
+
+        raise TemplateRuntimeError(
+            "Not in a render context",
+            code=ErrorCode.NOT_IN_RENDER_CONTEXT,
+            suggestion="This operation requires an active render. "
+            "Call it inside template.render() or template.render_block().",
+        )
     return ctx
 
 

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import PurePath
 from typing import Any
 
-from kida.exceptions import TemplateRuntimeError
+from kida.exceptions import CoercionWarning, TemplateRuntimeError
 from kida.utils.html import Markup, html_escape
 
 
@@ -50,6 +51,12 @@ def _filter_int(value: Any, default: int = 0, strict: bool = False) -> int:
                 f"Cannot convert {type(value).__name__} to int: {value!r}",
                 suggestion="Use | default(0) | int for optional conversion, or ensure value is numeric",
             ) from e
+        warnings.warn(
+            f"Filter 'int' silently converted {type(value).__name__} {value!r} to {default}. "
+            f"Use | int(strict=true) to raise, or | default({default}) | int to be explicit.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return default
 
 
@@ -85,6 +92,12 @@ def _filter_float(value: Any, default: float = 0.0, strict: bool = False) -> flo
                 f"Cannot convert {type(value).__name__} to float: {value!r}",
                 suggestion="Use | default(0.0) | float for optional conversion, or ensure value is numeric",
             ) from e
+        warnings.warn(
+            f"Filter 'float' silently converted {type(value).__name__} {value!r} to {default}. "
+            f"Use | float(strict=true) to raise, or | default({default}) | float to be explicit.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return default
 
 

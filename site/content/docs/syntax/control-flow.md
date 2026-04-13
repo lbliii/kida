@@ -244,6 +244,36 @@ Trim whitespace with `-`:
 
 - `{%-` trims whitespace before the tag
 - `-%}` trims whitespace after the tag
+- `{{-` trims whitespace before the expression
+- `-}}` trims whitespace after the expression
+
+### Whitespace Trim vs Negative Numbers
+
+The `-` modifier must appear **immediately** after the delimiter with no space.
+A space before `-` makes it a unary minus (negative number):
+
+```kida
+{{-5}}     {# Whitespace trim + outputs 5 #}
+{{ -5 }}   {# Outputs -5 (negative number) #}
+{{ - 5 }}  {# Also outputs -5 #}
+```
+
+When outputting a negative literal, always include a space after `{{`:
+
+```kida
+{# Correct — negative number #}
+{{ -5 }}
+
+{# Surprising — trims whitespace and outputs 5, not -5 #}
+{{-5}}
+```
+
+The same applies to block tags:
+
+```kida
+{%- set x = -5 %}   {# Trims whitespace, assigns -5 #}
+{% set x = -5 %}     {# No trim, assigns -5 #}
+```
 
 ## See Also
 

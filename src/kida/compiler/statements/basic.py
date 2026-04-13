@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kida.nodes import Data, Node, Output
+    from kida.nodes.expressions import Expr
 
 
 class BasicStatementMixin:
@@ -46,25 +47,59 @@ class BasicStatementMixin:
 
         return [self._emit_output(ast.Constant(value=node.value))]
 
+    @staticmethod
+    def _expr_may_produce_none(node: Expr) -> bool:
+        """Check if an expression involves optional chaining that may produce None.
+
+        When optional chaining (?., ?[, ?|>) is the outermost expression in
+        {{ ... }} output (not wrapped in ??), str(None) renders as "None".
+        We detect this and use _str_safe to render "" instead.
+        """
+        from kida.nodes.expressions import (
+            NullCoalesce,
+            OptionalFilter,
+            OptionalGetattr,
+            OptionalGetitem,
+            SafePipeline,
+        )
+
+        # If wrapped in ??, the user explicitly handles None — use normal str()
+        if isinstance(node, NullCoalesce):
+            return False
+        return isinstance(node, (OptionalGetattr, OptionalGetitem, OptionalFilter, SafePipeline))
+
     def _compile_output(self, node: Output) -> list[ast.stmt]:
         """Compile {{ expression }} output.
 
         StringBuilder mode: _append(_e(expr)) or _append(_s(expr))
         Streaming mode: yield _e(expr) or yield _s(expr)
+
+        When the expression involves optional chaining (?., ?[) without
+        null coalescing (??), uses _str_safe instead of _s so that None
+        renders as "" instead of "None".
         """
         expr = self._compile_expr(node.expr)
 
         # Wrap in escape if needed - _e handles str conversion internally
         # to properly detect Markup objects before converting to str
         if node.escape:
+            # For optional chaining, convert None → "" before escaping
+            if self._expr_may_produce_none(node.expr):
+                expr = ast.Call(
+                    func=ast.Name(id="_str_safe", ctx=ast.Load()),
+                    args=[expr],
+                    keywords=[],
+                )
             expr = ast.Call(
                 func=ast.Name(id="_e", ctx=ast.Load()),
                 args=[expr],
                 keywords=[],
             )
         else:
+            # Use _str_safe for optional chaining so None → "" instead of "None"
+            str_func = "_str_safe" if self._expr_may_produce_none(node.expr) else "_s"
             expr = ast.Call(
-                func=ast.Name(id="_s", ctx=ast.Load()),
+                func=ast.Name(id=str_func, ctx=ast.Load()),
                 args=[expr],
                 keywords=[],
             )

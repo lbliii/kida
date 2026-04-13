@@ -251,6 +251,30 @@ class TestTemplateNotFoundErrors:
         with pytest.raises((TemplateNotFoundError, Exception)):
             env.get_template("main.html").render()
 
+    def test_include_not_found_shows_caller(self) -> None:
+        """Include of missing template shows which template referenced it."""
+        loader = DictLoader({"page.html": '{% include "missing.html" %}'})
+        env = Environment(loader=loader)
+        with pytest.raises(TemplateNotFoundError, match=r"referenced by.*include.*page\.html"):
+            env.get_template("page.html").render()
+
+    def test_extends_not_found_shows_caller(self) -> None:
+        """Extends of missing template shows which template referenced it."""
+        loader = DictLoader(
+            {"child.html": '{% extends "missing_base.html" %}{% block x %}{% end %}'}
+        )
+        env = Environment(loader=loader)
+        with pytest.raises(TemplateNotFoundError, match=r"referenced by.*extends.*child\.html"):
+            env.get_template("child.html").render()
+
+    def test_direct_get_template_no_caller(self) -> None:
+        """Direct get_template has no caller context."""
+        loader = DictLoader({})
+        env = Environment(loader=loader)
+        with pytest.raises(TemplateNotFoundError) as exc_info:
+            env.get_template("missing.html")
+        assert "referenced by" not in str(exc_info.value)
+
 
 class TestErrorContext:
     """Test that errors include context information."""
@@ -685,13 +709,14 @@ class TestErrorMessageQuality:
     # -- RuntimeError template context ---------------------------------------
 
     def test_not_compiled_error_includes_template_name(self) -> None:
-        """'not properly compiled' RuntimeError includes the template name."""
+        """'not properly compiled' TemplateRuntimeError includes template name and error code."""
+        from kida.exceptions import TemplateRuntimeError
 
         env = Environment()
         tmpl = env.from_string("{{ x }}", name="broken.html")
         # Forcibly clear the render func to trigger the guard
         tmpl._render_func = None
-        with pytest.raises(RuntimeError, match=r"broken\.html"):
+        with pytest.raises(TemplateRuntimeError, match=r"broken\.html"):
             tmpl.render(x=1)
 
 

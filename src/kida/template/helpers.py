@@ -544,10 +544,15 @@ def str_safe(value: Any) -> str:
     expressions that evaluate to None produce empty output rather
     than the literal string 'None'.
 
+    Preserves Markup instances (and objects with __html__) so that
+    the escape function can detect them and avoid double-escaping.
+
     RFC: kida-modern-syntax-features — needed for optional chaining.
     """
     if value is None:
         return ""
+    if hasattr(value, "__html__"):
+        return value
     return str(value)
 
 

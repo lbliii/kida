@@ -90,6 +90,18 @@ class VariableBlockParsingMixin(BlockStackMixin):
             # Check for tuple unpacking (target is a tuple with multiple items)
             is_tuple_unpack = isinstance(target, Tuple) and len(target.items) > 1
 
+            # Detect Jinja2 set-block capture: {% set x %}...{% endset %}
+            if self._match(TokenType.BLOCK_END):
+                from kida.exceptions import ErrorCode
+
+                raise self._error(
+                    "Jinja2-style set block capture ({% set x %}...{% endset %}) "
+                    "is not supported in Kida",
+                    suggestion="Use {% let x = expression %} for assignment, "
+                    "or {% capture x %}...{% end %} for block capture.",
+                    code=ErrorCode.UNSUPPORTED_SYNTAX,
+                )
+
             # Check for ??= (nullish assign) or = (regular assign)
             coalesce = self._match(TokenType.NULLISH_ASSIGN)
             if coalesce:

@@ -228,6 +228,8 @@ class Compiler(
         self._last_block_compiled_stmts: list[ast.stmt] | None = None
         self._name: str | None = None
         self._filename: str | None = None
+        self._warnings: list = []  # TemplateWarning instances
+        self._scope_depth: int = 0  # Track nesting depth inside scoping blocks (if/for/while)
         # Track local variables (loop variables, etc.) for O(1) direct access
         self._locals: set[str] = set()
         # Track blocks for inheritance
@@ -269,6 +271,27 @@ class Compiler(
         # Node dispatch table — shared class-level unbound functions, resolved once
         self._node_dispatch: dict[str, Callable] = type(self)._ensure_dispatch()
 
+    @property
+    def warnings(self) -> list:
+        """Compile-time warnings accumulated during compilation."""
+        return self._warnings
+
+    def _emit_warning(
+        self, code, message: str, *, lineno: int | None = None, suggestion: str | None = None
+    ) -> None:
+        """Record a compile-time warning."""
+        from kida.exceptions import TemplateWarning
+
+        self._warnings.append(
+            TemplateWarning(
+                code=code,
+                message=message,
+                template_name=self._name,
+                lineno=lineno,
+                suggestion=suggestion,
+            )
+        )
+
     def _get_literal_extends_target(self, node: TemplateNode) -> str | None:
         """Return literal extends target if template uses {% extends "literal" %}, else None."""
         from kida.nodes import Const, Extends
@@ -286,88 +309,104 @@ class Compiler(
         This ensures nested blocks (blocks inside blocks, blocks inside
         conditionals, etc.) are all registered for compilation.
         """
-        from kida.exceptions import TemplateSyntaxError
+        from kida.exceptions import ErrorCode, TemplateSyntaxError
         from kida.nodes import Block, CallBlock, Def, Region, Slot, SlotBlock
 
         for node in nodes:
             if isinstance(node, Block):
                 if not _BLOCK_NAME_RE.match(node.name):
-                    raise TemplateSyntaxError(
+                    err = TemplateSyntaxError(
                         f"Invalid block name '{node.name}': must be identifier-like "
                         "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
                         lineno=node.lineno,
                         name=self._name,
                         filename=self._filename,
                     )
+                    err.code = ErrorCode.INVALID_IDENTIFIER
+                    raise err
                 if node.name in self._blocks and isinstance(self._blocks[node.name], Region):
-                    raise TemplateSyntaxError(
+                    err = TemplateSyntaxError(
                         f"Duplicate block/region name '{node.name}'",
                         lineno=node.lineno,
                         name=self._name,
                         filename=self._filename,
                     )
+                    err.code = ErrorCode.INVALID_IDENTIFIER
+                    raise err
                 self._blocks[node.name] = node
                 # Recurse into block body to find nested blocks
                 self._collect_blocks(node.body)
             elif isinstance(node, Def):
                 if not _BLOCK_NAME_RE.match(node.name):
-                    raise TemplateSyntaxError(
+                    err = TemplateSyntaxError(
                         f"Invalid def name '{node.name}': must be identifier-like "
                         "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
                         lineno=node.lineno,
                         name=self._name,
                         filename=self._filename,
                     )
+                    err.code = ErrorCode.INVALID_IDENTIFIER
+                    raise err
                 self._collect_blocks(node.body)
             elif isinstance(node, Region):
                 if not _BLOCK_NAME_RE.match(node.name):
-                    raise TemplateSyntaxError(
+                    err = TemplateSyntaxError(
                         f"Invalid region name '{node.name}': must be identifier-like "
                         "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
                         lineno=node.lineno,
                         name=self._name,
                         filename=self._filename,
                     )
+                    err.code = ErrorCode.INVALID_IDENTIFIER
+                    raise err
                 if node.name in self._blocks:
-                    raise TemplateSyntaxError(
+                    err = TemplateSyntaxError(
                         f"Duplicate block/region name '{node.name}'",
                         lineno=node.lineno,
                         name=self._name,
                         filename=self._filename,
                     )
+                    err.code = ErrorCode.INVALID_IDENTIFIER
+                    raise err
                 self._blocks[node.name] = node  # Region stored as block for registration
                 self._collect_blocks(node.body)
             elif isinstance(node, CallBlock):
                 for slot_name in node.slots:
                     if slot_name != "default" and not _BLOCK_NAME_RE.match(slot_name):
-                        raise TemplateSyntaxError(
+                        err = TemplateSyntaxError(
                             f"Invalid slot name '{slot_name}': must be identifier-like "
                             "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
                             lineno=node.lineno,
                             name=self._name,
                             filename=self._filename,
                         )
+                        err.code = ErrorCode.INVALID_IDENTIFIER
+                        raise err
                 for slot_body in node.slots.values():
                     self._collect_blocks(slot_body)
             elif isinstance(node, SlotBlock):
                 if node.name != "default" and not _BLOCK_NAME_RE.match(node.name):
-                    raise TemplateSyntaxError(
+                    err = TemplateSyntaxError(
                         f"Invalid slot name '{node.name}': must be identifier-like "
                         "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
                         lineno=node.lineno,
                         name=self._name,
                         filename=self._filename,
                     )
+                    err.code = ErrorCode.INVALID_IDENTIFIER
+                    raise err
                 self._collect_blocks(node.body)
             elif isinstance(node, Slot):
                 if node.name != "default" and not _BLOCK_NAME_RE.match(node.name):
-                    raise TemplateSyntaxError(
+                    err = TemplateSyntaxError(
                         f"Invalid slot name '{node.name}': must be identifier-like "
                         "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
                         lineno=node.lineno,
                         name=self._name,
                         filename=self._filename,
                     )
+                    err.code = ErrorCode.INVALID_IDENTIFIER
+                    raise err
             elif hasattr(node, "body"):
                 # Node has a body (If, For, With, Def, etc.)
                 body = node.body
@@ -403,6 +442,7 @@ class Compiler(
         """
         self._name = name
         self._filename = filename
+        self._warnings = []  # Reset warnings for each compilation
         self._locals = set()  # Reset locals for each compilation
         self._block_counter = 0  # Reset counter for each compilation
         self._has_async = False  # Reset async flag for each compilation

@@ -38,6 +38,7 @@ from kida.utils.constants import PURE_FILTERS_COALESCEABLE
 if TYPE_CHECKING:
     from kida.environment import Environment
     from kida.nodes import Node, Output
+    from kida.nodes.expressions import Expr
 
 # Coalescing threshold - minimum nodes to trigger f-string generation
 COALESCE_MIN_NODES = 2
@@ -69,6 +70,10 @@ class FStringCoalescingMixin:
 
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
+
+        # From BasicStatementMixin
+        @staticmethod
+        def _expr_may_produce_none(node: Expr) -> bool: ...
 
     _cached_pure_filters: frozenset[str] | None
 
@@ -236,7 +241,16 @@ class FStringCoalescingMixin:
                 # Expression - wrap in escape/str function
                 expr = self._compile_expr(node.expr)
 
+                # For optional chaining, convert None → "" before str/escape
+                may_be_none = self._expr_may_produce_none(node.expr)
+
                 if node.escape:
+                    if may_be_none:
+                        expr = ast.Call(
+                            func=ast.Name(id="_str_safe", ctx=ast.Load()),
+                            args=[expr],
+                            keywords=[],
+                        )
                     # _e() handles HTML escaping
                     expr = ast.Call(
                         func=ast.Name(id="_e", ctx=ast.Load()),
@@ -244,9 +258,10 @@ class FStringCoalescingMixin:
                         keywords=[],
                     )
                 else:
-                    # _s() converts to string (for |safe outputs)
+                    # _s() or _str_safe() converts to string
+                    str_func = "_str_safe" if may_be_none else "_s"
                     expr = ast.Call(
-                        func=ast.Name(id="_s", ctx=ast.Load()),
+                        func=ast.Name(id=str_func, ctx=ast.Load()),
                         args=[expr],
                         keywords=[],
                     )

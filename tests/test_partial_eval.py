@@ -2500,7 +2500,7 @@ class TestFilterArgEvaluation:
         tmpl = env.from_string(
             "{{ val ?|> upper ?|> default('gone') }}",
         )
-        assert tmpl.render(val=None) == "None"
+        assert tmpl.render(val=None) == ""
 
 
 # ------------------------------------------------------------------

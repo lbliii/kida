@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from kida.exceptions import TemplateNotFoundError, TemplateSyntaxError
+from kida.exceptions import TemplateNotFoundError, TemplateRuntimeError, TemplateSyntaxError
 from kida.nodes import Const as _Const
 from kida.nodes import Name as _Name
 from kida.utils.constants import IMPURE_FILTERS, PURE_FILTERS_ALL, PURE_FUNCTIONS
@@ -537,8 +537,8 @@ class PurityAnalyzer:
             finally:
                 self._visited_templates.remove(template_name)
 
-        except TemplateNotFoundError, TemplateSyntaxError:
-            # Template missing or unparseable → conservatively unknown
+        except TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError:
+            # Template missing, unparseable, or no loader → conservatively unknown
             return "unknown"
 
     def _visit_extends(self, node: Extends) -> PurityLevel:

@@ -96,9 +96,10 @@ class TestRenderContextContextVar:
 
     def test_get_render_context_required_outside_render(self):
         """get_render_context_required raises outside render."""
-        with pytest.raises(RuntimeError) as exc_info:
+        from kida.exceptions import TemplateRuntimeError
+
+        with pytest.raises(TemplateRuntimeError, match="Not in a render context"):
             get_render_context_required()
-        assert "Not in a render context" in str(exc_info.value)
 
     def test_render_context_manager_sets_context(self):
         """render_context context manager sets and clears context."""

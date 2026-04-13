@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
+from kida.exceptions import ErrorCode
 from kida.nodes import (
     Await,
     BinOp,
@@ -91,6 +92,7 @@ class ExpressionParsingMixin:
             message: str,
             token: Token | None = None,
             suggestion: str | None = None,
+            code: ErrorCode | None = None,
         ) -> ParseError: ...
 
         # From StatementParsingMixin
@@ -242,6 +244,7 @@ class ExpressionParsingMixin:
                     raise self._error(
                         "Expected 'in' after 'not' in comparison",
                         suggestion="Use 'not in' for membership test: {% if item not in items %}",
+                        code=ErrorCode.INVALID_EXPRESSION,
                     )
             elif op == "is" and self._match(TokenType.NOT):
                 self._advance()
@@ -424,6 +427,7 @@ class ExpressionParsingMixin:
                 "Nested 'for' clauses are not supported in list comprehensions. "
                 "Use a {% for %} block instead.",
                 suggestion="[expr for x in iterable if condition]",
+                code=ErrorCode.INVALID_EXPRESSION,
             )
 
         # Reject async comprehensions (await in element expression)
@@ -431,6 +435,7 @@ class ExpressionParsingMixin:
             raise self._error(
                 "Async list comprehensions are not supported. "
                 "Use a {% for %} block with await instead.",
+                code=ErrorCode.INVALID_EXPRESSION,
             )
 
         # Expect closing ']'
@@ -472,7 +477,7 @@ class ExpressionParsingMixin:
             if self._match(TokenType.DOT):
                 self._advance()
                 if self._current.type != TokenType.NAME:
-                    raise self._error("Expected attribute name")
+                    raise self._error("Expected attribute name", code=ErrorCode.INVALID_EXPRESSION)
                 attr = self._advance().value
                 expr = Getattr(
                     lineno=expr.lineno,
@@ -485,7 +490,9 @@ class ExpressionParsingMixin:
                 # Part of RFC: kida-modern-syntax-features
                 self._advance()
                 if self._current.type != TokenType.NAME:
-                    raise self._error("Expected attribute name after ?.")
+                    raise self._error(
+                        "Expected attribute name after ?.", code=ErrorCode.INVALID_EXPRESSION
+                    )
                 attr = self._advance().value
                 expr = OptionalGetattr(
                     lineno=expr.lineno,
@@ -595,6 +602,7 @@ class ExpressionParsingMixin:
                 raise self._error(
                     f"Filter chain exceeds maximum length ({MAX_FILTER_CHAIN_LEN})",
                     suggestion="Simplify the expression or split into multiple variables",
+                    code=ErrorCode.INVALID_FILTER,
                 )
 
             # Error if switching from | to |> mid-expression
@@ -602,10 +610,11 @@ class ExpressionParsingMixin:
                 raise self._error(
                     "Cannot mix '|' and '|>' operators in the same expression",
                     suggestion="Use either '|' or '|>' consistently: {{ x | a | b }} or {{ x |> a |> b }}",
+                    code=ErrorCode.INVALID_FILTER,
                 )
 
             if self._current.type != TokenType.NAME:
-                raise self._error("Expected filter name")
+                raise self._error("Expected filter name", code=ErrorCode.INVALID_FILTER)
             filter_name = self._advance().value
 
             args: list[Expr] = []
@@ -632,6 +641,7 @@ class ExpressionParsingMixin:
             raise self._error(
                 "Cannot mix '|' and '|>' operators in the same expression",
                 suggestion="Use either '|' or '|>' consistently: {{ x | a | b }} or {{ x |> a |> b }}",
+                code=ErrorCode.INVALID_FILTER,
             )
 
         return expr
@@ -655,6 +665,7 @@ class ExpressionParsingMixin:
                 raise self._error(
                     "Expected filter name after |>",
                     suggestion="Pipeline syntax: expr |> filter_name or expr |> filter_name(args)",
+                    code=ErrorCode.INVALID_FILTER,
                 )
 
             filter_name = self._advance().value
@@ -673,6 +684,7 @@ class ExpressionParsingMixin:
                 raise self._error(
                     f"Pipeline exceeds maximum length ({MAX_FILTER_CHAIN_LEN})",
                     suggestion="Simplify the expression or split into multiple variables",
+                    code=ErrorCode.INVALID_FILTER,
                 )
 
         # Error if switching from |> to | mid-expression
@@ -680,6 +692,7 @@ class ExpressionParsingMixin:
             raise self._error(
                 "Cannot mix '|>' and '|' operators in the same expression",
                 suggestion="Use either '|>' or '|' consistently: {{ x |> a |> b }} or {{ x | a | b }}",
+                code=ErrorCode.INVALID_FILTER,
             )
 
         if not steps:
@@ -707,6 +720,7 @@ class ExpressionParsingMixin:
                 raise self._error(
                     "Expected filter name after ?|>",
                     suggestion="Safe pipeline syntax: expr ?|> filter_name or expr ?|> filter_name(args)",
+                    code=ErrorCode.INVALID_FILTER,
                 )
 
             filter_name = self._advance().value
@@ -724,6 +738,7 @@ class ExpressionParsingMixin:
                 raise self._error(
                     f"Safe pipeline exceeds maximum length ({MAX_FILTER_CHAIN_LEN})",
                     suggestion="Simplify the expression or split into multiple variables",
+                    code=ErrorCode.INVALID_FILTER,
                 )
 
         # Error if mixing operators
@@ -731,6 +746,7 @@ class ExpressionParsingMixin:
             raise self._error(
                 "Cannot mix '?|>' with '|', '|>', or '?|' operators",
                 suggestion="Use ?|> consistently for safe pipelines: {{ x ?|> a ?|> b }}",
+                code=ErrorCode.INVALID_FILTER,
             )
 
         if not steps:
@@ -905,6 +921,7 @@ class ExpressionParsingMixin:
             f"Unexpected token: {token.type.value}",
             token=token,
             suggestion="Expected a value (string, number, variable name, list, or dict)",
+            code=ErrorCode.INVALID_EXPRESSION,
         )
 
     def _parse_binary(
