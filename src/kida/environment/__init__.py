@@ -51,18 +51,24 @@ from kida.environment.loaders import (
 from kida.environment.protocols import Filter, Loader, Test
 from kida.environment.registry import FilterRegistry
 from kida.exceptions import (
+    CoercionWarning,
     ErrorCode,
+    KidaWarning,
+    MigrationWarning,
+    PrecedenceWarning,
     SourceSnippet,
     TemplateError,
     TemplateNotFoundError,
     TemplateRuntimeError,
     TemplateSyntaxError,
+    TemplateWarning,
     UndefinedError,
     build_source_snippet,
 )
 
 __all__ = [
     "ChoiceLoader",
+    "CoercionWarning",
     "DictLoader",
     "Environment",
     "ErrorCode",
@@ -70,14 +76,18 @@ __all__ = [
     "Filter",
     "FilterRegistry",
     "FunctionLoader",
+    "KidaWarning",
     "Loader",
+    "MigrationWarning",
     "PackageLoader",
+    "PrecedenceWarning",
     "PrefixLoader",
     "SourceSnippet",
     "TemplateError",
     "TemplateNotFoundError",
     "TemplateRuntimeError",
     "TemplateSyntaxError",
+    "TemplateWarning",
     "Test",
     "UndefinedError",
     "build_source_snippet",

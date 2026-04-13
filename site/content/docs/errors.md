@@ -90,6 +90,12 @@ Fix: Use a valid built-in or registered test name. Check test argument types.
 
 Fix: Use underscores instead of hyphens. For example, `{% block settings-status %}` should be `{% block settings_status %}`.
 
+### k-par-007
+
+**Unsupported syntax** — A syntax construct was recognized but is not supported.
+
+Fix: Check the error message for the specific construct. Common case: `{% set x %}...{% endset %}` block capture is not supported — use `{% let x = ... %}` or `{% capture x %}...{% end %}` instead.
+
 ## Runtime Errors (K-RUN-xxx)
 
 Runtime errors occur during template rendering.
@@ -136,11 +142,65 @@ Fix: Reduce include nesting. Check for circular includes.
 
 Fix: Check the traceback for the underlying cause. Ensure context values have expected types.
 
+### k-run-008
+
+**Macro not found** — A `{% call %}` or `{{ macro_name() }}` referenced a macro/def that does not exist.
+
+Fix: Ensure the macro is defined with `{% def %}` or imported before use. Check for typos in the name.
+
+### k-run-009
+
+**Key error** — A dictionary key lookup failed during rendering.
+
+Fix: Use `dict.get(key, default)` or the `| default()` filter to handle missing keys.
+
+### k-run-010
+
+**Attribute error** — An attribute access failed during rendering.
+
+Fix: Ensure the object has the expected attribute. Use optional chaining (`?.`) or `| default()` for optional attributes.
+
+### k-run-011
+
+**Division by zero** — A division or modulo operation encountered a zero divisor.
+
+Fix: Guard with `{% if divisor != 0 %}` or use a default value.
+
+### k-run-012
+
+**Type error** — An operation received a value of the wrong type.
+
+Fix: Check that the value has the expected type. Use filters like `| int`, `| string` to convert, or `| default()` for missing values.
+
 ### k-run-013
 
 **Macro iteration** — A macro was used in a `{% for %}` loop (e.g. `{% for x in route_tabs %}`). This usually means a macro and a context variable share the same name; when the variable is missing, the name resolves to the imported macro.
 
 Fix: Rename the macro to avoid collision. Use verb-prefixed names for macros (e.g. `render_route_tabs`) and noun-like names for context variables (`route_tabs`). See [[docs/syntax/functions#macro-vs-context-variable-naming|Macro vs Context Variable Naming]].
+
+### k-run-014
+
+**Environment garbage collected** — The `Environment` object was garbage collected while templates still reference it.
+
+Fix: Keep a reference to the `Environment` for the lifetime of your application. Store it in a module-level variable or application state.
+
+### k-run-015
+
+**Template not compiled** — A template method was called before the template was compiled.
+
+Fix: Use `env.get_template()` or `env.from_string()` to create templates. Do not construct `Template` objects directly.
+
+### k-run-016
+
+**No loader configured** — `get_template()` was called on an `Environment` with no loader.
+
+Fix: Pass a loader when creating the environment: `Environment(loader=FileSystemLoader("templates/"))`.
+
+### k-run-017
+
+**Not in render context** — A function that requires an active render context was called outside of template rendering.
+
+Fix: Only call `get_render_context()` or context-dependent functions during `template.render()`.
 
 ## Template Loading Errors (K-TPL-xxx)
 
@@ -157,6 +217,62 @@ Fix: Check the template name and path. Verify the loader configuration (e.g. `Fi
 **Syntax error in template** — The template file contains invalid syntax.
 
 Fix: Fix the syntax error at the reported line. See parser and lexer errors above for related codes.
+
+### k-tpl-003
+
+**Circular import** — Two or more templates extend or include each other in a cycle.
+
+Fix: Restructure template inheritance to eliminate the cycle. Use a shared base template or `{% include %}` instead of circular `{% extends %}`.
+
+## Security Errors (K-SEC-xxx)
+
+Security errors occur in sandboxed environments when a template tries to access restricted resources.
+
+### k-sec-001
+
+**Blocked attribute** — Access to an attribute was denied by the sandbox policy.
+
+Fix: Check the `SandboxPolicy.allowed_attributes` configuration. Add the attribute if it should be accessible, or access the data through a different path.
+
+### k-sec-002
+
+**Blocked type** — An object type is not allowed in the sandbox.
+
+Fix: Check the `SandboxPolicy.allowed_types` configuration. Pass only allowed types in the render context.
+
+### k-sec-003
+
+**Range limit exceeded** — A `range()` call exceeded the sandbox's maximum allowed range size.
+
+Fix: Reduce the range size or increase `SandboxPolicy.max_range_size`.
+
+### k-sec-004
+
+**Blocked callable** — A function or method call was denied by the sandbox policy.
+
+Fix: Check the `SandboxPolicy.allowed_callables` configuration. Use a filter instead of calling methods directly.
+
+### k-sec-005
+
+**Output limit exceeded** — Rendered output exceeded `SandboxPolicy.max_output_size`.
+
+Fix: Reduce template output size or increase `SandboxPolicy.max_output_size`. Consider paginating large datasets.
+
+## Warnings (K-WARN-xxx)
+
+Compile-time warnings that indicate potential issues but do not prevent rendering.
+
+### k-warn-001
+
+**Filter precedence** — The filter pipe `|` binds tighter than the null coalescing operator `??`. This means `x ?? [] | length` is parsed as `x ?? ([] | length)`, which applies the filter only to the fallback, not the full expression.
+
+Fix: Add parentheses to clarify intent: `(x ?? []) | length`.
+
+### k-warn-002
+
+**Jinja2 `set` scoping difference** — `{% set %}` is block-scoped in Kida (does not leak out of `{% if %}`, `{% for %}`, etc.). In Jinja2, `{% set %}` modifies the outer scope.
+
+Fix: Use `{% export %}` to write to the outer scope, or `{% let %}` for template-wide assignment. Enable this warning with `Environment(jinja2_compat_warnings=True)`.
 
 ## See Also
 

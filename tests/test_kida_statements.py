@@ -69,19 +69,17 @@ class TestSetTupleUnpacking:
 
 
 class TestSetBlock:
-    """Set block (capture) functionality."""
+    """Set block capture is explicitly unsupported — produces clear error."""
 
-    @pytest.mark.xfail(reason="set block may not be implemented")
-    def test_set_block(self, env):
-        """Set block captures content."""
-        tmpl = env.from_string("{% set content %}Hello World{% endset %}{{ content }}")
-        assert tmpl.render() == "Hello World"
+    def test_set_block_raises_parse_error(self, env):
+        """Set block capture produces helpful error pointing to alternatives."""
+        with pytest.raises(Exception, match=r"set block capture.*not supported"):
+            env.from_string("{% set content %}Hello World{% endset %}{{ content }}")
 
-    @pytest.mark.xfail(reason="set block may not be implemented")
-    def test_set_block_with_vars(self, env):
-        """Set block with variable interpolation."""
-        tmpl = env.from_string("{% set greeting %}Hello {{ name }}{% endset %}{{ greeting }}")
-        assert tmpl.render(name="World") == "Hello World"
+    def test_set_block_with_vars_raises_parse_error(self, env):
+        """Set block with variables also produces helpful error."""
+        with pytest.raises(Exception, match=r"set block capture.*not supported"):
+            env.from_string("{% set greeting %}Hello {{ name }}{% endset %}{{ greeting }}")
 
 
 class TestWithStatement:
@@ -440,3 +438,77 @@ class TestExpressionStatements:
         """Negative subscript."""
         tmpl = env.from_string("{{ items[-1] }}")
         assert tmpl.render(items=[1, 2, 3]) == "3"
+
+
+class TestMigrationWarnings:
+    """Jinja2 compatibility warnings for set scoping differences."""
+
+    def test_set_in_for_emits_warning(self):
+        """{% set %} inside {% for %} warns when jinja2_compat_warnings=True."""
+        import warnings
+
+        from kida import MigrationWarning
+
+        env = Environment(jinja2_compat_warnings=True)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            tmpl = env.from_string(
+                "{% let count = 0 %}"
+                "{% for x in items %}"
+                "{% set count = count + 1 %}"
+                "{% end %}"
+                "{{ count }}"
+            )
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert len(migration_warnings) == 1
+        assert "block-scoped" in str(migration_warnings[0].message)
+        assert "Jinja2" in str(migration_warnings[0].message)
+        # Template still works correctly — set is block-scoped
+        assert tmpl.render(items=[1, 2, 3]) == "0"
+
+    def test_set_in_if_emits_warning(self):
+        """{% set %} inside {% if %} warns when jinja2_compat_warnings=True."""
+        import warnings
+
+        from kida import MigrationWarning
+
+        env = Environment(jinja2_compat_warnings=True)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            env.from_string("{% if true %}{% set x = 1 %}{% end %}")
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert len(migration_warnings) == 1
+
+    def test_set_at_top_level_no_warning(self):
+        """{% set %} at top level does not warn (no scoping difference)."""
+        import warnings
+
+        from kida import MigrationWarning
+
+        env = Environment(jinja2_compat_warnings=True)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            env.from_string("{% set x = 1 %}{{ x }}")
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert len(migration_warnings) == 0
+
+    def test_no_warning_without_flag(self):
+        """{% set %} inside block does not warn by default."""
+        import warnings
+
+        from kida import MigrationWarning
+
+        env = Environment()  # jinja2_compat_warnings defaults to False
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            env.from_string("{% for x in items %}{% set y = x %}{% end %}")
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert len(migration_warnings) == 0
+
+    def test_template_warnings_property(self):
+        """Migration warnings appear in template.warnings."""
+        env = Environment(jinja2_compat_warnings=True)
+        tmpl = env.from_string("{% if true %}{% set x = 1 %}{% end %}")
+        assert len(tmpl.warnings) == 1
+        assert tmpl.warnings[0].code.value == "K-WARN-002"
+        assert "set" in tmpl.warnings[0].message.lower()

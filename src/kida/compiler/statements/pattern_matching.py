@@ -211,9 +211,12 @@ class PatternMatchingMixin:
             # Validate: only wildcard patterns allowed in valueless match
             is_wildcard = isinstance(pattern_expr, KidaName) and pattern_expr.name == "_"
             if not is_wildcard:
-                raise RuntimeError(
+                from kida.exceptions import TemplateSyntaxError
+
+                raise TemplateSyntaxError(
                     "Valueless {% match %} only allows wildcard (_) patterns. "
-                    "Use {% match subject %} for value-based pattern matching."
+                    "Use {% match subject %} for value-based pattern matching.",
+                    lineno=node.lineno,
                 )
 
             # Compile case body

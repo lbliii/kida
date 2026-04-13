@@ -125,8 +125,10 @@ class ControlFlowMixin:
         test = self._compile_expr(node.test)
 
         body: list[ast.stmt] = []
+        self._scope_depth += 1
         for child in node.body:
             body.extend(self._compile_node(child))
+        self._scope_depth -= 1
         # Wrap body with scope for block-scoped variables
         _while_pass: list[ast.stmt] = [ast.Pass()]
         body = self._wrap_with_scope(body, source_nodes=node.body) if body else _while_pass
@@ -143,8 +145,10 @@ class ControlFlowMixin:
         """Compile {% if %} conditional."""
         test = self._compile_expr(node.test)
         body = []
+        self._scope_depth += 1
         for child in node.body:
             body.extend(self._compile_node(child))
+        self._scope_depth -= 1
         # Wrap body with scope for block-scoped variables
         _if_pass: list[ast.stmt] = [ast.Pass()]
         body = self._wrap_with_scope(body, source_nodes=node.body) if body else _if_pass
@@ -155,8 +159,10 @@ class ControlFlowMixin:
         # Handle elif chains (first elif is innermost; we track it directly)
         for elif_test, elif_body in node.elif_:
             elif_stmts = []
+            self._scope_depth += 1
             for child in elif_body:
                 elif_stmts.extend(self._compile_node(child))
+            self._scope_depth -= 1
             # Wrap elif body with scope
             _elif_pass: list[ast.stmt] = [ast.Pass()]
             elif_stmts = (
@@ -176,8 +182,10 @@ class ControlFlowMixin:
         # Handle else
         if node.else_:
             else_stmts = []
+            self._scope_depth += 1
             for child in node.else_:
                 else_stmts.extend(self._compile_node(child))
+            self._scope_depth -= 1
             # Wrap else body with scope
             _else_pass: list[ast.stmt] = [ast.Pass()]
             else_stmts = (
@@ -320,8 +328,10 @@ class ControlFlowMixin:
 
         # Compile the inner body (shared by all paths)
         body = []
+        self._scope_depth += 1
         for child in node.body:
             body.extend(self._compile_node(child))
+        self._scope_depth -= 1
         # Wrap body with scope for block-scoped variables (each iteration gets its own scope)
         _for_pass: list[ast.stmt] = [ast.Pass()]
         body = self._wrap_with_scope(body, source_nodes=node.body) if body else _for_pass
@@ -638,8 +648,10 @@ class ControlFlowMixin:
 
         # Compile the inner body
         body = []
+        self._scope_depth += 1
         for child in node.body:
             body.extend(self._compile_node(child))
+        self._scope_depth -= 1
         _async_for_pass: list[ast.stmt] = [ast.Pass()]
         body = self._wrap_with_scope(body, source_nodes=node.body) if body else _async_for_pass
 

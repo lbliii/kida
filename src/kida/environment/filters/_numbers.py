@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import math
+import warnings
 from typing import Any
 
-from kida.exceptions import TemplateRuntimeError
+from kida.exceptions import CoercionWarning, TemplateRuntimeError
 
 
 def _filter_abs(value: Any) -> Any:
@@ -46,6 +47,12 @@ def _filter_decimal(value: Any, places: int = 2, *, strict: bool = False) -> str
                 f"Cannot convert {type(value).__name__} to decimal: {value!r}",
                 suggestion="Use | int or | float for numeric coercion, or ensure correct type at data source",
             ) from e
+        warnings.warn(
+            f"Filter 'decimal' could not convert {type(value).__name__} {value!r}, returning as-is. "
+            f"Use | decimal(strict=true) to raise, or validate input data.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return str(value)
 
 
@@ -96,6 +103,12 @@ def _filter_format_number(value: Any, decimal_places: int = 0, *, strict: bool =
                 f"Cannot convert {type(value).__name__} to number: {value!r}",
                 suggestion="Use | int or | float for numeric coercion, or ensure correct type at data source",
             ) from e
+        warnings.warn(
+            f"Filter 'format_number' could not convert {type(value).__name__} {value!r}, returning as-is. "
+            f"Use | format_number(strict=true) to raise, or validate input data.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return str(value)
 
 

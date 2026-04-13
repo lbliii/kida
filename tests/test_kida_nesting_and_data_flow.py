@@ -639,14 +639,7 @@ class TestDeepNestingEdgeCases:
     """Edge cases with very deep nesting."""
 
     def test_def_in_block_in_layout(self):
-        """Def defined in base template, used in child block.
-
-        Note: Defs defined in base templates are accessible in child blocks.
-        However, there is a KNOWN BUG: defs are NOT accessible when called
-        inside conditionals ({% if %}) within blocks during inheritance.
-        Defs work fine in loops ({% for %}) and directly in blocks.
-        This test verifies the basic case (direct call) works.
-        """
+        """Def defined in base template, used in child block."""
         loader = DictLoader(
             {
                 "base.html": (
@@ -661,6 +654,54 @@ class TestDeepNestingEdgeCases:
         env = Environment(loader=loader)
         result = env.get_template("child.html").render()
         assert "Inner" in result
+
+    def test_def_in_conditional_in_block_during_inheritance(self):
+        """Def defined in base template, called inside {% if %} in child block.
+
+        Regression: defs must be accessible inside conditionals within
+        block overrides during inheritance, not just at the block top level.
+        """
+        loader = DictLoader(
+            {
+                "base.html": (
+                    "{% def card(title) %}<div>{{ title }}</div>{% end %}"
+                    "{% block content %}{% end %}"
+                ),
+                "child.html": (
+                    '{% extends "base.html" %}'
+                    "{% block content %}"
+                    '{% if show %}{{ card("visible") }}{% end %}'
+                    "{% end %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("child.html").render(show=True)
+        assert "<div>visible</div>" in result
+        # When condition is false, card should not render
+        result_hidden = env.get_template("child.html").render(show=False)
+        assert "<div>" not in result_hidden
+
+    def test_def_in_for_in_block_during_inheritance(self):
+        """Def defined in base template, called inside {% for %} in child block."""
+        loader = DictLoader(
+            {
+                "base.html": (
+                    "{% def tag(name) %}<span>{{ name }}</span>{% end %}"
+                    "{% block content %}{% end %}"
+                ),
+                "child.html": (
+                    '{% extends "base.html" %}'
+                    "{% block content %}"
+                    "{% for item in items %}{{ tag(item) }}{% end %}"
+                    "{% end %}"
+                ),
+            }
+        )
+        env = Environment(loader=loader)
+        result = env.get_template("child.html").render(items=["a", "b"])
+        assert "<span>a</span>" in result
+        assert "<span>b</span>" in result
 
     def test_include_in_def_in_block(self):
         """Include inside def inside block."""

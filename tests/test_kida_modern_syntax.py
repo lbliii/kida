@@ -27,11 +27,9 @@ def env():
 class TestOptionalChaining:
     """Test ?. and ?[ optional chaining operators.
 
-    Note: Optional chaining returns None when the chain short-circuits.
-    Use ?? '' to get empty string output, or the None value propagates
-    to str() which outputs "None".
-
-    Recommended pattern: {{ user?.name ?? '' }} for empty string fallback.
+    Optional chaining returns None when the chain short-circuits. In display
+    context ({{ ... }}), None renders as "" (empty string), not "None".
+    Use ?? to provide an explicit fallback value if needed.
 
     """
 
@@ -61,6 +59,24 @@ class TestOptionalChaining:
         tmpl = env.from_string("{{ items?[0] ?? '' }}")
         assert tmpl.render(items=None) == ""
         assert tmpl.render(items=["First"]) == "First"
+
+    def test_optional_chaining_renders_empty_not_none(self, env):
+        """Optional chaining renders "" not "None" when chain short-circuits."""
+        tmpl = env.from_string("{{ user?.name }}")
+        assert tmpl.render(user=None) == ""
+        assert tmpl.render(user={"name": "Alice"}) == "Alice"
+
+    def test_optional_subscript_renders_empty_not_none(self, env):
+        """Optional subscript renders "" not "None" when chain short-circuits."""
+        tmpl = env.from_string("{{ items?[0] }}")
+        assert tmpl.render(items=None) == ""
+        assert tmpl.render(items=["First"]) == "First"
+
+    def test_optional_chaining_if_truthiness(self, env):
+        """Optional chaining still evaluates as falsy in {% if %} context."""
+        tmpl = env.from_string("{% if user?.name %}yes{% else %}no{% end %}")
+        assert tmpl.render(user=None) == "no"
+        assert tmpl.render(user={"name": "Alice"}) == "yes"
 
     def test_mixed_optional_and_regular(self, env):
         """Mix optional and regular access with fallback."""

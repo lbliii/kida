@@ -29,8 +29,8 @@ class TestSafePipeline:
     def test_safe_pipeline_none_no_error(self, env: Environment):
         """Safe pipeline does not error when value is None (unlike regular |>)."""
         tmpl = env.from_string("{{ value ?|> upper }}")
-        # None propagates through — renders as "None" (kida default for None output)
-        assert tmpl.render(value=None) == "None"
+        # None propagates through — renders as "" (optional chaining renders empty)
+        assert tmpl.render(value=None) == ""
 
     def test_safe_pipeline_chained(self, env: Environment):
         """Chained safe pipeline propagates None through all steps."""
@@ -222,8 +222,8 @@ class TestOptionalFilter:
     def test_optional_filter_none_no_error(self, env: Environment):
         """?| does not error when value is None (unlike regular |)."""
         tmpl = env.from_string("{{ value ?| upper }}")
-        # None propagates — renders as "None" (kida default)
-        assert tmpl.render(value=None) == "None"
+        # None propagates — renders as "" (optional chaining renders empty)
+        assert tmpl.render(value=None) == ""
 
     def test_optional_filter_chained(self, env: Environment):
         """?| can be chained — each step checks for None independently."""

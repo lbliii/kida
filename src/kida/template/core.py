@@ -188,6 +188,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         self._filename = filename
         self._optimized_ast = optimized_ast
         self._source = source
+        self._compile_warnings: list = []  # TemplateWarning instances
         self._def_metadata_cache: dict[str, DefMetadata] | None = None
         self._metadata_cache: TemplateMetadata | None = None
         self._inheritance_chain_cache: tuple[Template, ...] | None = None
@@ -303,8 +304,13 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         """Get the Environment (dereferences weak reference)."""
         env = self._env_ref()
         if env is None:
-            raise RuntimeError(
-                f"Environment has been garbage collected (template: {self._name or 'unknown'})"
+            from kida.exceptions import ErrorCode, TemplateRuntimeError
+
+            raise TemplateRuntimeError(
+                f"Environment has been garbage collected (template: {self._name or 'unknown'})",
+                template_name=self._name,
+                code=ErrorCode.ENV_GARBAGE_COLLECTED,
+                suggestion="Keep a reference to the Environment for the lifetime of its templates.",
             )
         return env
 
@@ -314,6 +320,32 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         if env is None:
             return (50, 50)
         return (env.max_extends_depth, env.max_include_depth)
+
+    def _get_max_output_size(self) -> int | None:
+        """Get max_output_size from sandbox policy, if any."""
+        env = self._env_ref()
+        if env is None:
+            return None
+        from kida.sandbox import SandboxedEnvironment
+
+        if isinstance(env, SandboxedEnvironment):
+            return env._get_sandbox_policy().max_output_size
+        return None
+
+    def _check_output_size(self, output: str) -> str:
+        """Enforce max_output_size if sandbox policy sets one."""
+        limit = self._get_max_output_size()
+        if limit is not None and len(output) > limit:
+            from kida.exceptions import ErrorCode
+            from kida.sandbox import SecurityError
+
+            raise SecurityError(
+                f"Render output size ({len(output)} chars) exceeds sandbox limit of {limit}",
+                code=ErrorCode.OUTPUT_LIMIT,
+                suggestion=f"Reduce template output, or increase "
+                f"SandboxPolicy(max_output_size={limit * 2}) if this is intentional.",
+            )
+        return output
 
     def _build_context(
         self, args: tuple[Any, ...], kwargs: dict[str, Any], method_name: str
@@ -446,6 +478,11 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 raise enhance_template_error(e, render_ctx, self._source) from e
 
     @property
+    def warnings(self) -> list:
+        """Compile-time warnings for this template."""
+        return self._compile_warnings
+
+    @property
     def name(self) -> str | None:
         """Template name."""
         return self._name
@@ -491,14 +528,21 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
 
         render_func = self._render_func
         if render_func is None:
-            raise RuntimeError(f"Template '{self._name or '(inline)'}' not properly compiled")
+            from kida.exceptions import ErrorCode, TemplateRuntimeError
+
+            raise TemplateRuntimeError(
+                f"Template '{self._name or '(inline)'}' not properly compiled",
+                template_name=self._name,
+                code=ErrorCode.NOT_COMPILED,
+                suggestion="Ensure the template was compiled via env.get_template() or env.from_string().",
+            )
 
         with self._render_scaffold(args, kwargs, "render", use_cached_blocks=True) as (
             ctx,
             _render_ctx,
             blocks_arg,
         ):
-            return render_func(ctx, blocks_arg)
+            return self._check_output_size(render_func(ctx, blocks_arg))
 
     def render_block(self, block_name: str, *args: Any, **kwargs: Any) -> str:
         """Render a single block from the template.
@@ -539,7 +583,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             _blocks_arg,
         ):
             self._run_globals_setup_chain(ctx)
-            return block_func(ctx, effective)
+            return self._check_output_size(block_func(ctx, effective))
 
     def render_with_blocks(
         self,
@@ -574,7 +618,14 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         """
         render_func = self._render_func
         if render_func is None:
-            raise RuntimeError(f"Template '{self._name or '(inline)'}' not properly compiled")
+            from kida.exceptions import ErrorCode, TemplateRuntimeError
+
+            raise TemplateRuntimeError(
+                f"Template '{self._name or '(inline)'}' not properly compiled",
+                template_name=self._name,
+                code=ErrorCode.NOT_COMPILED,
+                suggestion="Ensure the template was compiled via env.get_template() or env.from_string().",
+            )
 
         # Build _blocks dict with callables matching the compiled signature:
         # block_func(ctx, _blocks) -> str
@@ -589,7 +640,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             _blocks_arg,
         ):
             self._run_globals_setup_chain(ctx)
-            return render_func(ctx, _blocks)
+            return self._check_output_size(render_func(ctx, _blocks))
 
     def render_stream(self, *args: Any, **kwargs: Any) -> Iterator[str]:
         """Render template as a generator of HTML chunks.
@@ -621,8 +672,13 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
 
         stream_func = self._render_stream_func
         if stream_func is None:
-            raise RuntimeError(
-                f"Template '{self._name or '(inline)'}' has no render_stream function"
+            from kida.exceptions import ErrorCode, TemplateRuntimeError
+
+            raise TemplateRuntimeError(
+                f"Template '{self._name or '(inline)'}' has no render_stream function",
+                template_name=self._name,
+                code=ErrorCode.NOT_COMPILED,
+                suggestion="Ensure the template was compiled with streaming support.",
             )
 
         with self._render_scaffold(
@@ -730,8 +786,13 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                     if chunk is not None:
                         yield chunk
             else:
-                raise RuntimeError(
-                    f"Template '{self._name or '(inline)'}' has no render_stream function"
+                from kida.exceptions import ErrorCode, TemplateRuntimeError
+
+                raise TemplateRuntimeError(
+                    f"Template '{self._name or '(inline)'}' has no render_stream function",
+                    template_name=self._name,
+                    code=ErrorCode.NOT_COMPILED,
+                    suggestion="Ensure the template was compiled with streaming support.",
                 )
 
     async def render_block_stream_async(

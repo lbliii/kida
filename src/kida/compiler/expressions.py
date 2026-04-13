@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from kida.exceptions import TemplateSyntaxError
+from kida.exceptions import ErrorCode, TemplateSyntaxError
 from kida.utils.typo_suggestions import suggest_closest
 
 if TYPE_CHECKING:
@@ -375,7 +375,9 @@ class ExpressionCompilationMixin:
             msg = f"Unknown test '{node.name}'"
             if suggestion:
                 msg += f". Did you mean '{suggestion}'?"
-            raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+            err = TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+            err.code = ErrorCode.INVALID_TEST
+            raise err
 
         # Compile test: _tests['name'](value, *args, **kwargs)
         # If negated: not _tests['name'](value, *args, **kwargs)
@@ -465,7 +467,9 @@ class ExpressionCompilationMixin:
             msg = f"Unknown filter '{node.name}'"
             if suggestion:
                 msg += f". Did you mean '{suggestion}'?"
-            raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+            err = TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+            err.code = ErrorCode.INVALID_FILTER
+            raise err
 
         # Special handling for 'default' filter
         # The default filter needs to work even when the value is undefined
@@ -624,6 +628,20 @@ class ExpressionCompilationMixin:
         - a ?? b to return b if a is None
         - a ?? b to return a if a is any other value (including falsy: 0, '', [])
         """
+        # Warn when right side is a Filter — likely precedence mistake
+        # e.g. {{ x ?? [] | length }} parses as {{ x ?? ([] | length) }}
+        from kida.nodes.expressions import Filter
+
+        if isinstance(node.right, Filter):
+            self._emit_warning(
+                ErrorCode.FILTER_PRECEDENCE,
+                f"Filter '|' binds tighter than '??' — "
+                f"'| {node.right.name}' applies to the fallback, not the full expression",
+                lineno=node.lineno,
+                suggestion=f"Use (... ?? {{}}) | {node.right.name} to apply "
+                f"the filter to the result, or add parentheses to clarify intent.",
+            )
+
         left = self._compile_expr(node.left)
         right = self._compile_expr(node.right)
 
@@ -826,7 +844,9 @@ class ExpressionCompilationMixin:
             msg = f"Unknown filter '{node.name}'"
             if suggestion:
                 msg += f". Did you mean '{suggestion}'?"
-            raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+            err = TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+            err.code = ErrorCode.INVALID_FILTER
+            raise err
 
         value = self._compile_expr(node.value)
         compiled_args = [self._compile_expr(arg) for arg in node.args]
@@ -888,7 +908,9 @@ class ExpressionCompilationMixin:
                 msg = f"Unknown filter '{filter_name}'"
                 if suggestion:
                     msg += f". Did you mean '{suggestion}'?"
-                raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+                err = TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+                err.code = ErrorCode.INVALID_FILTER
+                raise err
 
             # Compile filter arguments
             compiled_args = [self._compile_expr(arg) for arg in args]
@@ -941,7 +963,9 @@ class ExpressionCompilationMixin:
                 msg = f"Unknown filter '{filter_name}'"
                 if suggestion:
                     msg += f". Did you mean '{suggestion}'?"
-                raise TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+                err = TemplateSyntaxError(msg, lineno=getattr(node, "lineno", None))
+                err.code = ErrorCode.INVALID_FILTER
+                raise err
 
             self._block_counter += 1
             tmp_name = f"_sp_{self._block_counter}"

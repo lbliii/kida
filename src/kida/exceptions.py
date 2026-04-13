@@ -100,6 +100,26 @@ class ErrorCode(Enum):
     SYNTAX_ERROR = "K-TPL-002"
     CIRCULAR_IMPORT = "K-TPL-003"
 
+    # Security errors (K-SEC-xxx)
+    BLOCKED_ATTRIBUTE = "K-SEC-001"
+    BLOCKED_TYPE = "K-SEC-002"
+    RANGE_LIMIT = "K-SEC-003"
+    BLOCKED_CALLABLE = "K-SEC-004"
+    OUTPUT_LIMIT = "K-SEC-005"
+
+    # Extended runtime errors (K-RUN-xxx continued)
+    ENV_GARBAGE_COLLECTED = "K-RUN-014"
+    NOT_COMPILED = "K-RUN-015"
+    NO_LOADER = "K-RUN-016"
+    NOT_IN_RENDER_CONTEXT = "K-RUN-017"
+
+    # Extended parser errors (K-PAR-xxx continued)
+    UNSUPPORTED_SYNTAX = "K-PAR-007"
+
+    # Warnings (K-WARN-xxx) — used with TemplateWarning, not exceptions
+    FILTER_PRECEDENCE = "K-WARN-001"
+    JINJA2_SET_SCOPING = "K-WARN-002"
+
     @property
     def docs_url(self) -> str:
         """Documentation URL for this error code."""
@@ -108,14 +128,64 @@ class ErrorCode(Enum):
 
     @property
     def category(self) -> str:
-        """Error category (e.g., 'runtime', 'lexer', 'parser', 'template')."""
+        """Error category (e.g., 'runtime', 'lexer', 'parser', 'template', 'security')."""
         prefix = self.value.split("-")[1]
         return {
             "LEX": "lexer",
             "PAR": "parser",
             "RUN": "runtime",
             "TPL": "template",
+            "SEC": "security",
+            "WARN": "warning",
         }.get(prefix, "unknown")
+
+
+# ---------------------------------------------------------------------------
+# Compile-time warnings
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class TemplateWarning:
+    """Compile-time template warning (not an exception)."""
+
+    code: ErrorCode
+    message: str
+    template_name: str | None = None
+    lineno: int | None = None
+    suggestion: str | None = None
+
+    def format_message(self) -> str:
+        """Format warning for display."""
+        parts = []
+        loc = ""
+        if self.template_name:
+            loc += self.template_name
+        if self.lineno:
+            loc += f":{self.lineno}"
+        if loc:
+            parts.append(f"[{self.code.value}] {self.message} ({loc})")
+        else:
+            parts.append(f"[{self.code.value}] {self.message}")
+        if self.suggestion:
+            parts.append(f"  Hint: {self.suggestion}")
+        return "\n".join(parts)
+
+
+class KidaWarning(UserWarning):
+    """Base warning category for Kida template warnings."""
+
+
+class PrecedenceWarning(KidaWarning):
+    """Operator precedence may cause unexpected results."""
+
+
+class CoercionWarning(KidaWarning):
+    """Implicit type coercion in filter."""
+
+
+class MigrationWarning(KidaWarning):
+    """Jinja2 migration: behavior differs from Jinja2."""
 
 
 # ---------------------------------------------------------------------------

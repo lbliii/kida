@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 from kida.environment.core import Environment
+from kida.exceptions import ErrorCode, TemplateError
 
 # Types that are never safe to expose in templates
 _UNSAFE_TYPES = frozenset(
@@ -197,8 +198,40 @@ class SandboxPolicy:
 DEFAULT_POLICY = SandboxPolicy()
 
 
-class SecurityError(Exception):
-    """Raised when a sandbox policy violation is detected."""
+class SecurityError(TemplateError):
+    """Raised when a sandbox policy violation is detected.
+
+    Includes an error code and actionable suggestion for resolving the
+    violation. All security errors inherit from TemplateError, so they
+    are caught by ``except TemplateError``.
+
+    Example::
+
+        SecurityError: Access to attribute '__class__' is blocked by sandbox policy
+          Hint: Remove the attribute access, or add '__class__' to
+                SandboxPolicy(allowed_attributes=...) if you trust this template.
+          Docs: https://lbliii.github.io/kida/docs/errors/#k-sec-001
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: ErrorCode | None = None,
+        suggestion: str | None = None,
+    ):
+        self.message = message
+        self.code = code
+        self.suggestion = suggestion
+        super().__init__(self._format_message())
+
+    def _format_message(self) -> str:
+        parts = [self.message]
+        if self.suggestion:
+            parts.append(f"  Hint: {self.suggestion}")
+        if self.code:
+            parts.append(f"  Docs: {self.code.docs_url}")
+        return "\n".join(parts)
 
 
 def _is_attr_blocked(name: str, policy: SandboxPolicy) -> bool:
@@ -237,10 +270,18 @@ def _make_sandboxed_getattr(policy: SandboxPolicy):
         if obj is None:
             return UNDEFINED
         if _is_attr_blocked(name, policy):
-            raise SecurityError(f"Access to attribute {name!r} is blocked by sandbox policy")
+            raise SecurityError(
+                f"Access to attribute {name!r} is blocked by sandbox policy",
+                code=ErrorCode.BLOCKED_ATTRIBUTE,
+                suggestion=f"Remove the attribute access, or add {name!r} to "
+                "SandboxPolicy(allowed_attributes=...) if you trust this template.",
+            )
         if _is_type_blocked(obj, policy):
             raise SecurityError(
-                f"Access to objects of type {type(obj).__name__!r} is blocked by sandbox policy"
+                f"Access to objects of type {type(obj).__name__!r} is blocked by sandbox policy",
+                code=ErrorCode.BLOCKED_TYPE,
+                suggestion=f"Remove {type(obj).__name__!r} from SandboxPolicy(blocked_types=...) "
+                "if you trust this template, or avoid passing objects of this type to the template.",
             )
         # Delegate to standard resolution, but with checks
         if type(obj) is dict:
@@ -281,10 +322,18 @@ def _make_sandboxed_getattr_none(policy: SandboxPolicy):
 
     def sandboxed_getattr_none(obj: object, name: str) -> object:
         if _is_attr_blocked(name, policy):
-            raise SecurityError(f"Access to attribute {name!r} is blocked by sandbox policy")
+            raise SecurityError(
+                f"Access to attribute {name!r} is blocked by sandbox policy",
+                code=ErrorCode.BLOCKED_ATTRIBUTE,
+                suggestion=f"Remove the attribute access, or add {name!r} to "
+                "SandboxPolicy(allowed_attributes=...) if you trust this template.",
+            )
         if obj is not None and _is_type_blocked(obj, policy):
             raise SecurityError(
-                f"Access to objects of type {type(obj).__name__!r} is blocked by sandbox policy"
+                f"Access to objects of type {type(obj).__name__!r} is blocked by sandbox policy",
+                code=ErrorCode.BLOCKED_TYPE,
+                suggestion=f"Remove {type(obj).__name__!r} from SandboxPolicy(blocked_types=...) "
+                "if you trust this template, or avoid passing objects of this type to the template.",
             )
         if type(obj) is dict:
             d = cast("dict[str, Any]", obj)
@@ -322,7 +371,12 @@ def _make_sandboxed_range(policy: SandboxPolicy):
     def sandboxed_range(*args: int) -> range:
         r = range(*args)
         if len(r) > max_range:
-            raise SecurityError(f"range() size {len(r)} exceeds sandbox limit of {max_range}")
+            raise SecurityError(
+                f"range() size {len(r)} exceeds sandbox limit of {max_range}",
+                code=ErrorCode.RANGE_LIMIT,
+                suggestion=f"Reduce the range size, or increase "
+                f"SandboxPolicy(max_range={max_range * 10}) if this is intentional.",
+            )
         return r
 
     return sandboxed_range
@@ -383,14 +437,20 @@ def _make_sandboxed_call(policy: SandboxPolicy):
         # Always block calls to fundamentally unsafe types
         if _is_type_blocked(func, policy):
             raise SecurityError(
-                f"Calling objects of type {type(func).__name__!r} is blocked by sandbox policy"
+                f"Calling objects of type {type(func).__name__!r} is blocked by sandbox policy",
+                code=ErrorCode.BLOCKED_CALLABLE,
+                suggestion=f"Remove {type(func).__name__!r} from SandboxPolicy(blocked_types=...) "
+                "if you trust this template, or avoid passing callables of this type.",
             )
         # If allow_calling is set, enforce the allowlist
         if policy.allow_calling is not None:
             type_name = type(func).__name__
             if type_name not in policy.allow_calling:
                 raise SecurityError(
-                    f"Calling objects of type {type_name!r} is not permitted by sandbox policy"
+                    f"Calling objects of type {type_name!r} is not permitted by sandbox policy",
+                    code=ErrorCode.BLOCKED_CALLABLE,
+                    suggestion=f"Add {type_name!r} to "
+                    "SandboxPolicy(allow_calling=frozenset({...})) to permit calls to this type.",
                 )
         return func(*args, **kwargs)
 

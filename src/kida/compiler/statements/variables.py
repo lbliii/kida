@@ -47,6 +47,16 @@ class VariableAssignmentMixin:
         With ??=, assigns only if the variable is undefined or None:
             {% set x ??= "default" %}
         """
+        if self._scope_depth > 0 and self._env.jinja2_compat_warnings:
+            from kida.exceptions import ErrorCode
+
+            self._emit_warning(
+                ErrorCode.JINJA2_SET_SCOPING,
+                "{% set %} is block-scoped in Kida (does not leak to outer scope). "
+                "In Jinja2, {% set %} would modify the outer variable.",
+                lineno=node.lineno,
+                suggestion="Use {% export %} to write to outer scope, or {% let %} for template-wide assignment.",
+            )
         stmts = self._compile_block_scoped_assignment(node.target, node.value)
         if node.coalesce:
             return self._wrap_coalesce_guard(node.target, stmts)

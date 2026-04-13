@@ -207,8 +207,11 @@ def make_render_helpers(
     def _resolve_env(template_name: str) -> Environment:
         _env = env_ref()
         if _env is None:
-            raise RuntimeError(
-                f"Environment has been garbage collected while including '{template_name}'"
+            raise TemplateRuntimeError(
+                f"Environment has been garbage collected while including '{template_name}'",
+                template_name=template_name,
+                code=ErrorCode.ENV_GARBAGE_COLLECTED,
+                suggestion="Keep a reference to the Environment for the lifetime of its templates.",
             )
         return _env
 
@@ -235,7 +238,18 @@ def make_render_helpers(
             if acc is not None:
                 acc.record_include(template_name)
         _env = _resolve_env(template_name)
-        tmpl = _env.get_template(template_name)
+        try:
+            tmpl = _env.get_template(template_name)
+        except TemplateNotFoundError as e:
+            # Enrich with caller context so users know which template triggered it
+            caller = render_ctx.template_name
+            if caller:
+                tag = "extends" if for_extends else "include"
+                loc = f"{caller}:{render_ctx.line}" if render_ctx.line else caller
+                raise TemplateNotFoundError(
+                    f"{e} (referenced by {{% {tag} %}} in {loc})",
+                ) from e
+            raise
         if for_extends:
             child_ctx = render_ctx.child_context_for_extends(template_name, source=tmpl._source)
         else:
@@ -284,9 +298,12 @@ def make_render_helpers(
         child_ctx, parent, token = _enter_child_context(template_name, for_extends=True)
         try:
             if parent._render_func is None:
-                raise RuntimeError(
+                raise TemplateRuntimeError(
                     f"Template '{template_name}' not properly compiled: "
-                    f"_render_func is None. Check for syntax errors in the template."
+                    f"_render_func is None. Check for syntax errors in the template.",
+                    template_name=template_name,
+                    code=ErrorCode.NOT_COMPILED,
+                    suggestion="Ensure the template was compiled via env.get_template() or env.from_string().",
                 )
             blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
             result: str = parent._render_func(context, blocks_to_use)
@@ -326,8 +343,11 @@ def make_render_helpers(
         try:
             stream_func = parent._namespace.get("render_stream")
             if stream_func is None:
-                raise RuntimeError(
-                    f"Template '{template_name}' not properly compiled: render_stream is None."
+                raise TemplateRuntimeError(
+                    f"Template '{template_name}' not properly compiled: render_stream is None.",
+                    template_name=template_name,
+                    code=ErrorCode.NOT_COMPILED,
+                    suggestion="Ensure the template was compiled with streaming support.",
                 )
             blocks_to_use = _wrap_blocks_if_cached(blocks, child_ctx)
             yield from stream_func(context, blocks_to_use)
@@ -383,8 +403,11 @@ def make_render_helpers(
             else:
                 sync_func = parent._namespace.get("render_stream")
                 if sync_func is None:
-                    raise RuntimeError(
-                        f"Template '{template_name}' not properly compiled: render_stream is None."
+                    raise TemplateRuntimeError(
+                        f"Template '{template_name}' not properly compiled: render_stream is None.",
+                        template_name=template_name,
+                        code=ErrorCode.NOT_COMPILED,
+                        suggestion="Ensure the template was compiled with streaming support.",
                     )
                 for chunk in sync_func(context, blocks_to_use):
                     yield chunk
@@ -400,8 +423,11 @@ def make_render_helpers(
         template_name = normalize_template_name(template_name)
         _env = env_ref()
         if _env is None:
-            raise RuntimeError(
-                f"Environment has been garbage collected while importing '{template_name}'"
+            raise TemplateRuntimeError(
+                f"Environment has been garbage collected while importing '{template_name}'",
+                template_name=template_name,
+                code=ErrorCode.ENV_GARBAGE_COLLECTED,
+                suggestion="Keep a reference to the Environment for the lifetime of its templates.",
             )
         render_ctx = get_render_context_required()
         if template_name in render_ctx.import_stack:
@@ -418,9 +444,12 @@ def make_render_helpers(
             token = set_render_context(child_ctx)
             try:
                 if imported._render_func is None:
-                    raise RuntimeError(
+                    raise TemplateRuntimeError(
                         f"Template '{template_name}' not properly compiled: "
-                        f"_render_func is None. Check for syntax errors in the template."
+                        f"_render_func is None. Check for syntax errors in the template.",
+                        template_name=template_name,
+                        code=ErrorCode.NOT_COMPILED,
+                        suggestion="Ensure the template was compiled via env.get_template() or env.from_string().",
                     )
                 import_ctx = dict(_env.get_filtered_globals())
                 if with_context:

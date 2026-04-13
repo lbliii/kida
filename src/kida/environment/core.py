@@ -167,6 +167,9 @@ class Environment:
     autoescape: bool | str | Callable[[str | None], bool] = True
     auto_reload: bool = True
     strict_none: bool = False  # When True, sorting with None values raises detailed errors
+    jinja2_compat_warnings: bool = (
+        False  # When True, warn on {% set %} inside blocks (Jinja2 scoping difference)
+    )
 
     # Template Introspection (RFC: kida-template-introspection)
     # True (default): Preserve AST, enable block_metadata()/depends_on()
@@ -361,6 +364,16 @@ class Environment:
             from kida.environment.globals import HTMX_GLOBALS
 
             self.globals.update(HTMX_GLOBALS)
+
+        # Validate string autoescape modes eagerly (not at first compile)
+        if isinstance(self.autoescape, str):
+            mode = self.autoescape.strip().lower()
+            if mode not in {"true", "false", "terminal", "markdown"}:
+                msg = (
+                    f"Unknown autoescape mode: {self.autoescape!r}. "
+                    f"Valid modes: True, False, 'terminal', 'markdown', or a callable."
+                )
+                raise ValueError(msg)
 
         # Terminal mode initialization
         if self.autoescape == "terminal":
@@ -597,7 +610,14 @@ class Environment:
             is reloaded. This ensures templates reflect filesystem changes.
         """
         if self.loader is None:
-            raise RuntimeError("No loader configured")
+            from kida.exceptions import ErrorCode, TemplateRuntimeError
+
+            raise TemplateRuntimeError(
+                "No loader configured",
+                code=ErrorCode.NO_LOADER,
+                suggestion="Pass a loader to Environment: "
+                "Environment(loader=FileSystemLoader('templates/'))",
+            )
 
         name = normalize_template_name(name)
 
@@ -842,6 +862,14 @@ class Environment:
         compiler = Compiler(self)
         code = compiler.compile(ast, name, filename)
         precomputed = compiler.precomputed or None
+        # Deduplicate warnings (body is compiled multiple times for sync/stream/async)
+        seen: set[tuple] = set()
+        compile_warnings = []
+        for w in compiler.warnings:
+            key = (w.code, w.message, w.lineno)
+            if key not in seen:
+                seen.add(key)
+                compile_warnings.append(w)
 
         # Cache bytecode (and AST when available) for future cold-starts.
         # Serialising the AST avoids re-lexing/re-parsing on cache hits when
@@ -857,7 +885,7 @@ class Environment:
                 precomputed=precomputed,
             )
 
-        return Template(
+        tmpl = Template(
             self,
             code,
             name,
@@ -866,6 +894,22 @@ class Environment:
             source=source,
             precomputed=precomputed,
         )
+        tmpl._compile_warnings = compile_warnings
+
+        # Emit Python warnings for integration with pytest and logging
+        if compile_warnings:
+            import warnings as _warnings_mod
+
+            from kida.exceptions import ErrorCode, MigrationWarning, PrecedenceWarning
+
+            _warning_categories = {
+                ErrorCode.JINJA2_SET_SCOPING: MigrationWarning,
+            }
+            for w in compile_warnings:
+                category = _warning_categories.get(w.code, PrecedenceWarning)
+                _warnings_mod.warn(w.format_message(), category, stacklevel=2)
+
+        return tmpl
 
     def _is_template_stale(self, name: str) -> bool:
         """Check if a cached template is stale (source changed).
