@@ -512,6 +512,65 @@ def _cmd_render(
     return 0
 
 
+def _cmd_readme(
+    root: Path,
+    *,
+    output: Path | None,
+    preset: str,
+    template: Path | None,
+    set_vars: list[str] | None,
+    depth: int,
+    dump_json: bool,
+) -> int:
+    """Generate a README from auto-detected project metadata."""
+    import json
+
+    from kida.readme.detect import detect_project
+
+    root = root.resolve()
+    if not root.is_dir():
+        print(f"kida readme: not a directory: {root}", file=sys.stderr)
+        return 2
+
+    ctx = detect_project(root, depth=depth)
+
+    # Apply --set overrides
+    for item in set_vars or []:
+        if "=" not in item:
+            print(f"kida readme: --set requires KEY=VALUE, got: {item}", file=sys.stderr)
+            return 2
+        key, raw = item.split("=", 1)
+        try:
+            ctx[key] = json.loads(raw)
+        except ValueError:
+            ctx[key] = raw
+
+    # --json mode: dump context and exit
+    if dump_json:
+        # tree is a nested dict, tree_str is the rendered string — both serialize fine
+        print(json.dumps(ctx, indent=2, default=str))
+        return 0
+
+    # Render
+    from kida.readme import render_readme
+
+    try:
+        md = render_readme(root, preset=preset, template=template, context=ctx, depth=depth)
+    except Exception as e:
+        print(f"kida readme: {e}", file=sys.stderr)
+        return 1
+
+    if output is not None:
+        output.write_text(md, encoding="utf-8")
+        print(f"Wrote {output}", file=sys.stderr)
+    else:
+        sys.stdout.write(md)
+        if not md.endswith("\n"):
+            sys.stdout.write("\n")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for ``python -m kida`` / the ``kida`` console script."""
     parser = argparse.ArgumentParser(prog="kida", description="Kida template engine CLI")
@@ -646,6 +705,58 @@ def main(argv: list[str] | None = None) -> int:
         help="File extensions to scan (default: .html .txt .xml). Repeatable.",
     )
 
+    p_readme = sub.add_parser(
+        "readme",
+        help="Generate a README from auto-detected project metadata",
+    )
+    p_readme.add_argument(
+        "root",
+        nargs="?",
+        type=Path,
+        default=Path(),
+        help="Project root directory (default: current directory)",
+    )
+    p_readme.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Write to file instead of stdout",
+    )
+    p_readme.add_argument(
+        "--preset",
+        choices=["default", "minimal", "library", "cli"],
+        default="default",
+        help="Built-in template preset (default: default)",
+    )
+    p_readme.add_argument(
+        "--template",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Path to a custom Kida template (overrides --preset)",
+    )
+    p_readme.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Override detected values (value is parsed as JSON, falls back to string). Repeatable.",
+    )
+    p_readme.add_argument(
+        "--depth",
+        type=int,
+        default=2,
+        help="Directory tree depth (default: 2)",
+    )
+    p_readme.add_argument(
+        "--json",
+        action="store_true",
+        dest="dump_json",
+        help="Dump auto-detected context as JSON instead of rendering",
+    )
+
     p_fmt = sub.add_parser(
         "fmt",
         help="Auto-format Kida template files",
@@ -696,6 +807,16 @@ def main(argv: list[str] | None = None) -> int:
         # Normalize: ensure each extension has a leading dot
         exts = [e if e.startswith(".") else f".{e}" for e in exts]
         return _cmd_extract(args.template_dir, output=args.output, extensions=exts)
+    if args.command == "readme":
+        return _cmd_readme(
+            args.root,
+            output=args.output,
+            preset=args.preset,
+            template=args.template,
+            set_vars=args.set,
+            depth=args.depth,
+            dump_json=args.dump_json,
+        )
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)
     return 2

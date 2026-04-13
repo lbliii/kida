@@ -1,0 +1,82 @@
+# {{ name }}
+{% if description %}
+
+{{ description }}
+{% end %}
+{% if repo_url %}
+
+[![License](https://img.shields.io/badge/license-{{ license | default("MIT") }}-blue.svg)]({{ repo_url }}){% if version %} [![Version](https://img.shields.io/badge/version-{{ version }}-green.svg)]({{ repo_url }}){% end %}
+
+{% end %}
+
+## Installation
+{% if build_tool == "uv" %}
+
+```bash
+uv tool install {{ name }}
+```
+
+Or add to a project:
+
+```bash
+uv add {{ name }}
+```
+{% elif build_tool == "poetry" %}
+
+```bash
+poetry add {{ name }}
+```
+{% elif build_tool == "pipenv" %}
+
+```bash
+pipenv install {{ name }}
+```
+{% else %}
+
+```bash
+pip install {{ name }}
+```
+{% end %}
+{% if has_cli %}
+
+## Usage
+
+```bash
+{{ cli_name }} --help
+```
+{% if scripts %}
+
+### Commands
+{% for cmd, entry in scripts.items() %}
+- **`{{ cmd }}`** — `{{ entry }}`
+{% end %}
+{% end %}
+{% end %}
+
+## Project Structure
+
+```
+{{ tree_str }}
+```
+{% if dev_dependencies %}
+
+## Development
+
+```bash
+{{ install_command }}
+```
+{% if test_command %}
+
+### Testing
+
+```bash
+{{ test_command }}
+```
+{% end %}
+{% end %}
+{% if license %}
+
+## License
+
+{{ license }}
+{% end %}

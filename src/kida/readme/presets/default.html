@@ -1,0 +1,64 @@
+# {{ name }}
+{% if description %}
+
+{{ description }}
+{% end %}
+{% if repo_url %}
+
+[![License](https://img.shields.io/badge/license-{{ license | default("MIT") }}-blue.svg)]({{ repo_url }}){% if version %} [![Version](https://img.shields.io/badge/version-{{ version }}-green.svg)]({{ repo_url }}){% end %}
+
+{% end %}
+
+## Installation
+{% if build_tool == "uv" %}
+
+```bash
+uv add {{ name }}
+```
+{% elif build_tool == "poetry" %}
+
+```bash
+poetry add {{ name }}
+```
+{% else %}
+
+```bash
+pip install {{ name }}
+```
+{% end %}
+{% if has_cli %}
+
+## Usage
+
+```bash
+{{ cli_name }} --help
+```
+{% end %}
+
+## Project Structure
+
+```
+{{ tree_str }}
+```
+{% if dev_dependencies %}
+
+## Development
+
+```bash
+{{ install_command }}
+```
+{% if test_command %}
+
+### Running Tests
+
+```bash
+{{ test_command }}
+```
+{% end %}
+{% end %}
+{% if license %}
+
+## License
+
+{{ license }}
+{% end %}

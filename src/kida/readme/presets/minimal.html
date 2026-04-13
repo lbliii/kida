@@ -1,0 +1,29 @@
+# {{ name }}
+{% if description %}
+
+{{ description }}
+{% end %}
+
+## Installation
+{% if build_tool == "uv" %}
+
+```bash
+uv add {{ name }}
+```
+{% elif build_tool == "poetry" %}
+
+```bash
+poetry add {{ name }}
+```
+{% else %}
+
+```bash
+pip install {{ name }}
+```
+{% end %}
+{% if license %}
+
+## License
+
+{{ license }}
+{% end %}

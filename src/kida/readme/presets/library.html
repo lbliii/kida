@@ -1,0 +1,83 @@
+# {{ name }}
+{% if description %}
+
+{{ description }}
+{% end %}
+{% if repo_url %}
+
+[![License](https://img.shields.io/badge/license-{{ license | default("MIT") }}-blue.svg)]({{ repo_url }}){% if version %} [![Version](https://img.shields.io/badge/version-{{ version }}-green.svg)]({{ repo_url }}){% end %}{% if python_requires %} [![Python](https://img.shields.io/badge/python-{{ python_requires }}-blue.svg)]({{ repo_url }}){% end %}
+
+{% end %}
+
+## Installation
+{% if build_tool == "uv" %}
+
+```bash
+uv add {{ name }}
+```
+{% elif build_tool == "poetry" %}
+
+```bash
+poetry add {{ name }}
+```
+{% else %}
+
+```bash
+pip install {{ name }}
+```
+{% end %}
+
+## Quick Start
+
+```python
+import {{ name | replace("-", "_") }}
+```
+{% if has_cli %}
+
+## CLI
+
+```bash
+{{ cli_name }} --help
+```
+{% end %}
+
+## Project Structure
+
+```
+{{ tree_str }}
+```
+{% if dependencies %}
+
+## Dependencies
+{% for dep in dependencies %}
+- `{{ dep }}`
+{% end %}
+{% end %}
+{% if dev_dependencies %}
+
+## Development
+
+```bash
+{{ install_command }}
+```
+{% if test_command %}
+
+### Testing
+
+```bash
+{{ test_command }}
+```
+{% end %}
+{% end %}
+{% if repo_url %}
+
+## Contributing
+
+Contributions are welcome. Please open an issue or submit a pull request at [{{ repo_url }}]({{ repo_url }}).
+{% end %}
+{% if license %}
+
+## License
+
+{{ license }}
+{% end %}
