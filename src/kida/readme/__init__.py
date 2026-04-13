@@ -55,10 +55,15 @@ def render_readme(
         tpl = env.get_template(template.name)
     else:
         from kida import Environment
-        from kida.environment.loaders import PackageLoader
+        from kida.environment.loaders import ChoiceLoader, PackageLoader
 
         env = Environment(
-            loader=PackageLoader("kida", "readme/presets"),
+            loader=ChoiceLoader(
+                [
+                    PackageLoader("kida", "readme/presets"),
+                    PackageLoader("kida", "readme"),
+                ]
+            ),
             autoescape=False,
         )
         tpl = env.get_template(f"{preset}.kida")

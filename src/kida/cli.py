@@ -516,7 +516,7 @@ def _cmd_readme(
     root: Path,
     *,
     output: Path | None,
-    preset: str,
+    preset: str | None,
     template: Path | None,
     set_vars: list[str] | None,
     depth: int,
@@ -533,6 +533,10 @@ def _cmd_readme(
         return 2
 
     ctx = detect_project(root, depth=depth)
+
+    # Auto-detect preset if not explicitly specified
+    if preset is None:
+        preset = ctx.get("suggested_preset", "default")
 
     # Apply --set overrides
     for item in set_vars or []:
@@ -727,8 +731,8 @@ def main(argv: list[str] | None = None) -> int:
     p_readme.add_argument(
         "--preset",
         choices=["default", "minimal", "library", "cli"],
-        default="default",
-        help="Built-in template preset (default: default)",
+        default=None,
+        help="Built-in template preset (default: auto-detected from project type)",
     )
     p_readme.add_argument(
         "--template",

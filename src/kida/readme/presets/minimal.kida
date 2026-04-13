@@ -1,29 +1,12 @@
+{% from "sections.kida" import install, license_section %}
 # {{ name }}
 {% if description %}
 
 {{ description }}
 {% end %}
 
-## Installation
-{% if build_tool == "uv" %}
-
-```bash
-uv add {{ name }}
-```
-{% elif build_tool == "poetry" %}
-
-```bash
-poetry add {{ name }}
-```
-{% else %}
-
-```bash
-pip install {{ name }}
-```
-{% end %}
+{{ install(name, build_tool, python_requires, has_zero_deps) }}
 {% if license %}
 
-## License
-
-{{ license }}
+{{ license_section(license) }}
 {% end %}

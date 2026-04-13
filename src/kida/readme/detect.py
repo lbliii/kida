@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import tomllib
 from pathlib import Path  # noqa: TC003 — used at runtime
 from typing import Any
+
+# Maximum number of child entries before collapsing files in a directory.
+_COLLAPSE_THRESHOLD = 15
 
 # Directories to ignore when walking the project tree.
 _DEFAULT_IGNORE = frozenset(
@@ -76,15 +80,100 @@ def walk_tree(
     return _walk(root, depth)
 
 
+def _extract_docstring(path: Path) -> str | None:
+    """Extract the first line of a Python file's module docstring."""
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        doc = ast.get_docstring(tree)
+        if doc:
+            return doc.split("\n")[0].strip().rstrip(".")
+    except SyntaxError, UnicodeDecodeError, OSError:
+        pass
+    return None
+
+
+def annotate_tree(root: Path, tree: dict[str, Any]) -> dict[str, Any]:
+    """Add first-line docstrings as annotations to Python packages and modules.
+
+    Modifies *tree* in place, adding ``__annotation__`` keys to entries
+    that have extractable docstrings. Recurses into subdirectories.
+    """
+    for name, children in list(tree.items()):
+        path = root / name
+        if path.is_dir() and isinstance(children, dict):
+            # Recurse into subdirectories
+            annotate_tree(path, children)
+            if (path / "__init__.py").exists():
+                doc = _extract_docstring(path / "__init__.py")
+                if doc:
+                    children["__annotation__"] = doc
+        elif path.suffix == ".py" and path.is_file():
+            doc = _extract_docstring(path)
+            if doc:
+                # Store annotation as a string value (not dict) so files
+                # aren't confused with directories.
+                tree[name] = doc
+    return tree
+
+
+def collapse_tree(tree: dict[str, Any]) -> dict[str, Any]:
+    """Collapse directories with too many children for readability.
+
+    When a directory has more than :data:`_COLLAPSE_THRESHOLD` entries,
+    files are replaced with a single ``... and N files`` summary while
+    subdirectories are preserved.
+    """
+    result: dict[str, Any] = {}
+    for name, children in tree.items():
+        if not isinstance(children, dict) or not children:
+            result[name] = children
+            continue
+        # Recurse first
+        collapsed = collapse_tree(children)
+        # Remove internal __annotation__ from count
+        annotation = collapsed.pop("__annotation__", None)
+        dirs = {k: v for k, v in collapsed.items() if isinstance(v, dict)}
+        files = {k: v for k, v in collapsed.items() if not isinstance(v, dict)}
+
+        if len(dirs) + len(files) > _COLLAPSE_THRESHOLD and files:
+            new_children: dict[str, Any] = {}
+            if annotation:
+                new_children["__annotation__"] = annotation
+            new_children.update(dirs)
+            new_children[f"... and {len(files)} files"] = None
+            result[name] = new_children
+        else:
+            if annotation:
+                collapsed["__annotation__"] = annotation
+            result[name] = collapsed
+    return result
+
+
 def _render_tree(tree: dict[str, Any], prefix: str = "") -> str:
-    """Render a nested dict as an ASCII tree string."""
+    """Render a nested dict as an ASCII tree string.
+
+    Entries with an ``__annotation__`` key get a ``# comment`` suffix.
+    """
     lines: list[str] = []
-    entries = list(tree.items())
-    for i, (name, children) in enumerate(entries):
-        is_last = i == len(entries) - 1
+    # Filter out __annotation__ from iteration
+    visible = [(k, v) for k, v in tree.items() if k != "__annotation__"]
+    for i, (name, children) in enumerate(visible):
+        is_last = i == len(visible) - 1
         connector = "└── " if is_last else "├── "
-        lines.append(f"{prefix}{connector}{name}")
-        if isinstance(children, dict) and children:
+        is_dir = isinstance(children, dict)
+        # Annotation: directory annotation is in __annotation__ key,
+        # file annotation is stored as a string value directly.
+        entry_annotation = None
+        if is_dir and "__annotation__" in children:
+            entry_annotation = children["__annotation__"]
+        elif isinstance(children, str):
+            entry_annotation = children
+        suffix = f"  # {entry_annotation}" if entry_annotation else ""
+        display = f"{name}/" if is_dir else name
+        lines.append(f"{prefix}{connector}{display}{suffix}")
+        # Recurse into directories that have visible (non-annotation) children
+        if is_dir and any(k != "__annotation__" for k in children):
             extension = "    " if is_last else "│   "
             lines.append(_render_tree(children, prefix + extension))
     return "\n".join(lines)
@@ -170,6 +259,21 @@ def _detect_author(pyproject: dict[str, Any], root: Path) -> str | None:
     return None
 
 
+def detect_preset(ctx: dict[str, Any]) -> str:
+    """Auto-detect the best README preset based on project metadata.
+
+    Priority:
+        1. Has CLI entrypoints → ``"cli"``
+        2. Has runtime dependencies → ``"library"``
+        3. Otherwise → ``"default"``
+    """
+    if ctx.get("has_cli"):
+        return "cli"
+    if ctx.get("dependencies"):
+        return "library"
+    return "default"
+
+
 def detect_project(root: Path, *, depth: int = 2) -> dict[str, Any]:
     """Auto-detect project metadata from a directory.
 
@@ -211,17 +315,27 @@ def detect_project(root: Path, *, depth: int = 2) -> dict[str, Any]:
         if group not in dev_deps:
             dev_deps[group] = [str(d) for d in deps]
 
-    # Tree
+    # Tree — walk, annotate, collapse, render
     tree = walk_tree(root, depth=depth)
+    annotate_tree(root, tree)
+    tree = collapse_tree(tree)
     tree_str = _render_tree(tree)
 
-    return {
+    # Optional extras (separate from dev dependencies)
+    extras = dict(project.get("optional-dependencies", {}))
+
+    # Runtime dependencies
+    dependencies = project.get("dependencies", [])
+
+    ctx: dict[str, Any] = {
         "name": project.get("name", root.name),
         "version": project.get("version", ""),
         "description": project.get("description", ""),
         "license": project.get("license", ""),
         "python_requires": project.get("requires-python", ""),
-        "dependencies": project.get("dependencies", []),
+        "dependencies": dependencies,
+        "has_zero_deps": len(dependencies) == 0,
+        "extras": extras,
         "dev_dependencies": dev_deps,
         "has_cli": has_cli,
         "cli_name": cli_name,
@@ -236,4 +350,7 @@ def detect_project(root: Path, *, depth: int = 2) -> dict[str, Any]:
         "install_command": install_command,
         "repo_url": _detect_repo_url(pyproject, root),
         "author": _detect_author(pyproject, root),
+        "keywords": project.get("keywords", []),
     }
+    ctx["suggested_preset"] = detect_preset(ctx)
+    return ctx

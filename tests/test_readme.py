@@ -12,6 +12,9 @@ from kida.readme import render_readme
 from kida.readme.detect import (
     _detect_build_tool,
     _render_tree,
+    annotate_tree,
+    collapse_tree,
+    detect_preset,
     detect_project,
     walk_tree,
 )
@@ -393,3 +396,190 @@ class TestCLI:
 
         assert rc == 0
         assert "# Custom Name" in captured.getvalue()
+
+
+# ── Annotated tree ───────────────────────────────────────────────────────
+
+
+class TestAnnotateTree:
+    def test_annotates_python_package(self, tmp_path: Path):
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""My cool package."""\n')
+
+        tree = walk_tree(tmp_path, depth=2)
+        annotate_tree(tmp_path, tree)
+        assert tree["mypkg"]["__annotation__"] == "My cool package"
+
+    def test_annotates_python_file(self, tmp_path: Path):
+        (tmp_path / "helper.py").write_text('"""Utility functions."""\n')
+
+        tree = walk_tree(tmp_path, depth=1)
+        annotate_tree(tmp_path, tree)
+        # File annotations stored as string values
+        assert tree["helper.py"] == "Utility functions"
+
+    def test_no_docstring_no_annotation(self, tmp_path: Path):
+        (tmp_path / "empty.py").write_text("x = 1\n")
+
+        tree = walk_tree(tmp_path, depth=1)
+        annotate_tree(tmp_path, tree)
+        assert tree["empty.py"] is None
+
+    def test_non_python_files_not_annotated(self, tmp_path: Path):
+        (tmp_path / "data.json").write_text("{}\n")
+
+        tree = walk_tree(tmp_path, depth=1)
+        annotate_tree(tmp_path, tree)
+        assert tree["data.json"] is None
+
+    def test_recurses_into_subdirectories(self, tmp_path: Path):
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "__init__.py").write_text('"""Sub package."""\n')
+        inner = sub / "inner"
+        inner.mkdir()
+        (inner / "__init__.py").write_text('"""Inner package."""\n')
+
+        tree = walk_tree(tmp_path, depth=3)
+        annotate_tree(tmp_path, tree)
+        assert tree["sub"]["__annotation__"] == "Sub package"
+        assert tree["sub"]["inner"]["__annotation__"] == "Inner package"
+
+
+# ── Collapse tree ────────────────────────────────────────────────────────
+
+
+class TestCollapseTree:
+    def test_collapses_large_directory(self):
+        children = {f"file{i}.py": None for i in range(20)}
+        children["subdir"] = {"a.py": None}
+        tree = {"big": children}
+
+        result = collapse_tree(tree)
+        keys = list(result["big"].keys())
+        assert "subdir" in keys
+        assert any("... and" in k for k in keys)
+
+    def test_preserves_small_directory(self):
+        tree = {"small": {"a.py": None, "b.py": None}}
+        result = collapse_tree(tree)
+        assert "a.py" in result["small"]
+        assert "b.py" in result["small"]
+
+    def test_preserves_annotations_through_collapse(self):
+        children = {f"file{i}.py": None for i in range(20)}
+        children["__annotation__"] = "Big dir"
+        tree = {"big": children}
+
+        result = collapse_tree(tree)
+        assert result["big"]["__annotation__"] == "Big dir"
+
+
+# ── Auto-preset detection ────────────────────────────────────────────────
+
+
+class TestDetectPreset:
+    def test_cli_when_has_scripts(self):
+        assert detect_preset({"has_cli": True, "dependencies": []}) == "cli"
+
+    def test_library_when_has_deps(self):
+        assert detect_preset({"has_cli": False, "dependencies": ["requests"]}) == "library"
+
+    def test_default_otherwise(self):
+        assert detect_preset({"has_cli": False, "dependencies": []}) == "default"
+
+    def test_cli_takes_priority_over_deps(self):
+        assert detect_preset({"has_cli": True, "dependencies": ["click"]}) == "cli"
+
+
+# ── Enriched context ─────────────────────────────────────────────────────
+
+
+class TestEnrichedContext:
+    def test_has_zero_deps(self, tmp_path: Path):
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            textwrap.dedent("""\
+            [project]
+            name = "pure"
+            version = "1.0.0"
+            dependencies = []
+        """)
+        )
+
+        ctx = detect_project(tmp_path)
+        assert ctx["has_zero_deps"] is True
+
+    def test_has_extras(self, tmp_path: Path):
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            textwrap.dedent("""\
+            [project]
+            name = "extras-pkg"
+            version = "1.0.0"
+
+            [project.optional-dependencies]
+            perf = ["markupsafe"]
+            docs = ["sphinx"]
+        """)
+        )
+
+        ctx = detect_project(tmp_path)
+        assert "perf" in ctx["extras"]
+        assert ctx["extras"]["perf"] == ["markupsafe"]
+
+    def test_suggested_preset_in_context(self, tmp_path: Path):
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            textwrap.dedent("""\
+            [project]
+            name = "my-cli"
+            version = "1.0.0"
+
+            [project.scripts]
+            mycli = "my_cli:main"
+        """)
+        )
+
+        ctx = detect_project(tmp_path)
+        assert ctx["suggested_preset"] == "cli"
+
+    def test_keywords_in_context(self, tmp_path: Path):
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            textwrap.dedent("""\
+            [project]
+            name = "kw-pkg"
+            version = "1.0.0"
+            keywords = ["fast", "template"]
+        """)
+        )
+
+        ctx = detect_project(tmp_path)
+        assert ctx["keywords"] == ["fast", "template"]
+
+
+# ── Render tree with annotations ─────────────────────────────────────────
+
+
+class TestRenderTreeAnnotated:
+    def test_file_annotation_in_output(self):
+        tree = {"helper.py": "Utility functions", "main.py": None}
+        result = _render_tree(tree)
+        assert "helper.py  # Utility functions" in result
+        assert "main.py" in result
+        assert "main.py  #" not in result
+
+    def test_directory_annotation_in_output(self):
+        tree = {"pkg": {"__annotation__": "My package", "mod.py": None}}
+        result = _render_tree(tree)
+        assert "pkg/  # My package" in result
+        assert "mod.py" in result
+
+    def test_no_trailing_slash_on_files(self):
+        tree = {"file.txt": None, "annotated.py": "A module"}
+        result = _render_tree(tree)
+        assert "file.txt" in result
+        assert "file.txt/" not in result
+        assert "annotated.py/" not in result

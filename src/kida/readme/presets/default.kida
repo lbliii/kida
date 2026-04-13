@@ -1,3 +1,4 @@
+{% from "sections.kida" import badges, install, usage, tree_section, dev, license_section %}
 # {{ name }}
 {% if description %}
 
@@ -5,60 +6,21 @@
 {% end %}
 {% if repo_url %}
 
-[![License](https://img.shields.io/badge/license-{{ license | default("MIT") }}-blue.svg)]({{ repo_url }}){% if version %} [![Version](https://img.shields.io/badge/version-{{ version }}-green.svg)]({{ repo_url }}){% end %}
-
+{{ badges(repo_url, version, license, python_requires) }}
 {% end %}
 
-## Installation
-{% if build_tool == "uv" %}
-
-```bash
-uv add {{ name }}
-```
-{% elif build_tool == "poetry" %}
-
-```bash
-poetry add {{ name }}
-```
-{% else %}
-
-```bash
-pip install {{ name }}
-```
-{% end %}
+{{ install(name, build_tool, python_requires, has_zero_deps, extras) }}
 {% if has_cli %}
 
-## Usage
-
-```bash
-{{ cli_name }} --help
-```
+{{ usage(cli_name) }}
 {% end %}
 
-## Project Structure
-
-```
-{{ tree_str }}
-```
+{{ tree_section(tree_str) }}
 {% if dev_dependencies %}
 
-## Development
-
-```bash
-{{ install_command }}
-```
-{% if test_command %}
-
-### Running Tests
-
-```bash
-{{ test_command }}
-```
-{% end %}
+{{ dev(install_command, test_command) }}
 {% end %}
 {% if license %}
 
-## License
-
-{{ license }}
+{{ license_section(license) }}
 {% end %}

@@ -1,3 +1,4 @@
+{% from "sections.kida" import badges, install, usage, quickstart, tree_section, dev, contributing, license_section %}
 # {{ name }}
 {% if description %}
 
@@ -5,47 +6,18 @@
 {% end %}
 {% if repo_url %}
 
-[![License](https://img.shields.io/badge/license-{{ license | default("MIT") }}-blue.svg)]({{ repo_url }}){% if version %} [![Version](https://img.shields.io/badge/version-{{ version }}-green.svg)]({{ repo_url }}){% end %}{% if python_requires %} [![Python](https://img.shields.io/badge/python-{{ python_requires }}-blue.svg)]({{ repo_url }}){% end %}
-
+{{ badges(repo_url, version, license, python_requires) }}
 {% end %}
 
-## Installation
-{% if build_tool == "uv" %}
+{{ install(name, build_tool, python_requires, has_zero_deps, extras) }}
 
-```bash
-uv add {{ name }}
-```
-{% elif build_tool == "poetry" %}
-
-```bash
-poetry add {{ name }}
-```
-{% else %}
-
-```bash
-pip install {{ name }}
-```
-{% end %}
-
-## Quick Start
-
-```python
-import {{ name | replace("-", "_") }}
-```
+{{ quickstart(name) }}
 {% if has_cli %}
 
-## CLI
-
-```bash
-{{ cli_name }} --help
-```
+{{ usage(cli_name) }}
 {% end %}
 
-## Project Structure
-
-```
-{{ tree_str }}
-```
+{{ tree_section(tree_str) }}
 {% if dependencies %}
 
 ## Dependencies
@@ -55,29 +27,13 @@ import {{ name | replace("-", "_") }}
 {% end %}
 {% if dev_dependencies %}
 
-## Development
-
-```bash
-{{ install_command }}
-```
-{% if test_command %}
-
-### Testing
-
-```bash
-{{ test_command }}
-```
-{% end %}
+{{ dev(install_command, test_command) }}
 {% end %}
 {% if repo_url %}
 
-## Contributing
-
-Contributions are welcome. Please open an issue or submit a pull request at [{{ repo_url }}]({{ repo_url }}).
+{{ contributing(repo_url) }}
 {% end %}
 {% if license %}
 
-## License
-
-{{ license }}
+{{ license_section(license) }}
 {% end %}
