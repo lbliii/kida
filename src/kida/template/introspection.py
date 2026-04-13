@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import weakref
 
-    from kida.analysis import BlockMetadata, TemplateMetadata
+    from kida.analysis import BlockMetadata, DefMetadata, TemplateMetadata
     from kida.environment import Environment
     from kida.nodes import Template as TemplateNode
     from kida.template.core import Template
@@ -24,6 +24,7 @@ class TemplateIntrospectionMixin:
     Requires the host class to define the following slots:
         _optimized_ast: TemplateNode | None
         _metadata_cache: TemplateMetadata | None
+        _def_metadata_cache: dict[str, DefMetadata] | None
         _name: str | None
         _env_ref: weakref.ref[Environment]
 
@@ -32,6 +33,7 @@ class TemplateIntrospectionMixin:
     if TYPE_CHECKING:
         _optimized_ast: TemplateNode | None
         _metadata_cache: TemplateMetadata | None
+        _def_metadata_cache: dict[str, DefMetadata] | None
         _name: str | None
         _env_ref: weakref.ref[Environment]
 
@@ -67,6 +69,47 @@ class TemplateIntrospectionMixin:
             self._analyze()
 
         return self._metadata_cache.blocks if self._metadata_cache else {}
+
+    def def_metadata(self) -> dict[str, DefMetadata]:
+        """Get metadata about ``{% def %}`` components in this template.
+
+        Returns a mapping of def name → DefMetadata with:
+        - params: Parameter names, annotations, and defaults
+        - slots: Named slots used in the def body
+        - has_default_slot: Whether an unnamed ``{% slot %}`` exists
+        - depends_on: Context paths the def body may access
+
+        Results are cached after first call.
+
+        Returns empty dict if AST was not preserved (preserve_ast=False).
+
+        Example:
+            >>> meta = template.def_metadata()
+            >>> card = meta.get("card")
+            >>> if card:
+            ...     sig = ", ".join(p.name for p in card.params)
+            ...     print(f"def card({sig})")
+            ...     print(f"  slots: {card.slots}")
+        """
+        if self._optimized_ast is None:
+            return {}
+
+        if self._def_metadata_cache is None:
+            self._analyze_defs()
+
+        return self._def_metadata_cache or {}
+
+    def list_defs(self) -> list[str]:
+        """List all ``{% def %}`` names defined in this template.
+
+        Returns:
+            List of def names defined in this template.
+
+        Example:
+            >>> template.list_defs()
+            ['card', 'button', 'badge']
+        """
+        return list(self.def_metadata().keys())
 
     def template_metadata(self) -> TemplateMetadata | None:
         """Get full template metadata including inheritance info.
@@ -323,3 +366,81 @@ class TemplateIntrospectionMixin:
             and self._name is not None
         ):
             env_for_cache._analysis_cache[self._name] = self._metadata_cache
+
+    def _analyze_defs(self) -> None:
+        """Walk the AST to extract DefMetadata for all {% def %} nodes."""
+        from kida.analysis.metadata import DefMetadata, DefParamInfo
+        from kida.nodes.functions import Def, Slot
+
+        if self._optimized_ast is None:
+            return
+
+        def _collect_slots(body: object) -> tuple[list[str], bool]:
+            """Recursively find Slot nodes in a def body.
+
+            Returns (named_slots, has_default_slot).
+            """
+            named: list[str] = []
+            has_default = False
+            if isinstance(body, (list, tuple)):
+                nodes_to_visit = list(body)
+            else:
+                nodes_to_visit = list(getattr(body, "body", [body]))
+            while nodes_to_visit:
+                node = nodes_to_visit.pop()
+                if isinstance(node, Slot):
+                    if node.name == "default":
+                        has_default = True
+                    else:
+                        named.append(node.name)
+                # Recurse into child bodies (but not into nested defs)
+                if not isinstance(node, Def):
+                    for attr in ("body", "orelse", "finalbody"):
+                        children = getattr(node, attr, None)
+                        if isinstance(children, (list, tuple)):
+                            nodes_to_visit.extend(children)
+            return named, has_default
+
+        def _walk_for_defs(nodes: object) -> dict[str, DefMetadata]:
+            """Walk AST collecting top-level Def nodes."""
+            result: dict[str, DefMetadata] = {}
+            to_visit = list(getattr(nodes, "body", []) if not isinstance(nodes, list) else nodes)
+            while to_visit:
+                node = to_visit.pop()
+                if isinstance(node, Def):
+                    # Build param info
+                    n_defaults = len(node.defaults)
+                    n_params = len(node.params)
+                    params: list[DefParamInfo] = []
+                    for i, p in enumerate(node.params):
+                        has_default = i >= (n_params - n_defaults)
+                        params.append(
+                            DefParamInfo(
+                                name=p.name,
+                                annotation=p.annotation,
+                                has_default=has_default,
+                                is_required=not has_default,
+                            )
+                        )
+
+                    # Collect slots from body
+                    named_slots, has_default_slot = _collect_slots(node.body)
+
+                    result[node.name] = DefMetadata(
+                        name=node.name,
+                        template_name=self._name,
+                        lineno=getattr(node, "lineno", 0),
+                        params=tuple(params),
+                        slots=tuple(dict.fromkeys(named_slots)),  # deduplicate, preserve order
+                        has_default_slot=has_default_slot,
+                    )
+                    # Don't recurse into def bodies for nested defs
+                    continue
+                # Recurse into non-def children
+                for attr in ("body", "orelse"):
+                    children = getattr(node, attr, None)
+                    if isinstance(children, (list, tuple)):
+                        to_visit.extend(children)
+            return result
+
+        self._def_metadata_cache = _walk_for_defs(self._optimized_ast)

@@ -302,6 +302,7 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
         source = render_ctx.source if render_ctx else None
         snippet = build_source_snippet(source, lineno) if source and lineno else None
         template_stack = list(render_ctx.template_stack) if render_ctx else []
+        component_stack = list(render_ctx.component_stack) if render_ctx else []
         raise UndefinedError(
             var_name,
             template_name,
@@ -309,6 +310,7 @@ def lookup(ctx: dict[str, Any], var_name: str) -> Any:
             available_names=frozenset(ctx.keys()),
             source_snippet=snippet,
             template_stack=template_stack,
+            component_stack=component_stack,
         ) from None
 
 
@@ -340,6 +342,7 @@ def lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_nam
     source = render_ctx.source if render_ctx else None
     snippet = build_source_snippet(source, lineno) if source and lineno else None
     template_stack = list(render_ctx.template_stack) if render_ctx else []
+    component_stack = list(render_ctx.component_stack) if render_ctx else []
 
     all_names: set[str] = set(ctx.keys())
     for scope in scope_stack:
@@ -352,6 +355,7 @@ def lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_nam
         available_names=frozenset(all_names),
         source_snippet=snippet,
         template_stack=template_stack,
+        component_stack=component_stack,
     ) from None
 
 

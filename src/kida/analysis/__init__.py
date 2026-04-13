@@ -44,8 +44,11 @@ from kida.analysis.landmarks import LandmarkDetector
 from kida.analysis.metadata import (
     BlockMetadata,
     CallValidation,
+    DefMetadata,
+    DefParamInfo,
     TemplateMetadata,
     TemplateStructureManifest,
+    TypeMismatch,
 )
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
@@ -56,6 +59,8 @@ __all__ = [
     "BlockAnalyzer",
     "BlockMetadata",
     "CallValidation",
+    "DefMetadata",
+    "DefParamInfo",
     "DependencyWalker",
     "ExtractMessagesVisitor",
     "ExtractedMessage",
@@ -63,6 +68,7 @@ __all__ = [
     "PurityAnalyzer",
     "TemplateMetadata",
     "TemplateStructureManifest",
+    "TypeMismatch",
     "classify_role",
     "infer_cache_scope",
 ]

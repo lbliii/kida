@@ -82,7 +82,7 @@ if TYPE_CHECKING:
     import types
     from collections.abc import AsyncIterator, Callable, Iterator
 
-    from kida.analysis import TemplateMetadata
+    from kida.analysis import DefMetadata, TemplateMetadata
     from kida.environment import Environment
     from kida.nodes import Template as TemplateNode
 
@@ -136,6 +136,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
     __slots__ = (
         "_block_names",  # Local block names for CachedBlocksDict / render_with_blocks
         "_code",
+        "_def_metadata_cache",  # Cached def introspection results
         "_effective_blocks_cache",  # kind -> effective inherited block map
         "_env_ref",
         "_extends_target",  # Literal parent name for inherited block lookup (or None)
@@ -187,6 +188,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         self._filename = filename
         self._optimized_ast = optimized_ast
         self._source = source
+        self._def_metadata_cache: dict[str, DefMetadata] | None = None
         self._metadata_cache: TemplateMetadata | None = None
         self._inheritance_chain_cache: tuple[Template, ...] | None = None
         self._effective_blocks_cache: dict[str, dict[str, Any]] = {}

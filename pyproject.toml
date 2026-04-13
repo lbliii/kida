@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kida-templates"
 version = "0.5.0"
-description = "Python template engine for HTML, terminal, and streaming — with framework integration"
+description = "Python component framework for HTML — typed props, named slots, scoped state, error boundaries, zero JavaScript"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"
-keywords = ["python-template-engine", "template-engine", "jinja2-alternative", "html-templates", "streaming", "async", "templates", "free-threading"]
+keywords = ["component-framework", "template-engine", "jinja2-alternative", "html-components", "slots", "typed-props", "streaming", "free-threading", "server-components"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -18,6 +18,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content :: CGI Tools/Libraries",
     "Topic :: Text Processing :: Markup :: HTML",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: User Interfaces",
     "Typing :: Typed",
 ]
 dependencies = [] # Pure Python, zero runtime dependencies

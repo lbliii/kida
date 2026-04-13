@@ -15,7 +15,7 @@ from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.dependencies import DependencyWalker
 from kida.analysis.landmarks import _LANDMARK_ELEMENTS, _TAG_RE, LandmarkDetector
-from kida.analysis.metadata import BlockMetadata, CallValidation, TemplateMetadata
+from kida.analysis.metadata import BlockMetadata, CallValidation, TemplateMetadata, TypeMismatch
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
 from kida.nodes import (
@@ -449,6 +449,136 @@ class BlockAnalyzer:
                 )
             )
 
+    # Type-aware call validation
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def validate_call_types(self, ast: Template) -> list[TypeMismatch]:
+        """Validate literal argument types against {% def %} parameter annotations.
+
+        Walks the AST to collect ``{% def %}`` signatures (including type
+        annotations), then checks every ``FuncCall`` and ``{% call %}`` site.
+        Only **literal** arguments (``Const`` nodes) are checked — variable
+        arguments are skipped since their type can't be known statically.
+
+        Returns:
+            List of ``TypeMismatch`` results — one per mismatched literal.
+            An empty list means all checked literals match their annotations.
+        """
+        signatures: dict[str, _DefSignature] = {}
+        self._collect_defs(ast.body, signatures)
+
+        mismatches: list[TypeMismatch] = []
+        self._validate_type_nodes(ast.body, signatures, mismatches)
+        return mismatches
+
+    def _validate_type_nodes(
+        self,
+        nodes: Sequence[Node],
+        signatures: dict[str, _DefSignature],
+        mismatches: list[TypeMismatch],
+    ) -> None:
+        """Recursively walk nodes and check literal arg types at call sites."""
+        for node in nodes:
+            if isinstance(node, CallBlock):
+                self._check_func_call_types(node.call, signatures, mismatches)
+                for slot_body in node.slots.values():
+                    self._validate_type_nodes(slot_body, signatures, mismatches)
+                continue
+
+            if isinstance(node, Output):
+                self._check_func_call_types(node.expr, signatures, mismatches)
+                continue
+
+            if isinstance(node, Def):
+                self._validate_type_nodes(node.body, signatures, mismatches)
+                continue
+
+            expr = getattr(node, "value", None)
+            if expr and hasattr(expr, "lineno"):
+                self._check_func_call_types(expr, signatures, mismatches)
+
+            for attr in ("body", "else_", "empty"):
+                children = getattr(node, attr, None)
+                if children and isinstance(children, (list, tuple)):
+                    self._validate_type_nodes(children, signatures, mismatches)
+
+            elif_ = getattr(node, "elif_", None)
+            if elif_:
+                for _test, body in elif_:
+                    self._validate_type_nodes(body, signatures, mismatches)
+
+            cases = getattr(node, "cases", None)
+            if cases:
+                for _pattern, _guard, body in cases:
+                    self._validate_type_nodes(body, signatures, mismatches)
+
+    def _check_func_call_types(
+        self,
+        expr: Node,
+        signatures: dict[str, _DefSignature],
+        mismatches: list[TypeMismatch],
+    ) -> None:
+        """Check literal argument types at a single call site."""
+        if not isinstance(expr, FuncCall):
+            return
+        if not isinstance(expr.func, Name):
+            return
+
+        func_name = expr.func.name
+        sig = signatures.get(func_name)
+        if sig is None or not sig.param_annotations:
+            return  # No annotations to check
+
+        # Check positional args mapped by index to ordered_params
+        for i, arg in enumerate(expr.args):
+            if not isinstance(arg, Const):
+                continue
+            if i >= len(sig.ordered_params):
+                continue
+            param_name = sig.ordered_params[i]
+            self._check_literal_type(
+                func_name, param_name, arg, sig.param_annotations, expr, mismatches
+            )
+
+        # Check keyword args
+        for kw_name, kw_expr in expr.kwargs.items():
+            if not isinstance(kw_expr, Const):
+                continue
+            self._check_literal_type(
+                func_name, kw_name, kw_expr, sig.param_annotations, expr, mismatches
+            )
+
+    def _check_literal_type(
+        self,
+        func_name: str,
+        param_name: str,
+        const: Const,
+        annotations: dict[str, str],
+        call_expr: FuncCall,
+        mismatches: list[TypeMismatch],
+    ) -> None:
+        """Check a single Const arg against its parameter's annotation."""
+        annotation = annotations.get(param_name)
+        if annotation is None:
+            return  # No annotation for this param
+
+        accepted = _resolve_annotation_types(annotation)
+        if accepted is None:
+            return  # Unknown annotation — skip
+
+        if type(const.value) not in accepted:
+            mismatches.append(
+                TypeMismatch(
+                    def_name=func_name,
+                    param_name=param_name,
+                    expected=annotation,
+                    actual_type=type(const.value).__name__,
+                    actual_value=const.value,
+                    lineno=call_expr.lineno,
+                    col_offset=call_expr.col_offset,
+                )
+            )
+
 
 @final
 @dataclass(frozen=True, slots=True)
@@ -457,6 +587,8 @@ class _DefSignature:
 
     param_names: frozenset[str]
     required_params: tuple[str, ...]
+    ordered_params: tuple[str, ...]
+    param_annotations: dict[str, str]  # param_name -> annotation string
     has_vararg: bool
     has_kwarg: bool
 
@@ -469,12 +601,52 @@ class _DefSignature:
         n_total = len(all_names)
         required = all_names[: n_total - n_defaults] if n_defaults < n_total else []
 
+        annotations = {}
+        for p in node.params:
+            if p.annotation:
+                annotations[p.name] = p.annotation
+
         return _DefSignature(
             param_names=frozenset(all_names),
             required_params=tuple(required),
+            ordered_params=tuple(all_names),
+            param_annotations=annotations,
             has_vararg=node.vararg is not None,
             has_kwarg=node.kwarg is not None,
         )
+
+
+# Type resolution for annotation checking
+_ANNOTATION_TYPE_MAP: dict[str, set[type]] = {
+    "str": {str},
+    "int": {int},
+    "float": {float, int},  # int is acceptable for float
+    "bool": {bool},
+    "list": {list},
+    "dict": {dict},
+    "None": {type(None)},
+    "none": {type(None)},
+}
+
+
+def _resolve_annotation_types(annotation: str) -> set[type] | None:
+    """Resolve an annotation string to a set of acceptable Python types.
+
+    Handles simple types (``str``, ``int``) and union types (``str | None``).
+    Returns None for unrecognized annotations (caller should skip validation).
+    """
+    # Handle union types: "str | None", "int | str"
+    if "|" in annotation:
+        combined: set[type] = set()
+        for part in annotation.split("|"):
+            part = part.strip()
+            types = _ANNOTATION_TYPE_MAP.get(part)
+            if types is None:
+                return None  # Unknown component — skip entire annotation
+            combined |= types
+        return combined
+
+    return _ANNOTATION_TYPE_MAP.get(annotation.strip())
 
 
 @final

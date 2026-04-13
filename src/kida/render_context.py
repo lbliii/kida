@@ -107,6 +107,11 @@ class RenderContext:
     # List of (template_name, line_number) showing the full include/extend chain
     template_stack: list[tuple[str, int]] = field(default_factory=list)
 
+    # Component call stack for error traces (Sprint 1.3: Component Framework)
+    # List of (template_name, line_number, def_name) showing the def call chain.
+    # Pushed on def entry, popped on def exit. Shows "in card() called from page.html:14".
+    component_stack: list[tuple[str, int, str]] = field(default_factory=list)
+
     # Block caching (RFC: kida-template-introspection)
     cached_blocks: dict[str, str] = field(default_factory=dict)
     cached_block_names: frozenset[str] = field(default_factory=frozenset)
@@ -296,6 +301,7 @@ class RenderContext:
             _providers=self._providers,  # Share provided values with child templates
             _meta=self._meta,  # Share metadata with child templates
             template_stack=new_stack,  # Pass stack to child
+            component_stack=self.component_stack,  # Share component stack with child
         )
 
     def child_context_for_extends(
@@ -335,6 +341,7 @@ class RenderContext:
             _providers=self._providers,  # Share provided values with parent templates
             _meta=self._meta,
             template_stack=new_stack,
+            component_stack=self.component_stack,  # Share component stack with parent
         )
 
 

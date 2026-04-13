@@ -109,6 +109,29 @@ def _cmd_check(
         print(f"kida check: {call_issues} call-site issue(s)", file=sys.stderr)
         errors += call_issues
 
+    type_mismatches = 0
+    if validate_calls:
+        for path in sorted(root.rglob("*.html")):
+            rel = path.relative_to(root).as_posix()
+            try:
+                tpl = env.get_template(rel)
+            except Exception:
+                continue
+            if tpl._optimized_ast is not None:
+                for mm in BlockAnalyzer().validate_call_types(tpl._optimized_ast):
+                    print(
+                        f"{rel}:{mm.lineno}: type: {mm.def_name}() param '{mm.param_name}' "
+                        f"expects {mm.expected}, got {mm.actual_type} ({mm.actual_value!r})",
+                        file=sys.stderr,
+                    )
+                    type_mismatches += 1
+        if type_mismatches:
+            print(
+                f"kida check: {type_mismatches} type mismatch(es) in call sites",
+                file=sys.stderr,
+            )
+            errors += type_mismatches
+
     type_issues = 0
     if typed:
         from kida.analysis.type_checker import check_types
@@ -512,6 +535,94 @@ def _cmd_render(
     return 0
 
 
+def _cmd_components(
+    template_dir: Path,
+    *,
+    json_output: bool,
+    filter_name: str | None,
+) -> int:
+    """List all ``{% def %}`` components across templates in *template_dir*."""
+    import json as json_mod
+
+    root = template_dir.resolve()
+    if not root.is_dir():
+        print(f"kida components: not a directory: {root}", file=sys.stderr)
+        return 2
+
+    env = Environment(loader=FileSystemLoader(str(root)), validate_calls=False)
+
+    # Collect all def metadata across templates
+    all_defs: list[dict[str, object]] = []
+    for path in sorted(root.rglob("*.html")):
+        rel = path.relative_to(root).as_posix()
+        try:
+            tpl = env.get_template(rel)
+        except TemplateSyntaxError:
+            continue
+
+        meta = tpl.def_metadata()
+        for dm in meta.values():
+            if filter_name and filter_name.lower() not in dm.name.lower():
+                continue
+            all_defs.append(
+                {
+                    "name": dm.name,
+                    "template": rel,
+                    "lineno": dm.lineno,
+                    "params": [
+                        {
+                            "name": p.name,
+                            "annotation": p.annotation,
+                            "required": p.is_required,
+                        }
+                        for p in dm.params
+                    ],
+                    "slots": list(dm.slots),
+                    "has_default_slot": dm.has_default_slot,
+                }
+            )
+
+    if not all_defs:
+        if filter_name:
+            print(f"No components matching '{filter_name}' found.", file=sys.stderr)
+        else:
+            print("No components found.", file=sys.stderr)
+        return 0
+
+    if json_output:
+        print(json_mod.dumps(all_defs, indent=2))
+        return 0
+
+    # Human-readable output grouped by template
+    from itertools import groupby
+
+    for template, defs in groupby(all_defs, key=lambda d: d["template"]):
+        print(f"\033[1m{template}\033[0m")
+        for d in defs:
+            # Build signature
+            parts: list[str] = []
+            for p in d["params"]:
+                sig = p["name"]
+                if p["annotation"]:
+                    sig += f": {p['annotation']}"
+                if not p["required"]:
+                    sig += " = ..."
+                parts.append(sig)
+            sig_str = ", ".join(parts)
+            print(f"  def {d['name']}({sig_str})")
+
+            # Slots
+            slots = list(d["slots"])
+            if d["has_default_slot"]:
+                slots.insert(0, "(default)")
+            if slots:
+                print(f"    slots: {', '.join(slots)}")
+        print()
+
+    print(f"{len(all_defs)} component(s) found.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for ``python -m kida`` / the ``kida`` console script."""
     parser = argparse.ArgumentParser(prog="kida", description="Kida template engine CLI")
@@ -646,6 +757,30 @@ def main(argv: list[str] | None = None) -> int:
         help="File extensions to scan (default: .html .txt .xml). Repeatable.",
     )
 
+    p_components = sub.add_parser(
+        "components",
+        help="List all def components across templates",
+    )
+    p_components.add_argument(
+        "template_dir",
+        type=Path,
+        help="Root directory passed to FileSystemLoader",
+    )
+    p_components.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output as JSON for machine consumption",
+    )
+    p_components.add_argument(
+        "--filter",
+        type=str,
+        default=None,
+        dest="filter_name",
+        metavar="NAME",
+        help="Filter components by name (case-insensitive substring match)",
+    )
+
     p_fmt = sub.add_parser(
         "fmt",
         help="Auto-format Kida template files",
@@ -696,6 +831,12 @@ def main(argv: list[str] | None = None) -> int:
         # Normalize: ensure each extension has a leading dot
         exts = [e if e.startswith(".") else f".{e}" for e in exts]
         return _cmd_extract(args.template_dir, output=args.output, extensions=exts)
+    if args.command == "components":
+        return _cmd_components(
+            args.template_dir,
+            json_output=args.json_output,
+            filter_name=args.filter_name,
+        )
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)
     return 2
