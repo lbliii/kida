@@ -61,6 +61,6 @@ def render_readme(
             loader=PackageLoader("kida", "readme/presets"),
             autoescape=False,
         )
-        tpl = env.get_template(f"{preset}.html")
+        tpl = env.get_template(f"{preset}.kida")
 
     return tpl.render(**detected)
