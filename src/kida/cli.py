@@ -18,6 +18,17 @@ from kida.exceptions import TemplateSyntaxError
 from kida.lexer import Lexer
 from kida.parser import Parser
 
+_TEMPLATE_GLOBS = ("*.html", "*.kida")
+
+
+def _iter_templates(root: Path) -> list[Path]:
+    """Collect template files matching all known extensions, sorted."""
+    seen: set[Path] = set()
+    for glob in _TEMPLATE_GLOBS:
+        for p in root.rglob(glob):
+            seen.add(p)
+    return sorted(seen)
+
 
 def _explicit_close_suggestion(block_type: str) -> str:
     if block_type == "block":
@@ -33,7 +44,7 @@ def _cmd_check(
     a11y: bool,
     typed: bool,
 ) -> int:
-    """Parse every ``*.html`` under *template_dir*; exit non-zero on failure."""
+    """Parse every template under *template_dir*; exit non-zero on failure."""
     root = template_dir.resolve()
     if not root.is_dir():
         print(f"kida check: not a directory: {root}", file=sys.stderr)
@@ -44,7 +55,7 @@ def _cmd_check(
     strict_warnings = 0
     call_issues = 0
 
-    for path in sorted(root.rglob("*.html")):
+    for path in _iter_templates(root):
         rel = path.relative_to(root).as_posix()
         try:
             tpl = env.get_template(rel)
@@ -136,7 +147,7 @@ def _cmd_check(
     if typed:
         from kida.analysis.type_checker import check_types
 
-        for path in sorted(root.rglob("*.html")):
+        for path in _iter_templates(root):
             rel = path.relative_to(root).as_posix()
             try:
                 tpl = env.get_template(rel)
@@ -159,7 +170,7 @@ def _cmd_check(
     if a11y:
         from kida.analysis.a11y import check_a11y
 
-        for path in sorted(root.rglob("*.html")):
+        for path in _iter_templates(root):
             rel = path.relative_to(root).as_posix()
             try:
                 tpl = env.get_template(rel)
@@ -306,7 +317,7 @@ def _cmd_fmt(
 
     for path in paths:
         if path.is_dir():
-            files = sorted(path.rglob("*.html"))
+            files = _iter_templates(path)
         elif path.is_file():
             files = [path]
         else:
@@ -623,6 +634,68 @@ def _cmd_components(
     return 0
 
 
+def _cmd_readme(
+    root: Path,
+    *,
+    output: Path | None,
+    preset: str | None,
+    template: Path | None,
+    set_vars: list[str] | None,
+    depth: int,
+    dump_json: bool,
+) -> int:
+    """Generate a README from auto-detected project metadata."""
+    import json
+
+    from kida.readme.detect import detect_project
+
+    root = root.resolve()
+    if not root.is_dir():
+        print(f"kida readme: not a directory: {root}", file=sys.stderr)
+        return 2
+
+    ctx = detect_project(root, depth=depth)
+
+    # Auto-detect preset if not explicitly specified
+    if preset is None:
+        preset = ctx.get("suggested_preset", "default")
+
+    # Apply --set overrides
+    for item in set_vars or []:
+        if "=" not in item:
+            print(f"kida readme: --set requires KEY=VALUE, got: {item}", file=sys.stderr)
+            return 2
+        key, raw = item.split("=", 1)
+        try:
+            ctx[key] = json.loads(raw)
+        except ValueError:
+            ctx[key] = raw
+
+    # --json mode: dump context and exit
+    if dump_json:
+        # tree is a nested dict, tree_str is the rendered string — both serialize fine
+        print(json.dumps(ctx, indent=2, default=str))
+        return 0
+
+    # Render
+    from kida.readme import render_readme
+
+    try:
+        md = render_readme(root, preset=preset, template=template, context=ctx, depth=depth)
+    except Exception as e:
+        print(f"kida readme: {e}", file=sys.stderr)
+        return 1
+
+    if output is not None:
+        output.write_text(md, encoding="utf-8")
+        print(f"Wrote {output}", file=sys.stderr)
+    else:
+        sys.stdout.write(md)
+        if not md.endswith("\n"):
+            sys.stdout.write("\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for ``python -m kida`` / the ``kida`` console script."""
     parser = argparse.ArgumentParser(prog="kida", description="Kida template engine CLI")
@@ -630,7 +703,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_check = sub.add_parser(
         "check",
-        help="Parse all .html templates under a directory (syntax + loader resolution)",
+        help="Parse all templates under a directory (syntax + loader resolution)",
     )
     p_check.add_argument(
         "template_dir",
@@ -754,7 +827,59 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=None,
         metavar=".EXT",
-        help="File extensions to scan (default: .html .txt .xml). Repeatable.",
+        help="File extensions to scan (default: .html .kida .txt .xml). Repeatable.",
+    )
+
+    p_readme = sub.add_parser(
+        "readme",
+        help="Generate a README from auto-detected project metadata",
+    )
+    p_readme.add_argument(
+        "root",
+        nargs="?",
+        type=Path,
+        default=Path(),
+        help="Project root directory (default: current directory)",
+    )
+    p_readme.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Write to file instead of stdout",
+    )
+    p_readme.add_argument(
+        "--preset",
+        choices=["default", "minimal", "library", "cli"],
+        default=None,
+        help="Built-in template preset (default: auto-detected from project type)",
+    )
+    p_readme.add_argument(
+        "--template",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Path to a custom Kida template (overrides --preset)",
+    )
+    p_readme.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Override detected values (value is parsed as JSON, falls back to string). Repeatable.",
+    )
+    p_readme.add_argument(
+        "--depth",
+        type=int,
+        default=2,
+        help="Directory tree depth (default: 2)",
+    )
+    p_readme.add_argument(
+        "--json",
+        action="store_true",
+        dest="dump_json",
+        help="Dump auto-detected context as JSON instead of rendering",
     )
 
     p_components = sub.add_parser(
@@ -827,7 +952,7 @@ def main(argv: list[str] | None = None) -> int:
             set_vars=args.set,
         )
     if args.command == "extract":
-        exts = args.ext or [".html", ".txt", ".xml"]
+        exts = args.ext or [".html", ".kida", ".txt", ".xml"]
         # Normalize: ensure each extension has a leading dot
         exts = [e if e.startswith(".") else f".{e}" for e in exts]
         return _cmd_extract(args.template_dir, output=args.output, extensions=exts)
@@ -836,6 +961,16 @@ def main(argv: list[str] | None = None) -> int:
             args.template_dir,
             json_output=args.json_output,
             filter_name=args.filter_name,
+        )
+    if args.command == "readme":
+        return _cmd_readme(
+            args.root,
+            output=args.output,
+            preset=args.preset,
+            template=args.template,
+            set_vars=args.set,
+            depth=args.depth,
+            dump_json=args.dump_json,
         )
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)

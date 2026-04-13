@@ -69,6 +69,51 @@ class TestAutoescape:
         assert "&amp;" in result
 
 
+class TestKidaExtensionAutoescape:
+    """Test .kida double-extension autoescape detection."""
+
+    def test_bare_kida_no_escape(self):
+        """Bare .kida file — treated as plain text, no escaping."""
+        env = Environment(autoescape=True)
+        assert env.select_autoescape("README.kida") is False
+
+    def test_html_kida_escapes(self):
+        """page.html.kida — inner .html triggers escaping."""
+        env = Environment(autoescape=True)
+        assert env.select_autoescape("page.html.kida") is True
+
+    def test_xml_kida_escapes(self):
+        """feed.xml.kida — inner .xml triggers escaping."""
+        env = Environment(autoescape=True)
+        assert env.select_autoescape("feed.xml.kida") is True
+
+    def test_md_kida_no_escape(self):
+        """README.md.kida — inner .md does not trigger escaping."""
+        env = Environment(autoescape=True)
+        assert env.select_autoescape("README.md.kida") is False
+
+    def test_txt_kida_no_escape(self):
+        """notes.txt.kida — inner .txt does not trigger escaping."""
+        env = Environment(autoescape=True)
+        assert env.select_autoescape("notes.txt.kida") is False
+
+    def test_autoescape_false_ignores_kida(self):
+        """autoescape=False always returns False regardless of extension."""
+        env = Environment(autoescape=False)
+        assert env.select_autoescape("page.html.kida") is False
+
+    def test_non_kida_unchanged(self):
+        """Regular .html still escapes when autoescape=True."""
+        env = Environment(autoescape=True)
+        assert env.select_autoescape("page.html") is True
+
+    def test_subdirectory_kida(self):
+        """Nested path with .kida — inner extension detected correctly."""
+        env = Environment(autoescape=True)
+        assert env.select_autoescape("emails/welcome.html.kida") is True
+        assert env.select_autoescape("docs/guide.md.kida") is False
+
+
 class TestWhitespaceControl:
     """Whitespace control tests."""
 

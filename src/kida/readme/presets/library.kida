@@ -1,0 +1,39 @@
+{% from "sections.kida" import badges, install, usage, quickstart, tree_section, dev, contributing, license_section %}
+# {{ name }}
+{% if description %}
+
+{{ description }}
+{% end %}
+{% if repo_url %}
+
+{{ badges(repo_url, version, license, python_requires) }}
+{% end %}
+
+{{ install(name, build_tool, python_requires, has_zero_deps, extras) }}
+
+{{ quickstart(name) }}
+{% if has_cli %}
+
+{{ usage(cli_name) }}
+{% end %}
+
+{{ tree_section(tree_str) }}
+{% if dependencies %}
+
+## Dependencies
+{% for dep in dependencies %}
+- `{{ dep }}`
+{% end %}
+{% end %}
+{% if dev_dependencies %}
+
+{{ dev(install_command, test_command) }}
+{% end %}
+{% if repo_url %}
+
+{{ contributing(repo_url) }}
+{% end %}
+{% if license %}
+
+{{ license_section(license) }}
+{% end %}
