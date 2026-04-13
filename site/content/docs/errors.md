@@ -238,19 +238,19 @@ Fix: Check the `SandboxPolicy.allowed_attributes` configuration. Add the attribu
 
 **Blocked type** — An object type is not allowed in the sandbox.
 
-Fix: Check the `SandboxPolicy.allowed_types` configuration. Pass only allowed types in the render context.
+Fix: Check the `SandboxPolicy.blocked_types` configuration. Remove the type from the blocked list if it should be allowed, or pass only supported types in the render context.
 
 ### k-sec-003
 
 **Range limit exceeded** — A `range()` call exceeded the sandbox's maximum allowed range size.
 
-Fix: Reduce the range size or increase `SandboxPolicy.max_range_size`.
+Fix: Reduce the range size or increase `SandboxPolicy.max_range`.
 
 ### k-sec-004
 
 **Blocked callable** — A function or method call was denied by the sandbox policy.
 
-Fix: Check the `SandboxPolicy.allowed_callables` configuration. Use a filter instead of calling methods directly.
+Fix: Check the `SandboxPolicy.allow_calling` configuration. If calling is required, enable it only for trusted templates, or use a filter instead of calling methods directly.
 
 ### k-sec-005
 

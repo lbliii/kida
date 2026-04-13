@@ -73,13 +73,23 @@ class TestSetBlock:
 
     def test_set_block_raises_parse_error(self, env):
         """Set block capture produces helpful error pointing to alternatives."""
-        with pytest.raises(Exception, match=r"set block capture.*not supported"):
+        from kida import ErrorCode, TemplateSyntaxError
+
+        with pytest.raises(
+            TemplateSyntaxError, match=r"set block capture.*not supported"
+        ) as exc_info:
             env.from_string("{% set content %}Hello World{% endset %}{{ content }}")
+        assert exc_info.value.code == ErrorCode.UNSUPPORTED_SYNTAX
 
     def test_set_block_with_vars_raises_parse_error(self, env):
         """Set block with variables also produces helpful error."""
-        with pytest.raises(Exception, match=r"set block capture.*not supported"):
+        from kida import ErrorCode, TemplateSyntaxError
+
+        with pytest.raises(
+            TemplateSyntaxError, match=r"set block capture.*not supported"
+        ) as exc_info:
             env.from_string("{% set greeting %}Hello {{ name }}{% endset %}{{ greeting }}")
+        assert exc_info.value.code == ErrorCode.UNSUPPORTED_SYNTAX
 
 
 class TestWithStatement:

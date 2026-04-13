@@ -365,7 +365,7 @@ class Environment:
 
             self.globals.update(HTMX_GLOBALS)
 
-        # Validate string autoescape modes eagerly (not at first compile)
+        # Validate and normalize string autoescape modes eagerly (not at first compile)
         if isinstance(self.autoescape, str):
             mode = self.autoescape.strip().lower()
             if mode not in {"true", "false", "terminal", "markdown"}:
@@ -374,6 +374,8 @@ class Environment:
                     f"Valid modes: True, False, 'terminal', 'markdown', or a callable."
                 )
                 raise ValueError(msg)
+            # Store normalized form so downstream comparisons work
+            object.__setattr__(self, "autoescape", mode)
 
         # Terminal mode initialization
         if self.autoescape == "terminal":

@@ -78,6 +78,18 @@ class TestOptionalChaining:
         assert tmpl.render(user=None) == "no"
         assert tmpl.render(user={"name": "Alice"}) == "yes"
 
+    def test_optional_chaining_preserves_markup(self, env):
+        """Optional chaining with autoescape does not double-escape Markup."""
+        from kida import Markup
+
+        tmpl = env.from_string("{{ data?.html }}")
+        # Markup should pass through without double-escaping
+        result = tmpl.render(data={"html": Markup("<b>bold</b>")})
+        assert result == "<b>bold</b>"
+        # Non-Markup should still be escaped
+        result = tmpl.render(data={"html": "<b>bold</b>"})
+        assert "&lt;b&gt;" in result
+
     def test_mixed_optional_and_regular(self, env):
         """Mix optional and regular access with fallback."""
         tmpl = env.from_string("{{ user?.profile.name ?? '' }}")
