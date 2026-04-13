@@ -317,7 +317,7 @@ kida render .github/templates/my-code-review.md --data review.json --mode markdo
 Or in the GitHub Action:
 
 ```yaml
-- uses: lbliii/kida@v0.4.1
+- uses: lbliii/kida@v0.5.0
   with:
     template: .github/templates/my-code-review.md
     data: .amp/collected/code-review.json
