@@ -70,9 +70,9 @@ class _Undefined:
     def get(self, key: str, default: object | None = _no_default) -> object:
         """Return default for any key; enables obj.missing.get('x', 'fb') pattern.
 
-        Returns UNDEFINED (renders as "") when no default is given, matching
-        Python dict.get() semantics: explicit None stays None, omitted default
-        returns the sentinel.
+        If ``default`` is provided, return it unchanged (including an explicit
+        ``None``). If ``default`` is omitted, return ``UNDEFINED`` so Kida can
+        distinguish an omitted default from an explicit ``None``.
         """
         if default is _Undefined._no_default:
             return UNDEFINED
@@ -199,7 +199,7 @@ def getattr_preserve_none(obj: object, name: str) -> object:
 
 
 def _raise_undefined_attr(obj: object, name: str, *, preserve_none: bool = False) -> Any:
-    """Raise UndefinedError for missing attribute access."""
+    """Raise UndefinedError for missing attribute/key access."""
     from kida.exceptions import UndefinedError, build_source_snippet
     from kida.render_context import get_render_context
 
@@ -208,11 +208,16 @@ def _raise_undefined_attr(obj: object, name: str, *, preserve_none: bool = False
     lineno = render_ctx.line if render_ctx else None
     source = render_ctx.source if render_ctx else None
     snippet = build_source_snippet(source, lineno) if source and lineno else None
+
+    obj_type = type(obj).__name__
+    qual_name = name if obj is None else f"{obj_type}.{name}"
+
     raise UndefinedError(
-        name,
+        qual_name,
         template_name,
         lineno,
         source_snippet=snippet,
+        kind="attribute/key",
     ) from None
 
 

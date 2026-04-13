@@ -1840,6 +1840,8 @@ class Compiler(
                 raise TemplateSyntaxError(
                     f"Unknown AST node type '{node_type}' — no compiler registered",
                     lineno=getattr(node, "lineno", None),
+                    name=self._name,
+                    filename=self._filename,
                 )
         else:
             from kida.exceptions import TemplateSyntaxError
@@ -1847,6 +1849,8 @@ class Compiler(
             raise TemplateSyntaxError(
                 f"Unknown AST node type '{node_type}' — no compiler registered",
                 lineno=getattr(node, "lineno", None),
+                name=self._name,
+                filename=self._filename,
             )
 
         return stmts

@@ -727,6 +727,7 @@ class UndefinedError(TemplateError):
         source_snippet: SourceSnippet | None = None,
         template_stack: list[tuple[str, int]] | None = None,
         component_stack: list[tuple[str, int, str]] | None = None,
+        kind: str = "variable",
     ):
         self.name = name
         self.template = template or "<template>"
@@ -735,6 +736,7 @@ class UndefinedError(TemplateError):
         self.source_snippet = source_snippet
         self.template_stack = template_stack or []
         self.component_stack = component_stack or []
+        self._kind = kind
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
@@ -742,7 +744,7 @@ class UndefinedError(TemplateError):
         location = self.template
         if self.lineno:
             location += f":{self.lineno}"
-        msg = f"Undefined variable '{self.name}' in {terminal.location(location)}"
+        msg = f"Undefined {self._kind} '{self.name}' in {terminal.location(location)}"
 
         # "Did you mean?" suggestion via fuzzy matching
         if self._available_names:

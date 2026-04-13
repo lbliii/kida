@@ -55,6 +55,7 @@ def _cmd_check(
     errors = 0
     strict_warnings = 0
     call_issues = 0
+    failed_loads: set[str] = set()
 
     for path in _iter_templates(root):
         rel = path.relative_to(root).as_posix()
@@ -63,6 +64,7 @@ def _cmd_check(
         except Exception as e:
             print(f"{rel}: {e}", file=sys.stderr)
             errors += 1
+            failed_loads.add(rel)
             continue
 
         if strict:
@@ -125,11 +127,14 @@ def _cmd_check(
     if validate_calls:
         for path in sorted(root.rglob("*.html")):
             rel = path.relative_to(root).as_posix()
+            if rel in failed_loads:
+                continue
             try:
                 tpl = env.get_template(rel)
             except Exception as e:
                 print(f"{rel}: {e}", file=sys.stderr)
                 errors += 1
+                failed_loads.add(rel)
                 continue
             if tpl._optimized_ast is not None:
                 for mm in BlockAnalyzer().validate_call_types(tpl._optimized_ast):
@@ -152,11 +157,14 @@ def _cmd_check(
 
         for path in _iter_templates(root):
             rel = path.relative_to(root).as_posix()
+            if rel in failed_loads:
+                continue
             try:
                 tpl = env.get_template(rel)
             except Exception as e:
                 print(f"{rel}: {e}", file=sys.stderr)
                 errors += 1
+                failed_loads.add(rel)
                 continue
             if tpl._optimized_ast is not None:
                 issues = check_types(tpl._optimized_ast)
@@ -177,11 +185,14 @@ def _cmd_check(
 
         for path in _iter_templates(root):
             rel = path.relative_to(root).as_posix()
+            if rel in failed_loads:
+                continue
             try:
                 tpl = env.get_template(rel)
             except Exception as e:
                 print(f"{rel}: {e}", file=sys.stderr)
                 errors += 1
+                failed_loads.add(rel)
                 continue
             if tpl._optimized_ast is not None:
                 issues = check_a11y(tpl._optimized_ast)
