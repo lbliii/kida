@@ -65,12 +65,18 @@ class _Undefined:
     def __len__(self) -> int:
         return 0
 
-    def get(self, key: str, default: object | None = None) -> object:
+    _no_default = object()
+
+    def get(self, key: str, default: object | None = _no_default) -> object:
         """Return default for any key; enables obj.missing.get('x', 'fb') pattern.
 
-        When default is None, returns "" to match template output normalization.
+        If ``default`` is provided, return it unchanged (including an explicit
+        ``None``). If ``default`` is omitted, return ``UNDEFINED`` so Kida can
+        distinguish an omitted default from an explicit ``None``.
         """
-        return "" if default is None else default
+        if default is _Undefined._no_default:
+            return UNDEFINED
+        return default
 
     def keys(self) -> list[str]:
         """Empty keys; enables {% for k in missing.keys() %} without error."""
@@ -183,6 +189,103 @@ def getattr_preserve_none(obj: object, name: str) -> object:
         return obj[name]  # ty: ignore[not-subscriptable]
     except KeyError, TypeError:
         return None
+
+
+# =============================================================================
+# Strict Attribute Access (opt-in via Environment(strict_undefined=True))
+# =============================================================================
+# These variants raise UndefinedError on missing attributes instead of
+# returning UNDEFINED/"". Used when the user wants to catch template typos.
+
+
+def _raise_undefined_attr(obj: object, name: str, *, preserve_none: bool = False) -> Any:
+    """Raise UndefinedError for missing attribute/key access."""
+    from kida.exceptions import UndefinedError, build_source_snippet
+    from kida.render_context import get_render_context
+
+    render_ctx = get_render_context()
+    template_name = render_ctx.template_name if render_ctx else None
+    lineno = render_ctx.line if render_ctx else None
+    source = render_ctx.source if render_ctx else None
+    snippet = build_source_snippet(source, lineno) if source and lineno else None
+
+    obj_type = type(obj).__name__
+    qual_name = name if obj is None else f"{obj_type}.{name}"
+
+    raise UndefinedError(
+        qual_name,
+        template_name,
+        lineno,
+        source_snippet=snippet,
+        kind="attribute/key",
+    ) from None
+
+
+def strict_getattr(obj: object, name: str) -> object:
+    """Like safe_getattr but raises UndefinedError on missing attributes.
+
+    Used when Environment(strict_undefined=True) to catch typos in attribute
+    access at render time.
+    """
+    if obj is None:
+        _raise_undefined_attr(obj, name)
+    if type(obj) is dict:
+        d = cast("dict[str, Any]", obj)
+        val = d.get(name, _MISS)
+        if val is not _MISS:
+            return "" if val is None else val
+        val = getattr(obj, name, _MISS)
+        if val is not _MISS:
+            return "" if val is None else val
+        _raise_undefined_attr(obj, name)
+    if isinstance(obj, dict):
+        try:
+            val = obj[name]  # ty: ignore[invalid-argument-type]
+            return "" if val is None else val
+        except KeyError:
+            try:
+                val = getattr(obj, name)
+                return "" if val is None else val
+            except AttributeError:
+                _raise_undefined_attr(obj, name)
+    val = getattr(obj, name, _MISS)
+    if val is not _MISS:
+        return "" if val is None else val
+    try:
+        val = obj[name]  # ty: ignore[not-subscriptable]
+        return "" if val is None else val
+    except KeyError, TypeError:
+        _raise_undefined_attr(obj, name)
+    return UNDEFINED  # unreachable, satisfies type checker
+
+
+def strict_getattr_preserve_none(obj: object, name: str) -> object:
+    """Like getattr_preserve_none but raises UndefinedError on missing attributes."""
+    if type(obj) is dict:
+        d = cast("dict[str, Any]", obj)
+        val = d.get(name, _MISS)
+        if val is not _MISS:
+            return val
+        val = getattr(obj, name, _MISS)
+        if val is not _MISS:
+            return val
+        _raise_undefined_attr(obj, name, preserve_none=True)
+    if isinstance(obj, dict):
+        try:
+            return obj[name]  # ty: ignore[invalid-argument-type]
+        except KeyError:
+            try:
+                return getattr(obj, name)
+            except AttributeError:
+                _raise_undefined_attr(obj, name, preserve_none=True)
+    val = getattr(obj, name, _MISS)
+    if val is not _MISS:
+        return val
+    try:
+        return obj[name]  # ty: ignore[not-subscriptable]
+    except KeyError, TypeError:
+        _raise_undefined_attr(obj, name, preserve_none=True)
+    return None  # unreachable, satisfies type checker
 
 
 # =============================================================================

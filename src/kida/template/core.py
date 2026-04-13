@@ -60,6 +60,8 @@ from kida.template.helpers import (
     safe_getattr,
     spaceless,
     str_safe,
+    strict_getattr,
+    strict_getattr_preserve_none,
 )
 from kida.template.inheritance import TemplateInheritanceMixin
 from kida.template.introspection import TemplateIntrospectionMixin
@@ -234,8 +236,10 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 "_filters": env._filters,
                 "_tests": env._tests,
                 "_escape": escape_func,
-                "_getattr": safe_getattr,
-                "_getattr_none": getattr_preserve_none,
+                "_getattr": strict_getattr if env.strict_undefined else safe_getattr,
+                "_getattr_none": strict_getattr_preserve_none
+                if env.strict_undefined
+                else getattr_preserve_none,
                 "_lookup": lookup,
                 "_lookup_scope": lookup_scope,
                 "_default_safe": default_safe,
@@ -625,6 +629,29 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 template_name=self._name,
                 code=ErrorCode.NOT_COMPILED,
                 suggestion="Ensure the template was compiled via env.get_template() or env.from_string().",
+            )
+
+        # Validate block names exist in this template
+        available = set(self._effective_block_map("sync").keys())
+        unknown = set(block_overrides.keys()) - available
+        if unknown:
+            from difflib import get_close_matches
+
+            from kida.exceptions import ErrorCode, TemplateRuntimeError
+
+            suggestions = []
+            for name in sorted(unknown):
+                matches = get_close_matches(name, available, n=1, cutoff=0.6)
+                if matches:
+                    suggestions.append(f"'{name}' (did you mean '{matches[0]}'?)")
+                else:
+                    suggestions.append(f"'{name}'")
+            raise TemplateRuntimeError(
+                f"render_with_blocks: unknown block(s) {', '.join(suggestions)} "
+                f"in template '{self._name or '(inline)'}'. "
+                f"Available blocks: {sorted(available)}",
+                template_name=self._name,
+                code=ErrorCode.RUNTIME_ERROR,
             )
 
         # Build _blocks dict with callables matching the compiled signature:

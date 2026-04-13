@@ -49,8 +49,10 @@ fi
 # compile_complex (~3ms, fluctuates 30-40% on 4-core runners), compile_small (~2ms, 43% CoV
 # on shared runners — StdDev exceeds mean due to outliers), fragment_cache_cold (cold
 # cache timing varies with runner CPU clock speed), inherited_render_block (~6µs, 12x IQR
-# spike on shared runners), inherited_list_blocks (~µs range, same IQR noise as render_block).
-EXCLUDE_K="not (_jinja2 or test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida or test_include_depth_scaling or test_compile_complex_kida or test_compile_small_kida or test_render_fragment_cache_cold_kida or test_benchmark_inherited_render_block or test_benchmark_inherited_list_blocks or test_benchmark_include_depth_output_count_matches_include_count)"
+# spike on shared runners), inherited_list_blocks (~µs range, same IQR noise as render_block),
+# bytecode_cache (~µs, 1.2M ops/sec — dominated by CPU clock; 20% regression on 2026-04-13
+# was entirely from runner clock difference: 3.25 GHz baseline vs 2.77 GHz current).
+EXCLUDE_K="not (_jinja2 or test_render_async_medium_kida or test_render_async_large_kida or test_render_complex_kida or test_include_depth_scaling or test_compile_complex_kida or test_compile_small_kida or test_render_fragment_cache_cold_kida or test_benchmark_inherited_render_block or test_benchmark_inherited_list_blocks or test_benchmark_include_depth_output_count_matches_include_count or test_load_from_bytecode_cache_kida)"
 
 echo "=== Kida Benchmark Regression Check ==="
 echo "Baseline: $BASELINE"
@@ -59,7 +61,7 @@ echo "Storage: $STORAGE"
 echo "Python: $(python --version 2>&1)"
 echo "Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 if [ "${BENCHMARK_INCLUDE_ALL:-0}" != "1" ]; then
-    echo "Excluded: all *_jinja2 tests (comparison only), async_medium, async_large, render_complex, compile_complex, compile_small, include_depth_scaling, include_depth_output_count, fragment_cache_cold, inherited_render_block, inherited_list_blocks"
+    echo "Excluded: all *_jinja2 tests (comparison only), async_medium, async_large, render_complex, compile_complex, compile_small, include_depth_scaling, include_depth_output_count, fragment_cache_cold, inherited_render_block, inherited_list_blocks, bytecode_cache"
 fi
 echo ""
 
