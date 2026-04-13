@@ -1834,6 +1834,20 @@ class Compiler(
             if ext is not None:
                 result = cast("Any", ext).compile(self, node)
                 stmts.extend(result)
+            else:
+                from kida.exceptions import TemplateSyntaxError
+
+                raise TemplateSyntaxError(
+                    f"Unknown AST node type '{node_type}' — no compiler registered",
+                    lineno=getattr(node, "lineno", None),
+                )
+        else:
+            from kida.exceptions import TemplateSyntaxError
+
+            raise TemplateSyntaxError(
+                f"Unknown AST node type '{node_type}' — no compiler registered",
+                lineno=getattr(node, "lineno", None),
+            )
 
         return stmts
 

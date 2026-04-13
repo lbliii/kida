@@ -127,7 +127,9 @@ def _cmd_check(
             rel = path.relative_to(root).as_posix()
             try:
                 tpl = env.get_template(rel)
-            except Exception:
+            except Exception as e:
+                print(f"{rel}: {e}", file=sys.stderr)
+                errors += 1
                 continue
             if tpl._optimized_ast is not None:
                 for mm in BlockAnalyzer().validate_call_types(tpl._optimized_ast):
@@ -152,7 +154,9 @@ def _cmd_check(
             rel = path.relative_to(root).as_posix()
             try:
                 tpl = env.get_template(rel)
-            except Exception:
+            except Exception as e:
+                print(f"{rel}: {e}", file=sys.stderr)
+                errors += 1
                 continue
             if tpl._optimized_ast is not None:
                 issues = check_types(tpl._optimized_ast)
@@ -175,8 +179,10 @@ def _cmd_check(
             rel = path.relative_to(root).as_posix()
             try:
                 tpl = env.get_template(rel)
-            except Exception:
-                continue  # already reported above
+            except Exception as e:
+                print(f"{rel}: {e}", file=sys.stderr)
+                errors += 1
+                continue
             if tpl._optimized_ast is not None:
                 issues = check_a11y(tpl._optimized_ast)
                 for issue in issues:
@@ -762,8 +768,8 @@ def main(argv: list[str] | None = None) -> int:
     p_render.add_argument(
         "--mode",
         choices=["html", "terminal", "markdown"],
-        default="terminal",
-        help="Rendering mode (default: terminal)",
+        default="html",
+        help="Rendering mode (default: html)",
     )
     p_render.add_argument(
         "--width",
@@ -805,7 +811,9 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
         metavar="KEY=VALUE",
-        help="Set extra template variables (value is parsed as JSON, falls back to string). Repeatable.",
+        help="Set template variables (repeatable). Values are parsed as JSON if valid, "
+        "otherwise kept as strings. Examples: --set count=42 (int), --set name=hello (string), "
+        '--set items=\'["a","b"]\' (list). To force a string that looks like JSON: --set x=\'"42"\'.',
     )
 
     p_extract = sub.add_parser(

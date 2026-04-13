@@ -167,6 +167,7 @@ class Environment:
     autoescape: bool | str | Callable[[str | None], bool] = True
     auto_reload: bool = True
     strict_none: bool = False  # When True, sorting with None values raises detailed errors
+    strict_undefined: bool = False  # When True, missing attribute access raises UndefinedError
     jinja2_compat_warnings: bool = (
         False  # When True, warn on {% set %} inside blocks (Jinja2 scoping difference)
     )
