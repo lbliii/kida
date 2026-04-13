@@ -6,7 +6,6 @@ identical whether using partial evaluation or runtime context.
 
 """
 
-import contextlib
 from dataclasses import dataclass
 
 import pytest
@@ -2481,9 +2480,9 @@ class TestFilterArgEvaluation:
         """Filter that raises at compile time falls back to runtime."""
         env = _env()
         tmpl = env.from_string("{{ val | int }}", static_context={"val": "notanumber"})
-        # Should not crash — falls back to runtime
-        with contextlib.suppress(Exception):
-            tmpl.render(val="notanumber")
+        # int filter returns 0 for invalid input (default fallback).
+        # The key assertion: compile-time partial eval didn't crash.
+        assert tmpl.render(val="notanumber") == "0"
 
     def test_pipeline_with_args(self):
         """Pipeline steps with args evaluated at compile time."""
@@ -2501,7 +2500,7 @@ class TestFilterArgEvaluation:
         tmpl = env.from_string(
             "{{ val ?|> upper ?|> default('gone') }}",
         )
-        assert tmpl.render(val=None) in ("gone", "None", "")
+        assert tmpl.render(val=None) == "None"
 
 
 # ------------------------------------------------------------------
@@ -2555,12 +2554,14 @@ class TestFuncCallEvaluation:
 
     def test_funccall_exception_falls_back(self):
         """Function call that raises falls back to runtime."""
+        from kida.environment.exceptions import TemplateRuntimeError
+
         env = _env()
         tmpl = env.from_string(
             "{{ int(val) }}",
             static_context={"val": "notanumber"},
         )
-        with contextlib.suppress(Exception):
+        with pytest.raises(TemplateRuntimeError):
             tmpl.render(val="notanumber")
 
 
@@ -3077,13 +3078,10 @@ class TestTransformExprGetattr:
             "{{ (site.title ~ x).attr }}",
             static_context={"site": {"title": "Hi"}},
         )
-        # Can't fully evaluate (x is dynamic), rendered at runtime
-        assert (
-            tmpl.render(
-                site={"title": "Hi"}, x="Lo", **{"(site.title ~ x)": type("O", (), {"attr": "val"})}
-            )
-            or True
-        )
+        # site.title resolves, but the getattr on the computed string doesn't.
+        # The optimizer can still simplify the static sub-expression.
+        # At runtime, string concatenation produces "HiLo" and .attr is empty.
+        assert tmpl.render(site={"title": "Hi"}, x="Lo") == ""
 
 
 class TestTransformExprGetitem:
@@ -3377,14 +3375,15 @@ class TestComponentInliningInternals:
     """Component inlining edge cases."""
 
     def test_inline_too_many_args(self):
-        """Too many positional args — not inlined, still works."""
+        """Too many positional args — not inlined, raises at runtime."""
+        from kida.environment.exceptions import TemplateRuntimeError
+
         env = Environment(autoescape=False, inline_components=True)
         tmpl = env.from_string(
             "{% def greet(name) %}Hello {{ name }}{% end %}"
             "{% call greet('World', 'extra') %}{% end %}"
         )
-        # Should still render (extra arg ignored or error)
-        with contextlib.suppress(Exception):
+        with pytest.raises(TemplateRuntimeError):
             tmpl.render()
 
     def test_inline_with_kwargs(self):
