@@ -98,9 +98,9 @@ inputs:
     required: false
     default: ''
   python-version:
-    description: 'Python version to use (3.12+). Set to "skip" to skip Python setup.'
+    description: 'Python version to use (3.14+). Set to "skip" to skip Python setup.'
     required: false
-    default: '3.12'
+    default: '3.14'
   install:
     description: 'Whether to install kida via pip. Set to "false" if kida is already available.'
     required: false
