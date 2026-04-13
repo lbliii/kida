@@ -60,7 +60,7 @@ def walk_tree(
             return {}
         for child in children:
             name = child.name
-            if name.startswith(".") and name in ignored:
+            if name.startswith("."):
                 continue
             if name in ignored:
                 continue
