@@ -1,0 +1,26 @@
+{% from "sections.kida" import badges, install, usage, tree_section, dev, license_section %}
+# {{ name }}
+{% if description %}
+
+{{ description }}
+{% end %}
+{% if repo_url %}
+
+{{ badges(repo_url, version, license, python_requires) }}
+{% end %}
+
+{{ install(name, build_tool, python_requires, has_zero_deps, extras) }}
+{% if has_cli %}
+
+{{ usage(cli_name) }}
+{% end %}
+
+{{ tree_section(tree_str) }}
+{% if dev_dependencies %}
+
+{{ dev(install_command, test_command) }}
+{% end %}
+{% if license %}
+
+{{ license_section(license) }}
+{% end %}

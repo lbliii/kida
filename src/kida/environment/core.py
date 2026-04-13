@@ -1064,6 +1064,11 @@ class Environment:
     def select_autoescape(self, name: str | None) -> bool:
         """Determine if autoescape should be enabled for a template.
 
+        For ``.kida`` files the inner extension drives the decision: e.g.
+        ``page.html.kida`` → ``.html`` → escape, ``README.md.kida`` → ``.md``
+        → no escape.  A bare ``.kida`` file (no inner extension) is treated as
+        plain text (no escaping).
+
         Args:
             name: Template name (may be None for string templates)
 
@@ -1080,6 +1085,15 @@ class Environment:
             raise ValueError(msg)
         if callable(self.autoescape):
             return self.autoescape(name)
+        # For bool autoescape=True, honour .kida double-extension convention
+        if self.autoescape and name is not None and name.endswith(".kida"):
+            inner = name.removesuffix(".kida")
+            if "." in inner.split("/")[-1]:
+                # Has an inner extension — check if it's an HTML-like extension
+                ext = inner.rsplit(".", 1)[-1].lower()
+                return ext in {"html", "htm", "xhtml", "xml", "svg"}
+            # Bare .kida — treat as plain text (no escaping)
+            return False
         return self.autoescape
 
     def clear_cache(self, include_bytecode: bool = False) -> None:

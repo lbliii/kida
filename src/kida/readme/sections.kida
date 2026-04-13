@@ -1,0 +1,133 @@
+{% def badges(repo_url, version="", license="", python_requires="") %}
+[![License](https://img.shields.io/badge/license-{{ license | default("MIT") }}-blue.svg)]({{ repo_url }}){% if version %} [![Version](https://img.shields.io/badge/version-{{ version }}-green.svg)]({{ repo_url }}){% end %}{% if python_requires %} [![Python](https://img.shields.io/badge/python-{{ python_requires }}-blue.svg)]({{ repo_url }}){% end %}
+{% end %}
+
+{% def install(name, build_tool, python_requires="", has_zero_deps=false, extras=none) %}
+## Installation
+{% if python_requires %}
+
+{{ name }} requires Python {{ python_requires }}.
+{% end %}
+{% if build_tool == "uv" %}
+
+```bash
+uv add {{ name }}
+```
+{% elif build_tool == "poetry" %}
+
+```bash
+poetry add {{ name }}
+```
+{% elif build_tool == "pipenv" %}
+
+```bash
+pipenv install {{ name }}
+```
+{% else %}
+
+```bash
+pip install {{ name }}
+```
+{% end %}
+{% if has_zero_deps %}
+
+{{ name }} has **zero runtime dependencies**.
+{% end %}
+{% if extras %}
+
+### Optional extras
+{% for extra_name, extra_deps in extras.items() %}
+- **`{{ extra_name }}`**: {{ extra_deps | join(", ") }}
+{% end %}
+{% end %}
+{% end %}
+
+{% def install_cli(name, build_tool) %}
+## Installation
+{% if build_tool == "uv" %}
+
+```bash
+uv tool install {{ name }}
+```
+
+Or add to a project:
+
+```bash
+uv add {{ name }}
+```
+{% elif build_tool == "poetry" %}
+
+```bash
+poetry add {{ name }}
+```
+{% elif build_tool == "pipenv" %}
+
+```bash
+pipenv install {{ name }}
+```
+{% else %}
+
+```bash
+pip install {{ name }}
+```
+{% end %}
+{% end %}
+
+{% def usage(cli_name) %}
+## Usage
+
+```bash
+{{ cli_name }} --help
+```
+{% end %}
+
+{% def commands(scripts) %}
+### Commands
+{% for cmd, entry in scripts.items() %}
+- **`{{ cmd }}`** — `{{ entry }}`
+{% end %}
+{% end %}
+
+{% def tree_section(tree_str) %}
+## Project Structure
+
+```
+{{ tree_str }}
+```
+{% end %}
+
+{% def quickstart(name) %}
+## Quick Start
+
+```python
+import {{ name | replace("-", "_") }}
+```
+{% end %}
+
+{% def dev(install_command, test_command="") %}
+## Development
+
+```bash
+{{ install_command }}
+```
+{% if test_command %}
+
+### Testing
+
+```bash
+{{ test_command }}
+```
+{% end %}
+{% end %}
+
+{% def contributing(repo_url) %}
+## Contributing
+
+Contributions are welcome. Please open an issue or submit a pull request at [{{ repo_url }}]({{ repo_url }}).
+{% end %}
+
+{% def license_section(license) %}
+## License
+
+{{ license }}
+{% end %}
