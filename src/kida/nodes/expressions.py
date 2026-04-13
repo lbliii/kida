@@ -136,6 +136,7 @@ class Filter(Expr):
     name: str
     args: Sequence[Expr] = ()
     kwargs: dict[str, Expr] = field(default_factory=dict)
+    parenthesized: bool = False
 
 
 @dataclass(frozen=True, slots=True)
