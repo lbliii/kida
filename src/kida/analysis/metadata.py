@@ -227,6 +227,91 @@ class CallValidation:
 
 @final
 @dataclass(frozen=True, slots=True)
+class TypeMismatch:
+    """Result of a type mismatch at a call site.
+
+    Produced by ``BlockAnalyzer.validate_call_types()`` when a literal
+    argument's type doesn't match the ``{% def %}`` parameter's annotation.
+
+    Only literal arguments (strings, ints, floats, bools, None) are checked.
+    Variable arguments are skipped since their type can't be known statically.
+
+    Attributes:
+        def_name: Name of the called ``{% def %}``.
+        param_name: Parameter with the type mismatch.
+        expected: Annotation string from the def signature (e.g. ``"int"``).
+        actual_type: Python type name of the literal (e.g. ``"str"``).
+        actual_value: The literal value that was passed.
+        lineno: Source line of the call site.
+        col_offset: Source column of the call site.
+    """
+
+    def_name: str
+    param_name: str
+    expected: str
+    actual_type: str
+    actual_value: str | int | float | bool | None
+    lineno: int
+    col_offset: int
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class DefParamInfo:
+    """Metadata about a single parameter in a ``{% def %}`` component.
+
+    Attributes:
+        name: Parameter name.
+        annotation: Type annotation string from template source (e.g. ``"str"``),
+            or None if untyped.
+        has_default: True if the parameter has a default value.
+        is_required: True if the parameter must be provided by callers.
+    """
+
+    name: str
+    annotation: str | None = None
+    has_default: bool = False
+    is_required: bool = True
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class DefMetadata:
+    """Metadata about a ``{% def %}`` component, inferred from static analysis.
+
+    Parallel to :class:`BlockMetadata` for blocks — makes defs first-class
+    citizens in Kida's introspection API.
+
+    Thread-safe: Immutable after creation.
+
+    Attributes:
+        name: Def identifier (e.g. ``"card"``, ``"button"``).
+        template_name: Template where this def is defined.
+        lineno: Source line number of the ``{% def %}`` tag.
+        params: Parameter metadata in declaration order.
+        slots: Named slots referenced in the def body (excludes ``"default"``).
+        has_default_slot: True if the body contains an unnamed ``{% slot %}``.
+        depends_on: Context paths the def body may access (conservative superset).
+
+    Example:
+            >>> meta = template.def_metadata()
+            >>> card = meta.get("card")
+            >>> if card:
+            ...     print(f"card({', '.join(p.name for p in card.params)})")
+            ...     print(f"  slots: {card.slots}")
+    """
+
+    name: str
+    template_name: str | None = None
+    lineno: int = 0
+    params: tuple[DefParamInfo, ...] = ()
+    slots: tuple[str, ...] = ()
+    has_default_slot: bool = False
+    depends_on: frozenset[str] = frozenset()
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class TemplateStructureManifest:
     """Lightweight template structure for schedulers and dependency planners.
 

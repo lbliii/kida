@@ -170,6 +170,8 @@ __all__ = [
     "ChoiceLoader",
     "CoverageCollector",
     "CoverageResult",
+    "DefMetadata",
+    "DefParamInfo",
     "DictLoader",
     "Environment",
     "ErrorCode",
@@ -224,7 +226,14 @@ __all__ = [
 # Lazy-loaded analysis symbols (avoids eagerly importing kida.nodes — 974 lines
 # of frozen dataclass AST definitions — on every `from kida import Environment`).
 _LAZY_ANALYSIS = frozenset(
-    {"AnalysisConfig", "BlockMetadata", "TemplateMetadata", "TemplateStructureManifest"}
+    {
+        "AnalysisConfig",
+        "BlockMetadata",
+        "DefMetadata",
+        "DefParamInfo",
+        "TemplateMetadata",
+        "TemplateStructureManifest",
+    }
 )
 _LAZY_EXPORTS = frozenset({"strip_colors"})
 
@@ -240,6 +249,8 @@ def __getattr__(name: str) -> object:
         from kida.analysis import (
             AnalysisConfig,
             BlockMetadata,
+            DefMetadata,
+            DefParamInfo,
             TemplateMetadata,
             TemplateStructureManifest,
         )
@@ -248,6 +259,8 @@ def __getattr__(name: str) -> object:
         globals().update(
             AnalysisConfig=AnalysisConfig,
             BlockMetadata=BlockMetadata,
+            DefMetadata=DefMetadata,
+            DefParamInfo=DefParamInfo,
             TemplateMetadata=TemplateMetadata,
             TemplateStructureManifest=TemplateStructureManifest,
         )

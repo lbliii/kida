@@ -186,7 +186,7 @@ _EXPECTED_AST_HASHES: dict[str, str] = {
     "child": "7866afbc6d92b913",
     "const_and_name": "87a61754d36ef694",
     "containers": "26373c505ec09244",
-    "def_and_call": "855d4dc03df62b12",
+    "def_and_call": "cc1673abc0ab9e0c",
     "default_filter": "b0f5e5f48f94e080",
     "filters": "0b65fde459a4b770",
     "for_loop": "c6fc1d50e4b98d9e",

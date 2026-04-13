@@ -264,6 +264,8 @@ env.add_filter('name', func)  # Not env.filters['name'] = func
 
 ## See Also
 
+- [[docs/tutorials/component-comparison|Jinja2 vs Kida Components]] — Side-by-side component comparison
+- [[docs/usage/components|Components Guide]] — Kida component patterns
 - [[docs/syntax/control-flow|Control Flow]] — Pattern matching syntax
 - [[docs/about/comparison|Comparison]] — Kida vs Jinja2
 - [[docs/about/performance|Performance]] — Benchmark results

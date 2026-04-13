@@ -150,6 +150,34 @@ def format_template_stack(stack: list[tuple[str, int]] | None) -> str:
     return "\n".join(lines)
 
 
+def format_component_stack(stack: list[tuple[str, int, str]] | None) -> str:
+    """Format component call stack for error messages with colors.
+
+    Args:
+        stack: List of (template_name, line_number, def_name) tuples
+            showing the def call chain.
+
+    Returns:
+        Formatted component stack trace string with colors.
+
+    Example:
+        >>> stack = [("page.html", 14, "dashboard"), ("components/card.html", 3, "card")]
+        >>> print(format_component_stack(stack))
+        Component stack:
+          • page.html:14 → dashboard()
+          • components/card.html:3 → card()
+    """
+    if not stack:
+        return ""
+
+    terminal = _terminal()
+    lines = [terminal.dim_text("Component stack:")]
+    for template_name, line_num, def_name in stack:
+        location_str = f"{template_name}:{line_num}" if template_name else f"<template>:{line_num}"
+        lines.append(f"  • {terminal.location(location_str)} → {def_name}()")
+    return "\n".join(lines)
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class SourceSnippet:
@@ -409,6 +437,7 @@ class TemplateRuntimeError(TemplateError):
         suggestion: str | None = None,
         source_snippet: SourceSnippet | None = None,
         template_stack: list[tuple[str, int]] | None = None,
+        component_stack: list[tuple[str, int, str]] | None = None,
         code: ErrorCode | None = None,
     ):
         self.message = message
@@ -419,6 +448,7 @@ class TemplateRuntimeError(TemplateError):
         self.suggestion = suggestion
         self.source_snippet = source_snippet
         self.template_stack = template_stack or []
+        self.component_stack = component_stack or []
         self.code = code if code is not None else ErrorCode.RUNTIME_ERROR
         super().__init__(self._format_message())
 
@@ -436,6 +466,11 @@ class TemplateRuntimeError(TemplateError):
         # Source snippet (shows the template line where error occurred)
         if self.source_snippet:
             parts.append(self.source_snippet.format())
+
+        # Component stack trace (Sprint 1.3: Component Framework)
+        if self.component_stack:
+            parts.append("")
+            parts.append(format_component_stack(self.component_stack))
 
         # Template stack trace (Feature 2.1)
         if self.template_stack:
@@ -480,6 +515,11 @@ class TemplateRuntimeError(TemplateError):
         # Source snippet
         if self.source_snippet:
             parts.append(self.source_snippet.format())
+
+        # Component stack trace (Sprint 1.3)
+        if self.component_stack:
+            parts.append("")
+            parts.append(format_component_stack(self.component_stack))
 
         # Template stack trace (Feature 2.1)
         if self.template_stack:
@@ -616,6 +656,7 @@ class UndefinedError(TemplateError):
         available_names: frozenset[str] | None = None,
         source_snippet: SourceSnippet | None = None,
         template_stack: list[tuple[str, int]] | None = None,
+        component_stack: list[tuple[str, int, str]] | None = None,
     ):
         self.name = name
         self.template = template or "<template>"
@@ -623,6 +664,7 @@ class UndefinedError(TemplateError):
         self._available_names = available_names
         self.source_snippet = source_snippet
         self.template_stack = template_stack or []
+        self.component_stack = component_stack or []
         super().__init__(self._format_message())
 
     def _format_message(self) -> str:
@@ -644,6 +686,10 @@ class UndefinedError(TemplateError):
         # Source snippet (shows the template line where error occurred)
         if self.source_snippet:
             msg += "\n" + self.source_snippet.format()
+
+        # Component stack trace (Sprint 1.3)
+        if self.component_stack:
+            msg += "\n\n" + format_component_stack(self.component_stack)
 
         # Template stack trace (Feature 2.1)
         if self.template_stack:
@@ -680,6 +726,11 @@ class UndefinedError(TemplateError):
         # Source snippet
         if self.source_snippet:
             parts.append(self.source_snippet.format())
+
+        # Component stack trace (Sprint 1.3)
+        if self.component_stack:
+            parts.append("")
+            parts.append(format_component_stack(self.component_stack))
 
         # Template stack trace (Feature 2.1)
         if self.template_stack:

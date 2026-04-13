@@ -295,10 +295,56 @@ class FunctionCompilationMixin:
                 value=ast.Name(id="_caller", ctx=ast.Load()),
             )
         )
+
+        # Component call stack: push frame on entry (Sprint 1.3)
+        # _rc.component_stack.append((_rc.template_name or '', _rc.line, 'def_name'))
+        func_body.append(
+            ast.Expr(
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Attribute(
+                            value=ast.Name(id="_rc", ctx=ast.Load()),
+                            attr="component_stack",
+                            ctx=ast.Load(),
+                        ),
+                        attr="append",
+                        ctx=ast.Load(),
+                    ),
+                    args=[
+                        ast.Tuple(
+                            elts=[
+                                ast.BoolOp(
+                                    op=ast.Or(),
+                                    values=[
+                                        ast.Attribute(
+                                            value=ast.Name(id="_rc", ctx=ast.Load()),
+                                            attr="template_name",
+                                            ctx=ast.Load(),
+                                        ),
+                                        ast.Constant(value=""),
+                                    ],
+                                ),
+                                ast.Attribute(
+                                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                                    attr="line",
+                                    ctx=ast.Load(),
+                                ),
+                                ast.Constant(value=def_name),
+                            ],
+                            ctx=ast.Load(),
+                        )
+                    ],
+                    keywords=[],
+                ),
+            )
+        )
+
+        # Compile the body statements
+        inner_body: list[ast.stmt] = []
         self._def_caller_stack.append(ast.Name(id="_def_caller", ctx=ast.Load()))
         try:
             for child in node.body:
-                func_body.extend(self._compile_node(child))
+                inner_body.extend(self._compile_node(child))
         finally:
             self._def_caller_stack.pop()
         if saved_async:
@@ -313,7 +359,7 @@ class FunctionCompilationMixin:
             self._locals.discard(node.kwarg)
 
         # return _Markup(''.join(buf))
-        func_body.append(
+        inner_body.append(
             ast.Return(
                 value=ast.Call(
                     func=ast.Name(id="_Markup", ctx=ast.Load()),
@@ -330,6 +376,32 @@ class FunctionCompilationMixin:
                     ],
                     keywords=[],
                 ),
+            )
+        )
+
+        # Wrap body in try/finally to pop component stack on exit
+        # _rc.component_stack.pop()
+        component_pop = ast.Expr(
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(
+                        value=ast.Name(id="_rc", ctx=ast.Load()),
+                        attr="component_stack",
+                        ctx=ast.Load(),
+                    ),
+                    attr="pop",
+                    ctx=ast.Load(),
+                ),
+                args=[],
+                keywords=[],
+            ),
+        )
+        func_body.append(
+            ast.Try(
+                body=inner_body,
+                handlers=[],
+                orelse=[],
+                finalbody=[component_pop],
             )
         )
 

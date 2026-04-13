@@ -186,5 +186,7 @@ Kida has native block-level caching (no extensions needed):
 ## See Also
 
 - [[docs/tutorials/migrate-from-jinja2|Full Migration Guide]] — Step-by-step with verification
+- [[docs/tutorials/component-comparison|Jinja2 vs Kida Components]] — Real-world component comparison
+- [[docs/usage/components|Components Guide]] — Kida component patterns
 - [[docs/about/comparison|Feature Comparison]] — Detailed feature matrix
 - [[docs/about/thread-safety|Thread Safety]] — Free-threading deep dive

@@ -183,6 +183,7 @@ def enhance_template_error(
         lineno=lineno,
         source_snippet=snippet,
         template_stack=list(render_ctx.template_stack),
+        component_stack=list(render_ctx.component_stack),
         suggestion=suggestion,
         code=error_code,
     )
