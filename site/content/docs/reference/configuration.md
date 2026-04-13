@@ -289,6 +289,39 @@ strict_none=False
 strict_none=True
 ```
 
+### strict_undefined
+
+Strict attribute access — raise `UndefinedError` on missing attributes instead of returning the `_Undefined` sentinel.
+
+| Type | Default | Description |
+|------|---------|-------------|
+| `bool` | `False` | Raise on missing attributes |
+
+```python
+# Lenient (default): missing attributes return _Undefined sentinel
+strict_undefined=False
+
+# Strict: missing attributes raise UndefinedError immediately
+strict_undefined=True
+```
+
+When enabled, `{{ user.typo }}` raises immediately instead of rendering as empty string. Useful for catching attribute typos during development. Error messages distinguish between "Undefined variable", "Undefined attribute", and "Undefined key".
+
+### jinja2_compat_warnings
+
+Emit `MigrationWarning` when `{% set %}` is used inside blocks where Jinja2 scoping would differ from Kida.
+
+| Type | Default | Description |
+|------|---------|-------------|
+| `bool` | `False` | Warn on Jinja2 scoping differences |
+
+```python
+# Enable for migration (recommended when porting from Jinja2)
+jinja2_compat_warnings=True
+```
+
+When enabled, using `{% set x = ... %}` inside `{% if %}`, `{% for %}`, or other blocks emits a `MigrationWarning` (K-WARN-002) explaining that `{% set %}` is block-scoped in Kida and does not leak to the outer scope. The warning suggests `{% export %}` or `{% let %}` as alternatives.
+
 ### fstring_coalescing
 
 Enable f-string output coalescing optimization.

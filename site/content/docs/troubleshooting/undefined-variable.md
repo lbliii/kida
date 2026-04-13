@@ -181,6 +181,21 @@ def render_debug(template_name, **context):
     return env.render(template_name, **context)
 ```
 
+## Strict Undefined Mode
+
+Enable `strict_undefined=True` on your Environment to catch attribute typos immediately instead of getting silent empty output:
+
+```python
+env = Environment(
+    loader=FileSystemLoader("templates/"),
+    strict_undefined=True,
+)
+```
+
+With strict mode, `{{ user.typo }}` raises `UndefinedError` immediately with a descriptive message ("Undefined attribute 'typo'") instead of rendering as an empty string. Error messages distinguish between variable, attribute, and key lookups.
+
+This is recommended for development and CI. In production, you may prefer the lenient default to avoid breaking pages on missing data.
+
 ## Prevention
 
 ### Type Hints for Context

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-13
+
+### Added
+
+- **Component framework** — Def introspection API (`DefMetadata`, `DefParamInfo`, `list_defs`, `def_metadata`), component call stack in error reporting, `kida components` CLI command, type-aware prop validation with `TypeMismatch` diagnostics, Components Guide and Jinja2-vs-Kida comparison docs. (#90)
+- **`kida readme` CLI** — Auto-generates README.md from project metadata (pyproject.toml, filesystem, git). Ships 4 preset templates (default, minimal, library, cli) with `--set` overrides and `--json` debug mode. (#89)
+
+### Fixed
+
+- **Sandbox `max_output_size` enforcement** — Was declared but never checked; now enforced. (#91)
+- **Block capture rejection** — `{% set x %}...{% endset %}` block capture rejected at parse time. (#91)
+- **Error codes for all SecurityError raises** — K-SEC-001 through K-SEC-005. (#91)
+- **Autoescape validation at construction** — Invalid autoescape mode now rejected at `Environment()` creation, not first compile. (#91)
+- **Structured errors** — All bare `RuntimeError` raises replaced with `TemplateRuntimeError`. (#91)
+- **Optional chaining display** — `?.` now renders `""` instead of `"None"` in display context. (#91)
+- **Broken `except` clauses** — Fixed 32 `except X, Y:` clauses (Python 2 syntax that only catches the first type). (#92)
+- **`render_with_blocks()` validation** — Unknown block names now raise with did-you-mean suggestions. (#92)
+- **Unknown compiler node types** — Now raises instead of silently ignoring. (#92)
+- **CLI check error reporting** — Errors no longer swallowed silently. (#92)
+- **`_Undefined.get()` API** — Fixed to match expected semantics. (#92)
+
+### Changed
+
+- **New warnings** — `PrecedenceWarning` (K-WARN-001) for `?? + |` without parens, `CoercionWarning` for silent filter type coercion, `MigrationWarning` (K-WARN-002) for `set` scoping with `jinja2_compat_warnings` flag. (#91)
+- **`strict_undefined` mode** — Opt-in `Environment(strict_undefined=True)` for catching attribute typos. (#92)
+- **`UndefinedError` context** — Attribute/key lookups now say "Undefined attribute/key" instead of "Undefined variable". (#92)
+- **ErrorCode coverage** — Pushed from 21 to 73+ raise sites with full docs for all 38 ErrorCode values. (#91)
+
 ## [0.5.0] - 2026-04-12
 
 ### Added

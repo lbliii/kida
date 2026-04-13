@@ -42,6 +42,9 @@ env = Environment(
 | `fragment_cache_size` | `int` | `1000` | Max cached fragments |
 | `fragment_ttl` | `float` | `300.0` | Fragment TTL (seconds) |
 | `static_context` | `dict \| None` | `None` | Values for compile-time partial evaluation |
+| `strict_undefined` | `bool` | `False` | Raise on missing attribute access |
+| `jinja2_compat_warnings` | `bool` | `False` | Warn on `{% set %}` scoping differences |
+| `validate_calls` | `bool` | `False` | Validate `{% def %}` call sites at compile time |
 
 ### Methods
 
@@ -209,7 +212,7 @@ layout = env.get_template("_layout.html")
 html = layout.render_with_blocks({"content": inner_html}, title="Page")
 ```
 
-Each key in `block_overrides` names a block; the value is a pre-rendered HTML string.
+Each key in `block_overrides` names a block; the value is a pre-rendered HTML string. Unknown block names now raise `TemplateRuntimeError` with did-you-mean suggestions.
 
 #### render_block_stream_async(block_name, **context)
 
@@ -231,7 +234,62 @@ blocks = template.list_blocks()
 # ['title', 'nav', 'content', 'footer']
 ```
 
-### Introspection (frameworks, build systems)
+### Component Introspection
+
+#### list_defs()
+
+List all `{% def %}` component names in the template.
+
+```python
+names = template.list_defs()
+# ['card', 'nav_link', 'badge']
+```
+
+#### def_metadata()
+
+Return metadata for all `{% def %}` components in the template. Returns a `dict[str, DefMetadata]`.
+
+```python
+meta = template.def_metadata()
+card = meta["card"]
+print(card.name)              # "card"
+print(card.template_name)     # "components/card.html"
+print(card.lineno)            # 3
+print(card.params)            # (DefParamInfo(name='title', annotation='str', ...), ...)
+print(card.slots)             # ('actions', 'footer')
+print(card.has_default_slot)  # True
+```
+
+**DefMetadata** fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `str` | Component name |
+| `template_name` | `str \| None` | Source template |
+| `lineno` | `int` | Line number of `{% def %}` |
+| `params` | `tuple[DefParamInfo, ...]` | Parameter metadata |
+| `slots` | `tuple[str, ...]` | Named slot names |
+| `has_default_slot` | `bool` | Whether `{% slot %}` (unnamed) exists |
+
+**DefParamInfo** fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `str` | Parameter name |
+| `annotation` | `str \| None` | Type annotation (e.g. `"str"`, `"int"`) |
+| `has_default` | `bool` | Whether a default value is defined |
+| `is_required` | `bool` | `True` if no default value |
+
+#### warnings
+
+Compile-time warnings collected during template compilation.
+
+```python
+for w in template.warnings:
+    print(w.code, w.message, w.lineno)
+```
+
+### Template Introspection (frameworks, build systems)
 
 #### template_metadata()
 
@@ -299,6 +357,7 @@ template.is_cacheable()       # True only if all blocks cacheable
 | `name` | `str \| None` | Template name |
 | `filename` | `str \| None` | Source filename |
 | `is_async` | `bool` | `True` if template uses `{% async for %}` or `{{ await }}` |
+| `warnings` | `list[TemplateWarning]` | Compile-time warnings (precedence, coercion, migration) |
 
 > **Note**: Calling `render()` or `render_stream()` on a template where `is_async` is `True` raises `TemplateRuntimeError`. Use `render_stream_async()` instead.
 
@@ -499,7 +558,7 @@ Classify block metadata into framework roles: `"fragment"`, `"page_root"`, or `N
 
 ### TemplateError
 
-Base class for all template errors.
+Base class for all template errors. All Kida exceptions carry an `ErrorCode` accessible via `exc.code`.
 
 ### TemplateSyntaxError
 
@@ -514,9 +573,24 @@ except TemplateSyntaxError as e:
     print(e)
 ```
 
+### TemplateRuntimeError
+
+Error during template rendering. Includes `component_stack` for errors inside `{% def %}` components:
+
+```python
+from kida import TemplateRuntimeError
+
+try:
+    template.render(items=None)
+except TemplateRuntimeError as e:
+    print(e.code)             # ErrorCode enum value
+    print(e.component_stack)  # [(def_name, lineno, template_name), ...]
+    print(e.format_compact()) # Formatted error with source snippet
+```
+
 ### TemplateNotFoundError
 
-Template file not found.
+Template file not found. Includes caller context (requesting template and line number).
 
 ```python
 from kida import TemplateNotFoundError
@@ -529,7 +603,7 @@ except TemplateNotFoundError as e:
 
 ### UndefinedError
 
-Accessing undefined variable.
+Accessing undefined variable or attribute. The `kind` field distinguishes between variable, attribute, and key lookups.
 
 ```python
 from kida import UndefinedError
@@ -537,8 +611,32 @@ from kida import UndefinedError
 try:
     env.from_string("{{ missing }}").render()
 except UndefinedError as e:
-    print(e)
+    print(e.kind)  # "variable", "attribute", or "key"
+    print(e)       # "Undefined variable 'missing' in <string>:1"
 ```
+
+With `strict_undefined=True`, attribute access errors also include component context:
+
+```python
+env = Environment(strict_undefined=True)
+# "Undefined attribute 'typo' on User object in page.html:5"
+```
+
+### SecurityError
+
+Raised by `SandboxedEnvironment` when a template violates the security policy. Carries error codes K-SEC-001 through K-SEC-005.
+
+### Warning Classes
+
+Compile-time warnings emitted during template compilation:
+
+| Class | Code | Description |
+|-------|------|-------------|
+| `PrecedenceWarning` | K-WARN-001 | `\|` binds tighter than `??` |
+| `CoercionWarning` | — | Silent type coercion in filters (e.g. `"abc" \| float` → `0.0`) |
+| `MigrationWarning` | K-WARN-002 | `{% set %}` scoping differs from Jinja2 |
+
+These are standard Python warnings and can be filtered with `warnings.filterwarnings`.
 
 ---
 

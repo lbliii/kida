@@ -71,7 +71,7 @@ env = SandboxedEnvironment(sandbox_policy=policy)
 | `allow_import` | `bool` | `False` | Whether `__import__` is available in templates. |
 | `allow_mutating_methods` | `bool` | `False` | Whether mutating collection methods (`append`, `pop`, `clear`, etc.) are accessible. |
 | `allow_calling` | `frozenset[str] \| None` | `None` | Set of type names whose instances may be called. `None` permits all callables. An empty `frozenset()` blocks all calls. |
-| `max_output_size` | `int \| None` | `None` | Maximum render output length in characters. `None` means unlimited. |
+| `max_output_size` | `int \| None` | `None` | Maximum render output length in characters. Raises `SecurityError` (K-SEC-005) when exceeded. `None` means unlimited. |
 | `max_range` | `int` | `10000` | Maximum `range()` size allowed in templates. |
 
 `SandboxPolicy` is a frozen dataclass -- construct a new instance for each configuration.

@@ -27,8 +27,9 @@ Kida provides clear error messages with source locations, error codes, and actio
 | `TemplateError` | Base class for all template errors |
 | `TemplateSyntaxError` | Invalid template syntax |
 | `TemplateRuntimeError` | Error during template rendering |
-| `TemplateNotFoundError` | Template file not found |
-| `UndefinedError` | Accessing undefined variable (strict mode) |
+| `TemplateNotFoundError` | Template file not found (includes caller context) |
+| `UndefinedError` | Accessing undefined variable or attribute |
+| `SecurityError` | Sandbox policy violation |
 
 All exception classes are importable from the top-level `kida` package:
 
@@ -39,6 +40,7 @@ from kida import (
     TemplateRuntimeError,
     TemplateNotFoundError,
     UndefinedError,
+    SecurityError,
 )
 ```
 
@@ -138,6 +140,40 @@ DEBUG [my posts]: <list[5]>
   ...
 ```
 
+## Component Call Stack
+
+When an error occurs inside a `{% def %}` component, `TemplateRuntimeError` and `UndefinedError` include a `component_stack` showing the call chain that led to the error:
+
+```python
+try:
+    template.render(data=data)
+except TemplateRuntimeError as e:
+    for def_name, lineno, tpl_name in e.component_stack:
+        print(f"  in {def_name}() at {tpl_name}:{lineno}")
+```
+
+The `format_compact()` output automatically includes the component stack when present.
+
+## Compile-Time Warnings
+
+Kida emits Python warnings during template compilation for common pitfalls:
+
+| Warning | Code | Trigger |
+|---------|------|---------|
+| `PrecedenceWarning` | K-WARN-001 | `x ?? [] \| length` — filter pipe binds tighter than `??` |
+| `CoercionWarning` | — | `"abc" \| float` — silent type coercion to `0.0` |
+| `MigrationWarning` | K-WARN-002 | `{% set %}` inside blocks when `jinja2_compat_warnings=True` |
+
+Access warnings on a compiled template:
+
+```python
+template = env.get_template("page.html")
+for w in template.warnings:
+    print(f"{w.code}: {w.message} (line {w.lineno})")
+```
+
+These are standard Python warnings — filter them with `warnings.filterwarnings("ignore", category=PrecedenceWarning)`.
+
 ## Error Codes
 
 Every Kida exception carries an `ErrorCode` that categorizes the error and links to documentation:
@@ -157,6 +193,11 @@ Every Kida exception carries an `ErrorCode` that categorizes the error and links
 | `K-TPL-001` | Template | Template not found |
 | `K-TPL-002` | Template | Template syntax error |
 | `K-TPL-003` | Template | Circular macro import |
+| `K-SEC-001` | Security | Blocked attribute access |
+| `K-SEC-002` | Security | Blocked type access |
+| `K-SEC-003` | Security | Range limit exceeded |
+| `K-SEC-004` | Security | Blocked callable |
+| `K-SEC-005` | Security | Output limit exceeded |
 
 Access the code programmatically:
 
