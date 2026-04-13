@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import os
 import sys
 from datetime import UTC
 from pathlib import Path
@@ -607,8 +608,10 @@ def _cmd_components(
     # Human-readable output grouped by template
     from itertools import groupby
 
+    use_color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
     for template, defs in groupby(all_defs, key=lambda d: d["template"]):
-        print(f"\033[1m{template}\033[0m")
+        print(f"\033[1m{template}\033[0m" if use_color else template)
         for d in defs:
             # Build signature
             parts: list[str] = []

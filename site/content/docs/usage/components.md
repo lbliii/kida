@@ -216,16 +216,15 @@ Type annotations on parameters serve as documentation and enable static validati
 
 ### Supported Types
 
-| Annotation | Accepts |
+| Annotation | Validates Literals |
 |-----------|---------|
 | `str` | String literals |
 | `int` | Integer literals |
 | `float` | Float and integer literals |
 | `bool` | `true` / `false` |
-| `list` | List values |
-| `dict` | Dict values |
 | `None` | `none` literal |
 | `str \| None` | Union types (PEP 604 style) |
+| `list`, `dict`, custom types | Accepted as documentation; not validated statically |
 
 ### Validation
 

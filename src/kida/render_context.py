@@ -38,12 +38,16 @@ class _NullRenderContext:
     """Lightweight stub used when generated code runs outside a render context.
 
     Silently absorbs `_rc.line = N` assignments without raising.
+    Provides safe no-op `component_stack` and `template_name` for
+    generated def code that pushes/pops component stack frames.
     """
 
-    __slots__ = ("line",)
+    __slots__ = ("component_stack", "line", "template_name")
 
     def __init__(self) -> None:
         self.line = 0
+        self.component_stack: list[tuple[str, int, str]] = []
+        self.template_name: str | None = None
 
 
 # Module-level singleton — used as fallback in generated code preambles.

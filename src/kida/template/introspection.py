@@ -77,11 +77,14 @@ class TemplateIntrospectionMixin:
         - params: Parameter names, annotations, and defaults
         - slots: Named slots used in the def body
         - has_default_slot: Whether an unnamed ``{% slot %}`` exists
-        - depends_on: Context paths the def body may access
 
         Results are cached after first call.
 
         Returns empty dict if AST was not preserved (preserve_ast=False).
+
+        Note:
+            ``depends_on`` is not currently computed for defs and will
+            be an empty frozenset.
 
         Example:
             >>> meta = template.def_metadata()
@@ -395,10 +398,20 @@ class TemplateIntrospectionMixin:
                         named.append(node.name)
                 # Recurse into child bodies (but not into nested defs)
                 if not isinstance(node, Def):
-                    for attr in ("body", "orelse", "finalbody"):
+                    for attr in ("body", "else_", "empty", "fallback"):
                         children = getattr(node, attr, None)
                         if isinstance(children, (list, tuple)):
                             nodes_to_visit.extend(children)
+                    # Handle elif: list of (test, body) tuples
+                    elif_ = getattr(node, "elif_", None)
+                    if elif_:
+                        for _test, body in elif_:
+                            nodes_to_visit.extend(body)
+                    # Handle match cases: list of (pattern, guard, body) tuples
+                    cases = getattr(node, "cases", None)
+                    if cases:
+                        for _pattern, _guard, body in cases:
+                            nodes_to_visit.extend(body)
             return named, has_default
 
         def _walk_for_defs(nodes: object) -> dict[str, DefMetadata]:
@@ -437,10 +450,18 @@ class TemplateIntrospectionMixin:
                     # Don't recurse into def bodies for nested defs
                     continue
                 # Recurse into non-def children
-                for attr in ("body", "orelse"):
+                for attr in ("body", "else_", "empty", "fallback"):
                     children = getattr(node, attr, None)
                     if isinstance(children, (list, tuple)):
                         to_visit.extend(children)
+                elif_ = getattr(node, "elif_", None)
+                if elif_:
+                    for _test, body in elif_:
+                        to_visit.extend(body)
+                cases = getattr(node, "cases", None)
+                if cases:
+                    for _pattern, _guard, body in cases:
+                        to_visit.extend(body)
             return result
 
         self._def_metadata_cache = _walk_for_defs(self._optimized_ast)

@@ -497,7 +497,7 @@ class BlockAnalyzer:
             if expr and hasattr(expr, "lineno"):
                 self._check_func_call_types(expr, signatures, mismatches)
 
-            for attr in ("body", "else_", "empty"):
+            for attr in ("body", "else_", "empty", "fallback"):
                 children = getattr(node, attr, None)
                 if children and isinstance(children, (list, tuple)):
                     self._validate_type_nodes(children, signatures, mismatches)
@@ -622,10 +622,10 @@ _ANNOTATION_TYPE_MAP: dict[str, set[type]] = {
     "int": {int},
     "float": {float, int},  # int is acceptable for float
     "bool": {bool},
-    "list": {list},
-    "dict": {dict},
     "None": {type(None)},
     "none": {type(None)},
+    # Note: list/dict are excluded because literal lists/dicts are List/Dict
+    # AST nodes (not Const), so they can't be validated by Const-only checking.
 }
 
 
