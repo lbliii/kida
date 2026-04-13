@@ -632,7 +632,7 @@ class ExpressionCompilationMixin:
         # e.g. {{ x ?? [] | length }} parses as {{ x ?? ([] | length) }}
         from kida.nodes.expressions import Filter
 
-        if isinstance(node.right, Filter):
+        if isinstance(node.right, Filter) and not node.right.parenthesized:
             self._emit_warning(
                 ErrorCode.FILTER_PRECEDENCE,
                 f"Filter '|' binds tighter than '??' — "

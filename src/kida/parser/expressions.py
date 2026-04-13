@@ -8,6 +8,7 @@ dependencies. See: plan/rfc-mixin-protocol-typing.md
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from kida._types import Token, TokenType
@@ -865,6 +866,10 @@ class ExpressionParsingMixin:
                 return Tuple(token.lineno, token.col_offset, tuple(items))
 
             self._expect(TokenType.RPAREN)
+            # Mark Filter nodes as parenthesized so the compiler can
+            # suppress false-positive PrecedenceWarnings for ?? (expr | f).
+            if isinstance(expr, Filter):
+                expr = replace(expr, parenthesized=True)
             return expr
 
         # List

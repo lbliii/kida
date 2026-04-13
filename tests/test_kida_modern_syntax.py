@@ -166,6 +166,32 @@ class TestNullCoalescing:
         assert tmpl_correct.render(x=None) == "0"
         assert tmpl_correct.render(x=[1, 2, 3]) == "3"  # Correctly returns length
 
+    def test_no_precedence_warning_when_fallback_parenthesized(self, env):
+        """Parenthesized fallback suppresses PrecedenceWarning.
+
+        x ?? (y | filter) already disambiguates intent — no warning needed.
+        """
+        import warnings
+
+        from kida.exceptions import PrecedenceWarning
+
+        # Parenthesized fallback: no warning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            tmpl = env.from_string("{{ x ?? (fallback | upper) }}")
+            assert tmpl.render(x=None, fallback="hello") == "HELLO"
+            prec_warnings = [x for x in w if issubclass(x.category, PrecedenceWarning)]
+            assert prec_warnings == [], (
+                f"Unexpected PrecedenceWarning for parenthesized fallback: {prec_warnings}"
+            )
+
+        # Unparenthesized: warning IS emitted
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            env.from_string("{{ x ?? fallback | upper }}")
+            prec_warnings = [x for x in w if issubclass(x.category, PrecedenceWarning)]
+            assert len(prec_warnings) == 1
+
     def test_null_coalesce_with_filter_requires_parens(self, env):
         """Filters must use parentheses to apply after null coalescing.
 
