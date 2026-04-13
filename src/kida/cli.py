@@ -18,6 +18,17 @@ from kida.exceptions import TemplateSyntaxError
 from kida.lexer import Lexer
 from kida.parser import Parser
 
+_TEMPLATE_GLOBS = ("*.html", "*.kida")
+
+
+def _iter_templates(root: Path) -> list[Path]:
+    """Collect template files matching all known extensions, sorted."""
+    seen: set[Path] = set()
+    for glob in _TEMPLATE_GLOBS:
+        for p in root.rglob(glob):
+            seen.add(p)
+    return sorted(seen)
+
 
 def _explicit_close_suggestion(block_type: str) -> str:
     if block_type == "block":
@@ -33,7 +44,7 @@ def _cmd_check(
     a11y: bool,
     typed: bool,
 ) -> int:
-    """Parse every ``*.html`` under *template_dir*; exit non-zero on failure."""
+    """Parse every template under *template_dir*; exit non-zero on failure."""
     root = template_dir.resolve()
     if not root.is_dir():
         print(f"kida check: not a directory: {root}", file=sys.stderr)
@@ -44,7 +55,7 @@ def _cmd_check(
     strict_warnings = 0
     call_issues = 0
 
-    for path in sorted(root.rglob("*.html")):
+    for path in _iter_templates(root):
         rel = path.relative_to(root).as_posix()
         try:
             tpl = env.get_template(rel)
@@ -113,7 +124,7 @@ def _cmd_check(
     if typed:
         from kida.analysis.type_checker import check_types
 
-        for path in sorted(root.rglob("*.html")):
+        for path in _iter_templates(root):
             rel = path.relative_to(root).as_posix()
             try:
                 tpl = env.get_template(rel)
@@ -136,7 +147,7 @@ def _cmd_check(
     if a11y:
         from kida.analysis.a11y import check_a11y
 
-        for path in sorted(root.rglob("*.html")):
+        for path in _iter_templates(root):
             rel = path.relative_to(root).as_posix()
             try:
                 tpl = env.get_template(rel)
@@ -283,7 +294,7 @@ def _cmd_fmt(
 
     for path in paths:
         if path.is_dir():
-            files = sorted(path.rglob("*.html"))
+            files = _iter_templates(path)
         elif path.is_file():
             files = [path]
         else:
@@ -582,7 +593,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_check = sub.add_parser(
         "check",
-        help="Parse all .html templates under a directory (syntax + loader resolution)",
+        help="Parse all templates under a directory (syntax + loader resolution)",
     )
     p_check.add_argument(
         "template_dir",
@@ -706,7 +717,7 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=None,
         metavar=".EXT",
-        help="File extensions to scan (default: .html .txt .xml). Repeatable.",
+        help="File extensions to scan (default: .html .kida .txt .xml). Repeatable.",
     )
 
     p_readme = sub.add_parser(
@@ -807,7 +818,7 @@ def main(argv: list[str] | None = None) -> int:
             set_vars=args.set,
         )
     if args.command == "extract":
-        exts = args.ext or [".html", ".txt", ".xml"]
+        exts = args.ext or [".html", ".kida", ".txt", ".xml"]
         # Normalize: ensure each extension has a leading dot
         exts = [e if e.startswith(".") else f".{e}" for e in exts]
         return _cmd_extract(args.template_dir, output=args.output, extensions=exts)
