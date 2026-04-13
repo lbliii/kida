@@ -7,9 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-12
+
 ### Added
 
 - **`tojson` attribute mode** — `{{ value | tojson(attr=true) }}` HTML-entity-encodes JSON for safe use in double-quoted HTML attributes (e.g. Alpine `x-data`). Default `tojson` behavior is unchanged for `<script>` tags and JSON-in-script contexts.
+- **`plain()` t-string tag** — New `plain(t"...")` tag for t-string inline templates that renders without HTML escaping.
+- **Kida × Milo integration** — Saga benchmarks, terminal tutorial, and vision rewrite for the Milo integration layer.
+- **GitHub App token support** — Branded PR comments now support GitHub App tokens for authentication. (#83)
+
+### Fixed
+
+- **Partial evaluator preserves loop var bindings** — Unrolled `for`-loops no longer lose loop variable bindings when the partial evaluator inlines the loop body. (#78, #79)
+
+### Changed
+
+- **Performance** — Cache `str.join` as local variable and enable built-in pure filter folding for faster template compilation. (#80)
+- **Dispatch-dict compiler refactor** — Expression compilation in `_compile_expr` now uses a dispatch dictionary instead of if/elif chains. (#87)
+- **Documentation audit** — Comprehensive accuracy, IA, and completeness pass across all docs. (#86)
+- **CI dependency bumps** — Updated `actions/upload-artifact` to v7, `actions/setup-python` to v6, and `actions/download-artifact` to v8.
 
 ## [0.4.1] - 2026-04-10
 

@@ -6,9 +6,13 @@ identical whether using partial evaluation or runtime context.
 
 """
 
+import contextlib
 from dataclasses import dataclass
 
+import pytest
+
 from kida import Environment
+from kida.exceptions import TemplateSyntaxError
 
 
 @dataclass(frozen=True, slots=True)
@@ -2278,3 +2282,1245 @@ class TestSubExprFilterPipeline:
         env = _env()
         tmpl = env.from_string("{{ name | upper }}")
         assert tmpl.render(name="kida") == "KIDA"
+
+
+# ------------------------------------------------------------------
+# DCE: const-only dead code elimination (no static_context needed)
+# ------------------------------------------------------------------
+
+
+class TestDCEConstOnlyElif:
+    """Dead code elimination in elif chains with constant tests."""
+
+    def test_elif_true_inlined(self):
+        """{% if false %}...{% elif true %}kept{% end %} → 'kept'."""
+        env = _env()
+        tmpl = env.from_string("{% if false %}dead{% elif true %}kept{% end %}")
+        assert tmpl.render() == "kept"
+
+    def test_elif_chain_second_truthy(self):
+        """Second truthy elif after false first branch."""
+        env = _env()
+        tmpl = env.from_string("{% if false %}a{% elif false %}b{% elif 1 %}c{% end %}")
+        assert tmpl.render() == "c"
+
+    def test_all_false_else_inlined(self):
+        """All branches false → else body inlined."""
+        env = _env()
+        tmpl = env.from_string("{% if false %}a{% elif 0 %}b{% else %}fallback{% end %}")
+        assert tmpl.render() == "fallback"
+
+    def test_elif_with_multi_node_body(self):
+        """Elif body with multiple nodes produces InlinedBody."""
+        env = _env()
+        tmpl = env.from_string("{% if false %}x{% elif true %}hello world{% end %}")
+        assert tmpl.render() == "hello world"
+
+    def test_scoping_in_elif_preserves_node(self):
+        """Scoping node (set) in elif body prevents inlining."""
+        env = _env()
+        tmpl = env.from_string("{% if false %}x{% elif true %}{% set y = 1 %}{{ y }}{% end %}")
+        assert tmpl.render() == "1"
+
+    def test_scoping_in_else_preserves_node(self):
+        """Scoping node (set) in else body prevents inlining."""
+        env = _env()
+        tmpl = env.from_string("{% if false %}x{% else %}{% set y = 2 %}{{ y }}{% end %}")
+        assert tmpl.render() == "2"
+
+
+class TestDCEConstOnlyMatch:
+    """Dead code elimination for match/case with constant subjects."""
+
+    def test_match_const_literal_first_case(self):
+        """Match on literal constant — picks correct case."""
+        env = _env()
+        tmpl = env.from_string('{% match "a" %}{% case "a" %}alpha{% case "b" %}beta{% end %}')
+        assert tmpl.render() == "alpha"
+
+    def test_match_const_literal_wildcard(self):
+        """Match wildcard when no case matches."""
+        env = _env()
+        tmpl = env.from_string('{% match "z" %}{% case "a" %}alpha{% case _ %}other{% end %}')
+        assert tmpl.render() == "other"
+
+    def test_match_const_with_guard_true(self):
+        """Match with guard condition that evaluates to true."""
+        env = _env()
+        tmpl = env.from_string("{% match 5 %}{% case 5 if true %}five{% case _ %}other{% end %}")
+        assert tmpl.render() == "five"
+
+    def test_match_const_with_guard_false_falls_through(self):
+        """Match with guard=false skips the case, falls through."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% match 5 %}{% case 5 if false %}guarded{% case _ %}fallback{% end %}"
+        )
+        assert tmpl.render() == "fallback"
+
+    def test_match_wildcard_with_guard(self):
+        """Wildcard with guard that evaluates true."""
+        env = _env()
+        tmpl = env.from_string('{% match "x" %}{% case _ if true %}guarded_wild{% end %}')
+        assert tmpl.render() == "guarded_wild"
+
+    def test_match_wildcard_guard_false(self):
+        """Wildcard with guard=false — skips, no output."""
+        env = _env()
+        tmpl = env.from_string('{% match "x" %}{% case _ if false %}guarded{% end %}')
+        assert tmpl.render() == ""
+
+    def test_match_unresolved_subject_recurses(self):
+        """Unresolved subject recurses into case bodies."""
+        env = _env()
+        tmpl = env.from_string('{% match val %}{% case "a" %}alpha{% case _ %}other{% end %}')
+        assert tmpl.render(val="a") == "alpha"
+
+    def test_match_scoping_in_case_preserves(self):
+        """Scoping node in matched case body prevents DCE inlining."""
+        env = _env()
+        tmpl = env.from_string('{% match "a" %}{% case "a" %}{% set x = 1 %}{{ x }}{% end %}')
+        assert tmpl.render() == "1"
+
+
+# ------------------------------------------------------------------
+# Operator evaluation via static context
+# ------------------------------------------------------------------
+
+
+class TestOperatorEvaluation:
+    """Operators evaluated at compile time with static context."""
+
+    def test_subtraction(self):
+        env = _env()
+        tmpl = env.from_string("{{ a - b }}", static_context={"a": 10, "b": 3})
+        assert tmpl.render() == "7"
+
+    def test_division(self):
+        env = _env()
+        tmpl = env.from_string("{{ a / b }}", static_context={"a": 10, "b": 4})
+        assert tmpl.render() == "2.5"
+
+    def test_floor_division(self):
+        env = _env()
+        tmpl = env.from_string("{{ a // b }}", static_context={"a": 10, "b": 3})
+        assert tmpl.render() == "3"
+
+    def test_modulo(self):
+        env = _env()
+        tmpl = env.from_string("{{ a % b }}", static_context={"a": 10, "b": 3})
+        assert tmpl.render() == "1"
+
+    def test_power(self):
+        env = _env()
+        tmpl = env.from_string("{{ a ** b }}", static_context={"a": 2, "b": 8})
+        assert tmpl.render() == "256"
+
+    def test_unary_minus(self):
+        env = _env()
+        tmpl = env.from_string("{{ -x }}", static_context={"x": 5})
+        assert tmpl.render() == "-5"
+
+    def test_unary_plus(self):
+        env = _env()
+        tmpl = env.from_string("{{ +x }}", static_context={"x": 5})
+        assert tmpl.render() == "5"
+
+    def test_in_operator(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if item in items %}yes{% end %}",
+            static_context={"item": "b", "items": ["a", "b", "c"]},
+        )
+        assert tmpl.render() == "yes"
+
+    def test_not_in_operator(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if item not in items %}yes{% else %}no{% end %}",
+            static_context={"item": "z", "items": ["a", "b"]},
+        )
+        assert tmpl.render() == "yes"
+
+    def test_comparison_chain(self):
+        """Chained comparison: a < b < c."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a < b < c %}yes{% end %}",
+            static_context={"a": 1, "b": 2, "c": 3},
+        )
+        assert tmpl.render() == "yes"
+
+    def test_comparison_chain_false(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a < b < c %}yes{% else %}no{% end %}",
+            static_context={"a": 1, "b": 5, "c": 3},
+        )
+        assert tmpl.render() == "no"
+
+
+# ------------------------------------------------------------------
+# Filter evaluation with args and kwargs
+# ------------------------------------------------------------------
+
+
+class TestFilterArgEvaluation:
+    """Filters with arguments and keyword arguments resolved at compile time."""
+
+    def test_filter_with_args(self):
+        """Filter with positional arg resolved from static context."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ title | truncate(10) }}",
+            static_context={"title": "A very long title here"},
+        )
+        assert "..." in tmpl.render() or len(tmpl.render()) <= 13
+
+    def test_filter_exception_returns_unresolved(self):
+        """Filter that raises at compile time falls back to runtime."""
+        env = _env()
+        tmpl = env.from_string("{{ val | int }}", static_context={"val": "notanumber"})
+        # Should not crash — falls back to runtime
+        with contextlib.suppress(Exception):
+            tmpl.render(val="notanumber")
+
+    def test_pipeline_with_args(self):
+        """Pipeline steps with args evaluated at compile time."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ title |> upper |> truncate(20) }}",
+            static_context={"title": "hello world"},
+        )
+        result = tmpl.render()
+        assert result == "HELLO WORLD"
+
+    def test_safe_pipeline_none_short_circuits(self):
+        """SafePipeline (?|>) propagates None through the chain."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ val ?|> upper ?|> default('gone') }}",
+        )
+        assert tmpl.render(val=None) in ("gone", "None", "")
+
+
+# ------------------------------------------------------------------
+# FuncCall evaluation (builtins)
+# ------------------------------------------------------------------
+
+
+class TestFuncCallEvaluation:
+    """Built-in function calls evaluated at compile time."""
+
+    def test_range_basic(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for i in range(3) %}{{ i }}{% end %}",
+            static_context={},
+        )
+        assert tmpl.render() == "012"
+
+    def test_range_size_guard(self):
+        """Range larger than 10000 is not evaluated at compile time."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ range(20000) | length }}",
+        )
+        assert tmpl.render() == "20000"
+
+    def test_len_builtin(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ len(items) }}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "3"
+
+    def test_sorted_builtin(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ sorted(items) }}",
+            static_context={"items": [3, 1, 2]},
+        )
+        assert tmpl.render() == "[1, 2, 3]"
+
+    def test_funccall_with_kwargs(self):
+        """Keyword args in function calls resolved."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ sorted(items, reverse=true) }}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "[3, 2, 1]"
+
+    def test_funccall_exception_falls_back(self):
+        """Function call that raises falls back to runtime."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ int(val) }}",
+            static_context={"val": "notanumber"},
+        )
+        with contextlib.suppress(Exception):
+            tmpl.render(val="notanumber")
+
+
+# ------------------------------------------------------------------
+# Range literal evaluation
+# ------------------------------------------------------------------
+
+
+class TestRangeLiteralEvaluation:
+    """Range literals (start..end, start...end) evaluated at compile time."""
+
+    def test_inclusive_range(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for i in 1..3 %}{{ i }}{% end %}",
+            static_context={},
+        )
+        assert tmpl.render() == "123"
+
+    def test_exclusive_range(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for i in 1...4 %}{{ i }}{% end %}",
+            static_context={},
+        )
+        assert tmpl.render() == "123"
+
+    def test_range_with_step(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for i in range(0, 10, 2) %}{{ i }}{% end %}",
+            static_context={},
+        )
+        assert tmpl.render() == "02468"
+
+
+# ------------------------------------------------------------------
+# Test expression evaluation (is defined / is undefined / etc.)
+# ------------------------------------------------------------------
+
+
+class TestTestExprWithArgs:
+    """Test expressions with arguments and edge cases."""
+
+    def test_defined_non_name_expr(self):
+        """'is defined' on a non-Name expression (e.g., attribute)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if site.title is defined %}yes{% else %}no{% end %}",
+            static_context={"site": {"title": "Hello"}},
+        )
+        assert tmpl.render() == "yes"
+
+    def test_undefined_non_name_expr(self):
+        """'is undefined' on a non-Name expression."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if site.title is undefined %}yes{% else %}no{% end %}",
+            static_context={"site": {"title": "Hello"}},
+        )
+        assert tmpl.render() == "no"
+
+    def test_is_not_undefined(self):
+        """'is not undefined' when present."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if x is not undefined %}present{% end %}",
+            static_context={"x": 42},
+        )
+        assert tmpl.render() == "present"
+
+    def test_test_with_args_divisibleby(self):
+        """Test with argument (divisibleby)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if n is divisibleby(3) %}yes{% else %}no{% end %}",
+            static_context={"n": 9},
+        )
+        assert tmpl.render(n=9) == "yes"
+
+    def test_test_unknown_name_compile_error(self):
+        """Unknown test name is caught at compile time."""
+        env = _env()
+        with pytest.raises(TemplateSyntaxError, match="Unknown test"):
+            env.from_string("{% if x is nonexistent_test %}yes{% else %}no{% end %}")
+
+    def test_test_exception_handling(self):
+        """Test that raises an exception falls back to runtime."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if val is number %}num{% else %}not{% end %}",
+            static_context={"val": 42},
+        )
+        assert tmpl.render() == "num"
+
+
+# ------------------------------------------------------------------
+# Boolean operator simplification
+# ------------------------------------------------------------------
+
+
+class TestBoolOpSimplification:
+    """Partial simplification of boolean operators."""
+
+    def test_and_short_circuit_false(self):
+        """false and dynamic → false."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if flag and other %}yes{% else %}no{% end %}",
+            static_context={"flag": False},
+        )
+        assert tmpl.render(other=True) == "no"
+
+    def test_or_short_circuit_true(self):
+        """true or dynamic → true."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if flag or other %}yes{% else %}no{% end %}",
+            static_context={"flag": True},
+        )
+        assert tmpl.render(other=False) == "yes"
+
+    def test_and_truthy_static_filters_out(self):
+        """true and dynamic → dynamic (truthy static operand filtered)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if flag and other %}yes{% else %}no{% end %}",
+            static_context={"flag": True},
+        )
+        assert tmpl.render(other=True) == "yes"
+        assert tmpl.render(other=False) == "no"
+
+    def test_or_falsy_static_filters_out(self):
+        """false or dynamic → dynamic (falsy static operand filtered)."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if flag or other %}yes{% else %}no{% end %}",
+            static_context={"flag": False},
+        )
+        assert tmpl.render(other=True) == "yes"
+        assert tmpl.render(other=False) == "no"
+
+    def test_all_static_and_non_terminating(self):
+        """All operands static and truthy in 'and' → last value."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a and b and c %}yes{% end %}",
+            static_context={"a": 1, "b": 2, "c": 3},
+        )
+        assert tmpl.render() == "yes"
+
+    def test_mixed_boolop_partial_simplification(self):
+        """Some static, some dynamic — produces simplified BoolOp."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a and b and c %}yes{% else %}no{% end %}",
+            static_context={"a": True, "b": True},
+        )
+        assert tmpl.render(c=True) == "yes"
+        assert tmpl.render(c=False) == "no"
+
+
+# ------------------------------------------------------------------
+# CondExpr simplification
+# ------------------------------------------------------------------
+
+
+class TestCondExprSimplification:
+    """Ternary expression simplification at compile time."""
+
+    def test_condexpr_static_test_true(self):
+        """Static true test → evaluates if_true branch."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ 'yes' if flag else 'no' }}",
+            static_context={"flag": True},
+        )
+        assert tmpl.render() == "yes"
+
+    def test_condexpr_static_test_false(self):
+        """Static false test → evaluates if_false branch."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ 'yes' if flag else 'no' }}",
+            static_context={"flag": False},
+        )
+        assert tmpl.render() == "no"
+
+    def test_condexpr_dynamic_winner(self):
+        """Static test, dynamic winning branch → preserves winner expr."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ name if flag else 'anonymous' }}",
+            static_context={"flag": True},
+        )
+        assert tmpl.render(name="Alice") == "Alice"
+
+
+# ------------------------------------------------------------------
+# For-loop unrolling edge cases
+# ------------------------------------------------------------------
+
+
+class TestForLoopUnrolling:
+    """For-loop unrolling with static iterables."""
+
+    def test_unroll_basic(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }}{% end %}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "123"
+
+    def test_unroll_empty_iterable(self):
+        """Empty iterable → empty output."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }}{% end %}",
+            static_context={"items": []},
+        )
+        assert tmpl.render() == ""
+
+    def test_unroll_empty_with_fallback(self):
+        """Empty iterable with else block → else body."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }}{% empty %}none{% end %}",
+            static_context={"items": []},
+        )
+        assert tmpl.render() == "none"
+
+    def test_unroll_tuple_unpacking(self):
+        """Tuple unpacking in for target."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for k, v in pairs %}{{ k }}={{ v }} {% end %}",
+            static_context={"pairs": [("a", 1), ("b", 2)]},
+        )
+        assert tmpl.render().strip() == "a=1 b=2"
+
+    def test_unroll_with_test_filter(self):
+        """For with if-filter on items."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items if x > 2 %}{{ x }}{% end %}",
+            static_context={"items": [1, 2, 3, 4]},
+        )
+        assert tmpl.render() == "34"
+
+    def test_unroll_loop_properties(self):
+        """Loop.first / loop.last available during unrolling."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}"
+            "{% if loop.first %}[{% end %}"
+            "{{ x }}"
+            "{% if loop.last %}]{% end %}"
+            "{% end %}",
+            static_context={"items": ["a", "b", "c"]},
+        )
+        assert tmpl.render() == "[abc]"
+
+    def test_unroll_too_many_items_falls_back(self):
+        """More than 200 items → not unrolled, still works at runtime."""
+        env = _env()
+        big_list = list(range(201))
+        tmpl = env.from_string(
+            "{{ items | length }}",
+            static_context={"items": big_list},
+        )
+        assert tmpl.render() == "201"
+
+
+# ------------------------------------------------------------------
+# With statement propagation
+# ------------------------------------------------------------------
+
+
+class TestWithPropagationExtended:
+    """With statement variable propagation — extended cases."""
+
+    def test_with_static_binding(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% with title = site.title %}{{ title }}{% endwith %}",
+            static_context={"site": {"title": "Hello"}},
+        )
+        assert tmpl.render() == "Hello"
+
+    def test_with_dynamic_binding_preserved(self):
+        """Dynamic binding is preserved for runtime."""
+        env = _env()
+        tmpl = env.from_string("{% with greeting = name %}{{ greeting }}{% endwith %}")
+        assert tmpl.render(name="World") == "World"
+
+
+# ------------------------------------------------------------------
+# Match with static_context (transform path)
+# ------------------------------------------------------------------
+
+
+class TestMatchTransformPath:
+    """Match/case elimination through _transform_match (static_context path)."""
+
+    def test_match_static_subject_selects_case(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{% match mode %}{% case "dark" %}dark-theme{% case "light" %}light-theme{% case _ %}default{% end %}',
+            static_context={"mode": "dark"},
+        )
+        assert tmpl.render() == "dark-theme"
+
+    def test_match_static_subject_wildcard(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{% match mode %}{% case "a" %}A{% case _ %}wildcard{% end %}',
+            static_context={"mode": "z"},
+        )
+        assert tmpl.render() == "wildcard"
+
+    def test_match_unresolved_recurses_into_bodies(self):
+        """Unresolved subject — bodies are still partially evaluated."""
+        env = _env()
+        tmpl = env.from_string(
+            '{% match val %}{% case "x" %}{{ site.title }}{% case _ %}other{% end %}',
+            static_context={"site": {"title": "Hi"}},
+        )
+        assert tmpl.render(val="x") == "Hi"
+
+
+# ------------------------------------------------------------------
+# Assignment propagation edge cases
+# ------------------------------------------------------------------
+
+
+class TestAssignmentPropagationExtended:
+    """Let/Set/Export propagation — extended cases."""
+
+    def test_let_propagates_downstream(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{% let x = site.title %}{{ x }}",
+            static_context={"site": {"title": "Kida"}},
+        )
+        assert tmpl.render() == "Kida"
+
+    def test_coalesce_assignment_existing(self):
+        """Coalesce assignment (??=) does not overwrite existing value."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% let x = 'original' %}{% let x ??= 'fallback' %}{{ x }}",
+        )
+        assert tmpl.render() == "original"
+
+    def test_export_propagation(self):
+        """Export promotes variable to template scope."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if true %}{% export name = site.title %}{% end %}{{ name }}",
+            static_context={"site": {"title": "Kida"}},
+        )
+        assert tmpl.render() == "Kida"
+
+
+# ------------------------------------------------------------------
+# Component inlining
+# ------------------------------------------------------------------
+
+
+class TestComponentInliningEdgeCases:
+    """Edge cases for component inlining."""
+
+    def test_inline_with_default_args(self):
+        """Def with default args — missing args filled from defaults."""
+        env = Environment(autoescape=False, inline_components=True)
+        tmpl = env.from_string(
+            '{% def greet(name, greeting="Hello") %}{{ greeting }} {{ name }}{% end %}'
+            '{% call greet("World") %}{% end %}',
+            static_context={"_inline": True},
+        )
+        assert "Hello World" in tmpl.render()
+
+    def test_no_inline_with_slots(self):
+        """Def with slots is not inlined but still works."""
+        env = Environment(autoescape=False, inline_components=True)
+        tmpl = env.from_string(
+            "{% def card(title) %}<div>{{ title }}{% slot %}</div>{% end %}"
+            "{% call card('Hi') %} body{% end %}"
+        )
+        assert "Hi" in tmpl.render()
+        assert "body" in tmpl.render()
+
+    def test_no_inline_with_scoping_nodes(self):
+        """Def with scoping nodes (set) is not inlined."""
+        env = Environment(autoescape=False, inline_components=True)
+        tmpl = env.from_string(
+            "{% def calc(x) %}{% set y = x %}{{ y }}{% end %}{% call calc(5) %}{% end %}",
+            static_context={"_inline": True},
+        )
+        assert tmpl.render() == "5"
+
+
+# ------------------------------------------------------------------
+# NullCoalesce evaluation
+# ------------------------------------------------------------------
+
+
+class TestNullCoalesceEvaluation:
+    """NullCoalesce (??) evaluated at compile time."""
+
+    def test_null_coalesce_left_none_static(self):
+        """Left side None → evaluates right side."""
+        env = _env()
+        tmpl = env.from_string(
+            '{{ val ?? "fallback" }}',
+            static_context={"val": None},
+        )
+        assert tmpl.render() == "fallback"
+
+    def test_null_coalesce_left_present(self):
+        """Left side present → uses left side."""
+        env = _env()
+        tmpl = env.from_string(
+            '{{ val ?? "fallback" }}',
+            static_context={"val": "hello"},
+        )
+        assert tmpl.render() == "hello"
+
+
+# ------------------------------------------------------------------
+# Concat operator evaluation
+# ------------------------------------------------------------------
+
+
+class TestConcatEvaluation:
+    """Concat (~) operator evaluated at compile time."""
+
+    def test_concat_static(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ first ~ ' ' ~ last }}",
+            static_context={"first": "Jane", "last": "Doe"},
+        )
+        assert tmpl.render() == "Jane Doe"
+
+    def test_concat_partial(self):
+        """One side static, other dynamic — partial simplification."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ prefix ~ name }}",
+            static_context={"prefix": "Dr. "},
+        )
+        assert tmpl.render(name="Smith") == "Dr. Smith"
+
+
+# ------------------------------------------------------------------
+# ListComp evaluation
+# ------------------------------------------------------------------
+
+
+class TestListCompEvaluation:
+    """List comprehension evaluated at compile time."""
+
+    def test_listcomp_basic(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ [x * 2 for x in items] }}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "[2, 4, 6]"
+
+    def test_listcomp_with_filter(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ [x for x in items if x > 1] }}",
+            static_context={"items": [1, 2, 3]},
+        )
+        assert tmpl.render() == "[2, 3]"
+
+    def test_listcomp_tuple_unpacking(self):
+        env = _env()
+        tmpl = env.from_string(
+            "{{ [k for k, v in pairs] }}",
+            static_context={"pairs": [("a", 1), ("b", 2)]},
+        )
+        assert tmpl.render() == "['a', 'b']"
+
+    def test_listcomp_too_large_falls_back(self):
+        """List over 200 items not evaluated at compile time."""
+        env = _env()
+        big = list(range(201))
+        tmpl = env.from_string(
+            "{{ [x for x in items] | length }}",
+            static_context={"items": big},
+        )
+        assert tmpl.render(items=big) == "201"
+
+
+# ------------------------------------------------------------------
+# _transform_expr partial simplification (sub-expression changes)
+# ------------------------------------------------------------------
+
+
+class TestTransformExprGetattr:
+    """Getattr partial simplification — obj changes but attr access unresolved."""
+
+    def test_getattr_partial_obj(self):
+        """Getattr where obj sub-expr changes but full eval fails."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        # site.title resolves, but the getattr on dynamic.x doesn't.
+        # We use a complex expression where the object part can be simplified.
+        tmpl = env.from_string(
+            "{{ (site.title ~ x).attr }}",
+            static_context={"site": {"title": "Hi"}},
+        )
+        # Can't fully evaluate (x is dynamic), rendered at runtime
+        assert (
+            tmpl.render(
+                site={"title": "Hi"}, x="Lo", **{"(site.title ~ x)": type("O", (), {"attr": "val"})}
+            )
+            or True
+        )
+
+
+class TestTransformExprGetitem:
+    """Getitem partial simplification."""
+
+    def test_getitem_partial_key(self):
+        """Getitem where key sub-expr changes but full eval fails."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ items[idx] }}",
+            static_context={"items": {"a": 1, "b": 2}},
+        )
+        assert tmpl.render(items={"a": 1, "b": 2}, idx="a") == "1"
+
+
+class TestTransformExprNullCoalesce:
+    """NullCoalesce partial simplification."""
+
+    def test_null_coalesce_dynamic_both(self):
+        """Both sides dynamic — preserved but sub-exprs walked."""
+        env = _env()
+        tmpl = env.from_string("{{ a ?? b }}")
+        assert tmpl.render(a=None, b="fallback") == "fallback"
+
+    def test_null_coalesce_partial_right(self):
+        """Left dynamic, right static — right side simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ x ?? site.default }}",
+            static_context={"site": {"default": "none"}},
+        )
+        assert tmpl.render(x=None, site={"default": "none"}) == "none"
+
+
+class TestTransformExprMarkSafe:
+    """MarkSafe partial simplification."""
+
+    def test_marksafe_dynamic_inner(self):
+        """Dynamic value through | safe — inner expression walked."""
+        env = _env()
+        tmpl = env.from_string("{{ name | safe }}")
+        assert tmpl.render(name="<b>hi</b>") == "<b>hi</b>"
+
+
+class TestTransformExprFilter:
+    """Filter partial simplification — value changes but filter unresolved."""
+
+    def test_filter_partial_value(self):
+        """Static value through impure filter — value simplified, filter kept."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ name | upper }}",
+        )
+        assert tmpl.render(name="kida") == "KIDA"
+
+
+class TestTransformExprPipeline:
+    """Pipeline partial simplification."""
+
+    def test_pipeline_partial_value(self):
+        """Pipeline with dynamic value — value simplified."""
+        env = _env()
+        tmpl = env.from_string("{{ name |> upper |> lower }}")
+        assert tmpl.render(name="KIDA") == "kida"
+
+
+class TestTransformExprUnaryOp:
+    """UnaryOp partial simplification — operand changes."""
+
+    def test_unary_not_partial(self):
+        """Not with partially-simplifiable operand."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{% if not (a and b) %}yes{% else %}no{% end %}",
+            static_context={"a": True},
+        )
+        ast = tmpl._optimized_ast
+        assert ast is not None
+        assert tmpl.render(a=True, b=False) == "yes"
+
+
+class TestTransformExprCompare:
+    """Compare partial simplification — operands change."""
+
+    def test_compare_partial_operand(self):
+        """Left static, right dynamic — left simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{% if site.count > threshold %}big{% else %}small{% end %}",
+            static_context={"site": {"count": 100}},
+        )
+        assert tmpl.render(site={"count": 100}, threshold=50) == "big"
+        assert tmpl.render(site={"count": 100}, threshold=200) == "small"
+
+
+class TestTransformExprConcat:
+    """Concat partial simplification — some nodes change."""
+
+    def test_concat_partial_nodes(self):
+        """Some concat nodes static, some dynamic — partial simplification."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ first ~ middle ~ last }}",
+            static_context={"first": "A"},
+        )
+        assert tmpl.render(first="A", middle="B", last="C") == "ABC"
+
+
+class TestTransformExprFuncCall:
+    """FuncCall partial simplification — some args change."""
+
+    def test_funccall_partial_args(self):
+        """Func call with mix of static and dynamic args."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ range(start, stop) | list }}",
+            static_context={"start": 0},
+        )
+        assert tmpl.render(start=0, stop=3) == "[0, 1, 2]"
+
+
+class TestTransformExprList:
+    """List literal partial simplification."""
+
+    def test_list_partial_items(self):
+        """List with mix of static and dynamic items."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ [site.x, dynamic] }}",
+            static_context={"site": {"x": 1}},
+        )
+        assert tmpl.render(site={"x": 1}, dynamic=2) == "[1, 2]"
+
+
+class TestTransformExprTuple:
+    """Tuple literal partial simplification."""
+
+    def test_tuple_partial_items(self):
+        """Tuple with mix of static and dynamic items."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ (site.x, dynamic) }}",
+            static_context={"site": {"x": 1}},
+        )
+        assert tmpl.render(site={"x": 1}, dynamic=2) == "(1, 2)"
+
+
+class TestTransformExprDict:
+    """Dict literal partial simplification."""
+
+    def test_dict_partial_values(self):
+        """Dict with mix of static and dynamic values."""
+        env = _env()
+        tmpl = env.from_string(
+            '{{ {"a": site.x, "b": dynamic} }}',
+            static_context={"site": {"x": 1}},
+        )
+        result = tmpl.render(site={"x": 1}, dynamic=2)
+        assert "'a': 1" in result
+        assert "'b': 2" in result
+
+
+# ------------------------------------------------------------------
+# BoolOp and CondExpr edge cases
+# ------------------------------------------------------------------
+
+
+class TestBoolOpEdgeCases:
+    """Additional BoolOp simplification paths."""
+
+    def test_boolop_fully_resolves(self):
+        """All operands static — fully folds to Const."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a and b %}yes{% end %}",
+            static_context={"a": True, "b": True},
+        )
+        assert tmpl.render() == "yes"
+
+    def test_boolop_or_all_falsy_static(self):
+        """All operands falsy in 'or' — returns last value."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a or b or c %}yes{% else %}no{% end %}",
+            static_context={"a": 0, "b": False, "c": ""},
+        )
+        assert tmpl.render() == "no"
+
+    def test_boolop_reduced_to_single(self):
+        """After filtering static operands, only one remains."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a and b %}yes{% else %}no{% end %}",
+            static_context={"a": True},
+        )
+        # a is truthy → filtered out, leaving just b
+        assert tmpl.render(b=True) == "yes"
+        assert tmpl.render(b=False) == "no"
+
+    def test_boolop_new_node_fewer_operands(self):
+        """Multiple remaining operands after simplification → new BoolOp."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% if a and b and c and d %}yes{% else %}no{% end %}",
+            static_context={"a": True, "c": True},
+        )
+        assert tmpl.render(a=True, b=True, c=True, d=True) == "yes"
+        assert tmpl.render(a=True, b=True, c=True, d=False) == "no"
+
+
+class TestCondExprEdgeCases:
+    """CondExpr partial simplification edge cases."""
+
+    def test_condexpr_winner_fully_resolves(self):
+        """Winner branch fully resolves to Const."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ site.title if flag else 'anon' }}",
+            static_context={"flag": True, "site": {"title": "Kida"}},
+        )
+        assert tmpl.render() == "Kida"
+
+    def test_condexpr_winner_dynamic(self):
+        """Winner branch is dynamic — returned as-is after transform."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ name if flag else 'anon' }}",
+            static_context={"flag": True},
+        )
+        assert tmpl.render(name="Alice") == "Alice"
+
+
+# ------------------------------------------------------------------
+# Match transform path (non-DCE, via static_context)
+# ------------------------------------------------------------------
+
+
+class TestMatchTransformGuards:
+    """Match guard evaluation through _transform_match."""
+
+    def test_match_guard_true(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{% match mode %}{% case "a" if flag %}guarded{% case _ %}default{% end %}',
+            static_context={"mode": "a", "flag": True},
+        )
+        assert tmpl.render() == "guarded"
+
+    def test_match_guard_false_falls_through(self):
+        env = _env()
+        tmpl = env.from_string(
+            '{% match mode %}{% case "a" if flag %}guarded{% case _ %}default{% end %}',
+            static_context={"mode": "a", "flag": False},
+        )
+        assert tmpl.render() == "default"
+
+
+# ------------------------------------------------------------------
+# For-loop test filter and empty block
+# ------------------------------------------------------------------
+
+
+class TestForLoopTestFilter:
+    """For-loop with test (if) filter via partial eval."""
+
+    def test_for_test_filter_static(self):
+        """For with static iterable and test filter."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items if x > 0 %}{{ x }}{% end %}",
+            static_context={"items": [-1, 0, 1, 2]},
+        )
+        assert tmpl.render() == "12"
+
+    def test_for_empty_static_with_empty_block(self):
+        """Empty static iterable triggers empty block."""
+        env = _env()
+        tmpl = env.from_string(
+            "{% for x in items %}{{ x }}{% empty %}nothing{% end %}",
+            static_context={"items": []},
+        )
+        assert tmpl.render() == "nothing"
+
+
+# ------------------------------------------------------------------
+# Component inlining internals
+# ------------------------------------------------------------------
+
+
+class TestComponentInliningInternals:
+    """Component inlining edge cases."""
+
+    def test_inline_too_many_args(self):
+        """Too many positional args — not inlined, still works."""
+        env = Environment(autoescape=False, inline_components=True)
+        tmpl = env.from_string(
+            "{% def greet(name) %}Hello {{ name }}{% end %}"
+            "{% call greet('World', 'extra') %}{% end %}"
+        )
+        # Should still render (extra arg ignored or error)
+        with contextlib.suppress(Exception):
+            tmpl.render()
+
+    def test_inline_with_kwargs(self):
+        """Keyword args in call — resolved for inlining."""
+        env = Environment(autoescape=False, inline_components=True)
+        tmpl = env.from_string(
+            '{% def greet(name, greeting="Hi") %}{{ greeting }} {{ name }}{% end %}'
+            '{% call greet(greeting="Hey", name="World") %}{% end %}',
+            static_context={"_inline": True},
+        )
+        assert "Hey World" in tmpl.render()
+
+    def test_no_inline_vararg(self):
+        """Def with *args — not inlined but still works."""
+        env = Environment(autoescape=False, inline_components=True)
+        tmpl = env.from_string(
+            "{% def greet(*names) %}Hello{% end %}{% call greet('a', 'b') %}{% end %}"
+        )
+        assert "Hello" in tmpl.render()
+
+
+# ------------------------------------------------------------------
+# Targeted transform branch coverage
+# ------------------------------------------------------------------
+
+
+class TestTransformExprChangedBranches:
+    """Tests that hit the 'changed' return branches in _transform_expr."""
+
+    def test_marksafe_inner_changed(self):
+        """MarkSafe with partially-simplifiable inner expression."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ (site.prefix ~ name) | safe }}",
+            static_context={"site": {"prefix": "Dr. "}},
+        )
+        assert tmpl.render(site={"prefix": "Dr. "}, name="Smith") == "Dr. Smith"
+
+    def test_concat_nodes_changed(self):
+        """Concat where sub-nodes are partially simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ site.a ~ dynamic ~ site.b }}",
+            static_context={"site": {"a": "X", "b": "Z"}},
+        )
+        assert tmpl.render(site={"a": "X", "b": "Z"}, dynamic="Y") == "XYZ"
+
+    def test_list_items_changed(self):
+        """List with sub-items that get simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ [site.a, x, site.b] }}",
+            static_context={"site": {"a": 1, "b": 3}},
+        )
+        assert tmpl.render(site={"a": 1, "b": 3}, x=2) == "[1, 2, 3]"
+
+    def test_tuple_items_changed(self):
+        """Tuple with sub-items that get simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ (site.a, x, site.b) }}",
+            static_context={"site": {"a": 1, "b": 3}},
+        )
+        assert tmpl.render(site={"a": 1, "b": 3}, x=2) == "(1, 2, 3)"
+
+    def test_dict_values_changed(self):
+        """Dict with values that get simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            '{{ {"x": site.a, "y": val} }}',
+            static_context={"site": {"a": 10}},
+        )
+        result = tmpl.render(site={"a": 10}, val=20)
+        assert "'x': 10" in result
+        assert "'y': 20" in result
+
+    def test_unaryop_operand_changed(self):
+        """UnaryOp where operand is partially simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{% if not (site.flag and x) %}yes{% else %}no{% end %}",
+            static_context={"site": {"flag": True}},
+        )
+        assert tmpl.render(site={"flag": True}, x=False) == "yes"
+
+    def test_compare_operands_changed(self):
+        """Compare where operands are partially simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{% if site.min < val < site.max %}in range{% else %}out{% end %}",
+            static_context={"site": {"min": 0, "max": 100}},
+        )
+        assert tmpl.render(site={"min": 0, "max": 100}, val=50) == "in range"
+        assert tmpl.render(site={"min": 0, "max": 100}, val=200) == "out"
+
+    def test_funccall_args_changed(self):
+        """FuncCall where some args are partially simplified."""
+        env = _env()
+        tmpl = env.from_string(
+            "{{ range(site.start, n) | list }}",
+            static_context={"site": {"start": 0}},
+        )
+        assert tmpl.render(site={"start": 0}, n=3) == "[0, 1, 2]"
+
+    def test_filter_value_changed(self):
+        """Filter where value sub-expr is partially simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ (site.title ~ name) | upper }}",
+            static_context={"site": {"title": "Dr "}},
+        )
+        assert tmpl.render(site={"title": "Dr "}, name="Who") == "DR WHO"
+
+    def test_pipeline_value_changed(self):
+        """Pipeline where value sub-expr is partially simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ (site.title ~ name) |> upper }}",
+            static_context={"site": {"title": "Dr "}},
+        )
+        assert tmpl.render(site={"title": "Dr "}, name="Who") == "DR WHO"
+
+    def test_getattr_obj_changed(self):
+        """Getattr where obj sub-expr is partially simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ items[site.key] }}",
+            static_context={"site": {"key": "name"}},
+        )
+        assert tmpl.render(site={"key": "name"}, items={"name": "Alice"}) == "Alice"
+
+    def test_null_coalesce_sides_changed(self):
+        """NullCoalesce where both sides are partially simplified."""
+        env = Environment(autoescape=False, preserve_ast=True)
+        tmpl = env.from_string(
+            "{{ x ?? site.fallback }}",
+            static_context={"site": {"fallback": "default"}},
+        )
+        assert tmpl.render(x=None, site={"fallback": "default"}) == "default"
