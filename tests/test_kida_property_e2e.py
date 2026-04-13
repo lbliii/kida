@@ -17,6 +17,7 @@ from kida.environment.exceptions import (
     TemplateSyntaxError,
     UndefinedError,
 )
+from kida.lexer import LexerError
 
 from .strategies import arbitrary_template_source, e2e_fuzz_source
 
@@ -26,6 +27,7 @@ _EXPECTED_E2E_ERRORS = (
     TemplateRuntimeError,
     UndefinedError,
     TemplateNotFoundError,
+    LexerError,
 )
 
 
