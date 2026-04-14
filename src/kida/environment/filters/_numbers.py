@@ -14,14 +14,31 @@ def _filter_abs(value: Any) -> Any:
     return abs(value)
 
 
-def _filter_round(value: Any, precision: int = 0, method: str = "common") -> float:
+def _filter_round(
+    value: Any, precision: int = 0, method: str = "common", *, strict: bool = False
+) -> float:
     """Round a number to a given precision."""
+    try:
+        fval = float(value)
+    except (ValueError, TypeError) as e:
+        if strict:
+            raise TemplateRuntimeError(
+                f"Cannot convert {type(value).__name__} to float: {value!r}",
+                suggestion="Use | float or ensure correct type at data source",
+            ) from e
+        warnings.warn(
+            f"Filter 'round' could not convert {type(value).__name__} {value!r} to float, returning 0.0. "
+            f"Use | round(strict=true) to raise, or validate input data.",
+            CoercionWarning,
+            stacklevel=2,
+        )
+        return 0.0
     if method == "ceil":
-        return float(math.ceil(float(value) * (10**precision)) / (10**precision))
+        return float(math.ceil(fval * (10**precision)) / (10**precision))
     elif method == "floor":
-        return float(math.floor(float(value) * (10**precision)) / (10**precision))
+        return float(math.floor(fval * (10**precision)) / (10**precision))
     else:
-        return round(float(value), precision)
+        return round(fval, precision)
 
 
 def _filter_decimal(value: Any, places: int = 2, *, strict: bool = False) -> str:
@@ -58,7 +75,16 @@ def _filter_decimal(value: Any, places: int = 2, *, strict: bool = False) -> str
 
 def _filter_filesizeformat(value: int | float, binary: bool = False) -> str:
     """Format a file size as human-readable."""
-    bytes_val = float(value)
+    try:
+        bytes_val = float(value)
+    except ValueError, TypeError:
+        warnings.warn(
+            f"Filter 'filesizeformat' could not convert {type(value).__name__} {value!r} to float, "
+            f"returning '0 Bytes'. Validate input data.",
+            CoercionWarning,
+            stacklevel=2,
+        )
+        return "0 Bytes"
     base = 1024 if binary else 1000
     prefixes = [
         ("KiB" if binary else "kB", base),
@@ -127,14 +153,32 @@ def _filter_commas(value: Any) -> str:
 def _filter_min(value: Any, attribute: str | None = None) -> Any:
     """Return minimum value."""
     if attribute:
-        return min(value, key=lambda x: getattr(x, attribute, None) or 0)
+        items = list(value)
+        none_count = sum(1 for x in items if getattr(x, attribute, None) is None)
+        if none_count:
+            warnings.warn(
+                f"Filter 'min' found {none_count} item(s) with None for attribute '{attribute}', "
+                f"treating as 0. Use | default(0) on the attribute or filter out None values first.",
+                CoercionWarning,
+                stacklevel=2,
+            )
+        return min(items, key=lambda x: getattr(x, attribute, None) or 0)
     return min(value)
 
 
 def _filter_max(value: Any, attribute: str | None = None) -> Any:
     """Return maximum value."""
     if attribute:
-        return max(value, key=lambda x: getattr(x, attribute, None) or 0)
+        items = list(value)
+        none_count = sum(1 for x in items if getattr(x, attribute, None) is None)
+        if none_count:
+            warnings.warn(
+                f"Filter 'max' found {none_count} item(s) with None for attribute '{attribute}', "
+                f"treating as 0. Use | default(0) on the attribute or filter out None values first.",
+                CoercionWarning,
+                stacklevel=2,
+            )
+        return max(items, key=lambda x: getattr(x, attribute, None) or 0)
     return max(value)
 
 

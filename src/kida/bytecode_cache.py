@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import logging
 import marshal
 import pickle
 import struct
@@ -44,6 +45,8 @@ from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, cast
 
 from kida.utils.template_keys import normalize_template_name
+
+logger = logging.getLogger("kida.bytecode_cache")
 
 if TYPE_CHECKING:
     from types import CodeType
@@ -196,7 +199,12 @@ class BytecodeCache:
                         return None, None, None
                     try:
                         precomputed = pickle.loads(pc_bytes)
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug(
+                            "Bytecode cache: failed to unpickle precomputed values for '%s': %s",
+                            name,
+                            exc,
+                        )
                         with contextlib.suppress(OSError):
                             path.unlink(missing_ok=True)
                         return None, None, None
@@ -208,7 +216,10 @@ class BytecodeCache:
                 if ast_bytes:
                     try:
                         ast = pickle.loads(ast_bytes)
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug(
+                            "Bytecode cache: failed to unpickle AST for '%s': %s", name, exc
+                        )
                         ast = None
 
                 return code, ast, precomputed
@@ -234,9 +245,12 @@ class BytecodeCache:
                 if ast_bytes:
                     try:
                         ast = pickle.loads(ast_bytes)
-                    except Exception:
+                    except Exception as exc:
                         # Corrupted or incompatible pickle — signal re-parse
                         # by returning None for the AST (code is still valid).
+                        logger.debug(
+                            "Bytecode cache: failed to unpickle AST (v2) for '%s': %s", name, exc
+                        )
                         ast = None
 
                 return code, ast, None
@@ -284,9 +298,12 @@ class BytecodeCache:
             code_bytes = marshal.dumps(code)
             try:
                 pc_bytes = pickle.dumps(precomputed, protocol=5) if precomputed else b""
-            except Exception:
+            except Exception as exc:
                 # Non-picklable precomputed values (e.g. custom objects) —
                 # fall back to v2 format without precomputed section.
+                logger.debug(
+                    "Bytecode cache: failed to pickle precomputed values for '%s': %s", name, exc
+                )
                 pc_bytes = b""
             use_v3 = bool(pc_bytes)
 

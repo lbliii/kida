@@ -156,13 +156,15 @@ select = [
     "FURB", # refurb - modern Python idioms
     "T20",  # flake8-print - no print() in library code
     "PTH",  # flake8-pathlib - pathlib over os.path
+    "S110", # flake8-bandit - flag except: pass (silent exception swallowing)
+    "S112", # flake8-bandit - flag except: continue (silent exception swallowing in loops)
 ]
 ignore = ["E501"] # Line length handled by formatter
 
 # Per-file ignore rules
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]   # Allow unused imports in __init__ files
-"tests/**/*.py" = ["S101", "T201", "TC003"]  # Allow assert, print, and runtime stdlib imports in tests
+"tests/**/*.py" = ["S101", "S110", "S112", "T201", "TC003"]  # Allow assert, print, except:pass, and runtime stdlib imports in tests
 "src/kida/cli.py" = ["T201"]  # CLI legitimately uses print()
 "src/kida/environment/filters/_debug.py" = ["T201"]  # Debug filter uses print()
 "benchmarks/**/*.py" = ["T201"]  # Benchmarks legitimately use print()
