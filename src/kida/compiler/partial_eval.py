@@ -1056,88 +1056,90 @@ class PartialEvaluator:
         Returns the transformed node, or None to remove it.
 
         """
-        if isinstance(node, Output):
-            return self._transform_output(node)
+        match node:
+            case Output():
+                return self._transform_output(node)
 
-        if isinstance(node, If):
-            return self._transform_if(node)
+            case If():
+                return self._transform_if(node)
 
-        if isinstance(node, For):
-            return self._transform_for(node)
+            case For():
+                return self._transform_for(node)
 
-        if isinstance(node, Block):
-            new_body = self._transform_body(node.body)
-            if new_body is node.body:
+            case Block():
+                new_body = self._transform_body(node.body)
+                if new_body is node.body:
+                    return node
+                return Block(
+                    lineno=node.lineno,
+                    col_offset=node.col_offset,
+                    name=node.name,
+                    body=new_body,
+                    scoped=node.scoped,
+                    required=node.required,
+                )
+
+            case Def():
+                # Register def for potential inlining, then recurse into body
+                self._defs[node.name] = node
+                new_body = self._transform_body(node.body)
+                if new_body is node.body:
+                    return node
+                return Def(
+                    lineno=node.lineno,
+                    col_offset=node.col_offset,
+                    name=node.name,
+                    params=node.params,
+                    body=new_body,
+                    defaults=node.defaults,
+                    vararg=node.vararg,
+                    kwarg=node.kwarg,
+                )
+
+            case CallBlock():
+                inlined = self._try_inline_call(node) if self._inline_components else None
+                if inlined is not None:
+                    return inlined
+                new_slots = {k: self._transform_body(v) for k, v in node.slots.items()}
+                if all(new_slots[k] is node.slots[k] for k in node.slots):
+                    return node
+                return CallBlock(
+                    lineno=node.lineno,
+                    col_offset=node.col_offset,
+                    call=node.call,
+                    slots=new_slots,
+                    args=node.args,
+                )
+
+            case SlotBlock():
+                new_body = self._transform_body(node.body)
+                if new_body is node.body:
+                    return node
+                return SlotBlock(
+                    lineno=node.lineno,
+                    col_offset=node.col_offset,
+                    name=node.name,
+                    body=new_body,
+                )
+
+            case With():
+                return self._transform_with(node)
+
+            case Match():
+                return self._transform_match(node)
+
+            case Set() | Let():
+                return self._transform_assignment(node)
+
+            case Export():
+                return self._transform_export(node)
+
+            case Capture():
+                return self._transform_capture(node)
+
+            case _:
+                # Data, Raw, and other nodes pass through unchanged
                 return node
-            return Block(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                name=node.name,
-                body=new_body,
-                scoped=node.scoped,
-                required=node.required,
-            )
-
-        if isinstance(node, Def):
-            # Register def for potential inlining, then recurse into body
-            self._defs[node.name] = node
-            new_body = self._transform_body(node.body)
-            if new_body is node.body:
-                return node
-            return Def(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                name=node.name,
-                params=node.params,
-                body=new_body,
-                defaults=node.defaults,
-                vararg=node.vararg,
-                kwarg=node.kwarg,
-            )
-
-        if isinstance(node, CallBlock):
-            inlined = self._try_inline_call(node) if self._inline_components else None
-            if inlined is not None:
-                return inlined
-            new_slots = {k: self._transform_body(v) for k, v in node.slots.items()}
-            if all(new_slots[k] is node.slots[k] for k in node.slots):
-                return node
-            return CallBlock(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                call=node.call,
-                slots=new_slots,
-                args=node.args,
-            )
-
-        if isinstance(node, SlotBlock):
-            new_body = self._transform_body(node.body)
-            if new_body is node.body:
-                return node
-            return SlotBlock(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                name=node.name,
-                body=new_body,
-            )
-
-        if isinstance(node, With):
-            return self._transform_with(node)
-
-        if isinstance(node, Match):
-            return self._transform_match(node)
-
-        if isinstance(node, (Set, Let)):
-            return self._transform_assignment(node)
-
-        if isinstance(node, Export):
-            return self._transform_export(node)
-
-        if isinstance(node, Capture):
-            return self._transform_capture(node)
-
-        # Data, Raw, and other nodes pass through unchanged
-        return node
 
     def _transform_output(self, node: Output) -> Node:
         """Try to evaluate an Output node to a Data node."""
@@ -1781,301 +1783,305 @@ class PartialEvaluator:
         If sub-expressions can be resolved, replace them with Const nodes.
 
         """
-        if isinstance(expr, (Const, Name)):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
-                    lineno=expr.lineno,
-                    col_offset=expr.col_offset,
-                    value=val,
-                )
-            return expr
-
-        if isinstance(expr, Getattr):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
-                    lineno=expr.lineno,
-                    col_offset=expr.col_offset,
-                    value=val,
-                )
-            new_obj = self._transform_expr(expr.obj)
-            if new_obj is expr.obj:
+        match expr:
+            case Const() | Name():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
                 return expr
-            return Getattr(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                obj=new_obj,
-                attr=expr.attr,
-            )
 
-        if isinstance(expr, Getitem):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case Getattr():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_obj = self._transform_expr(expr.obj)
+                if new_obj is expr.obj:
+                    return expr
+                return Getattr(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    obj=new_obj,
+                    attr=expr.attr,
                 )
-            new_obj = self._transform_expr(expr.obj)
-            new_key = self._transform_expr(expr.key)
-            if new_obj is expr.obj and new_key is expr.key:
-                return expr
-            return Getitem(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                obj=new_obj,
-                key=new_key,
-            )
 
-        if isinstance(expr, BinOp):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case Getitem():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_obj = self._transform_expr(expr.obj)
+                new_key = self._transform_expr(expr.key)
+                if new_obj is expr.obj and new_key is expr.key:
+                    return expr
+                return Getitem(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    obj=new_obj,
+                    key=new_key,
                 )
-            new_left = self._transform_expr(expr.left)
-            new_right = self._transform_expr(expr.right)
-            if new_left is expr.left and new_right is expr.right:
-                return expr
-            return BinOp(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                left=new_left,
-                op=expr.op,
-                right=new_right,
-            )
 
-        if isinstance(expr, NullCoalesce):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case BinOp():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_left = self._transform_expr(expr.left)
+                new_right = self._transform_expr(expr.right)
+                if new_left is expr.left and new_right is expr.right:
+                    return expr
+                return BinOp(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    left=new_left,
+                    op=expr.op,
+                    right=new_right,
                 )
-            # Try to partially resolve the left side
-            new_left = self._transform_expr(expr.left)
-            new_right = self._transform_expr(expr.right)
-            if new_left is expr.left and new_right is expr.right:
-                return expr
-            return NullCoalesce(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                left=new_left,
-                right=new_right,
-            )
 
-        if isinstance(expr, MarkSafe):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case NullCoalesce():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                # Try to partially resolve the left side
+                new_left = self._transform_expr(expr.left)
+                new_right = self._transform_expr(expr.right)
+                if new_left is expr.left and new_right is expr.right:
+                    return expr
+                return NullCoalesce(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    left=new_left,
+                    right=new_right,
                 )
-            new_inner = self._transform_expr(expr.value)
-            if new_inner is expr.value:
-                return expr
-            return MarkSafe(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                value=new_inner,
-            )
 
-        if isinstance(expr, Filter):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case MarkSafe():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_inner = self._transform_expr(expr.value)
+                if new_inner is expr.value:
+                    return expr
+                return MarkSafe(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    value=new_inner,
                 )
-            new_value = self._transform_expr(expr.value)
-            if new_value is expr.value:
-                return expr
-            return Filter(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                name=expr.name,
-                value=new_value,
-                args=expr.args,
-                kwargs=expr.kwargs,
-            )
 
-        if isinstance(expr, Pipeline):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case Filter():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_value = self._transform_expr(expr.value)
+                if new_value is expr.value:
+                    return expr
+                return Filter(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    name=expr.name,
+                    value=new_value,
+                    args=expr.args,
+                    kwargs=expr.kwargs,
                 )
-            new_value = self._transform_expr(expr.value)
-            if new_value is expr.value:
-                return expr
-            return type(expr)(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                value=new_value,
-                steps=expr.steps,
-            )
 
-        if isinstance(expr, BoolOp):
-            return self._transform_boolop(expr)
-
-        if isinstance(expr, CondExpr):
-            return self._transform_condexpr(expr)
-
-        if isinstance(expr, UnaryOp):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case Pipeline():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_value = self._transform_expr(expr.value)
+                if new_value is expr.value:
+                    return expr
+                return type(expr)(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    value=new_value,
+                    steps=expr.steps,
                 )
-            new_operand = self._transform_expr(expr.operand)
-            if new_operand is expr.operand:
-                return expr
-            return UnaryOp(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                op=expr.op,
-                operand=new_operand,
-            )
 
-        if isinstance(expr, Compare):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case BoolOp():
+                return self._transform_boolop(expr)
+
+            case CondExpr():
+                return self._transform_condexpr(expr)
+
+            case UnaryOp():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_operand = self._transform_expr(expr.operand)
+                if new_operand is expr.operand:
+                    return expr
+                return UnaryOp(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    op=expr.op,
+                    operand=new_operand,
                 )
-            new_left = self._transform_expr(expr.left)
-            new_comps = tuple(self._transform_expr(c) for c in expr.comparators)
-            if new_left is expr.left and all(
-                n is o for n, o in zip(new_comps, expr.comparators, strict=True)
-            ):
-                return expr
-            return Compare(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                left=new_left,
-                ops=expr.ops,
-                comparators=new_comps,
-            )
 
-        if isinstance(expr, Concat):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case Compare():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_left = self._transform_expr(expr.left)
+                new_comps = tuple(self._transform_expr(c) for c in expr.comparators)
+                if new_left is expr.left and all(
+                    n is o for n, o in zip(new_comps, expr.comparators, strict=True)
+                ):
+                    return expr
+                return Compare(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    left=new_left,
+                    ops=expr.ops,
+                    comparators=new_comps,
                 )
-            new_nodes = tuple(self._transform_expr(n) for n in expr.nodes)
-            if all(n is o for n, o in zip(new_nodes, expr.nodes, strict=True)):
-                return expr
-            return Concat(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                nodes=new_nodes,
-            )
 
-        if isinstance(expr, FuncCall):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case Concat():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_nodes = tuple(self._transform_expr(n) for n in expr.nodes)
+                if all(n is o for n, o in zip(new_nodes, expr.nodes, strict=True)):
+                    return expr
+                return Concat(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    nodes=new_nodes,
                 )
-            new_func = self._transform_expr(expr.func)
-            new_args = tuple(self._transform_expr(a) for a in expr.args)
-            new_kwargs = {k: self._transform_expr(v) for k, v in expr.kwargs.items()}
-            new_dyn_args = self._transform_expr(expr.dyn_args) if expr.dyn_args else expr.dyn_args
-            new_dyn_kwargs = (
-                self._transform_expr(expr.dyn_kwargs) if expr.dyn_kwargs else expr.dyn_kwargs
-            )
-            if (
-                new_func is expr.func
-                and all(n is o for n, o in zip(new_args, expr.args, strict=True))
-                and all(new_kwargs[k] is expr.kwargs[k] for k in expr.kwargs)
-                and new_dyn_args is expr.dyn_args
-                and new_dyn_kwargs is expr.dyn_kwargs
-            ):
-                return expr
-            return FuncCall(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                func=new_func,
-                args=new_args,
-                kwargs=new_kwargs,
-                dyn_args=new_dyn_args,
-                dyn_kwargs=new_dyn_kwargs,
-            )
 
-        if isinstance(expr, List):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case FuncCall():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_func = self._transform_expr(expr.func)
+                new_args = tuple(self._transform_expr(a) for a in expr.args)
+                new_kwargs = {k: self._transform_expr(v) for k, v in expr.kwargs.items()}
+                new_dyn_args = (
+                    self._transform_expr(expr.dyn_args) if expr.dyn_args else expr.dyn_args
+                )
+                new_dyn_kwargs = (
+                    self._transform_expr(expr.dyn_kwargs) if expr.dyn_kwargs else expr.dyn_kwargs
+                )
+                if (
+                    new_func is expr.func
+                    and all(n is o for n, o in zip(new_args, expr.args, strict=True))
+                    and all(new_kwargs[k] is expr.kwargs[k] for k in expr.kwargs)
+                    and new_dyn_args is expr.dyn_args
+                    and new_dyn_kwargs is expr.dyn_kwargs
+                ):
+                    return expr
+                return FuncCall(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    func=new_func,
+                    args=new_args,
+                    kwargs=new_kwargs,
+                    dyn_args=new_dyn_args,
+                    dyn_kwargs=new_dyn_kwargs,
                 )
-            new_items = tuple(self._transform_expr(i) for i in expr.items)
-            if all(n is o for n, o in zip(new_items, expr.items, strict=True)):
-                return expr
-            return List(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                items=new_items,
-            )
 
-        if isinstance(expr, Tuple):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case List():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_items = tuple(self._transform_expr(i) for i in expr.items)
+                if all(n is o for n, o in zip(new_items, expr.items, strict=True)):
+                    return expr
+                return List(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    items=new_items,
                 )
-            new_items = tuple(self._transform_expr(i) for i in expr.items)
-            if all(n is o for n, o in zip(new_items, expr.items, strict=True)):
-                return expr
-            return Tuple(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                items=new_items,
-                ctx=expr.ctx,
-            )
 
-        if isinstance(expr, Dict):
-            val = self._try_eval(expr)
-            if val is not _UNRESOLVED:
-                return Const(
+            case Tuple():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_items = tuple(self._transform_expr(i) for i in expr.items)
+                if all(n is o for n, o in zip(new_items, expr.items, strict=True)):
+                    return expr
+                return Tuple(
                     lineno=expr.lineno,
                     col_offset=expr.col_offset,
-                    value=val,
+                    items=new_items,
+                    ctx=expr.ctx,
                 )
-            new_keys = tuple(self._transform_expr(k) for k in expr.keys)
-            new_vals = tuple(self._transform_expr(v) for v in expr.values)
-            if all(n is o for n, o in zip(new_keys, expr.keys, strict=True)) and all(
-                n is o for n, o in zip(new_vals, expr.values, strict=True)
-            ):
-                return expr
-            return Dict(
-                lineno=expr.lineno,
-                col_offset=expr.col_offset,
-                keys=new_keys,
-                values=new_vals,
-            )
 
-        return expr
+            case Dict():
+                val = self._try_eval(expr)
+                if val is not _UNRESOLVED:
+                    return Const(
+                        lineno=expr.lineno,
+                        col_offset=expr.col_offset,
+                        value=val,
+                    )
+                new_keys = tuple(self._transform_expr(k) for k in expr.keys)
+                new_vals = tuple(self._transform_expr(v) for v in expr.values)
+                if all(n is o for n, o in zip(new_keys, expr.keys, strict=True)) and all(
+                    n is o for n, o in zip(new_vals, expr.values, strict=True)
+                ):
+                    return expr
+                return Dict(
+                    lineno=expr.lineno,
+                    col_offset=expr.col_offset,
+                    keys=new_keys,
+                    values=new_vals,
+                )
+
+            case _:
+                return expr
 
     def _transform_boolop(self, expr: BoolOp) -> Expr:
         """Partially simplify BoolOp when some operands are statically known.
