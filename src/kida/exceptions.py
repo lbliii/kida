@@ -145,7 +145,7 @@ class ErrorCode(Enum):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TemplateWarning:
     """Compile-time template warning (not an exception)."""
 
