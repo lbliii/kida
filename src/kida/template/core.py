@@ -42,7 +42,7 @@ Complexity:
 from __future__ import annotations
 
 import weakref
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from kida.template.cached_blocks import CachedBlocksDict
 from kida.template.error_enhancement import enhance_template_error
@@ -70,7 +70,16 @@ from kida.template.render_helpers import make_render_helpers
 from kida.utils.html import html_escape
 
 
-def _make_error_dict(exc: BaseException) -> dict[str, Any]:
+class ErrorDict(TypedDict):
+    """Error context exposed to ``{% fallback name %}`` blocks."""
+
+    message: str
+    type: str
+    template: str | None
+    line: int | None
+
+
+def _make_error_dict(exc: BaseException) -> ErrorDict:
     """Build error dict for {% try %}...{% fallback name %} error binding."""
     return {
         "message": str(exc),

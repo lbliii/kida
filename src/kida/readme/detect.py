@@ -6,7 +6,37 @@ import ast
 import subprocess
 import tomllib
 from pathlib import Path  # noqa: TC003 — used at runtime
-from typing import Any
+from typing import Any, TypedDict
+
+
+class ProjectContext(TypedDict):
+    """Template context returned by :func:`detect_project`."""
+
+    name: str
+    version: str
+    description: str
+    license: str
+    python_requires: str
+    dependencies: list[str]
+    has_zero_deps: bool
+    extras: dict[str, Any]
+    dev_dependencies: dict[str, list[str]]
+    has_cli: bool
+    cli_name: str | None
+    scripts: dict[str, str]
+    tree: dict[str, Any]
+    tree_str: str
+    has_tests: bool
+    has_docs: bool
+    has_ci: bool
+    test_command: str
+    build_tool: str
+    install_command: str
+    repo_url: str
+    author: str
+    keywords: list[str]
+    suggested_preset: str
+
 
 # Maximum number of child entries before collapsing files in a directory.
 _COLLAPSE_THRESHOLD = 15
@@ -274,7 +304,7 @@ def detect_preset(ctx: dict[str, Any]) -> str:
     return "default"
 
 
-def detect_project(root: Path, *, depth: int = 2) -> dict[str, Any]:
+def detect_project(root: Path, *, depth: int = 2) -> ProjectContext:
     """Auto-detect project metadata from a directory.
 
     Reads ``pyproject.toml``, inspects the filesystem for build tools, test
@@ -327,7 +357,7 @@ def detect_project(root: Path, *, depth: int = 2) -> dict[str, Any]:
     # Runtime dependencies
     dependencies = project.get("dependencies", [])
 
-    ctx: dict[str, Any] = {
+    base: dict[str, Any] = {
         "name": project.get("name", root.name),
         "version": project.get("version", ""),
         "description": project.get("description", ""),
@@ -352,5 +382,5 @@ def detect_project(root: Path, *, depth: int = 2) -> dict[str, Any]:
         "author": _detect_author(pyproject, root),
         "keywords": project.get("keywords", []),
     }
-    ctx["suggested_preset"] = detect_preset(ctx)
-    return ctx
+    base["suggested_preset"] = detect_preset(base)
+    return base  # type: ignore[return-value]

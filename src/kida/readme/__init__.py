@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from kida.readme.detect import ProjectContext
 
-def detect_project(root: Path, *, depth: int = 2) -> dict[str, Any]:
+
+def detect_project(root: Path, *, depth: int = 2) -> ProjectContext:
     """Auto-detect project metadata from a directory.
 
     Convenience re-export of :func:`kida.readme.detect.detect_project`.
@@ -23,7 +25,7 @@ def render_readme(
     *,
     preset: str = "default",
     template: Path | None = None,
-    context: dict[str, Any] | None = None,
+    context: dict[str, Any] | ProjectContext | None = None,
     depth: int = 2,
 ) -> str:
     """Auto-detect project metadata and render a README.
