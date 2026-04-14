@@ -8,10 +8,38 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 
-def sarif_to_dict(path: str | Path) -> dict[str, Any]:
+class SARIFSummary(TypedDict):
+    """Aggregate counts by severity level."""
+
+    total: int
+    errors: int
+    warnings: int
+    notes: int
+
+
+class SARIFResult(TypedDict):
+    """A single static analysis finding."""
+
+    rule_id: str
+    level: str
+    message: str
+    file: str
+    line: int
+
+
+class SARIFReport(TypedDict):
+    """Top-level SARIF parse result."""
+
+    tool: str
+    version: str
+    summary: SARIFSummary
+    results: list[SARIFResult]
+
+
+def sarif_to_dict(path: str | Path) -> SARIFReport:
     """Parse a SARIF JSON file and return a normalized dict.
 
     Args:
@@ -49,7 +77,7 @@ def sarif_to_dict(path: str | Path) -> dict[str, Any]:
     if not runs:
         return _empty_result(version)
 
-    results: list[dict[str, Any]] = []
+    results: list[SARIFResult] = []
     errors = 0
     warnings = 0
     notes = 0
@@ -116,7 +144,7 @@ def sarif_to_dict(path: str | Path) -> dict[str, Any]:
     }
 
 
-def _empty_result(version: str = "") -> dict[str, Any]:
+def _empty_result(version: str = "") -> SARIFReport:
     """Return an empty result structure."""
     return {
         "tool": "unknown",
@@ -132,5 +160,8 @@ def _empty_result(version: str = "") -> dict[str, Any]:
 
 
 __all__ = [
+    "SARIFReport",
+    "SARIFResult",
+    "SARIFSummary",
     "sarif_to_dict",
 ]

@@ -7,13 +7,54 @@ and ty JUnit XML output variants.
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-def junit_to_dict(path: str | Path) -> dict[str, Any]:
+class JUnitTestCase(TypedDict):
+    """A single test case result."""
+
+    name: str
+    classname: str
+    time: float
+    status: str
+    message: str | None
+    text: str | None
+
+
+class JUnitSummary(TypedDict):
+    """Aggregate test counts and timing."""
+
+    total: int
+    passed: int
+    failed: int
+    errors: int
+    skipped: int
+    time: float
+
+
+class JUnitTestSuite(TypedDict):
+    """A single test suite with its test cases."""
+
+    name: str
+    tests: int
+    failures: int
+    errors: int
+    skipped: int
+    time: float
+    testcases: list[JUnitTestCase]
+
+
+class JUnitReport(TypedDict):
+    """Top-level JUnit XML parse result."""
+
+    summary: JUnitSummary
+    testsuites: list[JUnitTestSuite]
+
+
+def junit_to_dict(path: str | Path) -> JUnitReport:
     """Parse a JUnit XML file and return a structured dict.
 
     Args:
@@ -72,7 +113,7 @@ def junit_to_dict(path: str | Path) -> dict[str, Any]:
     errors = 0
     skipped = 0
     total_time = 0.0
-    parsed_suites: list[dict[str, Any]] = []
+    parsed_suites: list[JUnitTestSuite] = []
 
     for suite in suites:
         suite_data = _parse_suite(suite)
@@ -99,7 +140,7 @@ def junit_to_dict(path: str | Path) -> dict[str, Any]:
     }
 
 
-def _parse_suite(suite: ET.Element) -> dict[str, Any]:
+def _parse_suite(suite: ET.Element) -> JUnitTestSuite:
     """Parse a single <testsuite> element."""
     tests = int(suite.get("tests", "0"))
     failures = int(suite.get("failures", "0"))
@@ -120,7 +161,7 @@ def _parse_suite(suite: ET.Element) -> dict[str, Any]:
     }
 
 
-def _parse_testcase(tc: ET.Element) -> dict[str, Any]:
+def _parse_testcase(tc: ET.Element) -> JUnitTestCase:
     """Parse a single <testcase> element."""
     name = tc.get("name", "")
     classname = tc.get("classname", "")
@@ -158,7 +199,7 @@ def _parse_testcase(tc: ET.Element) -> dict[str, Any]:
     }
 
 
-def _empty_result() -> dict[str, Any]:
+def _empty_result() -> JUnitReport:
     """Return an empty result structure."""
     return {
         "summary": {
@@ -174,5 +215,9 @@ def _empty_result() -> dict[str, Any]:
 
 
 __all__ = [
+    "JUnitReport",
+    "JUnitSummary",
+    "JUnitTestCase",
+    "JUnitTestSuite",
     "junit_to_dict",
 ]

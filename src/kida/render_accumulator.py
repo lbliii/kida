@@ -44,10 +44,27 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+
+class BlockTimingSummary(TypedDict):
+    """Per-block timing in :meth:`RenderAccumulator.summary` output."""
+
+    ms: float
+    calls: int
+
+
+class RenderSummary(TypedDict):
+    """Structured output of :meth:`RenderAccumulator.summary`."""
+
+    total_ms: float
+    blocks: dict[str, BlockTimingSummary]
+    macros: dict[str, int]
+    includes: dict[str, int]
+    filters: dict[str, int]
 
 
 @dataclass
@@ -144,12 +161,8 @@ class RenderAccumulator:
         """Total render duration in milliseconds."""
         return (perf_counter() - self.start_time) * 1000
 
-    def summary(self) -> dict[str, Any]:
-        """Get summary of render metrics.
-
-        Returns:
-            Dict with total_ms, blocks, macros, includes, filters
-        """
+    def summary(self) -> RenderSummary:
+        """Get summary of render metrics."""
         return {
             "total_ms": round(self.total_duration_ms, 2),
             "blocks": {

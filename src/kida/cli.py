@@ -8,7 +8,7 @@ import os
 import sys
 from datetime import UTC
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from kida.analysis.i18n import ExtractedMessage
@@ -469,13 +469,13 @@ def _cmd_render(
         return 2
 
     # Build context from --data / --data-str
-    context: dict[str, object] = {}
+    context: dict[str, Any] = {}
     if data_file is not None:
         if data_format == "junit-xml":
             from kida.utils.junit_xml import junit_to_dict
 
             try:
-                context = junit_to_dict(data_file)
+                context = {**junit_to_dict(data_file)}
             except Exception as e:
                 print(f"kida render: invalid JUnit XML in {data_file}: {e}", file=sys.stderr)
                 return 2
@@ -483,7 +483,7 @@ def _cmd_render(
             from kida.utils.sarif import sarif_to_dict
 
             try:
-                context = sarif_to_dict(data_file)
+                context = {**sarif_to_dict(data_file)}
             except Exception as e:
                 print(f"kida render: invalid SARIF in {data_file}: {e}", file=sys.stderr)
                 return 2
