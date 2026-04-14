@@ -73,7 +73,7 @@ def _filter_decimal(value: Any, places: int = 2, *, strict: bool = False) -> str
         return str(value)
 
 
-def _filter_filesizeformat(value: int | float, binary: bool = False) -> str:
+def _filter_filesizeformat(value: Any, binary: bool = False) -> str:
     """Format a file size as human-readable."""
     try:
         bytes_val = float(value)
@@ -153,8 +153,13 @@ def _filter_commas(value: Any) -> str:
 def _filter_min(value: Any, attribute: str | None = None) -> Any:
     """Return minimum value."""
     if attribute:
-        items = list(value)
-        none_count = sum(1 for x in items if getattr(x, attribute, None) is None)
+        keyed: list[tuple[Any, Any]] = []
+        none_count = 0
+        for x in value:
+            val = getattr(x, attribute, None)
+            if val is None:
+                none_count += 1
+            keyed.append((val or 0, x))
         if none_count:
             warnings.warn(
                 f"Filter 'min' found {none_count} item(s) with None for attribute '{attribute}', "
@@ -162,15 +167,20 @@ def _filter_min(value: Any, attribute: str | None = None) -> Any:
                 CoercionWarning,
                 stacklevel=2,
             )
-        return min(items, key=lambda x: getattr(x, attribute, None) or 0)
+        return min(keyed, key=lambda pair: pair[0])[1]
     return min(value)
 
 
 def _filter_max(value: Any, attribute: str | None = None) -> Any:
     """Return maximum value."""
     if attribute:
-        items = list(value)
-        none_count = sum(1 for x in items if getattr(x, attribute, None) is None)
+        keyed: list[tuple[Any, Any]] = []
+        none_count = 0
+        for x in value:
+            val = getattr(x, attribute, None)
+            if val is None:
+                none_count += 1
+            keyed.append((val or 0, x))
         if none_count:
             warnings.warn(
                 f"Filter 'max' found {none_count} item(s) with None for attribute '{attribute}', "
@@ -178,7 +188,7 @@ def _filter_max(value: Any, attribute: str | None = None) -> Any:
                 CoercionWarning,
                 stacklevel=2,
             )
-        return max(items, key=lambda x: getattr(x, attribute, None) or 0)
+        return max(keyed, key=lambda pair: pair[0])[1]
     return max(value)
 
 

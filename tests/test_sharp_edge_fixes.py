@@ -144,6 +144,44 @@ class TestCollectionFilterCoercionWarnings:
         assert len(coercion) == 1
         assert "map" in str(coercion[0].message)
 
+    def test_attr_typeerror_warns(self) -> None:
+        """| attr warns when getattr raises TypeError."""
+        from kida.environment.filters._collections import _filter_attr
+
+        class BadGetattr:
+            def __getattr__(self, name: str) -> None:
+                raise TypeError("bad")
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_attr(BadGetattr(), "foo")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == ""
+        assert len(coercion) == 1
+        assert "attr" in str(coercion[0].message)
+
+    def test_sort_unstringable_warns(self) -> None:
+        """| sort warns when an attribute value can't be stringified."""
+        from kida.environment.filters._collections import _filter_sort
+
+        class Unstringable:
+            def __init__(self, name: str, val: object) -> None:
+                self.name = name
+                self.tag = val
+
+        class BadStr:
+            def __str__(self) -> str:
+                raise TypeError("cannot stringify")
+
+        items = [Unstringable("a", BadStr()), Unstringable("b", "ok")]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_sort(items, attribute="tag")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert len(result) == 2
+        assert len(coercion) == 1
+        assert "sort" in str(coercion[0].message)
+
     def test_valid_input_no_warning(self) -> None:
         """Filters on valid iterables should NOT emit warnings."""
         from kida.environment.filters._collections import (
