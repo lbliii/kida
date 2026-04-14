@@ -26,7 +26,21 @@ from __future__ import annotations
 import threading
 import time
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, cast, overload
+from typing import TYPE_CHECKING, TypedDict, cast, overload
+
+
+class CacheStats(TypedDict):
+    """Statistics returned by :meth:`LRUCache.stats`."""
+
+    hits: int
+    misses: int
+    hit_rate: float
+    size: int
+    max_size: int
+    ttl: float | None
+    enabled: bool
+    name: str | None
+
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -299,20 +313,8 @@ class LRUCache[K, V]:
         """Whether caching is enabled."""
         return self._enabled
 
-    def stats(self) -> dict[str, Any]:
-        """Get cache statistics.
-
-        Returns:
-            Dictionary with:
-            - hits: Number of cache hits
-            - misses: Number of cache misses
-            - hit_rate: Cache hit rate (0.0 to 1.0)
-            - size: Current cache size
-            - max_size: Maximum cache size
-            - ttl: Time-to-live in seconds (None if disabled)
-            - enabled: Whether caching is enabled
-            - name: Cache name (if set)
-        """
+    def stats(self) -> CacheStats:
+        """Get cache statistics."""
         with self._lock:
             total = self._hits + self._misses
             return {
