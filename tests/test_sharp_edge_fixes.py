@@ -1,12 +1,298 @@
 """Tests for sharp edge fixes: strict undefined, render_with_blocks validation, etc."""
 
+import warnings
+
 import pytest
 
 from kida import Environment
-from kida.exceptions import TemplateRuntimeError, UndefinedError
+from kida.exceptions import CoercionWarning, TemplateRuntimeError, UndefinedError
 
 # =============================================================================
-# Sprint 2: Strict Undefined Mode
+# Sprint 1 (v0.6.x): Broken except X, Y: syntax — verify second type is caught
+# =============================================================================
+
+
+class TestExceptSyntaxFixes:
+    """Verify the second exception type in except clauses is now caught."""
+
+    def test_safe_getattr_catches_typeerror_on_subscript(self) -> None:
+        """safe_getattr on non-subscriptable object returns '' not TypeError."""
+        env = Environment()
+        # An object that has no __getitem__ — subscript access raises TypeError.
+        # Before the fix, only KeyError was caught; TypeError would propagate.
+
+        class NoSubscript:
+            pass
+
+        tmpl = env.from_string("{{ obj.missing }}")
+        result = tmpl.render(obj=NoSubscript())
+        assert result == ""
+
+    def test_collection_filter_first_catches_typeerror(self) -> None:
+        """| first on a non-iterable returns None, not an unhandled error."""
+        env = Environment()
+        tmpl = env.from_string("{{ val | first }}")
+        result = tmpl.render(val=42)
+        assert result == "None"
+
+    def test_collection_filter_length_catches_valueerror(self) -> None:
+        """| length on a non-iterable returns 0."""
+        env = Environment()
+        tmpl = env.from_string("{{ val | length }}")
+        result = tmpl.render(val=42)
+        assert result == "0"
+
+    def test_collection_filter_last_catches_typeerror(self) -> None:
+        """| last on a non-iterable returns None, not an unhandled error."""
+        env = Environment()
+        tmpl = env.from_string("{{ val | last }}")
+        result = tmpl.render(val=42)
+        assert result == "None"
+
+    def test_include_ignore_missing_catches_template_errors(self) -> None:
+        """include with ignore_missing catches TemplateNotFoundError."""
+        from kida import DictLoader
+
+        env = Environment(loader=DictLoader({}))
+        tmpl = env.from_string("{% include 'missing.html' ignore missing %}")
+        result = tmpl.render()
+        assert result == ""
+
+
+# =============================================================================
+# Sprint 2 (v0.6.x): CoercionWarning on collection filters
+# =============================================================================
+
+
+class TestCollectionFilterCoercionWarnings:
+    """Collection filters emit CoercionWarning on non-iterable input."""
+
+    def test_first_non_iterable_warns(self) -> None:
+        from kida.environment.filters._collections import _filter_first
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_first(42)
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result is None
+        assert len(coercion) == 1
+        assert "first" in str(coercion[0].message)
+
+    def test_last_non_iterable_warns(self) -> None:
+        from kida.environment.filters._collections import _filter_last
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_last(42)
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result is None
+        assert len(coercion) == 1
+        assert "last" in str(coercion[0].message)
+
+    def test_length_non_sized_warns(self) -> None:
+        from kida.environment.filters._collections import _filter_length
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_length(42)
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == 0
+        assert len(coercion) == 1
+        assert "length" in str(coercion[0].message)
+
+    def test_take_non_iterable_warns(self) -> None:
+        from kida.environment.filters._collections import _filter_take
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_take(42, 3)
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == []
+        assert len(coercion) == 1
+        assert "take" in str(coercion[0].message)
+
+    def test_skip_non_iterable_warns(self) -> None:
+        from kida.environment.filters._collections import _filter_skip
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_skip(42, 3)
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == []
+        assert len(coercion) == 1
+        assert "skip" in str(coercion[0].message)
+
+    def test_compact_non_iterable_warns(self) -> None:
+        from kida.environment.filters._collections import _filter_compact
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_compact(42)
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == []
+        assert len(coercion) == 1
+        assert "compact" in str(coercion[0].message)
+
+    def test_map_non_iterable_warns(self) -> None:
+        from kida.environment.filters._collections import _filter_map
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_map(42)
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == []
+        assert len(coercion) == 1
+        assert "map" in str(coercion[0].message)
+
+    def test_attr_typeerror_warns(self) -> None:
+        """| attr warns when getattr raises TypeError."""
+        from kida.environment.filters._collections import _filter_attr
+
+        class BadGetattr:
+            def __getattr__(self, name: str) -> None:
+                raise TypeError("bad")
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_attr(BadGetattr(), "foo")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == ""
+        assert len(coercion) == 1
+        assert "attr" in str(coercion[0].message)
+
+    def test_sort_unstringable_warns(self) -> None:
+        """| sort warns when an attribute value can't be stringified."""
+        from kida.environment.filters._collections import _filter_sort
+
+        class Unstringable:
+            def __init__(self, name: str, val: object) -> None:
+                self.name = name
+                self.tag = val
+
+        class BadStr:
+            def __str__(self) -> str:
+                raise TypeError("cannot stringify")
+
+        items = [Unstringable("a", BadStr()), Unstringable("b", "ok")]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_sort(items, attribute="tag")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert len(result) == 2
+        assert len(coercion) == 1
+        assert "sort" in str(coercion[0].message)
+
+    def test_valid_input_no_warning(self) -> None:
+        """Filters on valid iterables should NOT emit warnings."""
+        from kida.environment.filters._collections import (
+            _filter_first,
+            _filter_last,
+            _filter_length,
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _filter_first([1, 2, 3])
+            _filter_last([1, 2, 3])
+            _filter_length([1, 2, 3])
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert len(coercion) == 0
+
+
+# =============================================================================
+# Sprint 3 (v0.6.x): Harden number filters
+# =============================================================================
+
+
+class TestNumberFilterCoercionWarnings:
+    """Number filters emit CoercionWarning on non-numeric input."""
+
+    def test_round_non_numeric_warns(self) -> None:
+        from kida.environment.filters._numbers import _filter_round
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_round("abc")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == 0.0
+        assert len(coercion) == 1
+        assert "round" in str(coercion[0].message)
+
+    def test_round_strict_raises(self) -> None:
+        from kida.environment.filters._numbers import _filter_round
+
+        with pytest.raises(TemplateRuntimeError):
+            _filter_round("abc", strict=True)
+
+    def test_round_valid_no_warning(self) -> None:
+        from kida.environment.filters._numbers import _filter_round
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_round(3.14159, 2)
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == 3.14
+        assert len(coercion) == 0
+
+    def test_filesizeformat_non_numeric_warns(self) -> None:
+        from kida.environment.filters._numbers import _filter_filesizeformat
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_filesizeformat("not_a_number")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert result == "0 Bytes"
+        assert len(coercion) == 1
+        assert "filesizeformat" in str(coercion[0].message)
+
+    def test_min_none_attribute_warns(self) -> None:
+        from kida.environment.filters._numbers import _filter_min
+
+        class Item:
+            def __init__(self, weight: int | None) -> None:
+                self.weight = weight
+
+        items = [Item(10), Item(None), Item(5)]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_min(items, attribute="weight")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert len(coercion) == 1
+        assert "1 item(s)" in str(coercion[0].message)
+        assert result.weight is None  # None → 0, which is the min
+
+    def test_max_none_attribute_warns(self) -> None:
+        from kida.environment.filters._numbers import _filter_max
+
+        class Item:
+            def __init__(self, weight: int | None) -> None:
+                self.weight = weight
+
+        items = [Item(10), Item(None), Item(5)]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _filter_max(items, attribute="weight")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert len(coercion) == 1
+        assert result.weight == 10
+
+    def test_min_no_none_no_warning(self) -> None:
+        from kida.environment.filters._numbers import _filter_min
+
+        class Item:
+            def __init__(self, weight: int) -> None:
+                self.weight = weight
+
+        items = [Item(10), Item(3), Item(5)]
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _filter_min(items, attribute="weight")
+        coercion = [x for x in w if issubclass(x.category, CoercionWarning)]
+        assert len(coercion) == 0
+
+
+# =============================================================================
+# Previous: Strict Undefined Mode
 # =============================================================================
 
 

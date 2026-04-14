@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import warnings
 from collections import deque
 from itertools import groupby, islice
 from typing import Any
+
+from kida.exceptions import CoercionWarning
 
 # Sort key tuple constants for clarity
 SORT_KEY_NONE = (1, 0, 0)  # None/empty values sort last
@@ -37,6 +40,12 @@ def _filter_attr(value: Any, name: str) -> Any:
         val = getattr(value, name, None)
         return "" if val is None else val
     except AttributeError, TypeError:
+        warnings.warn(
+            f"Filter 'attr' could not access '{name}' on {type(value).__name__}, returning ''. "
+            f"Validate input data or use | default('') before | attr.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return ""
 
 
@@ -47,6 +56,12 @@ def _filter_first(value: Any) -> Any:
     try:
         return next(iter(value), None)
     except TypeError, ValueError:
+        warnings.warn(
+            f"Filter 'first' received non-iterable {type(value).__name__} {value!r}, returning None. "
+            f"Validate input data or use | default([]) before | first.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return None
 
 
@@ -63,6 +78,12 @@ def _filter_last(value: Any) -> Any:
         dq = deque(it, maxlen=1)
         return dq[0] if dq else None
     except TypeError, ValueError:
+        warnings.warn(
+            f"Filter 'last' received non-iterable {type(value).__name__} {value!r}, returning None. "
+            f"Validate input data or use | default([]) before | last.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return None
 
 
@@ -73,6 +94,12 @@ def _filter_length(value: Any) -> int:
     try:
         return len(value)
     except TypeError, ValueError:
+        warnings.warn(
+            f"Filter 'length' received non-sized {type(value).__name__} {value!r}, returning 0. "
+            f"Validate input data or use | default([]) before | length.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return 0
 
 
@@ -135,6 +162,12 @@ def _filter_take(value: Any, count: int) -> list[Any]:
     try:
         return list(islice(value, count))
     except TypeError, ValueError:
+        warnings.warn(
+            f"Filter 'take' received non-iterable {type(value).__name__} {value!r}, returning []. "
+            f"Validate input data or use | default([]) before | take.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return []
 
 
@@ -160,6 +193,12 @@ def _filter_skip(value: Any, count: int) -> list[Any]:
     try:
         return list(islice(value, count, None))
     except TypeError, ValueError:
+        warnings.warn(
+            f"Filter 'skip' received non-iterable {type(value).__name__} {value!r}, returning []. "
+            f"Validate input data or use | default([]) before | skip.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return []
 
 
@@ -202,6 +241,12 @@ def _filter_compact(value: Any, *, truthy: bool = True) -> list[Any]:
         else:
             return [v for v in value if v is not None]
     except TypeError, ValueError:
+        warnings.warn(
+            f"Filter 'compact' received non-iterable {type(value).__name__} {value!r}, returning []. "
+            f"Validate input data or use | default([]) before | compact.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return []
 
 
@@ -221,6 +266,12 @@ def _filter_map(
             return [getattr(item, method_name)() for item in value]
         return list(value)
     except TypeError, ValueError:
+        warnings.warn(
+            f"Filter 'map' received non-iterable {type(value).__name__} {value!r}, returning []. "
+            f"Validate input data or use | default([]) before | map.",
+            CoercionWarning,
+            stacklevel=2,
+        )
         return []
 
 
@@ -372,7 +423,12 @@ def _filter_sort(
                         val_str = val_str.lower()
                     values.append(_make_sort_key_string(val_str))
                 except TypeError, ValueError:
-                    # Fallback for unstringable values (shouldn't happen, but be defensive)
+                    warnings.warn(
+                        f"Filter 'sort' could not convert {type(val).__name__} to string for attribute '{attr}', "
+                        f"sorting as empty. Validate input data.",
+                        CoercionWarning,
+                        stacklevel=2,
+                    )
                     values.append((1, 0, ""))
 
         return tuple(values)
