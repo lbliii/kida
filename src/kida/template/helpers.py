@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from kida.render_accumulator import RenderAccumulator
 from kida.render_accumulator import get_accumulator as _get_accumulator
+from kida.render_capture import get_capture as _get_capture
 from kida.utils.html import _SPACELESS_RE, Markup
 
 if TYPE_CHECKING:
@@ -330,6 +331,7 @@ STATIC_NAMESPACE: dict[str, Any] = {
     "_int": int,
     "_float": float,
     "_get_accumulator": _get_accumulator,
+    "_get_capture": _get_capture,
     "_perf_counter": _perf_counter,
     "_UNDEFINED": UNDEFINED,
     "_markup_concat": markup_concat,

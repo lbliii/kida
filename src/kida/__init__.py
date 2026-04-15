@@ -108,6 +108,12 @@ from kida.render_accumulator import (
     profiled_render,
     timed_block,
 )
+from kida.render_capture import (
+    Fragment,
+    RenderCapture,
+    captured_render,
+    get_capture,
+)
 from kida.render_context import (
     RenderContext,
     async_render_context,
@@ -183,6 +189,7 @@ __all__ = [
     "ErrorCode",
     "Extension",
     "FileSystemLoader",
+    "Fragment",
     "FunctionLoader",
     "KidaWarning",
     "LoopContext",
@@ -192,6 +199,7 @@ __all__ = [
     "PrecedenceWarning",
     "PrefixLoader",
     "RenderAccumulator",
+    "RenderCapture",
     "RenderContext",
     "RenderedTemplate",
     "SandboxPolicy",
@@ -215,7 +223,9 @@ __all__ = [
     "__version__",
     "async_render_context",
     "build_source_snippet",
+    "captured_render",
     "get_accumulator",
+    "get_capture",
     "get_optimal_workers",
     "get_profile",
     "get_render_context",
