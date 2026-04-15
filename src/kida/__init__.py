@@ -121,6 +121,11 @@ from kida.render_context import (
     get_render_context_required,
     render_context,
 )
+from kida.render_manifest import (
+    ManifestDiff,
+    RenderManifest,
+    SearchManifestBuilder,
+)
 from kida.sandbox import SandboxedEnvironment, SandboxPolicy, SecurityError
 from kida.template import AsyncLoopContext, LoopContext, Markup, RenderedTemplate, Template
 from kida.utils.html import html_escape
@@ -193,6 +198,7 @@ __all__ = [
     "FunctionLoader",
     "KidaWarning",
     "LoopContext",
+    "ManifestDiff",
     "Markup",
     "MigrationWarning",
     "PackageLoader",
@@ -201,9 +207,11 @@ __all__ = [
     "RenderAccumulator",
     "RenderCapture",
     "RenderContext",
+    "RenderManifest",
     "RenderedTemplate",
     "SandboxPolicy",
     "SandboxedEnvironment",
+    "SearchManifestBuilder",
     "SecurityError",
     "SourceSnippet",
     "Template",
