@@ -463,6 +463,11 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 cap.template_name = self._name or ""
                 if cap._capture_context is not None:
                     cap.context_keys = {k: ctx[k] for k in cap._capture_context if k in ctx}
+                # Bridge block metadata (role, depends_on) into capture.
+                # block_metadata() returns {} when AST is not preserved.
+                block_meta = self.block_metadata()
+                if block_meta:
+                    cap._block_metadata = block_meta
 
             blocks_arg = None
             if use_cached_blocks and render_ctx.cached_blocks:

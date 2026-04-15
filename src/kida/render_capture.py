@@ -98,22 +98,31 @@ class RenderCapture:
     _capture_blocks: frozenset[str] | None = field(default=None, repr=False)
     _capture_context: frozenset[str] | None = field(default=None, repr=False)
 
-    def _record(
-        self, name: str, html: str, role: str = "unknown", depends_on: frozenset[str] = frozenset()
-    ) -> None:
+    # Internal: block metadata from template analysis (set by _render_scaffold)
+    _block_metadata: dict[str, Any] | None = field(default=None, repr=False)
+
+    def _record(self, name: str, html: str) -> None:
         """Record a block's rendered output.
 
         Called by compiler-injected hooks at block call sites.
         Skips recording if the block is not in the capture set.
+        Pulls role and depends_on from _block_metadata when available.
 
         Args:
             name: Block name
             html: Rendered HTML output of the block
-            role: Semantic role from BlockMetadata
-            depends_on: Context dependencies from BlockMetadata
         """
         if self._capture_blocks is not None and name not in self._capture_blocks:
             return
+
+        role = "unknown"
+        depends_on: frozenset[str] = frozenset()
+        if self._block_metadata is not None:
+            meta = self._block_metadata.get(name)
+            if meta is not None:
+                role = meta.inferred_role
+                depends_on = meta.depends_on
+
         self.blocks[name] = Fragment(
             name=name,
             role=role,
@@ -121,6 +130,25 @@ class RenderCapture:
             content_hash=_compute_content_hash(html),
             depends_on=depends_on,
         )
+
+    def changed_from(self, other: RenderCapture) -> dict[str, tuple[Fragment, Fragment]]:
+        """Blocks whose content_hash differs between two captures.
+
+        Returns a dict mapping block name to (old_fragment, new_fragment)
+        for blocks present in both captures with different content.
+
+        Args:
+            other: The earlier capture to compare against.
+
+        Returns:
+            Dict of block name -> (other's fragment, self's fragment) for changed blocks.
+        """
+        changed: dict[str, tuple[Fragment, Fragment]] = {}
+        for name, frag in self.blocks.items():
+            other_frag = other.blocks.get(name)
+            if other_frag is not None and other_frag.content_hash != frag.content_hash:
+                changed[name] = (other_frag, frag)
+        return changed
 
 
 # Module-level ContextVar

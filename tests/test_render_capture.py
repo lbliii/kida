@@ -312,3 +312,114 @@ class TestCaptureFromString:
         assert html == "Hi there"
         assert cap.blocks["greeting"].html == "Hi there"
         assert cap.context_keys == {"who": "there"}
+
+
+# ---------------------------------------------------------------------------
+# Sprint 2: Fragment identity — metadata bridging, content hashing, diffing
+# ---------------------------------------------------------------------------
+
+
+class TestMetadataBridging:
+    """Block metadata (role, depends_on) should flow into Fragment."""
+
+    def test_role_from_metadata(self):
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "p.html": "{% block content %}<main>Hi</main>{% end %}{% block nav %}<nav>Nav</nav>{% end %}"
+                }
+            ),
+            enable_capture=True,
+        )
+        t = env.get_template("p.html")
+        with captured_render() as cap:
+            t.render()
+
+        assert cap.blocks["content"].role == "content"
+        assert cap.blocks["nav"].role == "navigation"
+
+    def test_depends_on_from_metadata(self):
+        env = Environment(
+            loader=DictLoader({"p.html": "{% block content %}{{ title }}{% end %}"}),
+            enable_capture=True,
+        )
+        t = env.get_template("p.html")
+        with captured_render() as cap:
+            t.render(title="Hello")
+
+        assert "title" in cap.blocks["content"].depends_on
+
+    def test_role_unknown_without_landmarks(self):
+        """Blocks without HTML landmarks get role='unknown'."""
+        env = Environment(
+            loader=DictLoader({"p.html": "{% block misc %}just text{% end %}"}),
+            enable_capture=True,
+        )
+        t = env.get_template("p.html")
+        with captured_render() as cap:
+            t.render()
+
+        assert cap.blocks["misc"].role == "unknown"
+
+    def test_from_string_no_metadata_graceful(self):
+        """from_string may not preserve AST — role defaults to 'unknown'."""
+        env = Environment(enable_capture=True)
+        t = env.from_string("{% block x %}Hi{% end %}")
+        with captured_render() as cap:
+            t.render()
+
+        # Should not error even if block_metadata() returns empty
+        assert cap.blocks["x"].role in (
+            "unknown",
+            "content",
+            "navigation",
+            "sidebar",
+            "header",
+            "footer",
+        )
+
+
+class TestChangedFrom:
+    """RenderCapture.changed_from() for semantic diffing."""
+
+    def test_no_changes(self):
+        env = Environment(
+            loader=DictLoader({"p.html": "{% block a %}Static{% end %}"}),
+            enable_capture=True,
+        )
+        t = env.get_template("p.html")
+        with captured_render() as cap1:
+            t.render()
+        with captured_render() as cap2:
+            t.render()
+
+        assert cap2.changed_from(cap1) == {}
+
+    def test_detects_changes(self):
+        env = Environment(
+            loader=DictLoader(
+                {"p.html": "{% block a %}{{ x }}{% end %}{% block b %}Static{% end %}"}
+            ),
+            enable_capture=True,
+        )
+        t = env.get_template("p.html")
+        with captured_render() as cap1:
+            t.render(x="old")
+        with captured_render() as cap2:
+            t.render(x="new")
+
+        changed = cap2.changed_from(cap1)
+        assert "a" in changed
+        assert "b" not in changed
+        old_frag, new_frag = changed["a"]
+        assert old_frag.html == "old"
+        assert new_frag.html == "new"
+
+    def test_missing_block_not_reported(self):
+        """Blocks only in one capture are not reported as changed."""
+        cap1 = RenderCapture()
+        cap1._record("a", "hello")
+        cap2 = RenderCapture()
+        cap2._record("b", "world")
+
+        assert cap2.changed_from(cap1) == {}
