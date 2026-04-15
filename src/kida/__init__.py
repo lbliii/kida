@@ -122,9 +122,13 @@ from kida.render_context import (
     render_context,
 )
 from kida.render_manifest import (
+    FreezeCache,
+    FreezeCacheStats,
     ManifestDiff,
     RenderManifest,
+    SearchEntry,
     SearchManifestBuilder,
+    default_field_extractor,
 )
 from kida.sandbox import SandboxedEnvironment, SandboxPolicy, SecurityError
 from kida.template import AsyncLoopContext, LoopContext, Markup, RenderedTemplate, Template
@@ -195,6 +199,8 @@ __all__ = [
     "Extension",
     "FileSystemLoader",
     "Fragment",
+    "FreezeCache",
+    "FreezeCacheStats",
     "FunctionLoader",
     "KidaWarning",
     "LoopContext",
@@ -211,6 +217,7 @@ __all__ = [
     "RenderedTemplate",
     "SandboxPolicy",
     "SandboxedEnvironment",
+    "SearchEntry",
     "SearchManifestBuilder",
     "SecurityError",
     "SourceSnippet",
@@ -232,6 +239,7 @@ __all__ = [
     "async_render_context",
     "build_source_snippet",
     "captured_render",
+    "default_field_extractor",
     "get_accumulator",
     "get_capture",
     "get_optimal_workers",

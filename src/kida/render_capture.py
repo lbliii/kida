@@ -59,6 +59,8 @@ class Fragment:
         html: Raw rendered HTML of this block
         content_hash: SHA256[:16] hex digest of the rendered HTML
         depends_on: Context paths this block reads (from BlockMetadata)
+        cache_scope: Caching granularity from BlockMetadata.cache_scope
+            ("site", "page", "none", "unknown")
     """
 
     name: str
@@ -66,6 +68,7 @@ class Fragment:
     html: str
     content_hash: str
     depends_on: frozenset[str]
+    cache_scope: str = "unknown"
 
 
 def _compute_content_hash(html: str) -> str:
@@ -117,11 +120,13 @@ class RenderCapture:
 
         role = "unknown"
         depends_on: frozenset[str] = frozenset()
+        cache_scope = "unknown"
         if self._block_metadata is not None:
             meta = self._block_metadata.get(name)
             if meta is not None:
                 role = meta.inferred_role
                 depends_on = meta.depends_on
+                cache_scope = meta.cache_scope
 
         self.blocks[name] = Fragment(
             name=name,
@@ -129,6 +134,7 @@ class RenderCapture:
             html=html,
             content_hash=_compute_content_hash(html),
             depends_on=depends_on,
+            cache_scope=cache_scope,
         )
 
     def changed_from(self, other: RenderCapture) -> dict[str, tuple[Fragment, Fragment]]:
