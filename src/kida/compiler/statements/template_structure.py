@@ -173,61 +173,166 @@ class TemplateStructureMixin:
                 ),
             )
 
-        # Check if the host compiler has profiling enabled
+        # Check if the host compiler has profiling/capture enabled
         profiling = getattr(self, "_env", None) and self._env.enable_profiling
+        capturing = getattr(self, "_env", None) and self._env.enable_capture
 
-        if profiling:
-            stmts: list[ast.stmt] = [
-                ast.If(
-                    test=ast.Compare(
-                        left=ast.Name(id="_acc", ctx=ast.Load()),
-                        ops=[ast.IsNot()],
-                        comparators=[ast.Constant(value=None)],
+        # Helper: AST for the block call expression
+        # _blocks.get('name', _block_name)(ctx, _blocks)
+        def _block_call_expr() -> ast.Call:
+            return ast.Call(
+                func=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="_blocks", ctx=ast.Load()),
+                        attr="get",
+                        ctx=ast.Load(),
                     ),
-                    body=[
-                        # _t0 = _perf_counter()
-                        ast.Assign(
-                            targets=[ast.Name(id="_t0", ctx=ast.Store())],
-                            value=ast.Call(
-                                func=ast.Name(id="_perf_counter", ctx=ast.Load()),
-                                args=[],
-                                keywords=[],
-                            ),
-                        ),
-                        _make_block_append(),
-                        # _acc.record_block('name', (_perf_counter() - _t0) * 1000)
-                        ast.Expr(
-                            value=ast.Call(
-                                func=ast.Attribute(
-                                    value=ast.Name(id="_acc", ctx=ast.Load()),
-                                    attr="record_block",
-                                    ctx=ast.Load(),
-                                ),
-                                args=[
-                                    ast.Constant(value=block_name),
-                                    ast.BinOp(
-                                        left=ast.BinOp(
-                                            left=ast.Call(
-                                                func=ast.Name(id="_perf_counter", ctx=ast.Load()),
-                                                args=[],
-                                                keywords=[],
-                                            ),
-                                            op=ast.Sub(),
-                                            right=ast.Name(id="_t0", ctx=ast.Load()),
-                                        ),
-                                        op=ast.Mult(),
-                                        right=ast.Constant(value=1000),
-                                    ),
-                                ],
-                                keywords=[],
-                            ),
-                        ),
+                    args=[
+                        ast.Constant(value=block_name),
+                        ast.Name(id=f"_block_{block_name}", ctx=ast.Load()),
                     ],
-                    orelse=[_make_block_append()],
+                    keywords=[],
+                ),
+                args=[
+                    ast.Name(id="ctx", ctx=ast.Load()),
+                    ast.Name(id="_blocks", ctx=ast.Load()),
+                ],
+                keywords=[],
+            )
+
+        if profiling or capturing:
+            # When profiling or capture is enabled, we store the block result
+            # in a local so both hooks can access it without re-calling the block.
+            #
+            # Generated code (when both profiling and capture are active):
+            #   if _acc is not None:
+            #       _t0 = _perf_counter()
+            #   _br = _blocks.get('name', _block_name)(ctx, _blocks)
+            #   if _acc is not None:
+            #       _acc.record_block('name', (_perf_counter() - _t0) * 1000)
+            #   if _cap is not None:
+            #       _cap._record('name', _br)
+            #   _append(_br)
+
+            inner_stmts: list[ast.stmt] = []
+
+            # Profiling: start timer
+            if profiling:
+                inner_stmts.append(
+                    ast.If(
+                        test=ast.Compare(
+                            left=ast.Name(id="_acc", ctx=ast.Load()),
+                            ops=[ast.IsNot()],
+                            comparators=[ast.Constant(value=None)],
+                        ),
+                        body=[
+                            ast.Assign(
+                                targets=[ast.Name(id="_t0", ctx=ast.Store())],
+                                value=ast.Call(
+                                    func=ast.Name(id="_perf_counter", ctx=ast.Load()),
+                                    args=[],
+                                    keywords=[],
+                                ),
+                            ),
+                        ],
+                        orelse=[],
+                    )
                 )
-            ]
+
+            # _br = _blocks.get('name', _block_name)(ctx, _blocks)
+            inner_stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_br", ctx=ast.Store())],
+                    value=_block_call_expr(),
+                )
+            )
+
+            # Profiling: record timing
+            if profiling:
+                inner_stmts.append(
+                    ast.If(
+                        test=ast.Compare(
+                            left=ast.Name(id="_acc", ctx=ast.Load()),
+                            ops=[ast.IsNot()],
+                            comparators=[ast.Constant(value=None)],
+                        ),
+                        body=[
+                            ast.Expr(
+                                value=ast.Call(
+                                    func=ast.Attribute(
+                                        value=ast.Name(id="_acc", ctx=ast.Load()),
+                                        attr="record_block",
+                                        ctx=ast.Load(),
+                                    ),
+                                    args=[
+                                        ast.Constant(value=block_name),
+                                        ast.BinOp(
+                                            left=ast.BinOp(
+                                                left=ast.Call(
+                                                    func=ast.Name(
+                                                        id="_perf_counter", ctx=ast.Load()
+                                                    ),
+                                                    args=[],
+                                                    keywords=[],
+                                                ),
+                                                op=ast.Sub(),
+                                                right=ast.Name(id="_t0", ctx=ast.Load()),
+                                            ),
+                                            op=ast.Mult(),
+                                            right=ast.Constant(value=1000),
+                                        ),
+                                    ],
+                                    keywords=[],
+                                ),
+                            ),
+                        ],
+                        orelse=[],
+                    )
+                )
+
+            # Capture: record block output
+            if capturing:
+                inner_stmts.append(
+                    ast.If(
+                        test=ast.Compare(
+                            left=ast.Name(id="_cap", ctx=ast.Load()),
+                            ops=[ast.IsNot()],
+                            comparators=[ast.Constant(value=None)],
+                        ),
+                        body=[
+                            ast.Expr(
+                                value=ast.Call(
+                                    func=ast.Attribute(
+                                        value=ast.Name(id="_cap", ctx=ast.Load()),
+                                        attr="_record",
+                                        ctx=ast.Load(),
+                                    ),
+                                    args=[
+                                        ast.Constant(value=block_name),
+                                        ast.Name(id="_br", ctx=ast.Load()),
+                                    ],
+                                    keywords=[],
+                                ),
+                            ),
+                        ],
+                        orelse=[],
+                    )
+                )
+
+            # _append(_br)
+            inner_stmts.append(
+                ast.Expr(
+                    value=ast.Call(
+                        func=ast.Name(id="_append", ctx=ast.Load()),
+                        args=[ast.Name(id="_br", ctx=ast.Load())],
+                        keywords=[],
+                    ),
+                )
+            )
+
+            stmts: list[ast.stmt] = inner_stmts
         else:
-            # No profiling: bare block append, no timing overhead
+            # No profiling or capture: bare block append, no overhead
             stmts: list[ast.stmt] = [_make_block_append()]
 
         return self._wrap_block_condition(node, stmts)

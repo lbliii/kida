@@ -232,6 +232,15 @@ class Environment:
     # enable_profiling=True.
     enable_profiling: bool = False
 
+    # Content capture instrumentation (RFC: render-capture)
+    # When True, compiled templates include capture hooks that record block
+    # content into a RenderCapture when captured_render() is active.
+    # When False (default), all capture AST is stripped at compile time —
+    # zero ContextVar.get() calls, zero None checks per block.
+    # Note: captured_render() only collects data for templates compiled with
+    # enable_capture=True.
+    enable_capture: bool = False
+
     # F-string optimization (RFC: fstring-code-generation)
     # When True, consecutive output nodes are coalesced into single f-string appends
     fstring_coalescing: bool = True

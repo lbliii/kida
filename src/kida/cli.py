@@ -716,6 +716,163 @@ def _cmd_readme(
     return 0
 
 
+def _cmd_manifest(
+    template_dir: Path,
+    *,
+    output: Path | None,
+    data_file: Path | None,
+    search: bool,
+) -> int:
+    """Render templates and output a capture manifest as JSON."""
+    import json as json_mod
+
+    from kida.render_capture import captured_render
+    from kida.render_manifest import RenderManifest, SearchManifestBuilder
+
+    root = template_dir.resolve()
+    if not root.is_dir():
+        print(f"kida manifest: not a directory: {root}", file=sys.stderr)
+        return 2
+
+    env = Environment(
+        loader=FileSystemLoader(str(root)),
+        enable_capture=True,
+        strict_undefined=False,
+    )
+
+    # Load per-template context data if provided
+    context_data: dict[str, dict[str, Any]] = {}
+    if data_file is not None:
+        context_data = json_mod.loads(data_file.read_text(encoding="utf-8"))
+
+    manifest = RenderManifest()
+    templates = _iter_templates(root)
+    rendered = 0
+
+    for path in templates:
+        rel = path.relative_to(root).as_posix()
+        try:
+            tpl = env.get_template(rel)
+        except Exception as e:
+            print(f"kida manifest: skip {rel}: {e}", file=sys.stderr)
+            continue
+
+        ctx = context_data.get(rel, {})
+        capture_ctx = frozenset(ctx.keys()) if ctx else None
+
+        try:
+            with captured_render(capture_context=capture_ctx) as cap:
+                tpl.render(**ctx)
+        except Exception as e:
+            print(f"kida manifest: render error {rel}: {e}", file=sys.stderr)
+            continue
+
+        manifest.add(rel, cap)
+        rendered += 1
+
+    if search:
+        result = SearchManifestBuilder().build(manifest)
+    else:
+        # Serialize manifest as JSON
+        entries = []
+        for url, cap in manifest.captures:
+            entry: dict[str, Any] = {
+                "url": url,
+                "template": cap.template_name,
+                "blocks": {
+                    name: {
+                        "role": frag.role,
+                        "content_hash": frag.content_hash,
+                        "depends_on": sorted(frag.depends_on),
+                        "html_length": len(frag.html),
+                    }
+                    for name, frag in cap.blocks.items()
+                },
+            }
+            if cap.context_keys:
+                entry["context_keys"] = list(cap.context_keys.keys())
+            entries.append(entry)
+        result = {"version": manifest.version, "entries": entries}
+
+    json_str = json_mod.dumps(result, indent=2, ensure_ascii=False)
+
+    if output is not None:
+        output.write_text(json_str + "\n", encoding="utf-8")
+        print(f"kida manifest: {rendered} templates → {output}", file=sys.stderr)
+    else:
+        print(json_str)
+
+    return 0
+
+
+def _cmd_diff(old_path: Path, new_path: Path) -> int:
+    """Semantic diff between two render manifests."""
+    import json as json_mod
+
+    if not old_path.exists():
+        print(f"kida diff: not found: {old_path}", file=sys.stderr)
+        return 2
+    if not new_path.exists():
+        print(f"kida diff: not found: {new_path}", file=sys.stderr)
+        return 2
+
+    old_data = json_mod.loads(old_path.read_text(encoding="utf-8"))
+    new_data = json_mod.loads(new_path.read_text(encoding="utf-8"))
+
+    old_entries = {e["url"]: e for e in old_data.get("entries", [])}
+    new_entries = {e["url"]: e for e in new_data.get("entries", [])}
+
+    added = [url for url in new_entries if url not in old_entries]
+    removed = [url for url in old_entries if url not in new_entries]
+
+    changed: dict[str, list[str]] = {}
+    unchanged = 0
+
+    for url in new_entries:
+        if url not in old_entries:
+            continue
+        old_blocks = old_entries[url].get("blocks", {})
+        new_blocks = new_entries[url].get("blocks", {})
+        diffs = []
+        all_block_names = set(old_blocks.keys()) | set(new_blocks.keys())
+        for block_name in sorted(all_block_names):
+            old_hash = old_blocks.get(block_name, {}).get("content_hash", "")
+            new_hash = new_blocks.get(block_name, {}).get("content_hash", "")
+            if old_hash != new_hash:
+                old_role = old_blocks.get(block_name, {}).get("role", "?")
+                new_role = new_blocks.get(block_name, {}).get("role", old_role)
+                diffs.append(f"  {block_name} ({new_role}): {old_hash} → {new_hash}")
+        if diffs:
+            changed[url] = diffs
+        else:
+            unchanged += 1
+
+    # Output
+    if added:
+        print(f"Added ({len(added)}):")
+        for url in added:
+            print(f"  + {url}")
+    if removed:
+        print(f"Removed ({len(removed)}):")
+        for url in removed:
+            print(f"  - {url}")
+    if changed:
+        print(f"Changed ({len(changed)}):")
+        for url, diffs in sorted(changed.items()):
+            print(f"  {url}:")
+            for d in diffs:
+                print(f"    {d}")
+    if not added and not removed and not changed:
+        print("No changes.")
+
+    print(
+        f"\nSummary: {len(added)} added, {len(removed)} removed, "
+        f"{len(changed)} changed, {unchanged} unchanged"
+    )
+
+    return 1 if (added or removed or changed) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for ``python -m kida`` / the ``kida`` console script."""
     parser = argparse.ArgumentParser(prog="kida", description="Kida template engine CLI")
@@ -928,6 +1085,51 @@ def main(argv: list[str] | None = None) -> int:
         help="Filter components by name (case-insensitive substring match)",
     )
 
+    p_manifest = sub.add_parser(
+        "manifest",
+        help="Render templates and output a capture manifest as JSON",
+    )
+    p_manifest.add_argument(
+        "template_dir",
+        type=Path,
+        help="Root directory passed to FileSystemLoader",
+    )
+    p_manifest.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Write manifest to FILE instead of stdout",
+    )
+    p_manifest.add_argument(
+        "--data",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="JSON file mapping template names to context dicts",
+    )
+    p_manifest.add_argument(
+        "--search",
+        action="store_true",
+        help="Output a search manifest instead of a raw capture manifest",
+    )
+
+    p_diff = sub.add_parser(
+        "diff",
+        help="Semantic diff between two render manifests",
+    )
+    p_diff.add_argument(
+        "old_manifest",
+        type=Path,
+        help="Path to the old manifest JSON file",
+    )
+    p_diff.add_argument(
+        "new_manifest",
+        type=Path,
+        help="Path to the new manifest JSON file",
+    )
+
     p_fmt = sub.add_parser(
         "fmt",
         help="Auto-format Kida template files",
@@ -996,6 +1198,15 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "fmt":
         return _cmd_fmt(args.paths, indent=args.indent, check_only=args.check)
+    if args.command == "manifest":
+        return _cmd_manifest(
+            args.template_dir,
+            output=args.output,
+            data_file=args.data,
+            search=args.search,
+        )
+    if args.command == "diff":
+        return _cmd_diff(args.old_manifest, args.new_manifest)
     return 2
 
 

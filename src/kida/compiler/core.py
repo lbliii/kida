@@ -770,6 +770,7 @@ class Compiler(
         include_buf_append: bool = False,
         include_acc: bool = False,
         acc_none: bool = False,
+        include_cap: bool = False,
         include_lookup_scope: bool = False,
         include_render_ctx: bool = False,
     ) -> list[ast.stmt]:
@@ -871,6 +872,17 @@ class Compiler(
                     value=acc_value,
                 )
             )
+        if include_cap:
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id="_cap", ctx=ast.Store())],
+                    value=ast.Call(
+                        func=ast.Name(id="_get_capture", ctx=ast.Load()),
+                        args=[],
+                        keywords=[],
+                    ),
+                )
+            )
         if include_render_ctx:
             # Cache render context as _rc for LOAD_FAST instead of
             # calling ContextVar.get() on every line-tracked node.
@@ -900,6 +912,7 @@ class Compiler(
         Non-streaming adds buf and _append for StringBuilder.
         """
         profiling = self._env.enable_profiling
+        capturing = self._env.enable_capture
         return self._make_runtime_preamble(
             include_scope_stack=True,
             include_escape_str=True,
@@ -907,6 +920,7 @@ class Compiler(
             include_lookup_scope=True,
             include_buf_append=not streaming,
             include_acc=profiling,
+            include_cap=capturing,
             include_render_ctx=True,
         )
 
@@ -1345,6 +1359,7 @@ class Compiler(
             if expr is not None:
                 # Minimal preamble: _e, _s, _ga, _ls, _rc but no buf/_append.
                 profiling = self._env.enable_profiling
+                capturing = self._env.enable_capture
                 preamble = self._make_runtime_preamble(
                     include_scope_stack=True,
                     include_escape_str=True,
@@ -1352,6 +1367,7 @@ class Compiler(
                     include_lookup_scope=True,
                     include_buf_append=False,
                     include_acc=profiling,
+                    include_cap=capturing,
                     include_render_ctx=True,
                 )
                 cache_stmts = self._emit_cache_assignments(cacheable)
@@ -1405,14 +1421,16 @@ class Compiler(
         )
 
     def _make_render_preamble(self) -> list[ast.stmt]:
-        """Shared init block for render functions: if _blocks, _scope_stack, _acc."""
+        """Shared init block for render functions: if _blocks, _scope_stack, _acc, _cap."""
         profiling = self._env.enable_profiling
+        capturing = self._env.enable_capture
         return self._make_runtime_preamble(
             include_blocks_guard=True,
             include_scope_stack=True,
             include_getattr=True,
             include_lookup_scope=True,
             include_acc=profiling,
+            include_cap=capturing,
             include_render_ctx=True,
         )
 
