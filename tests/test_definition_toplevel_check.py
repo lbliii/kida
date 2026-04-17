@@ -31,6 +31,8 @@ class TestRegionNestingRejected:
         [
             ("{% if cond %}", "{% end %}"),
             ("{% for x in items %}", "{% end %}"),
+            ("{% while cond %}", "{% end %}"),
+            ("{% filter upper %}", "{% end %}"),
             ('{% provide color = "red" %}', "{% end %}"),
             ('{% with x = "y" %}', "{% end %}"),
             ("{% try %}", "{% fallback %}fb{% end %}"),
@@ -85,6 +87,23 @@ class TestDefNestingRejected:
     def test_def_in_provide_raises(self) -> None:
         env = _env(
             page=('{% provide color = "red" %}{% def helper() %}hi{% end %}{% end %}'),
+        )
+        with pytest.raises(TemplateSyntaxError) as exc:
+            env.get_template("page")
+        assert exc.value.code is ErrorCode.DEFINITION_NOT_TOPLEVEL
+
+    def test_def_in_while_raises(self) -> None:
+        env = _env(
+            page=("{% while cond %}{% def helper() %}hi{% end %}{% end %}"),
+        )
+        with pytest.raises(TemplateSyntaxError) as exc:
+            env.get_template("page")
+        assert exc.value.code is ErrorCode.DEFINITION_NOT_TOPLEVEL
+        assert "def helper" in str(exc.value)
+
+    def test_def_in_filter_raises(self) -> None:
+        env = _env(
+            page=("{% filter upper %}{% def helper() %}hi{% end %}{% end %}"),
         )
         with pytest.raises(TemplateSyntaxError) as exc:
             env.get_template("page")

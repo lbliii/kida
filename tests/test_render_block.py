@@ -886,3 +886,214 @@ class TestTopLevelImportInRenderBlock:
         result = template.render_block("content")
         assert "Hello, World!" in result
         assert "Kida" in result
+
+
+class TestGlobalsSetupComposite:
+    """_globals_setup path: imports + let + def + region all present in one template.
+
+    Covers the K-TPL-004 preamble hoisting contract end-to-end: every top-level
+    preamble form must be bound on ctx before a block/region runs under
+    render_block().
+    """
+
+    def test_render_block_sees_import_let_def_and_region(self) -> None:
+        env = _env(
+            macros="{% def tag(x) %}<em>{{ x }}</em>{% end %}",
+            page=(
+                '{% from "macros" import tag %}'
+                '{% let site = "Kida" %}'
+                "{% def wrap(x) %}<b>{{ x }}</b>{% end %}"
+                '{% region panel(label="P") %}'
+                "<aside>{{ label }}-{{ site }}</aside>"
+                "{% end %}"
+                "{% block content %}"
+                "{{ tag(site) }} {{ wrap(site) }} {{ panel(label='Nav') }}"
+                "{% endblock %}"
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("content")
+        assert "<em>Kida</em>" in result
+        assert "<b>Kida</b>" in result
+        assert "<aside>Nav-Kida</aside>" in result
+
+    def test_render_block_on_region_uses_top_level_let(self) -> None:
+        """Region dispatched via render_block resolves a top-level {% let %}."""
+        env = _env(
+            page=('{% let brand = "Kida" %}{% region footer() %}<p>{{ brand }}</p>{% end %}'),
+        )
+        template = env.get_template("page")
+        result = template.render_block("footer")
+        assert "<p>Kida</p>" in result
+
+    def test_render_block_on_region_uses_imported_macro(self) -> None:
+        """Region dispatched via render_block can call an imported macro."""
+        env = _env(
+            macros="{% def tag(x) %}<em>{{ x }}</em>{% end %}",
+            page=(
+                '{% from "macros" import tag %}'
+                '{% region crumbs(current="home") %}'
+                "{{ tag(current) }}"
+                "{% end %}"
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("crumbs", current="about")
+        assert "<em>about</em>" in result
+
+    def test_render_block_on_region_uses_top_level_def(self) -> None:
+        """Region body can call a sibling top-level {% def %} via render_block."""
+        env = _env(
+            page=(
+                "{% def label(x) %}[{{ x }}]{% end %}"
+                "{% region nav(section='home') %}"
+                "{{ label(section) }}"
+                "{% end %}"
+            ),
+        )
+        template = env.get_template("page")
+        result = template.render_block("nav", section="about")
+        assert "[about]" in result
+
+
+class TestDefRenderBlockInteraction:
+    """{% def %} scope reachability through render_block().
+
+    Defs are not render_block targets, but render_block must be able to call
+    them when they live at the template top level or are lexically visible
+    from the block body.
+    """
+
+    def test_top_level_def_callable_from_block(self) -> None:
+        env = _env(
+            page=(
+                "{% def greet(name) %}Hello, {{ name }}!{% end %}"
+                '{% block content %}{{ greet("World") }}{% endblock %}'
+            )
+        )
+        template = env.get_template("page")
+        assert "Hello, World!" in template.render_block("content")
+
+    def test_def_inside_block_compiles_and_renders(self) -> None:
+        """{% def %} inside a {% block %} body is not a control-flow scope."""
+        env = _env(
+            page=(
+                "{% block content %}"
+                "{% def greet(name) %}Hi, {{ name }}!{% end %}"
+                '{{ greet("World") }}'
+                "{% endblock %}"
+            )
+        )
+        template = env.get_template("page")
+        assert "Hi, World!" in template.render_block("content")
+
+    def test_nested_def_inside_def_is_callable_from_outer_def(self) -> None:
+        """Defs nested inside another def remain callable lexically."""
+        env = _env(
+            page=(
+                "{% def outer() %}"
+                "{% def inner() %}in{% end %}"
+                "[{{ inner() }}]"
+                "{% end %}"
+                "{% block content %}{{ outer() }}{% endblock %}"
+            )
+        )
+        template = env.get_template("page")
+        assert "[in]" in template.render_block("content")
+
+    def test_def_inside_region_compiles_and_renders(self) -> None:
+        """{% def %} inside a {% region %} body is not a control-flow scope."""
+        env = _env(
+            page=(
+                "{% region shell(x=1) %}{% def local() %}L{% end %}{{ local() }}-{{ x }}{% end %}"
+            )
+        )
+        template = env.get_template("page")
+        result = template.render_block("shell", x=7)
+        assert "L-7" in result
+
+
+class TestRegionRenderBlockStreamAsync:
+    """render_block_stream_async() against templates containing regions.
+
+    Exercises the async block streaming path for both plain regions and
+    regions that reference top-level preamble state (let / def / imports),
+    which must be resolved before the region body executes.
+    """
+
+    @pytest.mark.asyncio
+    async def test_plain_region_streams(self) -> None:
+        env = _env(
+            page=('{% region sidebar(current_path="/") %}<nav>{{ current_path }}</nav>{% end %}'),
+        )
+        template = env.get_template("page")
+        chunks = [
+            c async for c in template.render_block_stream_async("sidebar", current_path="/about")
+        ]
+        assert "<nav>/about</nav>" in "".join(chunks)
+
+    @pytest.mark.asyncio
+    async def test_region_streams_with_top_level_let(self) -> None:
+        """Top-level {% let %} must be bound before the region body runs."""
+        env = _env(
+            page=(
+                '{% let brand = "Kida" %}'
+                '{% region footer(note="tag") %}'
+                "<p>{{ brand }}/{{ note }}</p>"
+                "{% end %}"
+            ),
+        )
+        template = env.get_template("page")
+        chunks = [c async for c in template.render_block_stream_async("footer")]
+        assert "<p>Kida/tag</p>" in "".join(chunks)
+
+    @pytest.mark.asyncio
+    async def test_region_streams_with_imported_macro(self) -> None:
+        """Imported macros from top-level {% from %} must be callable."""
+        env = _env(
+            macros="{% def tag(x) %}<em>{{ x }}</em>{% end %}",
+            page=(
+                '{% from "macros" import tag %}'
+                '{% region crumbs(current="home") %}'
+                "{{ tag(current) }}"
+                "{% end %}"
+            ),
+        )
+        template = env.get_template("page")
+        chunks = [c async for c in template.render_block_stream_async("crumbs", current="about")]
+        assert "<em>about</em>" in "".join(chunks)
+
+    @pytest.mark.asyncio
+    async def test_region_streams_with_sibling_top_level_def(self) -> None:
+        """Sibling top-level {% def %} must be callable from the region body."""
+        env = _env(
+            page=(
+                "{% def label(x) %}[{{ x }}]{% end %}"
+                "{% region nav(section='home') %}"
+                "{{ label(section) }}"
+                "{% end %}"
+            ),
+        )
+        template = env.get_template("page")
+        chunks = [c async for c in template.render_block_stream_async("nav", section="about")]
+        assert "[about]" in "".join(chunks)
+
+    @pytest.mark.asyncio
+    async def test_region_streams_full_preamble(self) -> None:
+        """imports + let + def + region together via async block stream."""
+        env = _env(
+            macros="{% def tag(x) %}<em>{{ x }}</em>{% end %}",
+            page=(
+                '{% from "macros" import tag %}'
+                '{% let brand = "Kida" %}'
+                "{% def wrap(x) %}<b>{{ x }}</b>{% end %}"
+                "{% region panel(label='P') %}"
+                "<aside>{{ tag(label) }}/{{ wrap(brand) }}</aside>"
+                "{% end %}"
+            ),
+        )
+        template = env.get_template("page")
+        chunks = [c async for c in template.render_block_stream_async("panel", label="Nav")]
+        out = "".join(chunks)
+        assert "<em>Nav</em>" in out
+        assert "<b>Kida</b>" in out

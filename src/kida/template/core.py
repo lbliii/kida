@@ -437,7 +437,12 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
     # Render scaffold — shared setup for all render variants
     # ------------------------------------------------------------------
 
-    from contextlib import contextmanager as _contextmanager
+    from contextlib import (
+        asynccontextmanager as _asynccontextmanager,
+    )
+    from contextlib import (
+        contextmanager as _contextmanager,
+    )
 
     @_contextmanager
     def _render_scaffold(
@@ -448,6 +453,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         *,
         use_cached_blocks: bool = False,
         enhance_errors: bool = True,
+        run_globals_setup: bool = False,
     ) -> Iterator[tuple[dict[str, Any], Any, Any]]:
         """Common setup for sync render methods.
 
@@ -508,6 +514,8 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                     )
 
             if not enhance_errors:
+                if run_globals_setup:
+                    self._run_globals_setup_chain(ctx)
                 yield ctx, render_ctx, blocks_arg
                 return
 
@@ -519,6 +527,8 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             )
 
             try:
+                if run_globals_setup:
+                    self._run_globals_setup_chain(ctx)
                 yield ctx, render_ctx, blocks_arg
             except TemplateRuntimeError:
                 raise
@@ -530,6 +540,64 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 ):
                     raise
                 raise enhance_template_error(e, render_ctx, self._source) from e
+
+    # ------------------------------------------------------------------
+    # Fragment scaffold — shared setup for render_block / render_with_blocks
+    # / render_block_stream_async. Single source of truth for the preamble
+    # chain (``declared_definitions`` binding + ``_run_globals_setup_chain``).
+    # Adding a new fragment-render method without routing through one of
+    # these scaffolds is caught by the gate in tests/test_render_surface_parity.
+    # ------------------------------------------------------------------
+
+    def _fragment_scaffold(
+        self,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        method_name: str,
+    ) -> Any:
+        """Sync fragment-render scaffold.
+
+        Thin forwarder over ``_render_scaffold`` that sets
+        ``run_globals_setup=True`` so every sync fragment path binds
+        top-level ``{% let %} / {% def %} / {% region %} /
+        {% from … import %}`` onto ``ctx`` in leaf → root order.
+
+        Returns the contextmanager directly (no extra generator frame) so
+        ``render_block`` stays in the hot path for Bengal-style repeated
+        fragment rendering.
+        """
+        return self._render_scaffold(args, kwargs, method_name, run_globals_setup=True)
+
+    @_asynccontextmanager
+    async def _fragment_scaffold_async(
+        self,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        method_name: str,
+    ) -> AsyncIterator[tuple[dict[str, Any], Any]]:
+        """Async fragment-render scaffold.
+
+        Mirrors ``_fragment_scaffold`` for paths that must run inside an
+        ``async_render_context``. Owns the ``_run_globals_setup_chain`` call.
+
+        Yields:
+            (ctx, render_ctx)
+        """
+        from kida.render_context import async_render_context
+
+        ctx = self._build_context(args, kwargs, method_name)
+        max_extends, max_include = self._get_env_limits()
+
+        async with async_render_context(
+            template_name=self._name,
+            filename=self._filename,
+            source=self._source,
+            max_extends_depth=max_extends,
+            max_include_depth=max_include,
+        ) as render_ctx:
+            render_ctx.declared_definitions = self._declared_definitions
+            self._run_globals_setup_chain(ctx)
+            yield ctx, render_ctx
 
     @property
     def warnings(self) -> list:
@@ -631,12 +699,11 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 f"Available blocks: {list(effective.keys())}"
             )
 
-        with self._render_scaffold(args, kwargs, "render_block") as (
+        with self._fragment_scaffold(args, kwargs, "render_block") as (
             ctx,
             _render_ctx,
             _blocks_arg,
         ):
-            self._run_globals_setup_chain(ctx)
             return self._check_output_size(block_func(ctx, effective))
 
     def render_with_blocks(
@@ -711,12 +778,11 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             # Use default arg to capture html by value (avoid closure over loop var)
             _blocks[bname] = lambda ctx, _blocks, _html=html: _html
 
-        with self._render_scaffold(args, kwargs, "render_with_blocks") as (
+        with self._fragment_scaffold(args, kwargs, "render_with_blocks") as (
             ctx,
             _render_ctx,
             _blocks_arg,
         ):
-            self._run_globals_setup_chain(ctx)
             return self._check_output_size(render_func(ctx, _blocks))
 
     def render_stream(self, *args: Any, **kwargs: Any) -> Iterator[str]:
@@ -894,8 +960,6 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         """
         import inspect
 
-        from kida.render_context import async_render_context
-
         effective = self._effective_block_map("async_stream")
         block_func = effective.get(block_name)
 
@@ -905,17 +969,10 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 f"Available blocks: {list(effective.keys())}"
             )
 
-        ctx = self._build_context(args, kwargs, "render_block_stream_async")
-        max_extends, max_include = self._get_env_limits()
-
-        async with async_render_context(
-            template_name=self._name,
-            filename=self._filename,
-            source=self._source,
-            max_extends_depth=max_extends,
-            max_include_depth=max_include,
-        ) as render_ctx:
-            render_ctx.declared_definitions = self._declared_definitions
+        async with self._fragment_scaffold_async(args, kwargs, "render_block_stream_async") as (
+            ctx,
+            _render_ctx,
+        ):
             if inspect.isasyncgenfunction(block_func):
                 async for chunk in block_func(ctx, effective):
                     if chunk is not None:

@@ -1,8 +1,17 @@
-"""Sandboxed template execution for untrusted templates.
+"""Sandboxed template execution — defense-in-depth for risky templates.
 
-Restricts attribute access, function calls, and imports to prevent
-untrusted templates from accessing sensitive data or executing
-arbitrary code.
+``SandboxedEnvironment`` restricts attribute access, callable types, range
+sizes, and imports to reduce the blast radius of a template that attempts to
+reach out of its intended context. It is **not** an isolation boundary: it
+does not restrict CPU, memory, or wall-clock use; it does not sandbox objects
+you place in the render context; and the Python object model is large enough
+that novel escapes are possible.
+
+**Never render fully untrusted template source against a production context
+with this sandbox alone.** Combine it with OS-level isolation (process
+boundary, container, seccomp, WASM, etc.), a curated render context of
+primitive types, and a wall-clock timeout. See ``SECURITY.md`` for the full
+threat model and hardening guidance.
 
 Usage::
 
