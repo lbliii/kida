@@ -147,6 +147,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
     __slots__ = (
         "_block_names",  # Local block names for CachedBlocksDict / render_with_blocks
         "_code",
+        "_declared_definitions",  # Top-level {% def %} / {% region %} names
         "_def_metadata_cache",  # Cached def introspection results
         "_effective_blocks_cache",  # kind -> effective inherited block map
         "_env_ref",
@@ -204,6 +205,14 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         self._metadata_cache: TemplateMetadata | None = None
         self._inheritance_chain_cache: tuple[Template, ...] | None = None
         self._effective_blocks_cache: dict[str, dict[str, Any]] = {}
+        # Top-level {% def %} / {% region %} names — used by UndefinedError to
+        # swap the generic ".get()/default()" hint for a more directed
+        # "did you declare {% region <name> %} at the top level?" when a
+        # missing ctx name matches one of these. Computed from optimized_ast
+        # so it survives bytecode cache hits.
+        self._declared_definitions: frozenset[str] = self._collect_declared_definitions(
+            optimized_ast
+        )
 
         # Build render helpers from factory (extracted to render_helpers.py)
         env_ref = self._env_ref
@@ -311,6 +320,23 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             self._local_blocks_async_stream,
         ) = self._build_local_block_maps(namespace)
         self._block_names = tuple(self._local_blocks_sync.keys())
+
+    @staticmethod
+    def _collect_declared_definitions(
+        optimized_ast: TemplateNode | None,
+    ) -> frozenset[str]:
+        """Return the names of top-level {% def %} / {% region %} nodes.
+
+        Returns an empty frozenset when no AST is preserved (e.g.
+        ``preserve_ast=False`` and no cached AST).
+        """
+        if optimized_ast is None:
+            return frozenset()
+        from kida.nodes import Def, Region
+
+        return frozenset(
+            child.name for child in optimized_ast.body if isinstance(child, (Def, Region))
+        )
 
     @property
     def _env(self) -> Environment:
@@ -455,6 +481,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             max_extends_depth=max_extends,
             max_include_depth=max_include,
         ) as render_ctx:
+            render_ctx.declared_definitions = self._declared_definitions
             # Populate active RenderCapture with template name and context snapshot
             from kida.render_capture import get_capture
 
@@ -815,6 +842,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             max_extends_depth=max_extends,
             max_include_depth=max_include,
         ) as render_ctx:
+            render_ctx.declared_definitions = self._declared_definitions
             blocks_arg = None
             if render_ctx.cached_blocks:
                 cached_block_names = render_ctx.cached_block_names
@@ -886,7 +914,8 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             source=self._source,
             max_extends_depth=max_extends,
             max_include_depth=max_include,
-        ):
+        ) as render_ctx:
+            render_ctx.declared_definitions = self._declared_definitions
             if inspect.isasyncgenfunction(block_func):
                 async for chunk in block_func(ctx, effective):
                     if chunk is not None:

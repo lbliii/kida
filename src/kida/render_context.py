@@ -121,6 +121,12 @@ class RenderContext:
     cached_block_names: frozenset[str] = field(default_factory=frozenset)
     cache_stats: dict[str, int] | None = None
 
+    # Top-level {% def %} / {% region %} names declared by the current
+    # template. Consulted by UndefinedError to swap the generic hint for
+    # a more directed "did you declare {% region <name> %} at the top
+    # level?" when a missing ctx name matches a known definition.
+    declared_definitions: frozenset[str] = field(default_factory=frozenset)
+
     # Macro import stack (circular import detection for {% from X import y %})
     # Shared across child contexts; mutated during _import_macros
     import_stack: list[str] = field(default_factory=list)
@@ -306,6 +312,10 @@ class RenderContext:
             _meta=self._meta,  # Share metadata with child templates
             template_stack=new_stack,  # Pass stack to child
             component_stack=self.component_stack,  # Share component stack with child
+            # declared_definitions is per-template; the include/extends path
+            # overrides this on the child context once the child template
+            # has been resolved (see Template._render_scaffold and
+            # render_helpers._enter_child_context).
         )
 
     def child_context_for_extends(
