@@ -641,12 +641,18 @@ class TestFragmentScaffoldGate:
         src = inspect.getsource(template_core)
         # Count call expressions (``self._run_globals_setup_chain(``), not
         # definitions or comments. The method's own ``def`` line is excluded
-        # by matching the call syntax specifically.
+        # by matching the call syntax specifically. The sync path has two
+        # guarded call sites in ``_render_scaffold`` (one inside the
+        # enhance-errors try-block, one in the early-yield branch when
+        # ``enhance_errors=False``); both are gated on
+        # ``run_globals_setup=True``, which only fragment callers set via
+        # ``_fragment_scaffold``. The async path has its own call site in
+        # ``_fragment_scaffold_async``.
         call_count = src.count("self._run_globals_setup_chain(")
-        assert call_count == 2, (
-            f"Expected exactly 2 call sites for _run_globals_setup_chain "
-            f"(one in _fragment_scaffold, one in _fragment_scaffold_async); "
-            f"found {call_count}. A new caller means a fragment method "
-            "is bypassing the scaffold — route it through "
-            "_fragment_scaffold(_async) instead."
+        assert call_count == 3, (
+            f"Expected exactly 3 call sites for _run_globals_setup_chain "
+            f"(two guarded sites in _render_scaffold, one in "
+            f"_fragment_scaffold_async); found {call_count}. A new caller "
+            "means a fragment method is bypassing the scaffold — route it "
+            "through _fragment_scaffold(_async) instead."
         )

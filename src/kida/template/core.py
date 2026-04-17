@@ -453,6 +453,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         *,
         use_cached_blocks: bool = False,
         enhance_errors: bool = True,
+        run_globals_setup: bool = False,
     ) -> Iterator[tuple[dict[str, Any], Any, Any]]:
         """Common setup for sync render methods.
 
@@ -513,6 +514,8 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                     )
 
             if not enhance_errors:
+                if run_globals_setup:
+                    self._run_globals_setup_chain(ctx)
                 yield ctx, render_ctx, blocks_arg
                 return
 
@@ -524,6 +527,8 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             )
 
             try:
+                if run_globals_setup:
+                    self._run_globals_setup_chain(ctx)
                 yield ctx, render_ctx, blocks_arg
             except TemplateRuntimeError:
                 raise
@@ -544,31 +549,24 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
     # these scaffolds is caught by the gate in tests/test_render_surface_parity.
     # ------------------------------------------------------------------
 
-    @_contextmanager
     def _fragment_scaffold(
         self,
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
         method_name: str,
-    ) -> Iterator[tuple[dict[str, Any], Any, Any]]:
+    ) -> Any:
         """Sync fragment-render scaffold.
 
-        Wraps ``_render_scaffold`` (for error enhancement + RenderCapture
-        hooks) and owns the ``_run_globals_setup_chain`` call so every sync
-        fragment path binds top-level ``{% let %} / {% def %} / {% region %} /
+        Thin forwarder over ``_render_scaffold`` that sets
+        ``run_globals_setup=True`` so every sync fragment path binds
+        top-level ``{% let %} / {% def %} / {% region %} /
         {% from … import %}`` onto ``ctx`` in leaf → root order.
 
-        Yields:
-            (ctx, render_ctx, blocks_arg) — ``blocks_arg`` is always ``None``
-            for fragment renders; included for parity with ``_render_scaffold``.
+        Returns the contextmanager directly (no extra generator frame) so
+        ``render_block`` stays in the hot path for Bengal-style repeated
+        fragment rendering.
         """
-        with self._render_scaffold(args, kwargs, method_name) as (
-            ctx,
-            render_ctx,
-            blocks_arg,
-        ):
-            self._run_globals_setup_chain(ctx)
-            yield ctx, render_ctx, blocks_arg
+        return self._render_scaffold(args, kwargs, method_name, run_globals_setup=True)
 
     @_asynccontextmanager
     async def _fragment_scaffold_async(
