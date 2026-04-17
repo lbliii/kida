@@ -147,6 +147,7 @@ class Compiler(
         "_blocks",
         "_cached_pure_filters",
         "_ctx_override",
+        "_declared_definitions",
         "_def_caller_stack",
         "_def_names",
         "_env",
@@ -244,6 +245,11 @@ class Compiler(
         self._async_mode: bool = False
         # Track {% def %} names for profiling instrumentation
         self._def_names: set[str] = set()
+        # Top-level {% def %} / {% region %} names — populated by
+        # _check_definition_nesting so the runtime can swap UndefinedError
+        # hints from "use .get()" to "did you declare {% region %} at the
+        # top level?" when a missing ctx name matches a declared definition.
+        self._declared_definitions: set[str] = set()
         # Track loop variables for include scope propagation
         self._loop_vars: set[str] = set()
         # Lexical caller scoping: def → call → caller() (reset in compile())
@@ -302,6 +308,128 @@ class Compiler(
                     return child.template.value
                 return None
         return None
+
+    # Control-flow / rendering-wrapper containers whose bodies do not
+    # reliably execute at module-init time. Defining {% def %} or
+    # {% region %} inside them means _globals_setup cannot bind the name
+    # for render_block() dispatch.
+    _SCOPED_PARENTS: ClassVar[dict[str, str]] = {
+        "If": "if",
+        "For": "for",
+        "AsyncFor": "for",
+        "While": "while",
+        "With": "with",
+        "WithConditional": "with",
+        "Provide": "provide",
+        "Try": "try",
+        "Match": "match",
+        "Cache": "cache",
+        "Capture": "capture",
+        "Push": "push",
+        "Spaceless": "spaceless",
+        "FilterBlock": "filter",
+    }
+
+    def _check_definition_nesting(
+        self,
+        nodes: Sequence[Node],
+        parent_chain: tuple[str, ...],
+    ) -> None:
+        """Recursively walk the AST and reject {% def %} / {% region %}
+        nested inside any control-flow construct.
+
+        ``parent_chain`` carries the human-readable tag names of enclosing
+        scoped parents (e.g. ``("for", "if")``). When a ``Def`` or ``Region``
+        is reached and the chain is non-empty, raises ``TemplateSyntaxError``
+        with code ``K-TPL-004``.
+
+        Other container nodes (Block, CallBlock, Embed, Def, Region, ...)
+        are traversed but do not contribute to the chain — defining nested
+        helpers inside them is a supported pattern.
+        """
+        from kida.exceptions import ErrorCode, TemplateSyntaxError
+        from kida.nodes import (
+            CallBlock,
+            Def,
+            Embed,
+            Region,
+            SlotBlock,
+        )
+
+        for node in nodes:
+            type_name = type(node).__name__
+
+            if isinstance(node, (Def, Region)):
+                if parent_chain:
+                    kind = "region" if isinstance(node, Region) else "def"
+                    parent = parent_chain[-1]
+                    err = TemplateSyntaxError(
+                        f"{{% {kind} {node.name} %}} must be declared at the top level "
+                        f"of the template, not nested inside {{% {parent} %}}. "
+                        f"Move {{% {kind} {node.name} %}} out of the enclosing "
+                        f"{{% {parent} %}} block — render_block() dispatch and "
+                        "_globals_setup only see top-level definitions.",
+                        lineno=node.lineno,
+                        name=self._name,
+                        filename=self._filename,
+                    )
+                    err.code = ErrorCode.DEFINITION_NOT_TOPLEVEL
+                    raise err
+                # Top-level definition: track for runtime hint suggestions.
+                self._declared_definitions.add(node.name)
+                # Recurse into the def/region body without adding to chain —
+                # nested helpers inside a def are not render_block targets,
+                # so the same rule does not apply transitively.
+                self._check_definition_nesting(node.body, parent_chain)
+                continue
+
+            tag = self._SCOPED_PARENTS.get(type_name)
+            if tag is not None:
+                new_chain = (*parent_chain, tag)
+                # Walk the primary body
+                body = getattr(node, "body", None)
+                if isinstance(body, Sequence):
+                    self._check_definition_nesting(cast("Sequence[Node]", body), new_chain)
+                # Also walk else_/elif_/empty/fallback branches
+                else_ = getattr(node, "else_", None)
+                if isinstance(else_, Sequence):
+                    self._check_definition_nesting(cast("Sequence[Node]", else_), new_chain)
+                empty = getattr(node, "empty", None)
+                if isinstance(empty, Sequence):
+                    self._check_definition_nesting(cast("Sequence[Node]", empty), new_chain)
+                fallback = getattr(node, "fallback", None)
+                if isinstance(fallback, Sequence):
+                    self._check_definition_nesting(cast("Sequence[Node]", fallback), new_chain)
+                elif_ = getattr(node, "elif_", None)
+                if elif_:
+                    for _, elif_body in elif_:
+                        self._check_definition_nesting(elif_body, new_chain)
+                cases = getattr(node, "cases", None)
+                if cases:
+                    for case_entry in cases:
+                        # Match.cases is Sequence[tuple[Expr, Expr|None, body]]
+                        case_body = case_entry[-1]
+                        if isinstance(case_body, Sequence):
+                            self._check_definition_nesting(
+                                cast("Sequence[Node]", case_body), new_chain
+                            )
+                continue
+
+            # Allowed structural containers (Block, CallBlock, SlotBlock,
+            # Embed): walk their bodies but do not extend parent_chain.
+            if isinstance(node, CallBlock):
+                for slot_body in node.slots.values():
+                    self._check_definition_nesting(slot_body, parent_chain)
+                continue
+            if isinstance(node, (SlotBlock, Embed)):
+                body = getattr(node, "body", None)
+                if isinstance(body, Sequence):
+                    self._check_definition_nesting(cast("Sequence[Node]", body), parent_chain)
+                continue
+            # Generic fallback: traverse any .body attribute.
+            body = getattr(node, "body", None)
+            if isinstance(body, Sequence):
+                self._check_definition_nesting(cast("Sequence[Node]", body), parent_chain)
 
     def _collect_blocks(self, nodes: Sequence[Node]) -> None:
         """Recursively collect all Block nodes from the AST.
@@ -450,6 +578,12 @@ class Compiler(
         self._outer_caller_expr = None  # Set when compiling call body inside def
         self._precomputed = []  # Reset precomputed for each compilation
         self._precomputed_ids = {}
+        self._declared_definitions = set()
+
+        # Validate top-level placement of {% def %} / {% region %}: nesting
+        # inside control-flow constructs (if/for/with/provide/...) prevents
+        # _globals_setup from binding the name for render_block() dispatch.
+        self._check_definition_nesting(node.body, parent_chain=())
 
         # Generate Python AST
         module = self._compile_template(node)

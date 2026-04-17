@@ -254,6 +254,9 @@ def make_render_helpers(
             child_ctx = render_ctx.child_context_for_extends(template_name, source=tmpl._source)
         else:
             child_ctx = render_ctx.child_context(template_name, source=tmpl._source)
+        # declared_definitions is per-template; override the inherited blank
+        # set so UndefinedError raised inside the child uses the right names.
+        child_ctx.declared_definitions = tmpl._declared_definitions
         token = set_render_context(child_ctx)
         return child_ctx, tmpl, token
 

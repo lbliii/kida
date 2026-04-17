@@ -99,6 +99,7 @@ class ErrorCode(Enum):
     TEMPLATE_NOT_FOUND = "K-TPL-001"
     SYNTAX_ERROR = "K-TPL-002"
     CIRCULAR_IMPORT = "K-TPL-003"
+    DEFINITION_NOT_TOPLEVEL = "K-TPL-004"
 
     # Security errors (K-SEC-xxx)
     BLOCKED_ATTRIBUTE = "K-SEC-001"
@@ -728,6 +729,7 @@ class UndefinedError(TemplateError):
         template_stack: list[tuple[str, int]] | None = None,
         component_stack: list[tuple[str, int, str]] | None = None,
         kind: str = "variable",
+        declared_definitions: frozenset[str] | None = None,
     ):
         self.name = name
         self.template = template or "<template>"
@@ -737,7 +739,31 @@ class UndefinedError(TemplateError):
         self.template_stack = template_stack or []
         self.component_stack = component_stack or []
         self._kind = kind
+        # Top-level {% def %} / {% region %} names declared by the current
+        # template. When ``self.name`` is one of these, the error swaps the
+        # generic ``| default('')`` hint for a directed message pointing the
+        # user at the missing top-level declaration. See _hint_text().
+        self._declared_definitions = declared_definitions or frozenset()
         super().__init__(self._format_message())
+
+    def _hint_text(self) -> str:
+        """Return the hint line shown after the error message.
+
+        When the missing name matches a known top-level definition, point
+        the user at the declaration site instead of suggesting ``default``,
+        because no default value will work — the name is meant to resolve
+        to a {% region %} or {% def %} that is not yet bound at this point
+        in the render (typically because it is declared but unreachable
+        at module-init time, or render_block was called for the wrong
+        block).
+        """
+        if self.name in self._declared_definitions:
+            return (
+                f"Did you declare {{% region {self.name} %}} (or {{% def {self.name} %}}) "
+                "at the top level of the template? render_block dispatch and "
+                "_globals_setup only see top-level definitions."
+            )
+        return f"Use {{{{ {self.name} | default('') }}}} for optional variables"
 
     def _format_message(self) -> str:
         terminal = _terminal()
@@ -767,7 +793,7 @@ class UndefinedError(TemplateError):
         if self.template_stack:
             msg += "\n\n" + format_template_stack(self.template_stack)
 
-        hint_text = f"Use {{{{ {self.name} | default('') }}}} for optional variables"
+        hint_text = self._hint_text()
         msg += f"\n  {terminal.hint('Hint:')} {hint_text}"
         return msg
 
@@ -810,7 +836,7 @@ class UndefinedError(TemplateError):
             parts.append(format_template_stack(self.template_stack))
 
         # Hint
-        hint_text = f"Use {{{{ {self.name} | default('') }}}} for optional variables"
+        hint_text = self._hint_text()
         parts.append(f"  {terminal.hint('Hint:')} {hint_text}")
 
         # Docs URL
