@@ -309,6 +309,10 @@ kida extract templates/ -o messages.pot
 
 ---
 
+## Upgrading
+
+Moving from 0.6.x? See the [Upgrade to 0.7 tutorial](https://lbliii.github.io/kida/docs/tutorials/upgrade-to-v0.7/) for the `strict_undefined=True` migration patterns and the new null-safe idioms (`?.`, `?[`, `| get`).
+
 ## The Bengal Ecosystem
 
 Kida is part of a pure-Python stack built for 3.14t free-threading.

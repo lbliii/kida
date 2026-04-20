@@ -59,6 +59,23 @@ For non-dict objects (dataclasses, custom classes), dot notation uses `getattr` 
 
 > **Jinja2 difference**: Jinja2 always tries `getattr` first regardless of type, so `{{ data.items }}` resolves to the `dict.items` method. Kida handles this correctly for dicts.
 
+### Optional Chaining — `?.`
+
+`?.` short-circuits to `None` (which renders as `""`) when the **receiver** is `None` or undefined. It does not suppress `UndefinedError` on a missing attribute/key when the receiver is defined — that is by design under strict mode.
+
+```kida
+{{ user?.nickname }}                {# user = None → "" #}
+{{ user?.nickname }}                {# user = {}   → UndefinedError (key missing) #}
+{{ user?.nickname ?? "Guest" }}     {# safe in both directions #}
+{{ page?.author?.avatar }}          {# chain short-circuits on first None #}
+```
+
+For a receiver-AND-key safe lookup, use `?? default`, `| default("")`, or `| get("key", "")`:
+
+```kida
+{{ user | get("nickname", "") }}    {# closest to dict.get("nickname", "") #}
+```
+
 ## Index Access
 
 Access sequence items by index:
@@ -67,6 +84,15 @@ Access sequence items by index:
 {{ items[0] }}
 {{ items[-1] }}  {# Last item #}
 {{ matrix[0][1] }}
+```
+
+### Optional Index — `?[...]`
+
+Mirror of `?.` for subscript access. Short-circuits to `None` when the receiver is `None` or undefined:
+
+```kida
+{{ settings?["theme"] }}
+{{ items?[0] ?? "missing" }}
 ```
 
 ## HTML Escaping

@@ -371,6 +371,12 @@ class Environment:
         # Resolve bytecode cache
         self._bytecode_cache = self._resolve_bytecode_cache()
 
+        # Per-source dedup for the from_string(no-name) bytecode-cache-bypass
+        # warning. Keyed by bytecode_cache.hash_source(source) so the same
+        # source warns once per Environment even if the caller rebuilds the
+        # string each call.
+        self._from_string_warned: set[str] = set()
+
         # Register HTMX helper globals (Feature 1.1)
         if self.enable_htmx_helpers:
             from kida.environment.globals import HTMX_GLOBALS
@@ -753,13 +759,18 @@ class Environment:
         source_hash = None
         context_hash = _hash_static_context(static_context)
         if self._bytecode_cache is not None and name is None:
-            import warnings
+            from kida.bytecode_cache import hash_source
 
-            warnings.warn(
-                "from_string() without name= bypasses bytecode cache. "
-                "Pass name='my_template' to enable caching.",
-                stacklevel=3,
-            )
+            warn_key = hash_source(source)
+            if warn_key not in self._from_string_warned:
+                import warnings
+
+                self._from_string_warned.add(warn_key)
+                warnings.warn(
+                    "from_string() without name= bypasses bytecode cache. "
+                    "Pass name='my_template' to enable caching.",
+                    stacklevel=3,
+                )
         if self._bytecode_cache is not None and name is not None:
             from kida.bytecode_cache import hash_source
 

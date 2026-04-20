@@ -36,6 +36,14 @@ workflows.
 Step-by-step migration with before/after examples, API mapping table, and verification steps.
 :::{/card}
 
+:::{card} Upgrade to 0.7
+:icon: arrow-up-circle
+:link: /docs/tutorials/upgrade-to-v0.7/
+:description: Migrate to strict-by-default and null-safe idioms
+:badge: 0.7
+Three fix patterns for the strict_undefined flip, the escape hatch, and the new `?.` / `| get` operators.
+:::{/card}
+
 :::{card} Flask Integration
 :icon: globe
 :link: /docs/tutorials/flask-integration/

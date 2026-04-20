@@ -765,6 +765,22 @@ class UndefinedError(TemplateError):
             )
         return f"Use {{{{ {self.name} | default('') }}}} for optional variables"
 
+    def _nullsafe_hint_text(self) -> str | None:
+        """Return an additional null-safe hint for attribute/key errors.
+
+        For missing attributes or dict keys under strict mode, the fix is
+        usually to switch the access to a null-safe form rather than to
+        supply a default at the variable level. This hint points at the
+        three idioms (optional chaining, null-coalescing, the ``get``
+        filter) so users do not fall back to ``.get("k", "")`` chains.
+        """
+        if self._kind != "attribute/key":
+            return None
+        return (
+            'For optional attribute/key access use `x?.y`, `x?["y"]`, '
+            "`x.y ?? ''`, or `x | get(\"y\", '')`."
+        )
+
     def _format_message(self) -> str:
         terminal = _terminal()
         location = self.template
@@ -795,6 +811,9 @@ class UndefinedError(TemplateError):
 
         hint_text = self._hint_text()
         msg += f"\n  {terminal.hint('Hint:')} {hint_text}"
+        nullsafe = self._nullsafe_hint_text()
+        if nullsafe:
+            msg += f"\n  {terminal.hint('Hint:')} {nullsafe}"
         return msg
 
     def format_compact(self) -> str:
@@ -838,6 +857,9 @@ class UndefinedError(TemplateError):
         # Hint
         hint_text = self._hint_text()
         parts.append(f"  {terminal.hint('Hint:')} {hint_text}")
+        nullsafe = self._nullsafe_hint_text()
+        if nullsafe:
+            parts.append(f"  {terminal.hint('Hint:')} {nullsafe}")
 
         # Docs URL
         if self.code:
