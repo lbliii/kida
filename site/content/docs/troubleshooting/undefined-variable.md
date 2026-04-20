@@ -186,7 +186,7 @@ def render_debug(template_name, **context):
 
 ## Strict Mode (Default)
 
-As of 0.6.0, `strict_undefined=True` is the default. Missing variables **and** missing attributes raise `UndefinedError` with a descriptive message distinguishing variable, attribute, and key lookups.
+As of 0.7.0, `strict_undefined=True` is the default. Missing variables **and** missing attributes raise `UndefinedError` with a descriptive message distinguishing variable, attribute, and key lookups.
 
 ```python
 env = Environment(loader=FileSystemLoader("templates/"))
