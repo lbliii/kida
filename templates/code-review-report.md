@@ -75,11 +75,11 @@
 
   {{ f.message }}
 
-{% if f.suggestion -%}
+{% if f.suggestion is defined and f.suggestion -%}
   **Suggestion:** {{ f.suggestion }}
 
 {% endif -%}
-{% if f.diff -%}
+{% if f.diff is defined and f.diff -%}
   ```diff
   {{ f.diff }}
   ```
@@ -100,11 +100,11 @@
 
   {{ f.message }}
 
-{% if f.suggestion -%}
+{% if f.suggestion is defined and f.suggestion -%}
   **Suggestion:** {{ f.suggestion }}
 
 {% endif -%}
-{% if f.diff -%}
+{% if f.diff is defined and f.diff -%}
   ```diff
   {{ f.diff }}
   ```
@@ -128,11 +128,11 @@
 
   {{ f.message }}
 
-{% if f.suggestion -%}
+{% if f.suggestion is defined and f.suggestion -%}
   **Suggestion:** {{ f.suggestion }}
 
 {% endif -%}
-{% if f.diff -%}
+{% if f.diff is defined and f.diff -%}
   ```diff
   {{ f.diff }}
   ```

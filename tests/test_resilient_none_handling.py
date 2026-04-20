@@ -26,10 +26,11 @@ from kida.environment.exceptions import (
 def env() -> Environment:
     """Create a fresh Kida environment for each test.
 
-    Tests lenient None handling behavior.
+    Tests lenient None handling behavior. Opts out of the strict-undefined
+    default so missing attributes render as "" rather than raising.
 
     """
-    return Environment()
+    return Environment(strict_undefined=False)
 
 
 class TestResilientNoneHandling:

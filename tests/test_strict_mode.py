@@ -186,8 +186,26 @@ class TestIsDefinedAttributeChains:
         t = env.from_string("{% if items.name is not defined %}yes{% else %}no{% end %}")
         assert t.render(items=[1, 2]) == "yes"
 
+    def test_missing_attr_raises_under_strict(self, env: Environment) -> None:
+        """Strict mode (default) raises on missing attribute access."""
+        with pytest.raises(UndefinedError):
+            env.from_string("{{ items.name }}").render(items=[1, 2])
+
+    def test_missing_attr_raises_in_truthy_guard(self, env: Environment) -> None:
+        """Strict mode raises even in `{% if %}` — use `is defined` instead."""
+        with pytest.raises(UndefinedError):
+            env.from_string("{% if items.name %}yes{% end %}").render(items=[1, 2])
+
+
+class TestLenientAttributeAccess:
+    """Test attribute access with strict_undefined=False (opt-in lenient mode)."""
+
+    @pytest.fixture
+    def env(self) -> Environment:
+        return Environment(strict_undefined=False)
+
     def test_undefined_attr_renders_empty(self, env: Environment) -> None:
-        """Missing attributes still render as empty string in output."""
+        """Missing attributes render as empty string in lenient mode."""
         t = env.from_string("{{ items.name }}")
         assert t.render(items=[1, 2]) == ""
 

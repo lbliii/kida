@@ -242,14 +242,10 @@ class TestRuntimeErrors:
             tmpl.render(items=[1, 2, 3])
 
     def test_attribute_error(self, env: Environment) -> None:
-        """Attribute error on non-existent attribute.
-
-        Note: With None-safe attribute access, this returns empty string.
-        """
+        """Attribute error on non-existent attribute raises under strict mode."""
         tmpl = env.from_string("{{ obj.nonexistent }}")
-        result = tmpl.render(obj={})
-        # With None-safe access, should return empty string
-        assert result == ""
+        with pytest.raises(UndefinedError):
+            tmpl.render(obj={})
 
     def test_iteration_over_non_iterable(self, env: Environment) -> None:
         """Iteration over non-iterable."""

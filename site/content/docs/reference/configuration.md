@@ -295,17 +295,23 @@ Strict attribute access — raise `UndefinedError` on missing attributes instead
 
 | Type | Default | Description |
 |------|---------|-------------|
-| `bool` | `False` | Raise on missing attributes |
+| `bool` | `True` | Raise on missing attributes |
 
 ```python
-# Lenient (default): missing attributes return _Undefined sentinel
-strict_undefined=False
-
-# Strict: missing attributes raise UndefinedError immediately
+# Strict (default): missing attributes raise UndefinedError immediately
 strict_undefined=True
+
+# Lenient: missing attributes return the _Undefined sentinel (renders as "")
+strict_undefined=False
 ```
 
-When enabled, `{{ user.typo }}` raises immediately instead of rendering as empty string. Useful for catching attribute typos during development. Error messages distinguish between "Undefined variable", "Undefined attribute", and "Undefined key".
+By default, `{{ user.typo }}` raises immediately instead of rendering as empty string — the same contract as undefined top-level variables. Error messages distinguish between "Undefined variable", "Undefined attribute", and "Undefined key", and include `did you mean …` suggestions.
+
+To keep the lenient behavior on a specific `Environment` (useful when migrating templates that rely on optional attributes), pass `strict_undefined=False`. The preferred in-template idioms for optional data are:
+
+- `{{ user.bio ?? "" }}` — null-coalescing
+- `{% if user.bio is defined and user.bio %}` — existence guard
+- `{{ user.bio | default("") }}` — filter with fallback
 
 ### jinja2_compat_warnings
 

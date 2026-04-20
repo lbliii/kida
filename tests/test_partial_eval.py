@@ -3071,9 +3071,11 @@ class TestTransformExprGetattr:
 
     def test_getattr_partial_obj(self):
         """Getattr where obj sub-expr changes but full eval fails."""
-        env = Environment(autoescape=False, preserve_ast=True)
-        # site.title resolves, but the getattr on dynamic.x doesn't.
-        # We use a complex expression where the object part can be simplified.
+        # Opt into lenient mode: the test's intent is that the partial evaluator
+        # simplifies the static sub-expression even when the full getattr misses.
+        # Under strict mode the missing attribute access raises; lenient mode
+        # lets us observe the rendered output.
+        env = Environment(autoescape=False, preserve_ast=True, strict_undefined=False)
         tmpl = env.from_string(
             "{{ (site.title ~ x).attr }}",
             static_context={"site": {"title": "Hi"}},

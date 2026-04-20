@@ -117,7 +117,7 @@
 ### Pages
 
 {% for p in pages -%}
-- {{ p.status | default("pass", true) | badge }} {% if p.url %}[{{ p.path }}]({{ p.url }}){% else %}`{{ p.path }}`{% endif %}{% if p.size %} ({{ p.size }}){% endif %}{% if p.notes %} — {{ p.notes }}{% endif %}
+- {{ p.status | default("pass", true) | badge }} {% if p.url is defined and p.url %}[{{ p.path }}]({{ p.url }}){% else %}`{{ p.path }}`{% endif %}{% if p.size is defined and p.size %} ({{ p.size }}){% endif %}{% if p.notes is defined and p.notes %} — {{ p.notes }}{% endif %}
 
 {% endfor %}
 {% endif -%}
