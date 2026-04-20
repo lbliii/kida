@@ -6,8 +6,6 @@ Extracted from html.py to keep modules focused.
 from __future__ import annotations
 
 # Resource limits (DoS protection)
-MAX_INCLUDE_DEPTH = 50
-MAX_EXTENDS_DEPTH = 50
 MAX_FILTER_CHAIN_LEN = 200
 MAX_PARTIAL_EVAL_DEPTH = 100
 

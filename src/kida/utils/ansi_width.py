@@ -20,6 +20,14 @@ from typing import Any, final
 #   - SGR: \033[...m  (colors, bold, underline, etc.)
 #   - OSC: \033]...\033\\  (operating system commands)
 #   - CSI: \033[...<letter>  (cursor movement, erase, etc.)
+#
+# NOTE: This pattern is intentionally distinct from the one in
+# ``kida.utils.terminal_escape``. This one is *tolerant* — it matches
+# liberally so that width-measurement skips correctly even over
+# slightly malformed sequences. ``terminal_escape._ANSI_RE`` is *strict*
+# (digits/punctuation only in CSI params) because it is used for
+# security sanitization where false-positives matter. Do not unify them
+# without comparing match behavior across the full terminal test suite.
 _ANSI_RE = re.compile(r"\033\[[^m]*m|\033\].*?(?:\007|\033\\)|\033\[[^a-zA-Z]*[a-zA-Z]")
 
 

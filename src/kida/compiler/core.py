@@ -44,7 +44,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
 from kida.compiler.statements import StatementCompilationMixin
-from kida.compiler.utils import OperatorUtilsMixin
 from kida.nodes import (
     AsyncFor,
     Block,
@@ -82,7 +81,6 @@ _TOP_LEVEL_STATEMENTS = frozenset(
 
 
 class Compiler(
-    OperatorUtilsMixin,
     ExpressionCompilationMixin,
     StatementCompilationMixin,
     FStringCoalescingMixin,

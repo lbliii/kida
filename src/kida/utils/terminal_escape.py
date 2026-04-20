@@ -37,6 +37,12 @@ _SGR_RE = re.compile(r"\033\[[\d;]*m")
 # - CSI: ESC [ ... <final byte 0x40-0x7E>
 # - OSC: ESC ] ... (terminated by BEL \007 or ST \033\\)
 # - Two-char: ESC <0x40-0x7E> (e.g., ESC D, ESC M)
+#
+# NOTE: This pattern is intentionally distinct from the one in
+# ``kida.utils.ansi_width``. This one is *strict* (CSI params restricted
+# to ``[0-?]*[ -/]*``) because it gates security sanitization where
+# over-matching would silently consume neighboring text.
+# ``ansi_width._ANSI_RE`` is tolerant by design — see the note there.
 _ANSI_RE = re.compile(
     r"\033"
     r"(?:"

@@ -50,18 +50,3 @@ class CompilerCoreProtocol(Protocol):
     def _compile_node(self, node: Node) -> list[ast.stmt]:
         """Compile a single AST node to Python statements."""
         ...
-
-    # ─────────────────────────────────────────────────────────────
-    # Operator Utilities (from OperatorUtilsMixin)
-    # ─────────────────────────────────────────────────────────────
-    def _get_binop(self, op: str) -> ast.operator:
-        """Map operator string to AST operator."""
-        ...
-
-    def _get_unaryop(self, op: str) -> ast.unaryop:
-        """Map unary operator string to AST operator."""
-        ...
-
-    def _get_cmpop(self, op: str) -> ast.cmpop:
-        """Map comparison operator string to AST operator."""
-        ...
