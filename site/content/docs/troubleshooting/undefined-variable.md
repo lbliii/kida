@@ -69,20 +69,23 @@ Ensure all template variables are passed in `render()`.
 Verify object attributes match your code.
 :::
 
-:::{dropdown} Nested object is None
+:::{dropdown} Nested object is None or missing
 :icon: layers
 
 ```kida
-{# ❌ parent might be None #}
+{# ❌ page.parent might be None or missing #}
 {{ page.parent.title }}
 
-{# ✅ Check first #}
-{% if page.parent %}
+{# ✅ Guard with `is defined` (works for attribute chains) #}
+{% if page.parent is defined and page.parent %}
     {{ page.parent.title }}
 {% end %}
+
+{# ✅ Or use the null-coalescing operator #}
+{{ page.parent.title ?? "" }}
 ```
 
-Use conditional checks or `default` filter.
+Under strict mode (the default), `{% if page.parent %}` alone raises if `parent` is missing — use `is defined` or `??`.
 :::
 
 ## Solutions
@@ -125,20 +128,20 @@ The `is defined` test works on attribute chains, not just top-level variables. I
 {% end %}
 ```
 
-#### Undefined Sentinel
+#### Undefined Sentinel (lenient mode only)
 
-Missing attribute access returns an `_Undefined` sentinel (not an empty string). The sentinel is:
+With `strict_undefined=False` (opt-in), missing attribute access returns an `_Undefined` sentinel. The sentinel is:
 
 - **Falsy** — `{% if pokemon.name %}` works as a guard
 - **Stringifies to `""`** — `{{ pokemon.name }}` renders nothing when undefined
 - **Iterable** — yields nothing, so `{% for x in missing_attr %}` produces no output
 
-The `is defined` and `is undefined` tests work correctly on attribute chains (e.g. `{% if pokemon.name is defined %}`), making intent explicit. See [[docs/reference/tests|Tests Reference]] for the full test list.
+Under the default **strict mode**, missing attributes raise `UndefinedError`. Use `is defined`, `??`, or `| default(...)` to opt specific sites into lenient behavior. See [[docs/reference/tests|Tests Reference]] for the full test list.
 
 ### Optional Chaining Pattern
 
 ```kida
-{% if post and post.author %}
+{% if post is defined and post.author is defined %}
     {{ post.author.name }}
 {% end %}
 ```
@@ -146,7 +149,7 @@ The `is defined` and `is undefined` tests work correctly on attribute chains (e.
 ### Safe Navigation
 
 ```kida
-{{ user | default({}) | attr("name") | default("Unknown") }}
+{{ user.name ?? "Unknown" }}
 ```
 
 ## Debug Tips
@@ -181,20 +184,35 @@ def render_debug(template_name, **context):
     return env.render(template_name, **context)
 ```
 
-## Strict Undefined Mode
+## Strict Mode (Default)
 
-Enable `strict_undefined=True` on your Environment to catch attribute typos immediately instead of getting silent empty output:
+As of 0.6.0, `strict_undefined=True` is the default. Missing variables **and** missing attributes raise `UndefinedError` with a descriptive message distinguishing variable, attribute, and key lookups.
+
+```python
+env = Environment(loader=FileSystemLoader("templates/"))
+# strict_undefined=True by default
+```
+
+To guard optional access within a template, use one of:
+
+```kida
+{{ user.nickname ?? "Anonymous" }}              {# null-coalescing #}
+{{ user.nickname | default("Anonymous") }}       {# default filter #}
+{% if user.nickname is defined %}...{% end %}    {# explicit test #}
+```
+
+### Opt Out (Lenient Mode)
+
+If you are porting templates that rely on silent empty-string fallback for missing attributes:
 
 ```python
 env = Environment(
     loader=FileSystemLoader("templates/"),
-    strict_undefined=True,
+    strict_undefined=False,
 )
 ```
 
-With strict mode, `{{ user.typo }}` raises `UndefinedError` immediately with a descriptive message ("Undefined attribute 'typo'") instead of rendering as an empty string. Error messages distinguish between variable, attribute, and key lookups.
-
-This is recommended for development and CI. In production, you may prefer the lenient default to avoid breaking pages on missing data.
+In lenient mode, missing attributes return an `_Undefined` sentinel (see above). This is recommended only as a transitional shim — prefer fixing sites with the idioms above.
 
 ## Prevention
 

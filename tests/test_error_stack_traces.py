@@ -376,8 +376,14 @@ class TestErrorSuggestions:
     """Test _enhance_error suggestion hints for common error types."""
 
     def test_undefined_method_call_suggestion(self):
-        """TypeError from obj.missing() suggests optional chaining or is defined."""
-        env = Environment()
+        """TypeError from obj.missing() suggests optional chaining or is defined.
+
+        Uses lenient mode so the missing attribute path returns the UNDEFINED
+        sentinel and the subsequent `()` call raises TypeError — which is what
+        the error-enhancement pipeline targets. Under strict mode the attribute
+        access itself raises UndefinedError before the call is attempted.
+        """
+        env = Environment(strict_undefined=False)
         tmpl = env.from_string("{{ obj.missing() }}", name="test.html")
         with pytest.raises(TemplateRuntimeError) as exc_info:
             tmpl.render(obj={"present": "value"})

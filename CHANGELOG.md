@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **`strict_undefined` now defaults to `True`** — `Environment(strict_undefined=...)` flipped from `False` (lenient) to `True` (strict) to match the documented "strict-by-default" stance. Missing variables **and** missing attribute access raise `UndefinedError` with a descriptive message (variable/attribute/key). Previously the flag was opt-in and missing attributes silently rendered as `""`, contradicting the `__init__.py` docstring. **Migration**: use `is defined`, `??` (null-coalescing), or `| default(...)` — e.g. `{% if user.nickname is defined and user.nickname %}...{% end %}`, `{{ user.nickname ?? "" }}`, or `{{ user.nickname | default("") }}`. **Escape hatch**: pass `strict_undefined=False` on the Environment to restore the prior lenient behavior (transitional shim).
+
 ### Added
 
 - **Parser error hints for Jinja2 traps** — When a template uses a Jinja2-only block keyword that Kida does not accept, the `K-PAR-001` ParseError now prepends a targeted suggestion before the generic "Valid keywords: …" list. Covers `macro` → `{% def %}`, `endmacro`/`endset` → unified `{% end %}`, `namespace` → `{% let %}`/`{% export %}`, and `fill`/`endfill` → `{% slot %}` inside `{% call %}`. The trap table lives in `kida.parser.errors.JINJA2_TRAPS` and is data-only — easy to extend as new traps surface.

@@ -197,7 +197,7 @@
 -#}
 
 {% def connector(indent=2) %}
-{{- " " * indent }}{{ box.light.v if _box_set else "|" }}
+{{- " " * indent }}{{ _box_set.light.v if _box_set else "|" }}
 {%- end %}
 
 

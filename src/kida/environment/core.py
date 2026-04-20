@@ -167,7 +167,7 @@ class Environment:
     autoescape: bool | str | Callable[[str | None], bool] = True
     auto_reload: bool = True
     strict_none: bool = False  # When True, sorting with None values raises detailed errors
-    strict_undefined: bool = False  # When True, missing attribute access raises UndefinedError
+    strict_undefined: bool = True  # When True, missing attribute access raises UndefinedError
     jinja2_compat_warnings: bool = (
         True  # Warn when a nested {% set %} shadows an outer {% let %}/{% export %} binding
         # (the Jinja2 scoping trap). Set False to silence; or filter MigrationWarning

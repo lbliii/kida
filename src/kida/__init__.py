@@ -59,12 +59,20 @@ Key Differences from Jinja2:
 - **Pattern Matching**: `{% match %}...{% case %}` for cleaner branching
 
 Strict Mode (default):
-Undefined variables raise `UndefinedError` instead of silently returning
-empty string. Use `| default(fallback)` for optional variables:
+Undefined variables and undefined attribute access raise `UndefinedError`
+instead of silently returning empty string. Use `| default(fallback)`,
+`is defined` guards, or the `??` null-coalescing operator for optional values:
 
     >>> env.from_string("{{ missing }}").render()  # Raises UndefinedError
     >>> env.from_string("{{ missing | default('N/A') }}").render()
     'N/A'
+    >>> env.from_string("{{ user.missing ?? '' }}").render(user={})
+    ''
+
+Opt out (per-Environment) when porting templates that rely on lenient
+attribute access:
+
+    >>> env = Environment(strict_undefined=False)
 
 """
 

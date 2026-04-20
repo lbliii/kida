@@ -42,7 +42,7 @@ env = Environment(
 | `fragment_cache_size` | `int` | `1000` | Max cached fragments |
 | `fragment_ttl` | `float` | `300.0` | Fragment TTL (seconds) |
 | `static_context` | `dict \| None` | `None` | Values for compile-time partial evaluation |
-| `strict_undefined` | `bool` | `False` | Raise on missing attribute access |
+| `strict_undefined` | `bool` | `True` | Raise `UndefinedError` on missing variable or attribute access (set to `False` for lenient empty-string fallback) |
 | `jinja2_compat_warnings` | `bool` | `True` | Warn when nested `{% set %}` shadows a `{% let %}`/`{% export %}` name |
 | `validate_calls` | `bool` | `False` | Validate `{% def %}` call sites at compile time |
 
@@ -615,12 +615,14 @@ except UndefinedError as e:
     print(e)       # "Undefined variable 'missing' in <string>:1"
 ```
 
-With `strict_undefined=True`, attribute access errors also include component context:
+Under the default strict mode, attribute access errors also include component context:
 
 ```python
-env = Environment(strict_undefined=True)
+env = Environment()  # strict_undefined=True by default
 # "Undefined attribute 'typo' on User object in page.html:5"
 ```
+
+Opt out per-Environment with `strict_undefined=False` if you need empty-string fallback for missing attributes.
 
 ### SecurityError
 

@@ -17,7 +17,7 @@ class TestExceptSyntaxFixes:
 
     def test_safe_getattr_catches_typeerror_on_subscript(self) -> None:
         """safe_getattr on non-subscriptable object returns '' not TypeError."""
-        env = Environment()
+        env = Environment(strict_undefined=False)
         # An object that has no __getitem__ — subscript access raises TypeError.
         # Before the fix, only KeyError was caught; TypeError would propagate.
 
@@ -409,7 +409,7 @@ class TestUndefinedGet:
 
     def test_get_no_default_renders_empty(self) -> None:
         """UNDEFINED.get('key') renders as '' in template output."""
-        env = Environment()
+        env = Environment(strict_undefined=False)
         tmpl = env.from_string("{{ obj.missing.get('key') }}")
         result = tmpl.render(obj={})
         assert result == ""
