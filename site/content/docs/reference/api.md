@@ -43,7 +43,7 @@ env = Environment(
 | `fragment_ttl` | `float` | `300.0` | Fragment TTL (seconds) |
 | `static_context` | `dict \| None` | `None` | Values for compile-time partial evaluation |
 | `strict_undefined` | `bool` | `False` | Raise on missing attribute access |
-| `jinja2_compat_warnings` | `bool` | `False` | Warn on `{% set %}` scoping differences |
+| `jinja2_compat_warnings` | `bool` | `True` | Warn when nested `{% set %}` shadows a `{% let %}`/`{% export %}` name |
 | `validate_calls` | `bool` | `False` | Validate `{% def %}` call sites at compile time |
 
 ### Methods
@@ -634,7 +634,7 @@ Compile-time warnings emitted during template compilation:
 |-------|------|-------------|
 | `PrecedenceWarning` | K-WARN-001 | `\|` binds tighter than `??` |
 | `CoercionWarning` | — | Silent type coercion in filters (e.g. `"abc" \| float` → `0.0`) |
-| `MigrationWarning` | K-WARN-002 | `{% set %}` scoping differs from Jinja2 |
+| `MigrationWarning` | K-WARN-002 | Nested `{% set %}` shadows a `{% let %}`/`{% export %}` name (Jinja2 scoping trap) |
 
 These are standard Python warnings and can be filtered with `warnings.filterwarnings`.
 

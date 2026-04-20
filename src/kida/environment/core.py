@@ -169,7 +169,9 @@ class Environment:
     strict_none: bool = False  # When True, sorting with None values raises detailed errors
     strict_undefined: bool = False  # When True, missing attribute access raises UndefinedError
     jinja2_compat_warnings: bool = (
-        False  # When True, warn on {% set %} inside blocks (Jinja2 scoping difference)
+        True  # Warn when a nested {% set %} shadows an outer {% let %}/{% export %} binding
+        # (the Jinja2 scoping trap). Set False to silence; or filter MigrationWarning
+        # via warnings.filterwarnings.
     )
 
     # Template Introspection (RFC: kida-template-introspection)

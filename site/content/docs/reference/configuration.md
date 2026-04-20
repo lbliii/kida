@@ -309,18 +309,26 @@ When enabled, `{{ user.typo }}` raises immediately instead of rendering as empty
 
 ### jinja2_compat_warnings
 
-Emit `MigrationWarning` when `{% set %}` is used inside blocks where Jinja2 scoping would differ from Kida.
+Emit `MigrationWarning` when a nested `{% set %}` shadows a name already bound template-wide via `{% let %}` or `{% export %}` — the Jinja2 scoping trap.
 
 | Type | Default | Description |
 |------|---------|-------------|
-| `bool` | `False` | Warn on Jinja2 scoping differences |
+| `bool` | `True` | Warn on nested `{% set %}` that shadows a template-scope binding |
 
 ```python
-# Enable for migration (recommended when porting from Jinja2)
+# Default — catches the Jinja2 trap
 jinja2_compat_warnings=True
+
+# Silence the warning entirely
+jinja2_compat_warnings=False
+
+# Or filter via stdlib warnings:
+# warnings.filterwarnings("ignore", category=MigrationWarning)
 ```
 
-When enabled, using `{% set x = ... %}` inside `{% if %}`, `{% for %}`, or other blocks emits a `MigrationWarning` (K-WARN-002) explaining that `{% set %}` is block-scoped in Kida and does not leak to the outer scope. The warning suggests `{% export %}` or `{% let %}` as alternatives.
+When enabled, a template like `{% let x = 1 %}{% if cond %}{% set x = 2 %}{% end %}` emits a `MigrationWarning` (K-WARN-002) — in Jinja2 the author would expect `x == 2` after the block, but Kida's block-scoped `{% set %}` leaves `x == 1`. The warning names the shadowed variable and suggests `{% export %}` as the fix.
+
+The warning is **narrowly scoped** to the actual trap pattern: fresh names used for genuine block-scoped purposes (e.g., a loop-local counter) do not trigger — Kida and Jinja2 behave identically there.
 
 ### fstring_coalescing
 

@@ -15,6 +15,20 @@ if TYPE_CHECKING:
     from kida.nodes import Export, Let, Node, Set
 
 
+def _collect_target_names(target: Node) -> list[str]:
+    """Walk a Set/Let/Export target node, returning all bound names."""
+    from kida.nodes import Name as KidaName
+    from kida.nodes import Tuple as KidaTuple
+
+    names: list[str] = []
+    if isinstance(target, KidaName):
+        names.append(target.name)
+    elif isinstance(target, KidaTuple):
+        for item in target.items:
+            names.extend(_collect_target_names(item))
+    return names
+
+
 class VariableAssignmentMixin:
     """Mixin for compiling variable assignment statements.
 
@@ -29,6 +43,7 @@ class VariableAssignmentMixin:
     if TYPE_CHECKING:
         # Host attributes (from Compiler.__init__)
         _block_counter: int
+        _template_scope_names: set[str]
 
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
@@ -48,15 +63,27 @@ class VariableAssignmentMixin:
             {% set x ??= "default" %}
         """
         if self._scope_depth > 0 and self._env.jinja2_compat_warnings:
-            from kida.exceptions import ErrorCode
+            # Narrow to the actual Jinja2 trap: a nested {% set %} that
+            # shadows a name already bound template-wide via {% let %} or
+            # {% export %}. Fresh names used for genuine block-scoped
+            # purposes don't trigger — the two engines behave identically
+            # there, so there's nothing to warn about.
+            shadowed = [
+                n for n in _collect_target_names(node.target) if n in self._template_scope_names
+            ]
+            if shadowed:
+                from kida.exceptions import ErrorCode
 
-            self._emit_warning(
-                ErrorCode.JINJA2_SET_SCOPING,
-                "{% set %} is block-scoped in Kida (does not leak to outer scope). "
-                "In Jinja2, {% set %} would modify the outer variable.",
-                lineno=node.lineno,
-                suggestion="Use {% export %} to write to outer scope, or {% let %} for template-wide assignment.",
-            )
+                name = shadowed[0]
+                self._emit_warning(
+                    ErrorCode.JINJA2_SET_SCOPING,
+                    f"{{% set %}} assigns to '{name}' which is already bound "
+                    f"by {{% let %}} or {{% export %}}. In Kida, this creates "
+                    f"a block-scoped shadow that does not leak to outer scope. "
+                    f"In Jinja2, {{% set %}} would modify the outer variable.",
+                    lineno=node.lineno,
+                    suggestion=f"Use {{% export {name} = ... %}} to write to outer scope.",
+                )
         stmts = self._compile_block_scoped_assignment(node.target, node.value)
         if node.coalesce:
             return self._wrap_coalesce_guard(node.target, stmts)
@@ -71,6 +98,9 @@ class VariableAssignmentMixin:
         With ??=, assigns only if the variable is undefined or None:
             {% let x ??= "default" %}
         """
+        # Record the name(s) as template-scope-bound so nested {% set %}
+        # can detect the Jinja2 shadowing trap.
+        self._template_scope_names.update(_collect_target_names(node.name))
         stmts = self._compile_assignment(node.name, node.value)
         if node.coalesce:
             return self._wrap_coalesce_guard(node.name, stmts)
@@ -87,6 +117,8 @@ class VariableAssignmentMixin:
         With ??=, exports only if the variable is undefined or None:
             {% export x ??= "default" %}
         """
+        # Record the name(s) as template-scope-bound for trap detection.
+        self._template_scope_names.update(_collect_target_names(node.name))
         stmts = self._compile_export_assignment(node.name, node.value)
         if node.coalesce:
             return self._wrap_coalesce_guard(node.name, stmts)

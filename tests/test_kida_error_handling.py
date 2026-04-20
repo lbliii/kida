@@ -131,6 +131,92 @@ class TestSyntaxErrors:
         assert "hyphen" in str(err).lower()
 
 
+class TestJinja2TrapHints:
+    """Parser errors for Jinja2-isms must point at the Kida answer directly."""
+
+    @pytest.fixture
+    def env(self) -> Environment:
+        return Environment()
+
+    def test_macro_keyword_hint(self, env: Environment) -> None:
+        """`{% macro %}` error suggests `{% def %}`."""
+        from kida.parser.errors import ParseError
+
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% macro foo() %}x{% end %}")
+        msg = str(exc_info.value)
+        assert "Unknown block keyword: macro" in msg
+        assert "{% def %}" in msg
+
+    def test_endmacro_keyword_hint(self, env: Environment) -> None:
+        """`{% endmacro %}` error directs to unified `{% end %}`."""
+        from kida.parser.errors import ParseError
+
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% def foo() %}x{% endmacro %}")
+        msg = str(exc_info.value)
+        assert "Unknown block keyword: endmacro" in msg
+        assert "unified {% end %}" in msg
+
+    def test_namespace_keyword_hint(self, env: Environment) -> None:
+        """`{% namespace %}` error points at {% let %} / {% export %}."""
+        from kida.parser.errors import ParseError
+
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% namespace ns %}x{% end %}")
+        msg = str(exc_info.value)
+        assert "Unknown block keyword: namespace" in msg
+        assert "no namespace()" in msg
+        assert "{% export" in msg
+
+    def test_fill_keyword_hint(self, env: Environment) -> None:
+        """`{% fill %}` error directs to `{% slot %}` inside `{% call %}`."""
+        from kida.parser.errors import ParseError
+
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% fill name %}x{% end %}")
+        msg = str(exc_info.value)
+        assert "Unknown block keyword: fill" in msg
+        assert "{% slot name %}" in msg
+        assert "{% call %}" in msg
+
+    def test_endset_keyword_hint(self, env: Environment) -> None:
+        """`{% endset %}` (Jinja2 block capture) directs to `{% capture %}`."""
+        from kida.parser.errors import ParseError
+
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% capture x %}y{% endset %}")
+        msg = str(exc_info.value)
+        assert "Unknown block keyword: endset" in msg
+        assert "{% capture" in msg
+
+    def test_non_trap_unknown_keyword_no_hint(self, env: Environment) -> None:
+        """Unknown keywords NOT in the trap table produce only the valid-keywords list (no Jinja2 hint)."""
+        from kida.parser.errors import ParseError
+
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% qwertyuiop %}")
+        msg = str(exc_info.value)
+        assert "Unknown block keyword: qwertyuiop" in msg
+        assert "Valid keywords:" in msg
+        # None of the Jinja2-trap hint phrases should leak in:
+        assert "no namespace()" not in msg
+        assert "macros" not in msg
+        assert "{% slot name %}" not in msg
+
+    def test_trap_hint_precedes_valid_keywords_list(self, env: Environment) -> None:
+        """The actionable trap hint must appear BEFORE the generic valid-keywords list."""
+        from kida.parser.errors import ParseError
+
+        with pytest.raises(ParseError) as exc_info:
+            env.from_string("{% macro foo() %}x{% end %}")
+        msg = str(exc_info.value)
+        hint_idx = msg.find("{% def %}")
+        valid_idx = msg.find("Valid keywords:")
+        assert hint_idx != -1 and valid_idx != -1
+        assert hint_idx < valid_idx
+
+
 class TestRuntimeErrors:
     """Test runtime error handling."""
 

@@ -451,10 +451,16 @@ class TestExpressionStatements:
 
 
 class TestMigrationWarnings:
-    """Jinja2 compatibility warnings for set scoping differences."""
+    """Jinja2 compatibility warnings for set scoping differences.
 
-    def test_set_in_for_emits_warning(self):
-        """{% set %} inside {% for %} warns when jinja2_compat_warnings=True."""
+    The warning is narrowed to the actual trap pattern: a nested {% set %}
+    that shadows a name already bound template-wide via {% let %} or
+    {% export %}. Fresh names used for genuine block-scoped purposes do
+    not warn — the two engines behave identically there.
+    """
+
+    def test_let_then_set_emits_warning(self):
+        """{% let x %} then nested {% set x %} — the canonical Jinja2 trap."""
         import warnings
 
         from kida import MigrationWarning
@@ -471,13 +477,59 @@ class TestMigrationWarnings:
             )
         migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
         assert len(migration_warnings) == 1
-        assert "block-scoped" in str(migration_warnings[0].message)
-        assert "Jinja2" in str(migration_warnings[0].message)
-        # Template still works correctly — set is block-scoped
+        msg = str(migration_warnings[0].message)
+        assert "'count'" in msg
+        assert "let" in msg or "export" in msg
+        # Template still renders correctly — set is block-scoped
         assert tmpl.render(items=[1, 2, 3]) == "0"
 
-    def test_set_in_if_emits_warning(self):
-        """{% set %} inside {% if %} warns when jinja2_compat_warnings=True."""
+    def test_export_then_set_emits_warning(self):
+        """{% export x %} earlier in template then nested {% set x %} — also a trap."""
+        import warnings
+
+        from kida import MigrationWarning
+
+        env = Environment(jinja2_compat_warnings=True)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            env.from_string(
+                "{% for i in [1,2] %}{% export total = i %}{% end %}"
+                "{% if true %}{% set total = 99 %}{% end %}"
+                "{{ total }}"
+            )
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert len(migration_warnings) == 1
+        assert "'total'" in str(migration_warnings[0].message)
+
+    def test_kida_native_block_scoped_no_warning(self):
+        """Fresh name used for legit block-scoped purpose — no warning, no regression."""
+        import warnings
+
+        from kida import MigrationWarning
+
+        env = Environment(jinja2_compat_warnings=True)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # 'y' has no outer binding anywhere — pure Kida-native usage.
+            env.from_string("{% for x in [1,2] %}{% set y = x*2 %}{{ y }}{% end %}")
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert len(migration_warnings) == 0
+
+    def test_loop_var_shadowing_no_warning(self):
+        """{% set %} shadowing a loop var — same behavior in both engines, no trap."""
+        import warnings
+
+        from kida import MigrationWarning
+
+        env = Environment(jinja2_compat_warnings=True)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            env.from_string("{% for x in [1,2] %}{% set x = 999 %}{{ x }}{% end %}")
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert len(migration_warnings) == 0
+
+    def test_set_in_block_fresh_name_no_warning(self):
+        """{% set %} inside {% if %} with a fresh name does not warn."""
         import warnings
 
         from kida import MigrationWarning
@@ -487,7 +539,7 @@ class TestMigrationWarnings:
             warnings.simplefilter("always")
             env.from_string("{% if true %}{% set x = 1 %}{% end %}")
         migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
-        assert len(migration_warnings) == 1
+        assert len(migration_warnings) == 0
 
     def test_set_at_top_level_no_warning(self):
         """{% set %} at top level does not warn (no scoping difference)."""
@@ -503,22 +555,23 @@ class TestMigrationWarnings:
         assert len(migration_warnings) == 0
 
     def test_no_warning_without_flag(self):
-        """{% set %} inside block does not warn by default."""
+        """Trap pattern does not warn when jinja2_compat_warnings=False."""
         import warnings
 
         from kida import MigrationWarning
 
-        env = Environment()  # jinja2_compat_warnings defaults to False
+        env = Environment(jinja2_compat_warnings=False)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            env.from_string("{% for x in items %}{% set y = x %}{% end %}")
+            env.from_string("{% let x = 1 %}{% if true %}{% set x = 2 %}{% end %}")
         migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
         assert len(migration_warnings) == 0
 
     def test_template_warnings_property(self):
-        """Migration warnings appear in template.warnings."""
+        """Migration warnings appear in template.warnings for trap patterns."""
         env = Environment(jinja2_compat_warnings=True)
-        tmpl = env.from_string("{% if true %}{% set x = 1 %}{% end %}")
+        tmpl = env.from_string("{% let x = 1 %}{% if true %}{% set x = 2 %}{% end %}")
         assert len(tmpl.warnings) == 1
         assert tmpl.warnings[0].code.value == "K-WARN-002"
         assert "set" in tmpl.warnings[0].message.lower()
+        assert "'x'" in tmpl.warnings[0].message

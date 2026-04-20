@@ -160,6 +160,7 @@ class Compiler(
         "_outer_caller_expr",
         "_scope_override",
         "_streaming",
+        "_template_scope_names",
     )
 
     # Class-level dispatch table: node type name → unbound method name.
@@ -250,6 +251,11 @@ class Compiler(
         self._declared_definitions: set[str] = set()
         # Track loop variables for include scope propagation
         self._loop_vars: set[str] = set()
+        # Names bound by {% let %} / {% export %} — template-scope visible.
+        # Used to narrow the {% set %}-inside-block migration warning: the
+        # Jinja2 scoping trap only fires when the author expects a nested
+        # {% set %} to mutate a template-scope name.
+        self._template_scope_names: set[str] = set()
         # Lexical caller scoping: def → call → caller() (reset in compile())
         self._def_caller_stack: list[ast.expr] = []
         self._outer_caller_expr: ast.expr | None = None
@@ -577,6 +583,7 @@ class Compiler(
         self._precomputed = []  # Reset precomputed for each compilation
         self._precomputed_ids = {}
         self._declared_definitions = set()
+        self._template_scope_names = set()
 
         # Validate top-level placement of {% def %} / {% region %}: nesting
         # inside control-flow constructs (if/for/with/provide/...) prevents

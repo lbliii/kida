@@ -60,6 +60,20 @@ Parser errors occur when building the template AST from tokens.
 
 Fix: Check syntax around the reported line. Common causes: misplaced `{% end %}`, invalid tag name, or malformed expression.
 
+#### Coming from Jinja2?
+
+When you type a Jinja2-ism that Kida does not accept, the parser error suggestion points at the Kida equivalent. Common traps:
+
+| Jinja2 | Kida | Hint surfaced by parser |
+|--------|------|------------------------|
+| `{% macro name(...) %}` | `{% def name(...) %}` | "Kida uses `{% def %}` for macros" |
+| `{% endmacro %}` | `{% end %}` | "Kida uses unified `{% end %}` for all blocks" |
+| `{% namespace ns %}` / `namespace(count=0)` | `{% let %}` + `{% export %}` | "Kida has no `namespace()` — use `{% let %}` / `{% export %}`" |
+| `{% fill name %}` | `{% slot name %}` inside `{% call %}` | "Kida has no `{% fill %}` tag" |
+| `{% set x %}...{% endset %}` | `{% capture x %}...{% end %}` | "Kida uses unified `{% end %}` for block-capture" |
+
+See [Migrating from Jinja2]({{< ref "docs/tutorials/migrate-from-jinja2" >}}) for the complete translation table.
+
 ### k-par-002
 
 **Unclosed block** — A block tag (e.g. `{% if %}`, `{% for %}`) was not closed with `{% end %}`.
@@ -270,9 +284,11 @@ Fix: Add parentheses to clarify intent: `(x ?? []) | length`.
 
 ### k-warn-002
 
-**Jinja2 `set` scoping difference** — `{% set %}` is block-scoped in Kida (does not leak out of `{% if %}`, `{% for %}`, etc.). In Jinja2, `{% set %}` modifies the outer scope.
+**Jinja2 `set` scoping difference** — A nested `{% set x = ... %}` targets a name already bound template-wide via `{% let x %}` or `{% export x %}`. In Kida this creates a block-scoped shadow that does not leak to outer scope; in Jinja2 it would modify the outer variable.
 
-Fix: Use `{% export %}` to write to the outer scope, or `{% let %}` for template-wide assignment. Enable this warning with `Environment(jinja2_compat_warnings=True)`.
+Fix: Use `{% export x = ... %}` to write to outer scope, or rename the target to avoid the shadow.
+
+Enabled by default. Suppress with `warnings.filterwarnings("ignore", category=MigrationWarning)` or `Environment(jinja2_compat_warnings=False)`. The warning is narrowed to the actual trap pattern — fresh names used for genuine block-scoped work do not trigger.
 
 ## See Also
 

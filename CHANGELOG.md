@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Parser error hints for Jinja2 traps** — When a template uses a Jinja2-only block keyword that Kida does not accept, the `K-PAR-001` ParseError now prepends a targeted suggestion before the generic "Valid keywords: …" list. Covers `macro` → `{% def %}`, `endmacro`/`endset` → unified `{% end %}`, `namespace` → `{% let %}`/`{% export %}`, and `fill`/`endfill` → `{% slot %}` inside `{% call %}`. The trap table lives in `kida.parser.errors.JINJA2_TRAPS` and is data-only — easy to extend as new traps surface.
+
+### Fixed
+
+- **Docs: `{% macro %}` false claim corrected** — `CLAUDE.md`, `docs/syntax/_index.md`, `docs/syntax/functions.md`, `docs/tutorials/migrate-from-jinja2.md`, `.cursor/skills/kida-jinja2-migration/SKILL.md`, and `releases/0.1.0.md` previously implied `{% macro %}` was a valid Kida keyword. It is not (attempts raise `K-PAR-001: Unknown block keyword: macro`). Docs now clearly state that `{% macro %}` must be renamed to `{% def %}` when migrating from Jinja2.
+
+### Changed
+
+- **`jinja2_compat_warnings` defaults to `True`** — `MigrationWarning` (K-WARN-002) now fires out of the box on the canonical Jinja2 `{% set %}` scoping trap (nested `{% set x %}` shadowing an outer `{% let x %}` or `{% export x %}`). The warning was previously silent unless users opted in. The trigger is **narrowly scoped** to the actual trap pattern — fresh names used for legitimate block-scoped work (e.g., loop-local counters) do not warn. Suppress via `Environment(jinja2_compat_warnings=False)` or `warnings.filterwarnings("ignore", category=MigrationWarning)`. Warning message now names the shadowed variable and the shadowing source (`{% let %}` or `{% export %}`) for actionable diagnostics.
+
 ## [0.6.0] - 2026-04-13
 
 ### Added

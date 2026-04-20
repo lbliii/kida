@@ -13,6 +13,16 @@ if TYPE_CHECKING:
     from kida._types import Token
 
 
+JINJA2_TRAPS: dict[str, str] = {
+    "macro": "Kida uses {% def %} for macros — {% def name(...) %}...{% end %} (supports caller() and named slots).",
+    "endmacro": "Kida uses unified {% end %} for all blocks — {% def ... %}...{% end %}.",
+    "namespace": "Kida has no namespace() — use {% let %} at template scope, or {% export x = ... %} to write to outer scope from inside a block.",
+    "endset": "Kida uses unified {% end %} for block-capture. Prefer {% capture x %}...{% end %} or {% let x %}...{% end %}.",
+    "fill": "Kida has no {% fill %} tag — use {% slot name %}...{% end %} inside a {% call %} block.",
+    "endfill": "Kida has no {% fill %}/{% endfill %} — use {% slot name %}...{% end %} inside a {% call %} block.",
+}
+
+
 class ParseError(TemplateSyntaxError):
     """Parser error with rich source context.
 

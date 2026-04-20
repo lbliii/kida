@@ -181,7 +181,7 @@ Or use a single-quoted attribute with default `tojson`, or a JSON `<script>` tag
 | `{% endif %}` | `{% end %}` | Unified block ending |
 | `{% endfor %}` | `{% end %}` | Unified block ending |
 | `{% endblock %}` | `{% end %}` | Unified block ending |
-| `{% macro %}` | `{% def %}` | `{% macro %}` also works but `{% def %}` is preferred |
+| `{% macro %}` | `{% def %}` | `{% macro %}` is NOT a valid keyword in Kida — rename to `{% def %}` |
 | `{{ super() }}` | N/A | No super() — use extension blocks |
 | `{% set x = ... %}` | `{% let x = ... %}` | Kida `set` is block-scoped, not template-wide |
 | `namespace(count=0)` | `{% let count = 0 %}` + `{% export %}` | No namespace() in Kida |
