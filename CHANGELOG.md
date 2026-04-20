@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **v0.7 upgrade tutorial** — New `docs/tutorials/upgrade-to-v0.7.md` collects the `strict_undefined=True` migration patterns in one page: TL;DR, the three fix patterns (`is defined`, `??`, `| default`), the `strict_undefined=False` escape hatch, and the preferred `?.` / `?[` / `| get` idioms. Cross-linked from `README.md`, the tutorials index, and the `UndefinedError` troubleshooting page.
+- **Null-safe hint on `UndefinedError`** — When `kind="attribute/key"`, the error message now includes a second `Hint:` line pointing users at `x?.y`, `x?["y"]`, `x.y ?? ''`, and `x | get("y", '')` so they stop reaching for `.get("k", "")` under strict mode. Variable-kind errors are unchanged.
+- **Docs: optional chaining surfaced in `docs/syntax/variables.md`** — Added dedicated `?.` and `?[...]` subsections under Attribute Access and Index Access. These operators were previously mentioned only in pipeline examples.
+
+### Fixed
+
+- **`from_string()` without `name=` warning now dedups per-source** — The `UserWarning` fired when a bytecode cache is configured and `from_string()` is called without `name=` previously fired on every call (~1000× per test suite for downstream libraries). It now fires once per distinct source per `Environment`, keyed by `bytecode_cache.hash_source(source)`. The first emission and warning text are unchanged, so the discoverability signal is preserved while the spam is eliminated. Two `Environment` instances warn independently; editing the template source re-arms the warning.
+
 ## [0.7.0] - 2026-04-20
 
 ### Breaking

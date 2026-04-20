@@ -19,6 +19,10 @@ icon: alert-circle
 
 Debug `UndefinedError` exceptions.
 
+:::tip[Upgrading from 0.6.x?]
+`strict_undefined=True` became the default in 0.7.0. If you are hitting a wave of `UndefinedError` exceptions after an upgrade, see [[docs/tutorials/upgrade-to-v0.7|Upgrade to 0.7]] for the three fix patterns and the escape hatch.
+:::
+
 ## The Error
 
 ```
@@ -151,6 +155,49 @@ Under the default **strict mode**, missing attributes raise `UndefinedError`. Us
 ```kida
 {{ user.name ?? "Unknown" }}
 ```
+
+## Prefer Null-Safe Operators
+
+Under `strict_undefined=True`, reaching for Python's `.get("k", "")` inside templates adds noise at every call site. Kida ships with first-class null-safe operators — prefer these:
+
+### Optional Chaining — `?.` and `?[...]` (receiver-only short-circuit)
+
+`?.` and `?[...]` short-circuit when the **receiver** is `None` or undefined. They do not suppress missing-key / missing-attribute errors on a defined receiver:
+
+```kida
+{# Receiver-None case — yields "" #}
+{{ config?.theme }}        {# config = None → "" #}
+
+{# Defined receiver, missing key — still raises under strict mode #}
+{{ config?.theme }}        {# config = {} → UndefinedError #}
+
+{# Safe in both directions — add ?? or | default for missing keys #}
+{{ config?.theme ?? "" }}
+{{ settings?["theme"] ?? "light" }}
+```
+
+### `| get(key, default)` Filter — drop-in for `dict.get`
+
+```kida
+{# Closest to Python's dict.get("k", default) — handles None receiver AND missing key #}
+{{ config | get("theme", "light") | upper }}
+```
+
+Handles dicts, objects, and `None` uniformly — and, unlike `?.` alone, also catches missing keys.
+
+### Chaining
+
+```kida
+{# Deep access with a named fallback #}
+{{ user?.profile?.bio ?? "No bio yet" }}
+
+{# Null-safe filter pipeline #}
+{{ config ?| get("theme") ?? "light" }}
+```
+
+:::tip[Coming from Jinja2?]
+Jinja2 lacks these operators, so a common Jinja2 pattern is `{{ config.get("theme", "") | upper }}` (using `dict.get`). That still works in Kida, but `{{ config?.theme | upper }}` is the preferred Kida idiom.
+:::
 
 ## Debug Tips
 
