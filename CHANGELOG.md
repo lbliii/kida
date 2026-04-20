@@ -7,21 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-20
+
 ### Breaking
 
-- **`strict_undefined` now defaults to `True`** — `Environment(strict_undefined=...)` flipped from `False` (lenient) to `True` (strict) to match the documented "strict-by-default" stance. Missing variables **and** missing attribute access raise `UndefinedError` with a descriptive message (variable/attribute/key). Previously the flag was opt-in and missing attributes silently rendered as `""`, contradicting the `__init__.py` docstring. **Migration**: use `is defined`, `??` (null-coalescing), or `| default(...)` — e.g. `{% if user.nickname is defined and user.nickname %}...{% end %}`, `{{ user.nickname ?? "" }}`, or `{{ user.nickname | default("") }}`. **Escape hatch**: pass `strict_undefined=False` on the Environment to restore the prior lenient behavior (transitional shim).
+- **`strict_undefined` now defaults to `True`** — `Environment(strict_undefined=...)` flipped from `False` (lenient) to `True` (strict) to match the documented "strict-by-default" stance. Missing variables **and** missing attribute access raise `UndefinedError` with a descriptive message (variable/attribute/key). Previously the flag was opt-in and missing attributes silently rendered as `""`, contradicting the `__init__.py` docstring. **Migration**: use `is defined`, `??` (null-coalescing), or `| default(...)` — e.g. `{% if user.nickname is defined and user.nickname %}...{% end %}`, `{{ user.nickname ?? "" }}`, or `{{ user.nickname | default("") }}`. **Escape hatch**: pass `strict_undefined=False` on the Environment to restore the prior lenient behavior (transitional shim). (#107)
 
 ### Added
 
-- **Parser error hints for Jinja2 traps** — When a template uses a Jinja2-only block keyword that Kida does not accept, the `K-PAR-001` ParseError now prepends a targeted suggestion before the generic "Valid keywords: …" list. Covers `macro` → `{% def %}`, `endmacro`/`endset` → unified `{% end %}`, `namespace` → `{% let %}`/`{% export %}`, and `fill`/`endfill` → `{% slot %}` inside `{% call %}`. The trap table lives in `kida.parser.errors.JINJA2_TRAPS` and is data-only — easy to extend as new traps surface.
+- **Parser error hints for Jinja2 traps** — When a template uses a Jinja2-only block keyword that Kida does not accept, the `K-PAR-001` ParseError now prepends a targeted suggestion before the generic "Valid keywords: …" list. Covers `macro` → `{% def %}`, `endmacro`/`endset` → unified `{% end %}`, `namespace` → `{% let %}`/`{% export %}`, and `fill`/`endfill` → `{% slot %}` inside `{% call %}`. The trap table lives in `kida.parser.errors.JINJA2_TRAPS` and is data-only — easy to extend as new traps surface. (#106)
+- **RenderCapture** — Block-level capture, search indexing, and freeze cache. (#99)
+- **Reject non-top-level `{% def %}` / `{% region %}`** — Definitions outside the top level now fail fast at parse time with a retargeted Undefined hint. (#100)
+- **Python 3.14+ idioms** — Adopt `TypedDict`, `match/case`, and `__slots__` across the codebase. (#98)
+- **Render-surface parity corpus & sandbox fuzz** — HTML / terminal / markdown parity corpus, fragment scaffolding, and sandbox fuzz harness for leaf-node hardening. (#103)
+- **`AGENTS.md`** — Contributor safety/values guide for agents working in this repo. (#104)
 
 ### Fixed
 
-- **Docs: `{% macro %}` false claim corrected** — `CLAUDE.md`, `docs/syntax/_index.md`, `docs/syntax/functions.md`, `docs/tutorials/migrate-from-jinja2.md`, `.cursor/skills/kida-jinja2-migration/SKILL.md`, and `releases/0.1.0.md` previously implied `{% macro %}` was a valid Kida keyword. It is not (attempts raise `K-PAR-001: Unknown block keyword: macro`). Docs now clearly state that `{% macro %}` must be renamed to `{% def %}` when migrating from Jinja2.
+- **Docs: `{% macro %}` false claim corrected** — `CLAUDE.md`, `docs/syntax/_index.md`, `docs/syntax/functions.md`, `docs/tutorials/migrate-from-jinja2.md`, `.cursor/skills/kida-jinja2-migration/SKILL.md`, and `releases/0.1.0.md` previously implied `{% macro %}` was a valid Kida keyword. It is not (attempts raise `K-PAR-001: Unknown block keyword: macro`). Docs now clearly state that `{% macro %}` must be renamed to `{% def %}` when migrating from Jinja2. (#106)
+- **CoercionWarning coverage** — Warning now extends to collection/number filters; lint gates added to prevent regressions. (#97)
+- **PrecedenceWarning — parenthesized nullish fallback** — Warning no longer fires when the nullish fallback is explicitly parenthesized. (#96)
+- **GitHub Action default Python version** — Bumped from 3.12 to 3.14 to match project support. (#94)
+- **Leaf-node hardening** — Bug fixes, dead-code removal, and test-gap closure across parser/compiler leaf nodes. (#105)
 
 ### Changed
 
-- **`jinja2_compat_warnings` defaults to `True`** — `MigrationWarning` (K-WARN-002) now fires out of the box on the canonical Jinja2 `{% set %}` scoping trap (nested `{% set x %}` shadowing an outer `{% let x %}` or `{% export x %}`). The warning was previously silent unless users opted in. The trigger is **narrowly scoped** to the actual trap pattern — fresh names used for legitimate block-scoped work (e.g., loop-local counters) do not warn. Suppress via `Environment(jinja2_compat_warnings=False)` or `warnings.filterwarnings("ignore", category=MigrationWarning)`. Warning message now names the shadowed variable and the shadowing source (`{% let %}` or `{% export %}`) for actionable diagnostics.
+- **`jinja2_compat_warnings` defaults to `True`** — `MigrationWarning` (K-WARN-002) now fires out of the box on the canonical Jinja2 `{% set %}` scoping trap (nested `{% set x %}` shadowing an outer `{% let x %}` or `{% export x %}`). The warning was previously silent unless users opted in. The trigger is **narrowly scoped** to the actual trap pattern — fresh names used for legitimate block-scoped work (e.g., loop-local counters) do not warn. Suppress via `Environment(jinja2_compat_warnings=False)` or `warnings.filterwarnings("ignore", category=MigrationWarning)`. Warning message now names the shadowed variable and the shadowing source (`{% let %}` or `{% export %}`) for actionable diagnostics. (#106)
 
 ## [0.6.0] - 2026-04-13
 
