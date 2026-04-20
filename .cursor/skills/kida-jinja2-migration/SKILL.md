@@ -16,6 +16,7 @@ Jinja2 uses tag-specific endings. Kida uses one:
 | `{% endif %}` | `{% end %}` |
 | `{% endfor %}` | `{% end %}` |
 | `{% endblock %}` | `{% end %}` |
+| `{% macro name(...) %}` | `{% def name(...) %}` (Kida has no `{% macro %}` keyword) |
 | `{% endmacro %}` | `{% end %}` |
 
 ```kida

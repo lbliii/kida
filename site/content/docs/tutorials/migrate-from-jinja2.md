@@ -180,6 +180,7 @@ def is_prime(n):
 | `{% endif %}` | `{% end %}` |
 | `{% endfor %}` | `{% end %}` |
 | `{% endblock %}` | `{% end %}` |
+| `{% macro name(...) %}` | `{% def name(...) %}` (Kida has no `{% macro %}` keyword) |
 | `{% endmacro %}` | `{% end %}` |
 | `{{ x \| filter }}` | `{{ x \|> filter }}` (pipeline) |
 | `{% if %}...{% elif %}...{% endif %}` | `{% match %}...{% case %}...{% end %}` |

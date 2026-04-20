@@ -298,10 +298,15 @@ class StatementParsingMixin:
         if ext is not None:
             return ext.parse(self, keyword)
 
-        # Unknown keyword
+        # Unknown keyword — include Jinja2 trap hint when applicable
+        from kida.parser.errors import JINJA2_TRAPS
+
+        valid_list = f"Valid keywords: {', '.join(sorted(_VALID_KEYWORDS | ext_tags.keys()))}"
+        trap_hint = JINJA2_TRAPS.get(keyword)
+        suggestion = f"{trap_hint}\n\n{valid_list}" if trap_hint else valid_list
         raise self._error(
             f"Unknown block keyword: {keyword}",
-            suggestion=f"Valid keywords: {', '.join(sorted(_VALID_KEYWORDS | ext_tags.keys()))}",
+            suggestion=suggestion,
         )
 
     def _handle_end_keyword(self, keyword: str) -> None:
