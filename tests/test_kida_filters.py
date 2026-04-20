@@ -102,6 +102,138 @@ class TestStringFilters:
         assert "    world" in result
 
 
+class TestStringFilterEdges:
+    """Edge cases for slug, pluralize, format, wordcount, trim, replace."""
+
+    # ─── slug ──────────────────────────────────────────────────
+    def test_slug_basic(self, env):
+        tmpl = env.from_string('{{ "Hello World" | slug }}')
+        assert tmpl.render() == "hello-world"
+
+    def test_slug_collapses_runs(self, env):
+        tmpl = env.from_string('{{ "  foo   bar  " | slug }}')
+        assert tmpl.render() == "foo-bar"
+
+    def test_slug_strips_leading_trailing_hyphens(self, env):
+        tmpl = env.from_string('{{ "!!!hello!!!" | slug }}')
+        assert tmpl.render() == "hello"
+
+    def test_slug_drops_non_ascii(self, env):
+        tmpl = env.from_string('{{ "café résumé" | slug }}')
+        assert tmpl.render() == "caf-r-sum"
+
+    def test_slug_none(self, env):
+        tmpl = env.from_string("{{ none | slug }}")
+        assert tmpl.render() == ""
+
+    def test_slug_numeric_preserved(self, env):
+        tmpl = env.from_string('{{ "Item 42" | slug }}')
+        assert tmpl.render() == "item-42"
+
+    def test_slug_only_punctuation(self, env):
+        tmpl = env.from_string('{{ "!!!" | slug }}')
+        assert tmpl.render() == ""
+
+    # ─── pluralize ────────────────────────────────────────────
+    def test_pluralize_one(self, env):
+        tmpl = env.from_string("{{ 1 | pluralize }}")
+        assert tmpl.render() == ""
+
+    def test_pluralize_zero_uses_plural(self, env):
+        # Django convention: 0 → plural
+        tmpl = env.from_string("{{ 0 | pluralize }}")
+        assert tmpl.render() == "s"
+
+    def test_pluralize_many(self, env):
+        tmpl = env.from_string("{{ 5 | pluralize }}")
+        assert tmpl.render() == "s"
+
+    def test_pluralize_custom_suffix(self, env):
+        tmpl = env.from_string("{{ 3 | pluralize('es') }}")
+        assert tmpl.render() == "es"
+
+    def test_pluralize_comma_split_one(self, env):
+        # _string.py:172-174 — comma in suffix means singular,plural
+        tmpl = env.from_string("{{ 1 | pluralize('y,ies') }}")
+        assert tmpl.render() == "y"
+
+    def test_pluralize_comma_split_many(self, env):
+        tmpl = env.from_string("{{ 2 | pluralize('y,ies') }}")
+        assert tmpl.render() == "ies"
+
+    def test_pluralize_comma_split_strips_whitespace(self, env):
+        # ' y , ies ' → singular 'y', plural 'ies' (split parts are .strip()ped)
+        tmpl = env.from_string("{{ 1 | pluralize(' y , ies ') }}")
+        assert tmpl.render() == "y"
+
+    def test_pluralize_none_returns_suffix(self, env):
+        tmpl = env.from_string("{{ none | pluralize }}")
+        assert tmpl.render() == "s"
+
+    def test_pluralize_string_numeric_coerced(self, env):
+        tmpl = env.from_string("{{ '5' | pluralize }}")
+        assert tmpl.render() == "s"
+
+    def test_pluralize_non_numeric_raises(self, env):
+        tmpl = env.from_string('{{ "abc" | pluralize }}')
+        with pytest.raises(Exception, match="pluralize expects a number"):
+            tmpl.render()
+
+    # ─── format ───────────────────────────────────────────────
+    def test_format_positional(self, env):
+        tmpl = env.from_string('{{ "{} + {} = {}" | format(1, 2, 3) }}')
+        assert tmpl.render() == "1 + 2 = 3"
+
+    def test_format_keyword(self, env):
+        tmpl = env.from_string('{{ "{name} is {age}" | format(name="Alice", age=30) }}')
+        assert tmpl.render() == "Alice is 30"
+
+    def test_format_numeric_spec(self, env):
+        tmpl = env.from_string('{{ "{:.2f}" | format(3.14159) }}')
+        assert tmpl.render() == "3.14"
+
+    def test_format_no_args(self, env):
+        # No placeholders, no args — just returns the string
+        tmpl = env.from_string('{{ "plain text" | format }}')
+        assert tmpl.render() == "plain text"
+
+    def test_format_percent_with_args_raises(self, env):
+        # %-style format passed with args is a likely bug — should raise
+        tmpl = env.from_string('{{ "%.2f" | format(3.14) }}')
+        with pytest.raises(Exception, match=r"format filter uses str\.format"):
+            tmpl.render()
+
+    def test_format_percent_no_args_passes(self, env):
+        # %-style with no args — Python's str.format leaves it untouched
+        tmpl = env.from_string('{{ "50%" | format }}')
+        assert tmpl.render() == "50%"
+
+    def test_format_braces_no_args(self, env):
+        # has {} but no args — has_args is False, so no early error;
+        # str.format raises IndexError, which Kida wraps as TemplateRuntimeError
+        tmpl = env.from_string('{{ "{}" | format }}')
+        with pytest.raises(Exception, match="Replacement index"):
+            tmpl.render()
+
+    # ─── wordcount ────────────────────────────────────────────
+    def test_wordcount_empty(self, env):
+        tmpl = env.from_string('{{ "" | wordcount }}')
+        assert tmpl.render() == "0"
+
+    def test_wordcount_whitespace_only(self, env):
+        tmpl = env.from_string('{{ "   \t\n  " | wordcount }}')
+        assert tmpl.render() == "0"
+
+    def test_wordcount_multiple_spaces_collapsed(self, env):
+        # str.split() with no args collapses runs of whitespace
+        tmpl = env.from_string('{{ "a    b\t\tc" | wordcount }}')
+        assert tmpl.render() == "3"
+
+    def test_wordcount_non_string_coerced(self, env):
+        tmpl = env.from_string("{{ 42 | wordcount }}")
+        assert tmpl.render() == "1"
+
+
 class TestEscapeFilters:
     """HTML escaping filters."""
 

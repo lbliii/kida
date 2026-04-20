@@ -9,10 +9,11 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
+from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from kida.compiler.utils import get_binop, get_cmpop, get_unaryop
 from kida.exceptions import ErrorCode, TemplateSyntaxError
-from kida.utils.typo_suggestions import suggest_closest
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -77,11 +78,6 @@ class ExpressionCompilationMixin:
         _precomputed: list[Any]
         _precomputed_ids: dict[int, int]
 
-        # From OperatorUtilsMixin
-        def _get_binop(self, op: str) -> ast.operator: ...
-        def _get_unaryop(self, op: str) -> ast.unaryop: ...
-        def _get_cmpop(self, op: str) -> ast.cmpop: ...
-
     def _precomputed_ref(self, value: object) -> ast.Name:
         """Return an ``ast.Name`` referencing a precomputed module-level binding.
 
@@ -99,12 +95,12 @@ class ExpressionCompilationMixin:
 
     def _get_filter_suggestion(self, name: str) -> str | None:
         """Find closest matching filter name for typo suggestions."""
-        matches = suggest_closest(name, self._env._filters.keys(), limit=1)
+        matches = get_close_matches(name, list(self._env._filters.keys()), n=1, cutoff=0.6)
         return matches[0] if matches else None
 
     def _get_test_suggestion(self, name: str) -> str | None:
         """Find closest matching test name for typo suggestions."""
-        matches = suggest_closest(name, self._env._tests.keys(), limit=1)
+        matches = get_close_matches(name, list(self._env._tests.keys()), n=1, cutoff=0.6)
         return matches[0] if matches else None
 
     def _make_deferred_lambda(self, expr: ast.expr) -> ast.Lambda:
@@ -562,20 +558,20 @@ class ExpressionCompilationMixin:
 
             return ast.BinOp(
                 left=left,
-                op=self._get_binop(node.op),
+                op=get_binop(node.op),
                 right=right,
             )
 
         return ast.BinOp(
             left=self._compile_expr(node.left),
-            op=self._get_binop(node.op),
+            op=get_binop(node.op),
             right=self._compile_expr(node.right),
         )
 
     def _compile_unaryop(self, node: Node) -> ast.expr:
         """Compile unary operation."""
         return ast.UnaryOp(
-            op=self._get_unaryop(node.op),
+            op=get_unaryop(node.op),
             operand=self._compile_expr(node.operand),
         )
 
@@ -583,7 +579,7 @@ class ExpressionCompilationMixin:
         """Compile comparison expression."""
         return ast.Compare(
             left=self._compile_expr(node.left),
-            ops=[self._get_cmpop(op) for op in node.ops],
+            ops=[get_cmpop(op) for op in node.ops],
             comparators=[self._compile_expr(c) for c in node.comparators],
         )
 

@@ -14,18 +14,20 @@ def _debug_repr(value: Any, max_len: int = 60) -> str:
 
     type_name = type(value).__name__
 
-    # Special handling for common types
-    if hasattr(value, "title"):
-        title = getattr(value, "title", None)
-        weight = getattr(
-            value,
-            "weight",
-            getattr(value, "metadata", {}).get("weight") if hasattr(value, "metadata") else None,
-        )
-        if title is not None:
-            if weight is not None:
-                return f"{type_name}(title={title!r}, weight={weight})"
-            return f"{type_name}(title={title!r})"
+    # Special handling for "Page-like" domain objects with a string .title.
+    # The isinstance check excludes str/bytes/bytearray/Path etc., whose .title
+    # is a bound method — without it, repr("bar") returns "str(title=<built-in
+    # method title of str object>)" instead of "'bar'".
+    title = getattr(value, "title", None)
+    if isinstance(title, str):
+        weight = getattr(value, "weight", None)
+        if weight is None:
+            metadata = getattr(value, "metadata", None)
+            if isinstance(metadata, dict):
+                weight = metadata.get("weight")
+        if weight is not None:
+            return f"{type_name}(title={title!r}, weight={weight})"
+        return f"{type_name}(title={title!r})"
 
     # Truncate long reprs
     r = repr(value)

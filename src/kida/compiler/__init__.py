@@ -31,9 +31,9 @@ Generated Code Pattern:
     ```
 
 Mixin Architecture:
-- `OperatorUtilsMixin`: Binary/unary operator AST generation
 - `ExpressionCompilationMixin`: Expressions, filters, tests, function calls
 - `StatementCompilationMixin`: Control flow, blocks, macros, includes
+- `kida.compiler.utils`: module-level operator → AST helpers (no mixin)
 
 Thread-Safety:
 Compiler instances are single-use and not thread-safe. Create one per

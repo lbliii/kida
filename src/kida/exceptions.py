@@ -774,9 +774,9 @@ class UndefinedError(TemplateError):
 
         # "Did you mean?" suggestion via fuzzy matching
         if self._available_names:
-            from kida.utils.typo_suggestions import suggest_closest
+            from difflib import get_close_matches
 
-            matches = suggest_closest(self.name, self._available_names, limit=1)
+            matches = get_close_matches(self.name, list(self._available_names), n=1, cutoff=0.6)
             if matches:
                 suggested = terminal.suggestion(matches[0])
                 msg += f". Did you mean '{suggested}'?"
@@ -813,9 +813,9 @@ class UndefinedError(TemplateError):
 
         # "Did you mean?" suggestion
         if self._available_names:
-            from kida.utils.typo_suggestions import suggest_closest
+            from difflib import get_close_matches
 
-            matches = suggest_closest(self.name, self._available_names, limit=1)
+            matches = get_close_matches(self.name, list(self._available_names), n=1, cutoff=0.6)
             if matches:
                 suggested = terminal.suggestion(matches[0])
                 msg += f". Did you mean '{suggested}'?"

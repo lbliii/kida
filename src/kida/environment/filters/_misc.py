@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import random as random_module
+import warnings
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote
+
+from kida.exceptions import CoercionWarning
 
 
 def _filter_get(value: Any, key: str, default: Any = None) -> Any:
@@ -52,13 +55,26 @@ def _filter_date(value: Any, format: str = "%Y-%m-%d") -> str:
         {{ dt | date }} → "2025-02-13"
         {{ dt | date("%b %d, %Y") }} → "Feb 13, 2025"
         {{ none | date }} → ""
+
+    Out-of-range or NaN epochs return "" with a CoercionWarning rather than
+    crashing the render — fromtimestamp() raises OverflowError on values past
+    platform time_t bounds and ValueError on NaN.
     """
     if value is None:
         return ""
     if hasattr(value, "strftime"):
         return value.strftime(format)
     if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value).strftime(format)
+        try:
+            return datetime.fromtimestamp(value).strftime(format)
+        except (OverflowError, ValueError, OSError) as e:
+            warnings.warn(
+                f"Filter 'date' could not convert epoch {value!r} ({type(e).__name__}: {e}), "
+                "returning ''. Validate timestamp ranges or pre-format upstream.",
+                CoercionWarning,
+                stacklevel=2,
+            )
+            return ""
     return ""
 
 
