@@ -160,30 +160,38 @@ Under the default **strict mode**, missing attributes raise `UndefinedError`. Us
 
 Under `strict_undefined=True`, reaching for Python's `.get("k", "")` inside templates adds noise at every call site. Kida ships with first-class null-safe operators — prefer these:
 
-### Optional Chaining — `?.` and `?[...]` (receiver-only short-circuit)
+### Optional Chaining — `?.` and `?[...]` (Mapping-soft, object-strict)
 
-`?.` and `?[...]` short-circuit when the **receiver** is `None` or undefined. They do not suppress missing-key / missing-attribute errors on a defined receiver:
+Since v0.8.0, `?.` and `?[...]` short-circuit to `None` when either:
+
+- The **receiver** is `None` or undefined, **or**
+- The receiver is a **Mapping** (`dict` or `Mapping` subclass) and the key is missing.
+
+Missing attributes on a non-Mapping **object** still raise under strict mode — that's the typo-detection value of `strict_undefined`:
 
 ```kida
-{# Receiver-None case — yields "" #}
+{# Receiver-None — yields "" #}
 {{ config?.theme }}        {# config = None → "" #}
 
-{# Defined receiver, missing key — still raises under strict mode #}
-{{ config?.theme }}        {# config = {} → UndefinedError #}
+{# Mapping miss — yields "" (dict.get() idiom) #}
+{{ config?.theme }}        {# config = {}   → "" #}
 
-{# Safe in both directions — add ?? or | default for missing keys #}
-{{ config?.theme ?? "" }}
+{# Object attr miss — still raises, combine with ?? for safety #}
+{{ user?.nickname ?? "" }}  {# user = User() with no .nickname → "" #}
+
+{# Safe patterns #}
+{{ config?.theme ?? "dark" }}
 {{ settings?["theme"] ?? "light" }}
 ```
 
 ### `| get(key, default)` Filter — drop-in for `dict.get`
 
 ```kida
-{# Closest to Python's dict.get("k", default) — handles None receiver AND missing key #}
+{# Handles None receiver, missing dict key, AND missing object attr uniformly #}
 {{ config | get("theme", "light") | upper }}
 ```
 
-Handles dicts, objects, and `None` uniformly — and, unlike `?.` alone, also catches missing keys.
+Use `| get` when the lookup must be safe across all receiver shapes in one expression.
 
 ### Chaining
 

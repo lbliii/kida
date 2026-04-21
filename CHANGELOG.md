@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-21
+
+### Breaking
+
+- **`?.` and `?[...]` soften on Mapping receivers** — Optional chaining now short-circuits missing keys to `None` on any `collections.abc.Mapping` receiver (dict, `MappingProxyType`, `ChainMap`, dict subclasses), mirroring Python's `dict.get(key)` idiom and aligning with TS/Swift mental models. Object attribute misses still raise `UndefinedError` under `strict_undefined` — schema violations on objects are almost always typos. Sequence out-of-range on `?[i]` also still raises in strict mode. **Migration**: if you were relying on `?.` to raise on a missing dict key (the v0.7 behavior), drop the `?.` and use strict access `{{ user.nickname }}`, or use the `get` filter. Most code using the recommended `{{ x?.y ?? "" }}` pattern is unaffected. See `docs/tutorials/upgrade-to-v0.8.md`.
+
 ### Added
 
 - **v0.7 upgrade tutorial** — New `docs/tutorials/upgrade-to-v0.7.md` collects the `strict_undefined=True` migration patterns in one page: TL;DR, the three fix patterns (`is defined`, `??`, `| default`), the `strict_undefined=False` escape hatch, and the preferred `?.` / `?[` / `| get` idioms. Cross-linked from `README.md`, the tutorials index, and the `UndefinedError` troubleshooting page.
-- **Null-safe hint on `UndefinedError`** — When `kind="attribute/key"`, the error message now includes a second `Hint:` line pointing users at `x?.y`, `x?["y"]`, `x.y ?? ''`, and `x | get("y", '')` so they stop reaching for `.get("k", "")` under strict mode. Variable-kind errors are unchanged.
+- **v0.8 upgrade tutorial** — New `docs/tutorials/upgrade-to-v0.8.md` documents the `?.` / `?[...]` Mapping-soft semantics, the rationale, and the migration path.
+- **Null-safe hint on `UndefinedError`** — When `kind="attribute/key"`, the error message now includes a second `Hint:` line pointing users at `x?.y`, `x?.y ?? ""`, and `x | get("y", '')` so they stop reaching for `.get("k", "")` under strict mode. Variable-kind errors are unchanged.
 - **Docs: optional chaining surfaced in `docs/syntax/variables.md`** — Added dedicated `?.` and `?[...]` subsections under Attribute Access and Index Access. These operators were previously mentioned only in pipeline examples.
+- **`getitem_preserve_none` / `strict_getitem_preserve_none`** — New runtime helpers powering the `?[...]` Mapping-soft semantics. `?[...]` now routes through these helpers (previously emitted direct subscript); Mapping misses return `None`, Sequence out-of-range raises under strict.
 
 ### Fixed
 

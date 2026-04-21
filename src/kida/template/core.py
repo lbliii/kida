@@ -52,6 +52,7 @@ from kida.template.helpers import (
     coerce_numeric,
     default_safe,
     getattr_preserve_none,
+    getitem_preserve_none,
     is_defined,
     lookup,
     lookup_scope,
@@ -62,6 +63,7 @@ from kida.template.helpers import (
     str_safe,
     strict_getattr,
     strict_getattr_preserve_none,
+    strict_getitem_preserve_none,
 )
 from kida.template.inheritance import TemplateInheritanceMixin
 from kida.template.introspection import TemplateIntrospectionMixin
@@ -258,6 +260,9 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 "_getattr_none": strict_getattr_preserve_none
                 if env.strict_undefined
                 else getattr_preserve_none,
+                "_getitem_none": strict_getitem_preserve_none
+                if env.strict_undefined
+                else getitem_preserve_none,
                 "_lookup": lookup,
                 "_lookup_scope": lookup_scope,
                 "_default_safe": default_safe,

@@ -702,7 +702,11 @@ class ExpressionCompilationMixin:
         """Compile obj?[key] using walrus operator to avoid double evaluation.
 
         obj?[key] compiles to:
-            None if (_oc := obj) is None else _oc[key]
+            None if (_oc := obj) is None else _getitem_none(_oc, key)
+
+        Routes through ``_getitem_none`` so Mapping receivers return ``None`` on
+        missing keys (v0.8.0+ semantics), while Sequence/out-of-range accesses
+        still raise under ``strict_undefined``.
 
         Part of RFC: kida-modern-syntax-features.
         """
@@ -712,7 +716,7 @@ class ExpressionCompilationMixin:
         obj = self._compile_expr(node.obj)
         key = self._compile_expr(node.key)
 
-        # None if (_oc_N := obj) is None else _oc_N[key]
+        # None if (_oc_N := obj) is None else _getitem_none(_oc_N, key)
         return ast.IfExp(
             test=ast.Compare(
                 left=ast.NamedExpr(
@@ -723,10 +727,13 @@ class ExpressionCompilationMixin:
                 comparators=[ast.Constant(value=None)],
             ),
             body=ast.Constant(value=None),
-            orelse=ast.Subscript(
-                value=ast.Name(id=tmp_name, ctx=ast.Load()),
-                slice=key,
-                ctx=ast.Load(),
+            orelse=ast.Call(
+                func=ast.Name(id="_getitem_none", ctx=ast.Load()),
+                args=[
+                    ast.Name(id=tmp_name, ctx=ast.Load()),
+                    key,
+                ],
+                keywords=[],
             ),
         )
 
