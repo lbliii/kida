@@ -122,18 +122,23 @@ Flip `strict_undefined=False` once to unblock the release, then fix sites one at
 
 0.7.x ships with first-class null-safe operators. Prefer these over `.get("key", "")` chains:
 
-### `?.` — optional attribute access (receiver-only)
+### `?.` — optional attribute access (receiver-only in v0.7)
 
-`?.` short-circuits when the **receiver** is `None` or undefined. It does **not** suppress `UndefinedError` for a missing attribute/key on a *defined* receiver — strict mode still raises, by design.
+:::note[v0.8.0 changed this]
+The rules below describe v0.7.x semantics. In v0.8.0, `?.` and `?[...]` also short-circuit **missing keys on Mapping receivers** to `None`, aligning with `dict.get()`. See the [v0.8.0 upgrade tutorial]({{< relref "upgrade-to-v0.8.md" >}}).
+:::
+
+In v0.7.x, `?.` short-circuits when the **receiver** is `None` or undefined. It does **not** suppress `UndefinedError` for a missing attribute/key on a *defined* receiver — strict mode still raises.
 
 ```kida
 {# Receiver is None — yields "" #}
 {{ config?.theme }}       {# config = None → ""  #}
 
-{# Defined receiver, missing key — still raises under strict mode #}
-{{ config?.theme }}       {# config = {} → UndefinedError #}
+{# v0.7: defined receiver, missing key — raises #}
+{# v0.8: Mapping miss → "" (new behavior) #}
+{{ config?.theme }}       {# config = {} → UndefinedError (v0.7) / "" (v0.8) #}
 
-{# Safe-in-both-directions forms: #}
+{# Safe-in-both-directions forms (work on both 0.7 and 0.8): #}
 {{ config?.theme ?? "" }}         {# catch missing key with ?? #}
 {{ config | get("theme", "") }}   {# or the get filter #}
 ```
@@ -145,9 +150,9 @@ Chains short-circuit at the first `None`:
 {{ page?.author?.avatar ?? "/default.png" }}  {# with a named fallback #}
 ```
 
-### `?[...]` — optional item access (receiver-only)
+### `?[...]` — optional item access (receiver-only in v0.7)
 
-Mirror of `?.`. Short-circuits only on a `None`/undefined receiver:
+Mirror of `?.`. In v0.7, short-circuits only on a `None`/undefined receiver:
 
 ```kida
 {{ settings?["theme"] }}             {# settings is None → "" #}
@@ -162,7 +167,7 @@ Mirror of `?.`. Short-circuits only on a `None`/undefined receiver:
 {{ config | get("theme", "light") | upper }}
 ```
 
-The `get` filter handles dicts, objects, and `None` uniformly, and — unlike `?.` alone — also catches missing keys. Prefer it when the value is a key lookup that may be missing, rather than a variable that may be `None`.
+The `get` filter handles dicts, objects, and `None` uniformly. Use it when a single expression must be safe across all receiver shapes.
 
 ### Combining operators
 

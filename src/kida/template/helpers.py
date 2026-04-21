@@ -11,6 +11,7 @@ All functions are stateless and safe for concurrent use.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from time import perf_counter as _perf_counter
 from typing import TYPE_CHECKING, Any, cast
 
@@ -155,13 +156,13 @@ def safe_getattr(obj: object, name: str) -> object:
 
 
 def getattr_preserve_none(obj: object, name: str) -> object:
-    """Get attribute with dict fallback, preserving None values.
+    """Get attribute with mapping fallback, preserving None values.
 
     Like safe_getattr but preserves None values instead of converting
     to empty string. Used for optional chaining (?.) so that null
     coalescing (??) can work correctly.
 
-    Resolution order matches safe_getattr: dicts try subscript first.
+    Resolution order matches safe_getattr: Mappings try subscript first.
 
     Complexity: O(1)
     """
@@ -175,7 +176,7 @@ def getattr_preserve_none(obj: object, name: str) -> object:
         if val is not _MISS:
             return val
         return None
-    if isinstance(obj, dict):
+    if isinstance(obj, Mapping):
         try:
             return obj[name]  # ty: ignore[invalid-argument-type]
         except KeyError:
@@ -189,6 +190,23 @@ def getattr_preserve_none(obj: object, name: str) -> object:
     try:
         return obj[name]  # ty: ignore[not-subscriptable]
     except KeyError, TypeError:
+        return None
+
+
+def getitem_preserve_none(obj: object, key: object) -> object:
+    """Optional subscript with Mapping fallback, preserving None values.
+
+    Used by `?[key]` in lenient mode. Mapping receivers return ``None`` for
+    missing keys (mirroring ``dict.get(key)``); other subscriptable receivers
+    return ``None`` on ``KeyError``/``IndexError``/``TypeError``.
+
+    Complexity: O(1)
+    """
+    if isinstance(obj, Mapping):
+        return obj.get(key)  # type: ignore[arg-type]
+    try:
+        return obj[key]  # type: ignore[index]
+    except KeyError, IndexError, TypeError:
         return None
 
 
@@ -261,7 +279,16 @@ def strict_getattr(obj: object, name: str) -> object:
 
 
 def strict_getattr_preserve_none(obj: object, name: str) -> object:
-    """Like getattr_preserve_none but raises UndefinedError on missing attributes."""
+    """Like getattr_preserve_none but raises UndefinedError on missing object attrs.
+
+    Semantics (v0.8.0+):
+
+    - Mapping receivers (``dict`` and ``collections.abc.Mapping`` subclasses):
+      missing keys short-circuit to ``None``, mirroring ``dict.get(key)``.
+      Used by ``?.`` on config/JSON/kwargs-style data where the schema is open.
+    - Object receivers (non-Mapping): missing attributes still raise
+      ``UndefinedError`` to catch template typos against an object's schema.
+    """
     if type(obj) is dict:
         d = cast("dict[str, Any]", obj)
         val = d.get(name, _MISS)
@@ -270,15 +297,15 @@ def strict_getattr_preserve_none(obj: object, name: str) -> object:
         val = getattr(obj, name, _MISS)
         if val is not _MISS:
             return val
-        _raise_undefined_attr(obj, name, preserve_none=True)
-    if isinstance(obj, dict):
+        return None
+    if isinstance(obj, Mapping):
         try:
             return obj[name]  # ty: ignore[invalid-argument-type]
         except KeyError:
             try:
                 return getattr(obj, name)
             except AttributeError:
-                _raise_undefined_attr(obj, name, preserve_none=True)
+                return None
     val = getattr(obj, name, _MISS)
     if val is not _MISS:
         return val
@@ -286,6 +313,25 @@ def strict_getattr_preserve_none(obj: object, name: str) -> object:
         return obj[name]  # ty: ignore[not-subscriptable]
     except KeyError, TypeError:
         _raise_undefined_attr(obj, name, preserve_none=True)
+    return None  # unreachable, satisfies type checker
+
+
+def strict_getitem_preserve_none(obj: object, key: object) -> object:
+    """Like getitem_preserve_none but strict on non-Mapping subscript misses.
+
+    Semantics (v0.8.0+):
+
+    - Mapping receivers: missing keys short-circuit to ``None``.
+    - Sequence / other subscriptable receivers: out-of-range or invalid-key
+      access raises ``UndefinedError``. Off-by-one on a list is almost always
+      a bug, so strict mode preserves typo detection there.
+    """
+    if isinstance(obj, Mapping):
+        return obj.get(key)  # type: ignore[arg-type]
+    try:
+        return obj[key]  # type: ignore[index]
+    except KeyError, IndexError, TypeError:
+        _raise_undefined_attr(obj, str(key), preserve_none=True)
     return None  # unreachable, satisfies type checker
 
 

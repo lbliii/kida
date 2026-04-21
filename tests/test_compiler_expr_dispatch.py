@@ -195,7 +195,7 @@ _EXPECTED_AST_HASHES: dict[str, str] = {
     "nested": "39a2bab34c06c2c1",
     "null_coalesce": "db80e79371f7a3e9",
     "operators": "af0725bae372e16f",
-    "optional_access": "53ffbf0c76ff9c7a",
+    "optional_access": "4228013d15685f50",
     "optional_filter": "0294b44c79d97f35",
     "range_literal": "d63b224b5efbb6bb",
     "safe_pipeline": "c7d23a1678d3a547",

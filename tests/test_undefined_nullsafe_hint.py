@@ -56,11 +56,10 @@ def test_format_compact_variable_kind_no_nullsafe_hint():
     assert "x?.y" not in compact
 
 
-# --- Semantic pins for ?. operator (from Sprint 4 matrix) ---
-# `?.` short-circuits only when the RECEIVER is None / undefined.
-# It does NOT suppress UndefinedError for a missing key/attr on a defined
-# receiver. These tests pin that semantic so docs and implementation cannot
-# drift apart silently.
+# --- Semantic pins for ?. operator (v0.8.0 split) ---
+# `?.` and `?[...]` short-circuit missing keys to None on Mapping receivers.
+# Object attribute misses still raise under strict mode. These tests pin that
+# split so docs and implementation cannot drift apart silently.
 
 
 def test_optional_dot_short_circuits_on_none_receiver():
@@ -69,11 +68,23 @@ def test_optional_dot_short_circuits_on_none_receiver():
     assert t.render(user=None) == ""
 
 
-def test_optional_dot_raises_on_missing_key_with_defined_receiver():
+def test_optional_dot_returns_none_on_missing_mapping_key():
+    """v0.8.0: `?.` on a Mapping returns None for missing keys (dict.get idiom)."""
+    env = Environment(strict_undefined=True)
+    t = env.from_string("{{ user?.nickname }}")
+    assert t.render(user={}) == ""
+
+
+def test_optional_dot_still_raises_on_missing_object_attr():
+    """v0.8.0: object attribute misses still raise in strict mode."""
+
+    class User:
+        pass
+
     env = Environment(strict_undefined=True)
     t = env.from_string("{{ user?.nickname }}")
     with pytest.raises(UndefinedError):
-        t.render(user={})
+        t.render(user=User())
 
 
 def test_optional_dot_with_coalesce_handles_both():
