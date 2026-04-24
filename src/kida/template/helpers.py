@@ -201,7 +201,7 @@ def getitem_preserve_none(obj: object, key: object) -> object:
     Complexity: O(1)
     """
     if isinstance(obj, Mapping):
-        mapping = cast("Mapping[object, object]", obj)
+        mapping = cast("Mapping[Any, Any]", obj)
         return mapping.get(key)
     try:
         return cast("Any", obj)[key]
@@ -324,7 +324,7 @@ def strict_getitem_preserve_none(obj: object, key: object) -> object:
       a bug, so strict mode preserves typo detection there.
     """
     if isinstance(obj, Mapping):
-        mapping = cast("Mapping[object, object]", obj)
+        mapping = cast("Mapping[Any, Any]", obj)
         return mapping.get(key)
     try:
         return cast("Any", obj)[key]

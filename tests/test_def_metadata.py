@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from kida import Environment
+from kida import DictLoader, Environment
 from kida.analysis.metadata import DefMetadata, DefParamInfo
 from kida.exceptions import UndefinedError
 
@@ -183,6 +183,94 @@ class TestDefMetadataDataclass:
         assert dm.slots == ()
         assert dm.has_default_slot is False
         assert dm.depends_on == frozenset()
+
+
+class TestComponentMetadataContract:
+    """Framework-facing metadata should stay stable across component surfaces."""
+
+    def test_component_and_block_metadata_contract(self):
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "base.html": (
+                        "<html>"
+                        "{% block shell %}<main>{{ site.title }}</main>{% end %}"
+                        "{% region sidebar(current: str = 'home') %}"
+                        "<nav>{{ current }}</nav>"
+                        "{% end %}"
+                        "</html>"
+                    ),
+                    "page.html": (
+                        "{% extends 'base.html' %}"
+                        "{% def card(title: str) %}"
+                        "<article>{% slot header %}{% slot %}</article>"
+                        "{% end %}"
+                        "{% block shell %}<h1>{{ page.title }}</h1>{{ card('Hi') }}{% end %}"
+                    ),
+                }
+            )
+        )
+
+        template = env.get_template("page.html")
+
+        assert template.list_defs() == ["card"]
+        card = template.def_metadata()["card"]
+        assert {
+            "name": card.name,
+            "template_name": card.template_name,
+            "lineno": card.lineno,
+            "params": [
+                {
+                    "name": p.name,
+                    "annotation": p.annotation,
+                    "has_default": p.has_default,
+                    "is_required": p.is_required,
+                }
+                for p in card.params
+            ],
+            "slots": card.slots,
+            "has_default_slot": card.has_default_slot,
+            "depends_on": sorted(card.depends_on),
+        } == {
+            "name": "card",
+            "template_name": "page.html",
+            "lineno": 1,
+            "params": [
+                {
+                    "name": "title",
+                    "annotation": "str",
+                    "has_default": False,
+                    "is_required": True,
+                }
+            ],
+            "slots": ("header",),
+            "has_default_slot": True,
+            "depends_on": [],
+        }
+
+        assert template.list_blocks() == ["shell", "sidebar"]
+        meta = template.template_metadata()
+        assert meta is not None
+        assert meta.name == "page.html"
+        assert meta.extends == "base.html"
+        assert sorted(meta.blocks) == ["shell", "sidebar"]
+        assert meta.top_level_depends_on == frozenset()
+
+        shell = meta.blocks["shell"]
+        assert shell.name == "shell"
+        assert shell.is_region is False
+        assert shell.region_params == ()
+        assert shell.emits_html is True
+        assert shell.inferred_role == "unknown"
+        assert shell.depends_on == frozenset({"page.title", "card"})
+
+        sidebar = meta.blocks["sidebar"]
+        assert sidebar.name == "sidebar"
+        assert sidebar.is_region is True
+        assert sidebar.region_params == ("current",)
+        assert sidebar.emits_landmarks == frozenset({"nav"})
+        assert sidebar.inferred_role == "navigation"
+        assert sidebar.depends_on == frozenset({"current"})
 
 
 class TestComponentCallStack:

@@ -567,6 +567,21 @@ class TestRenderSurfaceMeta:
             "or add to _EXEMPT_METHODS with a justification comment."
         )
 
+    def test_no_active_strict_xfails_in_parity_corpus(self) -> None:
+        active_xfails = [
+            (case.name, field, tag)
+            for case in CORPUS
+            for field, tag in (
+                ("xfail_full", case.xfail_full),
+                ("xfail_block", case.xfail_block),
+            )
+            if tag is not None
+        ]
+        assert active_xfails == [], (
+            "Render-surface parity corpus has active strict xfails. Fix the "
+            f"divergence or remove stale xfail tags: {active_xfails!r}"
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fragment-scaffold gate — every fragment-render method must route through

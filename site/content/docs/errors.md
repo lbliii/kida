@@ -238,6 +238,16 @@ Fix: Fix the syntax error at the reported line. See parser and lexer errors abov
 
 Fix: Restructure template inheritance to eliminate the cycle. Use a shared base template or `{% include %}` instead of circular `{% extends %}`.
 
+### k-tpl-004
+
+**Definition not top-level** — A `{% def %}` or `{% region %}` was declared
+inside another block, loop, conditional, component, or region.
+
+Fix: Move `{% def %}` and `{% region %}` declarations to the template top
+level. Top-level declarations are visible to render, block render, component
+metadata, and static validation. Nested defs are not render-block targets and
+cannot be validated reliably.
+
 ## Security Errors (K-SEC-xxx)
 
 Security errors occur in sandboxed environments when a template tries to access restricted resources.
@@ -271,6 +281,53 @@ Fix: Check the `SandboxPolicy.allow_calling` configuration. If calling is requir
 **Output limit exceeded** — Rendered output exceeded `SandboxPolicy.max_output_size`.
 
 Fix: Reduce template output size or increase `SandboxPolicy.max_output_size`. Consider paginating large datasets.
+
+## Component Validation (K-CMP-xxx)
+
+Component validation diagnostics are emitted by `Environment(validate_calls=True)`
+and `kida check --validate-calls`. They are compile-time diagnostics for
+`{% def %}` call sites, including calls to literal `{% from "..." import ... %}`
+component imports. Dynamic imports are skipped because Kida cannot know the
+target template at check time.
+
+### k-cmp-001
+
+**Component call signature mismatch** — A component call used unknown keyword
+arguments, omitted required parameters, or supplied duplicate keyword
+arguments.
+
+Fix: Compare the call site with the component's `{% def %}` signature. Rename
+misspelled props, add missing required props, or remove props the component does
+not accept.
+
+Example:
+
+```kida
+{% def card(title: str) %}{{ title }}{% end %}
+{{ card(titl="Settings") }}
+```
+
+Use `title=` instead of `titl=`.
+
+### k-cmp-002
+
+**Component literal type mismatch** — A literal argument does not match the
+component parameter annotation. Kida validates literal `str`, `int`, `float`,
+`bool`, `None`, and simple `|` unions. Variable arguments and custom types are
+documentary and skipped.
+
+Fix: Pass a literal with the annotated type, update the annotation if the
+component accepts both shapes, or move validation into Python when the value is
+dynamic.
+
+Example:
+
+```kida
+{% def badge(count: int) %}{{ count }}{% end %}
+{{ badge("five") }}
+```
+
+Pass `5` or change the parameter type if string counts are intentional.
 
 ## Warnings (K-WARN-xxx)
 
