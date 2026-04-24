@@ -9,7 +9,7 @@
 
 **Message:** expected 0.5, got 0
 ```
-\-\-\- FAIL: TestDivide \(0.80s\)
+--- FAIL: TestDivide (0.80s)
     math\_test.go:25: expected 0.5, got 0
 ```
 </details>

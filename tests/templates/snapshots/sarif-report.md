@@ -10,9 +10,9 @@
 
 ### Errors (1)
 
-- `src/app.py:42` **python.lang.security.exec\-detected** — Detected use of exec\(\)
+- `src/app.py:42` **python.lang.security.exec-detected** — Detected use of exec()
 
 
 ### Warnings (1)
 
-- `src/utils.py:10` **python.lang.best\-practice.open\-never\-closed** — File opened but never closed
+- `src/utils.py:10` **python.lang.best-practice.open-never-closed** — File opened but never closed

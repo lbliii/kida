@@ -5,7 +5,7 @@
 ### Failed Tests
 
 <details>
-<summary>:x: <code>Button \> validation \> validates props</code> (0.1s)</summary>
+<summary>:x: <code>Button > validation \> validates props</code> (0.1s)</summary>
 
 ```
 Error: expected prop 'size' to be one of: sm, md, lg
