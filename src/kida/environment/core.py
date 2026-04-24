@@ -878,9 +878,6 @@ class Environment:
         When ``static_context`` is provided, runs a partial evaluation pass
         before compilation to replace static expressions with constants.
         """
-        from kida.compiler import Compiler
-        from kida.parser import Parser
-
         # Check bytecode cache first (for fast cold-start). If static_context
         # is used for partial evaluation, include a deterministic context hash.
         source_hash = None
@@ -916,6 +913,8 @@ class Environment:
                     if cached_ast is not None:
                         optimized_ast = cast("TemplateNode", cached_ast)
                     else:
+                        from kida.parser import Parser
+
                         lexer = Lexer(source, self._lexer_config)
                         tokens = list(lexer.tokenize())
                         should_escape = self.select_autoescape(name)
@@ -940,6 +939,8 @@ class Environment:
                 )
 
         # Tokenize
+        from kida.parser import Parser
+
         lexer = Lexer(source, self._lexer_config)
         tokens = list(lexer.tokenize())
 
@@ -1004,6 +1005,8 @@ class Environment:
         optimized_ast = ast if self.preserve_ast else None
 
         # Compile
+        from kida.compiler import Compiler
+
         compiler = Compiler(self)
         code = compiler.compile(ast, name, filename)
         precomputed = compiler.precomputed or None

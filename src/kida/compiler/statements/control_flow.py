@@ -31,6 +31,7 @@ class ControlFlowMixin:
         _locals: set[str]
         _block_counter: int
         _loop_vars: set[str]
+        _loop_usage_cache: dict[int, bool]
         _has_async: bool
 
         # From ExpressionCompilationMixin
@@ -224,16 +225,30 @@ class ControlFlowMixin:
         if nodes is None:
             return False
 
+        cache_key: int | None = None
+        if isinstance(nodes, (list, tuple, dict)) or hasattr(nodes, "__dataclass_fields__"):
+            cache_key = id(nodes)
+            if cache_key in self._loop_usage_cache:
+                return self._loop_usage_cache[cache_key]
+
         # Handle sequences (lists, tuples)
         if isinstance(nodes, (list, tuple)):
-            return any(self._uses_loop_variable(n) for n in nodes)
+            result = any(self._uses_loop_variable(n) for n in nodes)
+            if cache_key is not None:
+                self._loop_usage_cache[cache_key] = result
+            return result
 
         # Handle dicts (kwargs)
         if isinstance(nodes, dict):
-            return any(self._uses_loop_variable(v) for v in nodes.values())
+            result = any(self._uses_loop_variable(v) for v in nodes.values())
+            if cache_key is not None:
+                self._loop_usage_cache[cache_key] = result
+            return result
 
         # Check if this is a Name node referencing 'loop'
         if isinstance(nodes, Name) and nodes.name == "loop":
+            if cache_key is not None:
+                self._loop_usage_cache[cache_key] = True
             return True
 
         # Skip non-node types (strings, ints, bools, etc.)
@@ -245,8 +260,12 @@ class ControlFlowMixin:
         for field_name in nodes.__dataclass_fields__:
             child = getattr(nodes, field_name, None)
             if child is not None and self._uses_loop_variable(child):
+                if cache_key is not None:
+                    self._loop_usage_cache[cache_key] = True
                 return True
 
+        if cache_key is not None:
+            self._loop_usage_cache[cache_key] = False
         return False
 
     def _compile_for(self, node: For) -> list[ast.stmt]:

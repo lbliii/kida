@@ -155,6 +155,7 @@ class Compiler(
         "_last_block_cacheable_vars",
         "_last_block_compiled_stmts",
         "_locals",
+        "_loop_usage_cache",
         "_loop_vars",
         "_name",
         "_node_dispatch",
@@ -253,6 +254,9 @@ class Compiler(
         self._declared_definitions: set[str] = set()
         # Track loop variables for include scope propagation
         self._loop_vars: set[str] = set()
+        # Per-compile memo for loop-variable analysis. The same AST bodies are
+        # consulted for sync, stream, and async function generation.
+        self._loop_usage_cache: dict[int, bool] = {}
         # Names bound by {% let %} / {% export %} — template-scope visible.
         # Used to narrow the {% set %}-inside-block migration warning: the
         # Jinja2 scoping trap only fires when the author expects a nested
@@ -586,6 +590,7 @@ class Compiler(
         self._precomputed_ids = {}
         self._declared_definitions = set()
         self._template_scope_names = set()
+        self._loop_usage_cache = {}
 
         # Validate top-level placement of {% def %} / {% region %}: nesting
         # inside control-flow constructs (if/for/with/provide/...) prevents
