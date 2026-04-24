@@ -39,6 +39,7 @@ jobs:
       - name: Run release regression gate
         env:
           CI: true
+          BENCHMARK_SUITE: core
           PYTHON_GIL: "0"
         run: |
           uv run pytest -n 0 -q --tb=short \
