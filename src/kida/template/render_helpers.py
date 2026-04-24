@@ -202,7 +202,7 @@ def make_render_helpers(
         reset_render_context,
         set_render_context,
     )
-    from kida.utils.template_keys import normalize_template_name
+    from kida.utils.template_keys import resolve_template_name
 
     def _resolve_env(template_name: str) -> Environment:
         _env = env_ref()
@@ -222,7 +222,8 @@ def make_render_helpers(
     ):
         """Shared setup for include/extends variants.
 
-        Handles depth check, accumulator recording (includes only),
+        Resolves ``./`` / ``../`` against the calling template, then
+        performs depth check, accumulator recording (includes only),
         environment resolution, and child context creation.
 
         Returns:
@@ -230,30 +231,39 @@ def make_render_helpers(
             reset_render_context(token) in a finally block.
         """
         render_ctx = get_render_context_required()
-        if for_extends:
-            render_ctx.check_extends_depth(template_name)
-        else:
-            render_ctx.check_include_depth(template_name)
-            acc = get_accumulator()
-            if acc is not None:
-                acc.record_include(template_name)
-        _env = _resolve_env(template_name)
+        caller = render_ctx.template_name
+        tag = "extends" if for_extends else "include"
         try:
-            tmpl = _env.get_template(template_name)
+            resolved = resolve_template_name(template_name, caller=caller)
         except TemplateNotFoundError as e:
-            # Enrich with caller context so users know which template triggered it
-            caller = render_ctx.template_name
             if caller:
-                tag = "extends" if for_extends else "include"
                 loc = f"{caller}:{render_ctx.line}" if render_ctx.line else caller
                 raise TemplateNotFoundError(
                     f"{e} (referenced by {{% {tag} %}} in {loc})",
                 ) from e
             raise
         if for_extends:
-            child_ctx = render_ctx.child_context_for_extends(template_name, source=tmpl._source)
+            render_ctx.check_extends_depth(resolved)
         else:
-            child_ctx = render_ctx.child_context(template_name, source=tmpl._source)
+            render_ctx.check_include_depth(resolved)
+            acc = get_accumulator()
+            if acc is not None:
+                acc.record_include(resolved)
+        _env = _resolve_env(resolved)
+        try:
+            tmpl = _env.get_template(resolved)
+        except TemplateNotFoundError as e:
+            # Enrich with caller context so users know which template triggered it
+            if caller:
+                loc = f"{caller}:{render_ctx.line}" if render_ctx.line else caller
+                raise TemplateNotFoundError(
+                    f"{e} (referenced by {{% {tag} %}} in {loc})",
+                ) from e
+            raise
+        if for_extends:
+            child_ctx = render_ctx.child_context_for_extends(resolved, source=tmpl._source)
+        else:
+            child_ctx = render_ctx.child_context(resolved, source=tmpl._source)
         # declared_definitions is per-template; override the inherited blank
         # set so UndefinedError raised inside the child uses the right names.
         child_ctx.declared_definitions = tmpl._declared_definitions
@@ -423,7 +433,17 @@ def make_render_helpers(
         context: dict[str, Any],
         names: list[str] | None = None,
     ) -> dict[str, Any]:
-        template_name = normalize_template_name(template_name)
+        render_ctx = get_render_context_required()
+        caller = render_ctx.template_name
+        try:
+            template_name = resolve_template_name(template_name, caller=caller)
+        except TemplateNotFoundError as e:
+            if caller:
+                loc = f"{caller}:{render_ctx.line}" if render_ctx.line else caller
+                raise TemplateNotFoundError(
+                    f"{e} (referenced by {{% from ... import ... %}} in {loc})",
+                ) from e
+            raise
         _env = env_ref()
         if _env is None:
             raise TemplateRuntimeError(
@@ -432,7 +452,6 @@ def make_render_helpers(
                 code=ErrorCode.ENV_GARBAGE_COLLECTED,
                 suggestion="Keep a reference to the Environment for the lifetime of its templates.",
             )
-        render_ctx = get_render_context_required()
         if template_name in render_ctx.import_stack:
             chain = " → ".join([*render_ctx.import_stack, template_name])
             raise TemplateRuntimeError(
