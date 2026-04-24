@@ -779,15 +779,17 @@ class UndefinedError(TemplateError):
 
         For missing attributes or dict keys under strict mode, the fix is
         usually to switch the access to a null-safe form rather than to
-        supply a default at the variable level. This hint points at the
-        three idioms (optional chaining, null-coalescing, the ``get``
-        filter) so users do not fall back to ``.get("k", "")`` chains.
+        supply a default at the variable level. Since v0.8.0, ``?.`` and
+        ``?[...]`` on Mapping receivers return ``None`` for missing keys —
+        so ``x?.y`` alone is the fix for dict-key misses; object-attr misses
+        still need ``?? ""`` or the ``get`` filter.
         """
         if self._kind != "attribute/key":
             return None
         return (
-            'For optional attribute/key access use `x?.y`, `x?["y"]`, '
-            "`x.y ?? ''`, or `x | get(\"y\", '')`."
+            "For optional access: `x?.y` (None on missing Mapping keys), "
+            '`x?.y ?? ""` (covers object-attr misses too), '
+            "or `x | get(\"y\", '')`."
         )
 
     def _format_message(self) -> str:

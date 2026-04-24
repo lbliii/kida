@@ -126,9 +126,11 @@ class BlockStackMixin:
             ParseError: If no blocks are open or if expected doesn't match.
         """
         if not self._block_stack:
+            from kida.parser.errors import BULK_CHECK_TIP
+
             raise self._error(
                 "Unexpected closing tag - no open block to close",
-                suggestion="Remove this tag or add a matching opening tag",
+                suggestion=f"Remove this tag or add a matching opening tag.\n\n{BULK_CHECK_TIP}",
             )
 
         popped: tuple[str, int, int] = self._block_stack.pop()
@@ -136,11 +138,15 @@ class BlockStackMixin:
 
         # If a specific block type is expected, validate it
         if expected and block_type != expected:
+            from kida.parser.errors import BULK_CHECK_TIP
+
             raise self._error(
                 f"Mismatched closing tag: expected {{% end{expected} %}}, "
                 f"but found closing tag for '{block_type}' block opened at line {lineno}",
-                suggestion=f"Use {{% end %}} to close the innermost block, "
-                f"or {{% end{block_type} %}} to be explicit",
+                suggestion=(
+                    f"Use {{% end %}} to close the innermost block, "
+                    f"or {{% end{block_type} %}} to be explicit.\n\n{BULK_CHECK_TIP}"
+                ),
             )
 
         return block_type
@@ -205,9 +211,11 @@ class BlockStackMixin:
             self._advance()  # consume 'endXXX'
             self._pop_block(block_type)  # Pop with type validation
         else:
+            from kida.parser.errors import BULK_CHECK_TIP
+
             raise self._error(
                 f"Expected 'end' or 'end{block_type}', got '{keyword}'",
-                suggestion="Use {% end %} to close the innermost block",
+                suggestion=f"Use {{% end %}} to close the innermost block.\n\n{BULK_CHECK_TIP}",
             )
 
         self._expect(TokenType.BLOCK_END)

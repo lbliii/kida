@@ -23,6 +23,16 @@ JINJA2_TRAPS: dict[str, str] = {
 }
 
 
+# Appended to suggestions for bulk end-tag mismatches (extra, mismatched, or
+# orphan end tags). Points agents doing multi-file migrations at `kida check`
+# so they stop discovering errors one rendered route at a time.
+BULK_CHECK_TIP: str = (
+    "Tip: run `kida check <templates-dir> --strict` to surface every "
+    "end-tag mismatch across the directory in one pass, instead of "
+    "discovering them one rendered page at a time."
+)
+
+
 class ParseError(TemplateSyntaxError):
     """Parser error with rich source context.
 
