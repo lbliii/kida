@@ -95,7 +95,7 @@
 <details>
 <summary>Details: {{ pr.title }} (#{{ pr.number }})</summary>
 
-{{ pr.body }}
+{{ pr.body | safe }}
 
 </details>
 
@@ -116,7 +116,7 @@
 ### {{ pr.release_note }}
 
 {% if pr.body_excerpt | default("", true) -%}
-{{ pr.body_excerpt }}
+{{ pr.body_excerpt | safe }}
 
 {% endif -%}
 {% if pr.number -%}
@@ -140,7 +140,7 @@
 
 {% endif -%}
 {% if pr.body | default("", true) -%}
-{{ pr.body }}
+{{ pr.body | safe }}
 
 {% endif -%}
 ---
