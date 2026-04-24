@@ -2,12 +2,12 @@
 # Save a clean benchmark baseline snapshot.
 #
 # Usage:
-#   ./scripts/benchmark_baseline.sh              # save as "baseline"
-#   ./scripts/benchmark_baseline.sh my-branch    # save as "my-branch"
+#   ./scripts/benchmark_baseline.sh                        # save core suite as "baseline"
+#   ./scripts/benchmark_baseline.sh my-branch              # save core suite as "my-branch"
+#   BENCHMARK_SUITE=product ./scripts/benchmark_baseline.sh docs
 #
 # To compare against baseline later:
-#   pytest benchmarks/test_benchmark_render.py benchmarks/test_benchmark_full_comparison.py \\
-#     --benchmark-only --benchmark-compare=baseline --benchmark-storage=file://benchmarks/
+#   BENCHMARK_SUITE=core ./scripts/benchmark_compare.sh
 #
 # The baseline is stored in benchmarks/ (committed) for CI regression detection.
 
@@ -16,33 +16,43 @@ set -euo pipefail
 NAME="${1:-baseline}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-STORAGE="file://$PROJECT_DIR/benchmarks"
+STORAGE_DIR="${BENCHMARK_STORAGE_DIR:-$PROJECT_DIR/benchmarks}"
+STORAGE="file://$STORAGE_DIR"
+SUITE="${BENCHMARK_SUITE:-core}"
+
+# shellcheck source=benchmark_suites.sh
+source "$SCRIPT_DIR/benchmark_suites.sh"
+if ! SUITE_DESCRIPTION=$(benchmark_suite_description "$SUITE"); then
+    echo "ERROR: Unknown benchmark suite '$SUITE'"
+    echo "Known suites: $(benchmark_suite_names)"
+    exit 2
+fi
+BENCHMARK_FILES=()
+while IFS= read -r benchmark_file; do
+    BENCHMARK_FILES+=("$benchmark_file")
+done < <(benchmark_files_for_suite "$PROJECT_DIR" "$SUITE")
 
 echo "=== Kida Benchmark Baseline ==="
 echo "Name:    $NAME"
+echo "Suite:   $SUITE ($SUITE_DESCRIPTION)"
 echo "Storage: $STORAGE"
 echo "Python:  $(python --version 2>&1)"
 echo "Date:    $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo ""
 
+mkdir -p "$STORAGE_DIR"
+
 # Clean stale baseline files if saving as "baseline"
 if [ "$NAME" = "baseline" ]; then
-    rm -f "$PROJECT_DIR/benchmarks"/*_"$NAME"*.json 2>/dev/null || true
-    echo "Cleaned stale baseline files in benchmarks/."
+    find "$STORAGE_DIR" -mindepth 2 -maxdepth 2 \
+        -type f -name "*_${NAME}.json" -exec rm -f {} + 2>/dev/null || true
+    echo "Cleaned stale baseline files in $STORAGE_DIR."
     echo ""
 fi
 
-# Run the full regression suite (must match benchmark_compare.sh)
+# Run the selected suite (must match benchmark_compare.sh)
 echo "--- Running benchmark suite ---"
-python -m pytest \
-    "$PROJECT_DIR/benchmarks/test_benchmark_render.py" \
-    "$PROJECT_DIR/benchmarks/test_benchmark_full_comparison.py" \
-    "$PROJECT_DIR/benchmarks/test_benchmark_features.py" \
-    "$PROJECT_DIR/benchmarks/test_benchmark_introspection.py" \
-    "$PROJECT_DIR/benchmarks/test_benchmark_include_depth.py" \
-    "$PROJECT_DIR/benchmarks/test_benchmark_inherited_blocks.py" \
-    "$PROJECT_DIR/benchmarks/test_benchmark_output_sanity.py" \
-    "$PROJECT_DIR/benchmarks/test_benchmark_regression_core.py" \
+python -m pytest "${BENCHMARK_FILES[@]}" \
     --benchmark-only \
     --benchmark-save="$NAME" \
     --benchmark-storage="$STORAGE" \
@@ -53,5 +63,4 @@ echo ""
 echo "=== Baseline '$NAME' saved to benchmarks/ ==="
 echo ""
 echo "To compare later:"
-echo "  pytest benchmarks/test_benchmark_render.py benchmarks/test_benchmark_full_comparison.py \\"
-echo "    --benchmark-only --benchmark-compare=$NAME --benchmark-storage=$STORAGE"
+echo "  BENCHMARK_SUITE=$SUITE ./scripts/benchmark_compare.sh $NAME"

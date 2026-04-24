@@ -338,6 +338,7 @@ jobs:
       - name: Run benchmark regression check
         env:
           CI: true
+          BENCHMARK_SUITE: core
           PYTHON_GIL: "0"
         run: |
           export PATH="$PWD/.venv/bin:$PATH"

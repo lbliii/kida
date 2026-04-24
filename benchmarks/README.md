@@ -108,7 +108,7 @@ pytest benchmarks/test_benchmark_streaming.py -v --benchmark-only
 # Kida features: pattern matching, fragment cache cold/hit, bytecode cache
 pytest benchmarks/test_benchmark_features.py -v --benchmark-only
 
-# Compile pipeline (lex → parse → compile)
+# Compile pipeline (lex -> parse -> compile)
 pytest benchmarks/test_benchmark_compile_pipeline.py -v --benchmark-only
 
 # Scaling: variables, loops, filters, inheritance, include depth
@@ -148,13 +148,30 @@ pytest benchmarks/ -v --benchmark-only
 ./scripts/benchmark_compare.sh
 ```
 
+### Benchmark Suites
+
+The helper scripts split the benchmark garden into three paths:
+
+| Suite | Use | Files |
+|-------|-----|-------|
+| `core` | CI regression gate and release checks | `test_benchmark_regression_core.py`, `test_benchmark_compile_pipeline.py`, `test_benchmark_output_sanity.py` |
+| `product` | Docs/product comparison refreshes | render, full comparison, features, introspection, include depth, inherited blocks, output sanity, regression core |
+| `exploratory` | Human profiling sweeps | all `test_benchmark_*.py` modules |
+
+`core` is the default for `benchmark_baseline.sh` and `benchmark_compare.sh`.
+Choose another suite with `BENCHMARK_SUITE=product` or `BENCHMARK_SUITE=exploratory`.
+Use `BENCHMARK_STORAGE_DIR=/tmp/kida-benchmarks` for smoke runs that should
+not touch committed baseline files.
+
 ### Benchmark Regression CI
 
-CI runs a benchmark regression check on every PR and push. It compares against a committed baseline and fails if benchmarks exceed the regression threshold.
+CI runs the `core` benchmark regression check on every PR and push. It compares against a committed baseline and fails if benchmarks exceed the regression threshold.
 
 **Thresholds**: CI uses 20% (shared runners, 4 cores); local uses 15%. Override with `BENCHMARK_REGRESSION_THRESHOLD=25`.
 
-**Excluded from regression** (high variance on shared runners): `test_render_async_medium_kida`, `test_render_async_large_kida`, `test_render_complex_kida`, `test_include_depth_scaling`. Include with `BENCHMARK_INCLUDE_ALL=1`.
+**Comparison stat**: The gate compares `median` by default to reduce shared-runner outlier sensitivity. Override with `BENCHMARK_COMPARE_STAT=mean` when intentionally investigating mean drift.
+
+**Excluded from regression**: each suite carries its own high-variance filter. Include all selected-suite benchmarks with `BENCHMARK_INCLUDE_ALL=1`.
 
 **Initial setup** (required for CI to pass):
 
@@ -171,6 +188,12 @@ Add a baseline before merging release-critical performance changes.
 ```bash
 ./scripts/benchmark_baseline.sh
 # Then commit benchmarks/<platform>/*.json
+```
+
+For product comparison numbers, keep CI baselines separate from docs refreshes:
+
+```bash
+BENCHMARK_SUITE=product ./scripts/benchmark_baseline.sh product-baseline
 ```
 
 When a PR updates benchmark baseline JSON files, include a **Baseline Drift Rationale**
