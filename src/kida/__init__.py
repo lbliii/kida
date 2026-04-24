@@ -90,6 +90,7 @@ from kida.coverage import CoverageCollector, CoverageResult
 from kida.environment import (
     ChoiceLoader,
     CoercionWarning,
+    ComponentWarning,
     DictLoader,
     Environment,
     ErrorCode,
@@ -156,12 +157,17 @@ from kida.utils.workers import (
 # Python 3.14+ t-string support (PEP 750)
 # Only import if string.templatelib is available
 k: Callable[..., str] | None
+plain: Callable[..., str] | None
 try:
-    from kida.tstring import k, plain
+    from kida.tstring import k as _k
+    from kida.tstring import plain as _plain
+
+    k = _k
+    plain = _plain
 except ImportError:
     # Pre-3.14 Python - t-strings not available
-    k = None  # type: ignore[assignment]
-    plain = None  # type: ignore[assignment]
+    k = None
+    plain = None
 
 __version__ = version("kida-templates")
 
@@ -197,6 +203,7 @@ __all__ = [
     "BlockMetadata",
     "ChoiceLoader",
     "CoercionWarning",
+    "ComponentWarning",
     "CoverageCollector",
     "CoverageResult",
     "DefMetadata",

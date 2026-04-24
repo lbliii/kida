@@ -21,14 +21,36 @@ if TYPE_CHECKING:
     from kida.environment import Environment
     from kida.nodes import (
         Block,
-        InlinedFilter,
         Node,
+        Region,
+    )
+    from kida.nodes.expressions import (
+        Await,
+        BinOp,
+        BoolOp,
+        Compare,
+        CondExpr,
+        Const,
+        Dict,
+        Filter,
+        FuncCall,
+        Getattr,
+        Getitem,
+        InlinedFilter,
+        List,
+        ListComp,
+        Name,
         NullCoalesce,
+        OptionalFilter,
         OptionalGetattr,
         OptionalGetitem,
         Pipeline,
         Range,
-        Region,
+        SafePipeline,
+        Slice,
+        Test,
+        Tuple,
+        UnaryOp,
     )
 
 # Arithmetic operators that require numeric operands (excludes +, which is polymorphic)
@@ -77,6 +99,17 @@ class ExpressionCompilationMixin:
         _def_caller_stack: list[ast.expr]
         _precomputed: list[Any]
         _precomputed_ids: dict[int, int]
+        _has_async: bool
+
+        def _emit_warning(
+            self,
+            code: ErrorCode,
+            message: str,
+            *,
+            lineno: int | None = None,
+            suggestion: str | None = None,
+        ) -> None: ...
+        def _extract_names(self, target: Node) -> list[str]: ...
 
     def _precomputed_ref(self, value: object) -> ast.Name:
         """Return an ``ast.Name`` referencing a precomputed module-level binding.
@@ -227,13 +260,13 @@ class ExpressionCompilationMixin:
     # Per-node-type compilation methods (extracted from _compile_expr)
     # ------------------------------------------------------------------
 
-    def _compile_const(self, node: Node) -> ast.expr:
+    def _compile_const(self, node: Const) -> ast.expr:
         """Compile constant literal."""
         if _is_constant_safe(node.value):
             return ast.Constant(value=node.value)
         return self._precomputed_ref(node.value)
 
-    def _compile_name(self, node: Node, *, store: bool = False) -> ast.expr:
+    def _compile_name(self, node: Name, *, store: bool = False) -> ast.expr:
         """Compile variable reference."""
         ctx = ast.Store() if store else ast.Load()
         if store:
@@ -265,7 +298,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_tuple(self, node: Node, *, store: bool = False) -> ast.expr:
+    def _compile_tuple(self, node: Tuple, *, store: bool = False) -> ast.expr:
         """Compile tuple expression."""
         ctx = ast.Store() if store else ast.Load()
         return ast.Tuple(
@@ -273,18 +306,18 @@ class ExpressionCompilationMixin:
             ctx=ctx,
         )
 
-    def _compile_list(self, node: Node) -> ast.expr:
+    def _compile_list(self, node: List) -> ast.expr:
         """Compile list expression."""
         return ast.List(
             elts=[self._compile_expr(e) for e in node.items],
             ctx=ast.Load(),
         )
 
-    def _compile_list_comp(self, node: Node) -> ast.expr:
+    def _compile_list_comp(self, node: ListComp) -> ast.expr:
         """Compile list comprehension."""
         # Register comprehension variables as locals so elt/ifs compile
         # as LOAD_FAST (Name) instead of _ls() context lookups.
-        var_names = self._extract_names(node.target)  # type: ignore[attr-defined]
+        var_names = self._extract_names(node.target)
         prev_locals = {v for v in var_names if v in self._locals}
         for v in var_names:
             self._locals.add(v)
@@ -308,14 +341,14 @@ class ExpressionCompilationMixin:
 
         return result
 
-    def _compile_dict(self, node: Node) -> ast.expr:
+    def _compile_dict(self, node: Dict) -> ast.expr:
         """Compile dict expression."""
         return ast.Dict(
             keys=[self._compile_expr(k) for k in node.keys],
             values=[self._compile_expr(v) for v in node.values],
         )
 
-    def _compile_getattr(self, node: Node) -> ast.expr:
+    def _compile_getattr(self, node: Getattr) -> ast.expr:
         """Compile attribute access (obj.attr)."""
         # Use _ga (cached _getattr) for LOAD_FAST instead of LOAD_GLOBAL.
         # Thunk mode uses _getattr directly (no preamble in thunk functions).
@@ -329,7 +362,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_getitem(self, node: Node) -> ast.expr:
+    def _compile_getitem(self, node: Getitem) -> ast.expr:
         """Compile subscript access (obj[key])."""
         return ast.Subscript(
             value=self._compile_expr(node.obj),
@@ -337,7 +370,7 @@ class ExpressionCompilationMixin:
             ctx=ast.Load(),
         )
 
-    def _compile_slice(self, node: Node) -> ast.expr:
+    def _compile_slice(self, node: Slice) -> ast.expr:
         """Compile slice expression (start:stop:step)."""
         return ast.Slice(
             lower=self._compile_expr(node.start) if node.start else None,
@@ -345,7 +378,7 @@ class ExpressionCompilationMixin:
             step=self._compile_expr(node.step) if node.step else None,
         )
 
-    def _compile_test(self, node: Node) -> ast.expr:
+    def _compile_test(self, node: Test) -> ast.expr:
         """Compile test expression (is defined, is none, etc.)."""
         # Special handling for 'defined' and 'undefined' tests
         # These need to work even when the value is undefined
@@ -393,7 +426,7 @@ class ExpressionCompilationMixin:
             return ast.UnaryOp(op=ast.Not(), operand=test_call)
         return test_call
 
-    def _compile_func_call(self, node: Node) -> ast.expr:
+    def _compile_func_call(self, node: FuncCall) -> ast.expr:
         """Compile function call expression."""
         from kida.nodes import Name, OptionalGetattr, Region
 
@@ -426,11 +459,21 @@ class ExpressionCompilationMixin:
                     value=ast.Name(id="ctx", ctx=ast.Load()),
                 )
             )
-            blocks_value = (
-                ast.Dict(keys=[], values=[])
-                if self._def_caller_stack
-                else ast.Name(id="_blocks", ctx=ast.Load())
-            )
+            if self._def_caller_stack:
+                blocks_value = ast.Dict(keys=[], values=[])
+            elif getattr(self, "_streaming", False):
+                # Region calls are expressions that return Markup strings.
+                # In stream/async-stream block bodies, the active _blocks map
+                # contains stream block functions, which would make nested
+                # {% block %} calls inside the region return generators.
+                # Hand the region a sync block map so its StringBuilder body
+                # continues to render strings.
+                blocks_value = ast.Dict(
+                    keys=[ast.Constant(value=bn) for bn in self._blocks],
+                    values=[ast.Name(id=f"_block_{bn}", ctx=ast.Load()) for bn in self._blocks],
+                )
+            else:
+                blocks_value = ast.Name(id="_blocks", ctx=ast.Load())
             keywords.append(ast.keyword(arg="_blocks", value=blocks_value))
         call_node = ast.Call(
             func=self._compile_expr(node.func),
@@ -454,7 +497,7 @@ class ExpressionCompilationMixin:
             )
         return call_node
 
-    def _compile_filter(self, node: Node) -> ast.expr:
+    def _compile_filter(self, node: Filter) -> ast.expr:
         """Compile filter expression (value | filter_name)."""
         # Validate filter exists at compile time
         # Special case: 'default' and 'd' are handled specially below but still valid
@@ -520,7 +563,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_binop(self, node: Node) -> ast.expr:
+    def _compile_binop(self, node: BinOp) -> ast.expr:
         """Compile binary operation."""
         # Special handling for ~ (string concatenation)
         if node.op == "~":
@@ -568,14 +611,14 @@ class ExpressionCompilationMixin:
             right=self._compile_expr(node.right),
         )
 
-    def _compile_unaryop(self, node: Node) -> ast.expr:
+    def _compile_unaryop(self, node: UnaryOp) -> ast.expr:
         """Compile unary operation."""
         return ast.UnaryOp(
             op=get_unaryop(node.op),
             operand=self._compile_expr(node.operand),
         )
 
-    def _compile_compare(self, node: Node) -> ast.expr:
+    def _compile_compare(self, node: Compare) -> ast.expr:
         """Compile comparison expression."""
         return ast.Compare(
             left=self._compile_expr(node.left),
@@ -583,7 +626,7 @@ class ExpressionCompilationMixin:
             comparators=[self._compile_expr(c) for c in node.comparators],
         )
 
-    def _compile_boolop(self, node: Node) -> ast.expr:
+    def _compile_boolop(self, node: BoolOp) -> ast.expr:
         """Compile boolean operation (and/or)."""
         op = ast.And() if node.op == "and" else ast.Or()
         return ast.BoolOp(
@@ -591,7 +634,7 @@ class ExpressionCompilationMixin:
             values=[self._compile_expr(v) for v in node.values],
         )
 
-    def _compile_cond_expr(self, node: Node) -> ast.expr:
+    def _compile_cond_expr(self, node: CondExpr) -> ast.expr:
         """Compile conditional (ternary) expression."""
         return ast.IfExp(
             test=self._compile_expr(node.test),
@@ -599,7 +642,7 @@ class ExpressionCompilationMixin:
             orelse=self._compile_expr(node.if_false),
         )
 
-    def _compile_await(self, node: Node) -> ast.expr:
+    def _compile_await(self, node: Await) -> ast.expr:
         """Compile await expression."""
         # Compile {{ await expr }} to ast.Await(value=compiled_expr)
         # Part of RFC: rfc-async-rendering
@@ -825,7 +868,7 @@ class ExpressionCompilationMixin:
             keywords=[],
         )
 
-    def _compile_optional_filter(self, node: Any) -> ast.expr:
+    def _compile_optional_filter(self, node: OptionalFilter) -> ast.expr:
         """Compile expr ?| filter — skip filter if value is None.
 
         expr ?| upper  compiles to:
@@ -941,7 +984,7 @@ class ExpressionCompilationMixin:
 
         return result
 
-    def _compile_safe_pipeline(self, node: Any) -> ast.expr:
+    def _compile_safe_pipeline(self, node: SafePipeline) -> ast.expr:
         """Compile safe pipeline: expr ?|> filter1 ?|> filter2.
 
         None-propagating: each step checks for None before applying the filter.

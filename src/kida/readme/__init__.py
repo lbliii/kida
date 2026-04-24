@@ -45,7 +45,7 @@ def render_readme(
 
     detected = _detect(root, depth=depth)
     if context:
-        detected.update(context)
+        detected.update(dict(context))
 
     if template is not None:
         from kida import Environment, FileSystemLoader

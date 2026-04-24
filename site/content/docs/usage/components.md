@@ -236,10 +236,21 @@ kida check templates/ --validate-calls
 ```
 
 ```
-components/card.html:14: type: badge() param 'count' expects int, got str ("five")
+pages/dashboard.html:8: K-CMP-001: Call to 'card' - unknown params: titl
+components/card.html:14: K-CMP-002: type: badge() param 'count' expects int, got str ("five")
 ```
 
 Variable arguments are skipped — only literal values can be type-checked statically.
+
+Validation also follows literal component imports:
+
+```kida
+{% from "components/card.html" import card %}
+
+{{ card(titl="Settings") }}
+```
+
+Kida reads `card`'s metadata from `components/card.html`, validates the call in the importing template, and reports the error at the call site. Dynamic imports are skipped because the target cannot be known at check time.
 
 ## Slot Patterns
 

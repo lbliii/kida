@@ -108,6 +108,10 @@ class ErrorCode(Enum):
     BLOCKED_CALLABLE = "K-SEC-004"
     OUTPUT_LIMIT = "K-SEC-005"
 
+    # Component validation errors/warnings (K-CMP-xxx)
+    COMPONENT_CALL_SIGNATURE = "K-CMP-001"
+    COMPONENT_TYPE_MISMATCH = "K-CMP-002"
+
     # Extended runtime errors (K-RUN-xxx continued)
     ENV_GARBAGE_COLLECTED = "K-RUN-014"
     NOT_COMPILED = "K-RUN-015"
@@ -137,6 +141,7 @@ class ErrorCode(Enum):
             "RUN": "runtime",
             "TPL": "template",
             "SEC": "security",
+            "CMP": "component",
             "WARN": "warning",
         }.get(prefix, "unknown")
 
@@ -187,6 +192,10 @@ class CoercionWarning(KidaWarning):
 
 class MigrationWarning(KidaWarning):
     """Jinja2 migration: behavior differs from Jinja2."""
+
+
+class ComponentWarning(KidaWarning):
+    """Component contract validation warning."""
 
 
 # ---------------------------------------------------------------------------

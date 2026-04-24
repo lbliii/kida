@@ -9,9 +9,10 @@ See: plan/rfc-mixin-protocol-typing.md
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from kida.exceptions import ErrorCode
     from kida.nodes import Export, Let, Node, Set
 
 
@@ -43,10 +44,23 @@ class VariableAssignmentMixin:
     if TYPE_CHECKING:
         # Host attributes (from Compiler.__init__)
         _block_counter: int
+        _env: Any
+        _scope_depth: int
         _template_scope_names: set[str]
 
         # From ExpressionCompilationMixin
         def _compile_expr(self, node: Node, store: bool = False) -> ast.expr: ...
+
+        def _emit_warning(
+            self,
+            code: ErrorCode,
+            message: str,
+            *,
+            lineno: int | None = None,
+            suggestion: str | None = None,
+        ) -> None: ...
+
+        def _make_deferred_lambda(self, expr: ast.expr) -> ast.Lambda: ...
 
     def _compile_set(self, node: Set) -> list[ast.stmt]:
         """Compile {% set %} - block-scoped variable assignment.

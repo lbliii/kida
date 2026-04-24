@@ -14,26 +14,8 @@ Regression guard: reverting the render_block_stream_async preamble-setup fix
 ``Template.render_block_stream_async``) must turn the region + preamble cases
 red. This is the whole reason the file exists.
 
-Known divergences surfaced by this corpus (tracked as xfail, strict=True — any
-fix flips the test XPASS → FAIL, forcing removal of the marker):
-
-- BUG-A ("def-as-generator in full stream"):
-  Top-level ``{% def name(...) %}`` called via ``{{ name(...) }}`` inside a block
-  renders the generator repr (``<generator object ...>``) under render_stream /
-  render_stream_async, but renders correctly under render. Cases 03, 05, 14,
-  18, 22 (full-parity test).
-
-- BUG-B ("let cellvar missing in async block stream"):
-  Top-level ``{% let x = ... %}`` bindings are not visible to block bodies
-  compiled for render_block_stream_async — a NameError on the ``_cv_x``
-  closure variable is raised at chunk time. render_block sets them up
-  correctly. Cases 05, 30 (block-parity test).
-
-- BUG-C ("region returns async_generator when called as expression"):
-  A ``{% region %}`` defined inside a ``{% block %}``, when called as
-  ``{{ region() }}`` inside the same block rendered via
-  render_block_stream_async, yields an async generator that the joiner cannot
-  stringify. Case 15 (block-parity test).
+Known divergences surfaced by this corpus should be tracked as strict xfails
+with a bug tag and removed as soon as the corresponding fix lands.
 """
 
 from __future__ import annotations
@@ -128,7 +110,6 @@ CORPUS: list[ParityCase] = [
         },
         "page",
         "content",
-        xfail_full="BUG-A",
     ),
     _mk(
         "04.import.block.d0",
@@ -151,8 +132,6 @@ CORPUS: list[ParityCase] = [
         },
         "page",
         "content",
-        xfail_full="BUG-A",
-        xfail_block="BUG-B",
     ),
     # Depth 0 — regions
     _mk(
@@ -236,7 +215,6 @@ CORPUS: list[ParityCase] = [
         },
         "page",
         "content",
-        xfail_full="BUG-A",
     ),
     # region-in-block composition
     _mk(
@@ -251,7 +229,6 @@ CORPUS: list[ParityCase] = [
         },
         "page",
         "content",
-        xfail_block="BUG-C",
     ),
     # Depth 1 — inheritance, various preambles
     _mk(
@@ -283,7 +260,6 @@ CORPUS: list[ParityCase] = [
         },
         "child",
         "content",
-        xfail_full="BUG-A",
     ),
     _mk(
         "19.import_child.block.d1",
@@ -332,7 +308,6 @@ CORPUS: list[ParityCase] = [
         },
         "child",
         "content",
-        xfail_full="BUG-A",
     ),
     # Depth 2 — three-level inheritance
     _mk(
@@ -428,7 +403,6 @@ CORPUS: list[ParityCase] = [
         },
         "child",
         "oob",
-        xfail_block="BUG-B",
     ),
     # Control flow inside blocks
     _mk(

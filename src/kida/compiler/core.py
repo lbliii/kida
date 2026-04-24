@@ -152,6 +152,7 @@ class Compiler(
         "_extension_compilers",
         "_filename",
         "_has_async",
+        "_last_block_cacheable_vars",
         "_last_block_compiled_stmts",
         "_locals",
         "_loop_vars",
@@ -225,6 +226,7 @@ class Compiler(
     def __init__(self, env: Environment):
         self._env = env
         self._cached_pure_filters: frozenset[str] | None = None
+        self._last_block_cacheable_vars: set[str] = set()
         self._last_block_compiled_stmts: list[ast.stmt] | None = None
         self._name: str | None = None
         self._filename: str | None = None
@@ -673,6 +675,7 @@ class Compiler(
         sync_blocks: list[ast.stmt] = []
         stream_blocks: list[ast.stmt] = []
         async_stream_blocks: list[ast.stmt] = []
+        has_regions = any(isinstance(block_node, Region) for block_node in saved_blocks.values())
 
         for block_name, block_node in saved_blocks.items():
             # Reset per-block flag before sync compilation
@@ -694,10 +697,14 @@ class Compiler(
                 # _make_block_function, transform for streaming.
                 compiled_stmts = self._last_block_compiled_stmts or []
 
-                if self._block_has_append_rebind:
+                if self._block_has_append_rebind or has_regions:
                     # Block rebinds _append (capture/cache/spaceless/push) —
                     # fall back to dedicated stream compilation so that the
                     # _append → yield transform does not leak captured content.
+                    # Region-bearing templates also need direct stream
+                    # compilation: region calls are string-returning
+                    # expressions and must receive sync block functions even
+                    # when the surrounding block is streamed.
                     self._streaming = True
                     stream_blocks.append(self._make_block_function_stream(block_name, block_node))
                     self._async_mode = True
@@ -711,6 +718,9 @@ class Compiler(
 
                     # Build stream block function
                     stream_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
+                    stream_body.extend(
+                        self._emit_cache_assignments(self._last_block_cacheable_vars)
+                    )
                     stream_body.extend(stream_stmts)
                     stream_body.append(ast.Return(value=None))
                     stream_body.append(ast.Expr(value=ast.Yield(value=None)))
@@ -746,6 +756,9 @@ class Compiler(
                     else:
                         async_stmts = sync_body_to_stream(compiled_stmts)
                         async_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
+                        async_body.extend(
+                            self._emit_cache_assignments(self._last_block_cacheable_vars)
+                        )
                         async_body.extend(async_stmts)
                         async_body.append(ast.Return(value=None))
                         async_body.append(ast.Expr(value=ast.Yield(value=None)))
@@ -1422,6 +1435,7 @@ class Compiler(
         return None
 
     # Stores compiled stmts from the last _make_block_function call for stream reuse
+    _last_block_cacheable_vars: set[str]
     _last_block_compiled_stmts: list[ast.stmt] | None
 
     def _make_block_function(self, name: str, block_node: Block | Region) -> ast.FunctionDef:
@@ -1431,6 +1445,7 @@ class Compiler(
         so the stream variant can be derived without recompiling the Kida AST.
         """
         self._last_block_compiled_stmts = None
+        self._last_block_cacheable_vars = set()
         if isinstance(block_node, Region):
             return self._make_region_block_function(name, block_node)
 
@@ -1438,6 +1453,7 @@ class Compiler(
         body_nodes = list(block_node.body)
         self._last_block_body_nodes = body_nodes
         cacheable = self._analyze_for_cse(body_nodes)
+        self._last_block_cacheable_vars = cacheable
         saved_cached = self._cached_vars
         self._cached_vars = cacheable
 
