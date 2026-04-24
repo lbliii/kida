@@ -323,9 +323,11 @@ class StatementParsingMixin:
         """
         # End tag without matching opening block
         if not self._block_stack:
+            from kida.parser.errors import BULK_CHECK_TIP
+
             raise self._error(
                 f"Unexpected '{keyword}' - no open block to close",
-                suggestion="Remove this tag or add a matching opening tag",
+                suggestion=f"Remove this tag or add a matching opening tag.\n\n{BULK_CHECK_TIP}",
             )
 
         # Check if end tag matches the innermost block
@@ -340,9 +342,14 @@ class StatementParsingMixin:
             return None
         else:
             # Mismatched end tag
+            from kida.parser.errors import BULK_CHECK_TIP
+
             raise self._error(
                 f"Mismatched closing tag: expected '{{% {expected_end} %}}' or '{{% end %}}', got '{{% {keyword} %}}'",
-                suggestion=f"The innermost open block is '{innermost_block}' (opened at line {self._block_stack[-1][1]})",
+                suggestion=(
+                    f"The innermost open block is '{innermost_block}' "
+                    f"(opened at line {self._block_stack[-1][1]}).\n\n{BULK_CHECK_TIP}"
+                ),
             )
 
     def _skip_comment(self) -> None:

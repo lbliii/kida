@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **K-PAR-001 end-tag errors now point at `kida check`** — Orphan `{% end %}`, mismatched closing tags (e.g. `{% endfor %}` against an open `{% if %}`), and typed-end mismatches (e.g. `{% endblock %}` inside a `{% def %}`) now append a tip telling the reader to run `kida check <templates-dir> --strict` to surface every mismatch across the directory at once. Agents and humans doing bulk template migrations were discovering these one rendered route at a time; the CLI already batch-validates, but nothing in the error message said so. New `BULK_CHECK_TIP` constant in `kida.parser.errors`, wired into the five end-tag mismatch paths across `parser/statements.py`, `parser/core.py`, and `parser/blocks/core.py`. `AGENTS.md` gains an "Agents doing bulk template edits in downstream repos" bullet under "Who reads your output" to make the audience explicit for future error-message work.
+
 ## [0.8.0] - 2026-04-21
 
 ### Breaking
