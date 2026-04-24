@@ -64,6 +64,41 @@ class TestComponentsCommand:
         assert card["has_default_slot"] is True
         assert "header" in card["slots"]
 
+    def test_json_output_contract_snapshot(self, component_dir, capsys):
+        """--json output preserves the component inventory schema."""
+        rc = main(["components", str(component_dir), "--json"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data == [
+            {
+                "name": "badge",
+                "template": "card.html",
+                "lineno": 1,
+                "params": [{"name": "label", "annotation": "str", "required": True}],
+                "slots": [],
+                "has_default_slot": False,
+            },
+            {
+                "name": "card",
+                "template": "card.html",
+                "lineno": 1,
+                "params": [
+                    {"name": "title", "annotation": "str", "required": True},
+                    {"name": "subtitle", "annotation": "str", "required": False},
+                ],
+                "slots": ["header"],
+                "has_default_slot": True,
+            },
+            {
+                "name": "nav",
+                "template": "page.html",
+                "lineno": 1,
+                "params": [{"name": "items", "annotation": "list", "required": True}],
+                "slots": [],
+                "has_default_slot": False,
+            },
+        ]
+
     def test_filter_by_name(self, component_dir, capsys):
         """--filter narrows results by name substring."""
         rc = main(["components", str(component_dir), "--filter", "card"])

@@ -4,7 +4,7 @@
 PYTHON_VERSION ?= 3.14t
 VENV_DIR ?= .venv
 
-.PHONY: all help setup install test test-cov test-thread test-async lint lint-fix format ty clean shell docs docs-serve build publish release gh-release action-tag
+.PHONY: all help setup install test test-cov test-thread test-async test-safety test-rc-safety lint lint-fix format format-check ty package-smoke verify-stability verify-rc clean shell docs docs-serve build publish release gh-release action-tag
 
 all: help
 
@@ -20,10 +20,15 @@ help:
 	@echo "  make test-cov   - Run tests with coverage report"
 	@echo "  make test-thread - Run thread safety stress tests"
 	@echo "  make test-async - Run async feature tests"
+	@echo "  make test-safety - Run focused safety/concurrency tests"
 	@echo "  make lint       - Run ruff linter"
 	@echo "  make lint-fix   - Run ruff linter with auto-fix"
 	@echo "  make format     - Run ruff formatter"
+	@echo "  make format-check - Check ruff formatting"
 	@echo "  make ty         - Run ty type checker (fast, Rust-based)"
+	@echo "  make package-smoke - Build artifacts and smoke-test installed wheel"
+	@echo "  make verify-stability - Run the full local stability gate"
+	@echo "  make verify-rc  - Alias for verify-stability"
 	@echo "  make docs       - Build documentation site (requires bengal)"
 	@echo "  make docs-serve - Start dev server for docs (requires bengal)"
 	@echo "  make build      - Build distribution packages"
@@ -50,7 +55,7 @@ test:
 	uv run pytest -q --tb=short
 
 test-cov:
-	uv run pytest --cov=src/kida --cov-report=term-missing
+	uv run pytest --cov=kida --cov-report=term-missing --cov-fail-under=83
 
 test-thread:
 	@echo "Running thread safety stress tests..."
@@ -59,6 +64,18 @@ test-thread:
 test-async:
 	@echo "Running async feature tests..."
 	PYTHON_GIL=0 uv run pytest tests/test_kida_async_features.py -v --tb=short
+
+test-safety:
+	@echo "Running focused safety/concurrency tests..."
+	PYTHON_GIL=0 uv run pytest \
+		tests/test_render_surface_parity.py \
+		tests/test_sandbox_fuzz.py \
+		tests/test_bytecode_cache_concurrency.py \
+		tests/test_lru_cache_concurrency.py \
+		tests/test_kida_stress_test.py \
+		-q --tb=short
+
+test-rc-safety: test-safety
 
 lint:
 	@echo "Running ruff linter..."
@@ -72,9 +89,22 @@ format:
 	@echo "Running ruff formatter..."
 	uv run ruff format src/ tests/
 
+format-check:
+	@echo "Checking ruff formatting..."
+	uv run ruff format --check src/ tests/
+
 ty:
 	@echo "Running ty type checker (Astral, Rust-based)..."
 	uv run ty check src/kida/
+
+package-smoke:
+	@echo "Building and smoke-testing package artifacts..."
+	uv run python scripts/package_smoke.py
+
+verify-stability: lint format-check ty test-cov test-safety package-smoke
+	@echo "✓ Stability verification gate passed"
+
+verify-rc: verify-stability
 
 docs:
 	@echo "Building documentation site..."

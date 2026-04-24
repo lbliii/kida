@@ -28,11 +28,18 @@ icon: terminal
 
 # CLI Reference
 
-Kida ships six subcommands: `check`, `render`, `fmt`, `components`, `readme`, and `extract`. All are available through the `kida` entry point or `python -m kida`.
+Kida ships eight subcommands: `check`, `render`, `fmt`, `components`, `readme`, `extract`, `manifest`, and `diff`. All are available through the `kida` entry point or `python -m kida`.
 
 ```bash
 kida <command> [options]
 ```
+
+## Contract Status
+
+The public CLI contract is the set of subcommands and flags documented here.
+Output text can become clearer, but machine-readable JSON shapes for
+`components --json`, `readme --json`, and `manifest` should only change
+deliberately with docs and changelog updates when behavior changes.
 
 ## kida check
 
@@ -56,6 +63,7 @@ kida check <template_dir> [flags]
 | `--validate-calls` | Validate macro call sites against `{% def %}` signatures. Reports unknown parameters, missing required parameters, and duplicates. |
 | `--a11y` | Check templates for accessibility issues (missing `alt` attributes, heading order, etc.). |
 | `--typed` | Type-check templates against `{% template %}` declarations. |
+| `--lint-fragile-paths` | Suggest `./` relative paths for same-folder include, extends, embed, and import statements so folder moves stay zero-edit. |
 
 ### Examples
 
@@ -74,7 +82,7 @@ kida check templates/ --strict --validate-calls
 Full lint pass (all checks enabled):
 
 ```bash
-kida check templates/ --strict --validate-calls --a11y --typed
+kida check templates/ --strict --validate-calls --a11y --typed --lint-fragile-paths
 ```
 
 ### Output format
@@ -85,6 +93,13 @@ Errors and warnings print to stderr, one per line:
 layouts/base.html: unexpected tag 'endblock'
 partials/nav.html:12: strict: unified {% end %} closes 'if' — prefer {% endif %}
 components/card.html:8: a11y/img-alt [WARNING]: <img> missing alt attribute
+```
+
+`--validate-calls` diagnostics use stable `K-CMP-*` codes:
+
+```
+components/page.html:12: K-CMP-001: Call to 'card' — missing required: title
+components/page.html:18: K-CMP-002: type: card() param 'count' expects int, got str ('many')
 ```
 
 ## kida render
@@ -240,6 +255,46 @@ components/nav.html
 ```
 
 JSON output produces an array of objects with `name`, `template`, `lineno`, `params`, `slots`, and `has_default_slot` fields.
+
+## kida manifest
+
+Render templates with capture instrumentation and emit a render manifest as
+JSON. Frameworks can use this to track rendered block fragments and context
+keys.
+
+```bash
+kida manifest <template_dir> [flags]
+```
+
+**Positional argument:**
+
+| Argument | Description |
+|----------|-------------|
+| `template_dir` | Root directory passed to `FileSystemLoader`. All `*.html` and `*.kida` files are scanned recursively. |
+
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o`, `--output FILE` | stdout | Write manifest JSON to a file. |
+| `--data FILE` | none | JSON object mapping template names to context dictionaries. |
+| `--search` | off | Output a search manifest instead of the raw capture manifest. |
+
+## kida diff
+
+Compare two render manifests and report added, removed, and changed fragment
+content hashes.
+
+```bash
+kida diff <old_manifest> <new_manifest>
+```
+
+**Positional arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `old_manifest` | Path to the previous manifest JSON file. |
+| `new_manifest` | Path to the new manifest JSON file. |
 
 ## kida readme
 

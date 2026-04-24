@@ -18,6 +18,27 @@ icon: code
 
 # API Reference
 
+## Contract Status
+
+The framework-author surface below is treated as the documented integration
+contract:
+
+- imports exported from `kida.__all__`
+- `ErrorCode` names and values
+- `Environment(...)` constructor parameters
+- `Template` render, block-render, streaming, and metadata methods
+- metadata dataclass fields for `BlockMetadata`, `DefParamInfo`,
+  `DefMetadata`, `TemplateMetadata`, and `TemplateStructureManifest`
+- loader constructor behavior documented on this page
+- sandbox, render context, capture, and manifest objects exported from `kida`
+
+Snapshot tests guard those contracts. Any change to the stable surface should be
+deliberate and land with docs and changelog updates when behavior changes.
+
+Internals remain internal even when they are visible to Python: underscored
+attributes, generated template namespace entries, parser/compiler node shapes,
+cache implementation details, and helper functions outside `kida.__all__`.
+
 ## Environment
 
 Central configuration and template management hub.
@@ -45,6 +66,10 @@ env = Environment(
 | `strict_undefined` | `bool` | `True` | Raise `UndefinedError` on missing variable or attribute access (set to `False` for lenient empty-string fallback) |
 | `jinja2_compat_warnings` | `bool` | `True` | Warn when nested `{% set %}` shadows a `{% let %}`/`{% export %}` name |
 | `validate_calls` | `bool` | `False` | Validate `{% def %}` call sites at compile time |
+
+> **Constructor contract note**: the generated dataclass constructor is part of
+> the snapshot gate. Parameters not documented here are compatibility details
+> rather than recommended framework integration points.
 
 ### Methods
 
