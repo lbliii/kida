@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Relative template resolution** — `{% include %}`, `{% extends %}`, `{% embed %}`, and `{% from ... import ... %}` now accept `./` and `../` paths that resolve against the calling template's directory. Moving a folder no longer breaks every reference inside it: `{% include "./_card.html" %}` from `pages/about.html` resolves to `pages/_card.html`, and the same template works unchanged after moving `pages/` anywhere in the tree. Absolute (root-relative) names render byte-identical to before. Path-traversal protection still fires: relative resolution that walks above every loader search root raises `TemplateNotFoundError`. Direct Python callers that pass a relative name without a caller get a clear error pointing at the issue. See `plan/rfc-relative-template-resolution.md` for the full design; `kida.utils.template_keys.resolve_template_name()` is the new public helper.
+- **`kida check --lint-fragile-paths`** — Opt-in lint rule that flags cross-template references whose target lives in the same folder as the caller (e.g. `{% include "pages/card.html" %}` from `pages/about.html`) and suggests the refactor-safe `./card.html` form. The rule covers `{% include %}`, `{% extends %}`, `{% embed %}`, `{% import %}`, and `{% from ... import %}`; references that already use `./`, `../`, or `@alias/` are ignored, and only exact same-folder matches are flagged to keep false-positives low. Default `kida check` behavior is unchanged — the rule only runs when the flag is passed.
+- **Refactor-safe templates tutorial** — New `site/content/docs/tutorials/refactor-safe-templates.md` walks through the folder-move problem, when to use `./` / `../` vs `@alias/`, and a step-by-step migration recipe using `ripgrep`. Cross-linked from the tutorials index and `docs/syntax/includes.md`.
+- **Namespace aliases for template paths** — `Environment(template_aliases={...})` maps short `@name/` prefixes to root-relative subtrees so cross-cutting component libraries stop being path-coupled. With `template_aliases={"components": "ui/components", "layouts": "ui/layouts"}`, templates can write `{% include "@components/card.html" %}` or `{% extends "@layouts/base.html" %}` regardless of where the caller lives — aliases resolve before loader lookup, so the same prefix works in every cross-template statement (`{% include %}`, `{% extends %}`, `{% embed %}`, `{% from ... import ... %}`). Aliases and `./`/`../` relative paths are orthogonal modes; aliases always resolve to an absolute root, so there is no composition of the two. Unknown aliases raise `TemplateNotFoundError` with the list of configured aliases.
+
 ## [0.8.0] - 2026-04-21
 
 ### Breaking

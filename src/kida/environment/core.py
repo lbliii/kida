@@ -39,7 +39,7 @@ from kida.exceptions import (
 from kida.lexer import Lexer, LexerConfig
 from kida.template import Template
 from kida.utils.lru_cache import LRUCache
-from kida.utils.template_keys import normalize_template_name
+from kida.utils.template_keys import normalize_template_name, resolve_template_name
 
 
 def _identity_gettext(message: str) -> str:
@@ -189,6 +189,20 @@ class Environment:
     # - False: Explicitly disabled
     # - BytecodeCache instance: User-provided cache
     bytecode_cache: BytecodeCache | bool | None = None
+
+    # Namespace aliases for template paths (RFC: relative-template-resolution)
+    # Maps alias names to root-relative paths. References like
+    # ``@components/card.html`` resolve to ``{root}/card.html`` before loader
+    # lookup. Aliases resolve BEFORE relative paths — the two modes are
+    # orthogonal (``@components/./foo`` is not supported).
+    #
+    # Example:
+    #   Environment(
+    #       loader=FileSystemLoader("templates/"),
+    #       template_aliases={"components": "ui/components", "layouts": "ui/layouts"},
+    #   )
+    #   env.get_template("@components/card.html")  # → "ui/components/card.html"
+    template_aliases: dict[str, str] | None = None
 
     # Static context for partial evaluation (RFC: partial-evaluation)
     # Values known at compile time.  When set, expressions that depend only
@@ -611,17 +625,26 @@ class Environment:
         new_tests.update(tests)
         self._tests = new_tests
 
-    def get_template(self, name: str) -> Template:
+    def get_template(self, name: str, *, caller: str | None = None) -> Template:
         """Load and cache a template by name.
 
         Args:
-            name: Template identifier (e.g., "index.html")
+            name: Template identifier (e.g., ``"index.html"``). May start
+                with ``./`` or ``../`` for resolution relative to the
+                calling template — see ``caller``.
+            caller: Logical name of the template issuing the request.
+                Required when ``name`` is a relative path. Supplied
+                automatically by ``{% include %}``, ``{% extends %}``,
+                ``{% embed %}``, and ``{% from ... import ... %}`` at
+                render time.
 
         Returns:
             Compiled Template object
 
         Raises:
-            TemplateNotFoundError: If template doesn't exist
+            TemplateNotFoundError: If template doesn't exist, the name is
+                relative without a caller, or resolution escapes the
+                template root.
             TemplateSyntaxError: If template has syntax errors
 
         Note:
@@ -639,7 +662,10 @@ class Environment:
                 "Environment(loader=FileSystemLoader('templates/'))",
             )
 
-        name = normalize_template_name(name)
+        if name.startswith("@"):
+            name = self._resolve_alias(name)
+
+        name = resolve_template_name(name, caller=caller)
 
         # Fast path: cache hit when auto_reload=False (avoids _cache_lock overhead)
         if not self.auto_reload:
@@ -694,6 +720,31 @@ class Environment:
                     self._template_mtimes.pop(name, None)
 
             return template
+
+    def _resolve_alias(self, name: str) -> str:
+        """Substitute ``@alias/path`` with the configured alias root.
+
+        Raises TemplateNotFoundError when the alias is unknown or when no
+        aliases are configured on this Environment.
+        """
+        rest = name[1:]  # strip leading '@'
+        if "/" in rest:
+            alias_key, alias_path = rest.split("/", 1)
+        else:
+            alias_key, alias_path = rest, ""
+
+        aliases = self.template_aliases or {}
+        if alias_key not in aliases:
+            configured = sorted(f"@{k}/" for k in aliases)
+            hint = (
+                f"Configured aliases: {', '.join(configured)}"
+                if configured
+                else "No template aliases are configured on this Environment."
+            )
+            raise TemplateNotFoundError(f"Unknown template alias '@{alias_key}/'. {hint}")
+
+        root = aliases[alias_key].strip("/")
+        return f"{root}/{alias_path}" if alias_path else root
 
     def from_string(
         self,

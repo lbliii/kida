@@ -327,7 +327,7 @@ class TemplateIntrospectionMixin:
             if env_for_cache is None:
                 return None
             try:
-                included = env_for_cache.get_template(name)
+                included = env_for_cache.get_template(name, caller=self._name)
                 # Trigger analysis of included template (will cache it)
                 if (
                     hasattr(included, "_optimized_ast")
