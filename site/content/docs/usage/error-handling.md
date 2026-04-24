@@ -180,24 +180,47 @@ Every Kida exception carries an `ErrorCode` that categorizes the error and links
 
 | Code | Category | Description |
 |------|----------|-------------|
-| `K-LEX-001` | Lexer | Unterminated string literal |
-| `K-LEX-002` | Lexer | Invalid character in template |
+| `K-LEX-001` | Lexer | Unclosed tag |
+| `K-LEX-002` | Lexer | Unclosed comment |
+| `K-LEX-003` | Lexer | Unclosed variable |
+| `K-LEX-004` | Lexer | Token limit exceeded |
 | `K-PAR-001` | Parser | Unexpected token |
 | `K-PAR-002` | Parser | Unclosed block tag |
 | `K-PAR-003` | Parser | Invalid expression |
+| `K-PAR-004` | Parser | Invalid filter |
+| `K-PAR-005` | Parser | Invalid test |
 | `K-PAR-006` | Parser | Invalid identifier (hyphen in block/fragment name) |
+| `K-PAR-007` | Parser | Unsupported syntax |
 | `K-RUN-001` | Runtime | Undefined variable |
-| `K-RUN-002` | Runtime | Type error in expression |
-| `K-RUN-003` | Runtime | Index out of range |
-| `K-RUN-004` | Runtime | Filter execution error |
+| `K-RUN-002` | Runtime | Filter execution error |
+| `K-RUN-003` | Runtime | Test execution error |
+| `K-RUN-004` | Runtime | Required value was None or missing |
+| `K-RUN-005` | Runtime | None comparison |
+| `K-RUN-006` | Runtime | Include depth exceeded |
+| `K-RUN-007` | Runtime | Generic runtime error |
+| `K-RUN-008` | Runtime | Macro not found |
+| `K-RUN-009` | Runtime | Key error |
+| `K-RUN-010` | Runtime | Attribute error |
+| `K-RUN-011` | Runtime | Division by zero |
+| `K-RUN-012` | Runtime | Type error |
+| `K-RUN-013` | Runtime | Macro iteration |
+| `K-RUN-014` | Runtime | Environment garbage collected |
+| `K-RUN-015` | Runtime | Template not compiled |
+| `K-RUN-016` | Runtime | No loader configured |
+| `K-RUN-017` | Runtime | Not in render context |
 | `K-TPL-001` | Template | Template not found |
 | `K-TPL-002` | Template | Template syntax error |
 | `K-TPL-003` | Template | Circular macro import |
+| `K-TPL-004` | Template | Definition not top-level |
 | `K-SEC-001` | Security | Blocked attribute access |
 | `K-SEC-002` | Security | Blocked type access |
 | `K-SEC-003` | Security | Range limit exceeded |
 | `K-SEC-004` | Security | Blocked callable |
 | `K-SEC-005` | Security | Output limit exceeded |
+| `K-CMP-001` | Component | Component call signature mismatch |
+| `K-CMP-002` | Component | Component literal type mismatch |
+| `K-WARN-001` | Warning | Filter precedence warning |
+| `K-WARN-002` | Warning | Jinja2 `set` scoping difference |
 
 Access the code programmatically:
 

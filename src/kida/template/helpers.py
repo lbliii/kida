@@ -203,9 +203,10 @@ def getitem_preserve_none(obj: object, key: object) -> object:
     Complexity: O(1)
     """
     if isinstance(obj, Mapping):
-        return obj.get(key)  # type: ignore[arg-type]
+        mapping = cast("Mapping[Any, Any]", obj)
+        return mapping.get(key)
     try:
-        return obj[key]  # type: ignore[index]
+        return cast("Any", obj)[key]
     except KeyError, IndexError, TypeError:
         return None
 
@@ -327,9 +328,10 @@ def strict_getitem_preserve_none(obj: object, key: object) -> object:
       a bug, so strict mode preserves typo detection there.
     """
     if isinstance(obj, Mapping):
-        return obj.get(key)  # type: ignore[arg-type]
+        mapping = cast("Mapping[Any, Any]", obj)
+        return mapping.get(key)
     try:
-        return obj[key]  # type: ignore[index]
+        return cast("Any", obj)[key]
     except KeyError, IndexError, TypeError:
         _raise_undefined_attr(obj, str(key), preserve_none=True)
     return None  # unreachable, satisfies type checker

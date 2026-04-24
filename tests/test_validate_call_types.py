@@ -196,3 +196,78 @@ class TestValidateCallTypesCLI:
         assert "K-CMP-002" in err
         assert "card()" in err
         assert "got int" in err
+
+    def test_imported_signature_missing_required_reported(self, tmp_path, capsys):
+        """Imported defs report missing required props at the importing call site."""
+        from kida.cli import main
+
+        (tmp_path / "components.html").write_text(
+            "{% def card(title: str, body: str) %}{{ title }}{% end %}"
+        )
+        (tmp_path / "page.html").write_text(
+            '{% from "components.html" import card %}{{ card(title="Hi") }}'
+        )
+
+        rc = main(["check", str(tmp_path), "--validate-calls"])
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "page.html:1: K-CMP-001" in err
+        assert "missing required: body" in err
+
+    def test_imported_signature_unknown_prop_reported(self, tmp_path, capsys):
+        """Imported defs report unknown props at the importing call site."""
+        from kida.cli import main
+
+        (tmp_path / "components.html").write_text("{% def card(title: str) %}{{ title }}{% end %}")
+        (tmp_path / "page.html").write_text(
+            '{% from "components.html" import card %}{{ card(titl="Hi") }}'
+        )
+
+        rc = main(["check", str(tmp_path), "--validate-calls"])
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "page.html:1: K-CMP-001" in err
+        assert "unknown params: titl" in err
+
+    def test_imported_alias_signature_and_type_validation(self, tmp_path, capsys):
+        """Import aliases are the visible component names used for validation."""
+        from kida.cli import main
+
+        (tmp_path / "components.html").write_text(
+            "{% def card(title: str, count: int) %}{{ title }}{% end %}"
+        )
+        (tmp_path / "page.html").write_text(
+            '{% from "components.html" import card as panel %}{{ panel("Hi", count="many") }}'
+        )
+
+        rc = main(["check", str(tmp_path), "--validate-calls"])
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "panel()" in err
+        assert "expects int, got str" in err
+        assert "card()" not in err
+
+    def test_missing_imported_template_skips_component_validation(self, tmp_path, capsys):
+        """Missing literal imports do not invent component validation failures."""
+        from kida.cli import main
+
+        (tmp_path / "page.html").write_text(
+            '{% from "missing.html" import card %}{{ card(titl="Hi") }}'
+        )
+
+        rc = main(["check", str(tmp_path), "--validate-calls"])
+        assert rc == 0
+        assert "K-CMP" not in capsys.readouterr().err
+
+    def test_dynamic_import_skips_component_validation(self, tmp_path, capsys):
+        """Dynamic import targets are skipped because metadata is not statically known."""
+        from kida.cli import main
+
+        (tmp_path / "components.html").write_text("{% def card(title: str) %}{{ title }}{% end %}")
+        (tmp_path / "page.html").write_text(
+            '{% let target = "components.html" %}{% from target import card %}{{ card(titl="Hi") }}'
+        )
+
+        rc = main(["check", str(tmp_path), "--validate-calls"])
+        assert rc == 0
+        assert "K-CMP" not in capsys.readouterr().err
