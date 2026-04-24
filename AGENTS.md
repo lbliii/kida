@@ -42,6 +42,7 @@ Kida is shipped (Bengal and Chirp depend on it) and pre-1.0. Calibrate according
 
 - **Framework builders** — Bengal, Chirp. They read `template_metadata()`, `block_metadata()`, tracebacks with line/col, and your error messages when their users misuse a tag.
 - **SSG authors** — read `kida check` / `kida format` output. If your error doesn't include the template path and a fix, it's wrong.
+- **Agents doing bulk template edits in downstream repos** — the whack-a-mole case. An agent migrating an IA across dozens of `{% call %}`/`{% if %}` nests finds parse errors one rendered route at a time unless we tell them about `kida check <dir> --strict --validate-calls`. Parser errors on unmatched `{% end %}` should surface that tip; agent-facing docs should lead with it.
 - **Migrators from Jinja2** — want to be done in five minutes. The `set` vs `let` trap is the #1 thing they hit. Error messages should *catch them*, not let them debug it themselves.
 - **Contributors** — know templating, not our internals. They read parser/compiler files; mixin patterns are surprising.
 - **Me (Lawrence)** — read diffs. Put the *what* in code, the *why* in the PR.

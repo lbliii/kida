@@ -161,9 +161,11 @@ class Parser(
         if self._current.type == TokenType.BLOCK_BEGIN:
             next_tok = self._peek(1)
             if next_tok.type == TokenType.NAME and next_tok.value in self._end_keywords:
+                from kida.parser.errors import BULK_CHECK_TIP
+
                 raise self._error(
                     f"Unexpected '{{% {next_tok.value} %}}' - no open block to close",
-                    suggestion="Remove this tag or add a matching opening tag",
+                    suggestion=f"Remove this tag or add a matching opening tag.\n\n{BULK_CHECK_TIP}",
                 )
             # Also check for orphan continuation keywords
             if next_tok.type == TokenType.NAME and next_tok.value in self._CONTINUATION_KEYWORDS:
