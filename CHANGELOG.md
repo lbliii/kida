@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **`markdown_escape` no longer escapes inline hyphens, parens, hashes, pipes, or tildes** — The autoescape table for `autoescape="markdown"` now only escapes characters that actually trigger formatting at any inline position (`\`, `` ` ``, `*`, `_`, `[`, `]`, `<`). Block-leading markers (`#`, `>`, `-`, `+`, ordered-list digits) are still escaped, but only at line start (after up to 3 spaces of indent). Output for prose, dates, version numbers, identifiers, and function-call syntax is now clean — no more `2026\-04\-24`, `K\-PAR\-001`, or `divide\(1, 0\)` in rendered markdown. **Migration**: regenerate any committed snapshot files comparing markdown-mode output (`pytest --update-snapshots` for the built-in templates). Behavior matches CommonMark/GFM parsing — characters that don't need a backslash to render correctly no longer get one.
+- **`Markup` now implements `__markdown__`** — `{{ value | safe }}` (which returns `Markup`) is now honored by markdown autoescape just like HTML autoescape. Previously, `safe` was a no-op under `autoescape="markdown"` because `Markup` only implemented the `__html__` protocol. Templates that relied on the old behavior will now correctly pass safe content through unescaped.
+
+### Fixed
+
+- **Built-in `release-notes` templates pass PR-body markdown through `| safe`** — `body_excerpt` and `body` fields on PRs are now marked safe in `templates/release-notes-report.md` and `templates/release-notes-detailed-report.md`, so headings (`## Summary`), bullet lists, and inline code inside PR bodies render as the PR author intended instead of as backslash-escaped literals inside `<details>` blocks.
+
 ## [0.8.0] - 2026-04-24
 
 ### Breaking
