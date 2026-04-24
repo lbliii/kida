@@ -254,6 +254,16 @@ class TestRenderStreamAsync:
         result = "".join(chunks)
         assert result == "Hello World"
 
+    def test_sync_leaf_template_skips_compiled_async_wrapper(self, env: Environment) -> None:
+        """Sync leaf templates rely on render_stream_async()'s sync fallback."""
+        tmpl = env.from_string("Hello {{ name }}")
+        assert tmpl._render_stream_async_func is None
+
+    def test_sync_block_template_keeps_compiled_async_wrapper(self, env: Environment) -> None:
+        """Block-bearing sync templates can act as parents for async child blocks."""
+        tmpl = env.from_string("{% block content %}Hello{% end %}")
+        assert tmpl._render_stream_async_func is not None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # render_block_stream_async() tests

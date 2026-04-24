@@ -126,8 +126,7 @@ def safe_getattr(obj: object, name: str) -> object:
     # type() is dict skips the isinstance MRO probe; dict subclasses fall
     # through to the isinstance branch which preserves subscript-first order.
     if type(obj) is dict:
-        d = cast("dict[str, Any]", obj)
-        val = d.get(name, _MISS)
+        val = dict.get(obj, name, _MISS)
         if val is not _MISS:
             return "" if val is None else val
         # Fallback to getattr for dict methods (items, keys, etc.)
@@ -167,8 +166,7 @@ def getattr_preserve_none(obj: object, name: str) -> object:
     Complexity: O(1)
     """
     if type(obj) is dict:
-        d = cast("dict[str, Any]", obj)
-        val = d.get(name, _MISS)
+        val = dict.get(obj, name, _MISS)
         if val is not _MISS:
             return val
         # Fallback to getattr for dict methods (items, keys, etc.)
@@ -250,8 +248,7 @@ def strict_getattr(obj: object, name: str) -> object:
     if obj is None:
         _raise_undefined_attr(obj, name)
     if type(obj) is dict:
-        d = cast("dict[str, Any]", obj)
-        val = d.get(name, _MISS)
+        val = dict.get(obj, name, _MISS)
         if val is not _MISS:
             return "" if val is None else val
         val = getattr(obj, name, _MISS)
@@ -291,8 +288,7 @@ def strict_getattr_preserve_none(obj: object, name: str) -> object:
       ``UndefinedError`` to catch template typos against an object's schema.
     """
     if type(obj) is dict:
-        d = cast("dict[str, Any]", obj)
-        val = d.get(name, _MISS)
+        val = dict.get(obj, name, _MISS)
         if val is not _MISS:
             return val
         val = getattr(obj, name, _MISS)

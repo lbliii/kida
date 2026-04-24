@@ -80,6 +80,53 @@ _TOP_LEVEL_STATEMENTS = frozenset(
 )
 
 
+def _fix_missing_locations_fast(node: ast.AST) -> ast.AST:
+    """Fill missing Python AST locations without recursive iter_fields overhead.
+
+    Mirrors :func:`ast.fix_missing_locations`: each child inherits the current
+    parent location unless it already carries its own value. Kida emits large
+    generated ASTs during compile, so avoiding ``ast.iter_child_nodes()`` saves
+    measurable compile time while preserving traceback line semantics.
+    """
+    stack: list[tuple[ast.AST, int, int, int, int]] = [(node, 1, 0, 1, 0)]
+    while stack:
+        current, lineno, col_offset, end_lineno, end_col_offset = stack.pop()
+        current_any = cast("Any", current)
+        attrs = current._attributes
+        if "lineno" in attrs:
+            if not hasattr(current, "lineno"):
+                current_any.lineno = lineno
+            else:
+                lineno = cast("int", current_any.lineno)
+        if "end_lineno" in attrs:
+            if getattr(current, "end_lineno", None) is None:
+                current_any.end_lineno = end_lineno
+            else:
+                end_lineno = cast("int", current_any.end_lineno)
+        if "col_offset" in attrs:
+            if not hasattr(current, "col_offset"):
+                current_any.col_offset = col_offset
+            else:
+                col_offset = cast("int", current_any.col_offset)
+        if "end_col_offset" in attrs:
+            if getattr(current, "end_col_offset", None) is None:
+                current_any.end_col_offset = end_col_offset
+            else:
+                end_col_offset = cast("int", current_any.end_col_offset)
+
+        for field_name in reversed(current._fields):
+            field = getattr(current, field_name, None)
+            if isinstance(field, ast.AST):
+                stack.append((field, lineno, col_offset, end_lineno, end_col_offset))
+            elif isinstance(field, list):
+                stack.extend(
+                    (item, lineno, col_offset, end_lineno, end_col_offset)
+                    for item in reversed(field)
+                    if isinstance(item, ast.AST)
+                )
+    return node
+
+
 class Compiler(
     ExpressionCompilationMixin,
     StatementCompilationMixin,
@@ -155,6 +202,7 @@ class Compiler(
         "_last_block_cacheable_vars",
         "_last_block_compiled_stmts",
         "_locals",
+        "_loop_usage_cache",
         "_loop_vars",
         "_name",
         "_node_dispatch",
@@ -253,6 +301,9 @@ class Compiler(
         self._declared_definitions: set[str] = set()
         # Track loop variables for include scope propagation
         self._loop_vars: set[str] = set()
+        # Per-compile memo for loop-variable analysis. The same AST bodies are
+        # consulted for sync, stream, and async function generation.
+        self._loop_usage_cache: dict[int, bool] = {}
         # Names bound by {% let %} / {% export %} — template-scope visible.
         # Used to narrow the {% set %}-inside-block migration warning: the
         # Jinja2 scoping trap only fires when the author expects a nested
@@ -586,6 +637,7 @@ class Compiler(
         self._precomputed_ids = {}
         self._declared_definitions = set()
         self._template_scope_names = set()
+        self._loop_usage_cache = {}
 
         # Validate top-level placement of {% def %} / {% region %}: nesting
         # inside control-flow constructs (if/for/with/provide/...) prevents
@@ -596,7 +648,7 @@ class Compiler(
         module = self._compile_template(node)
 
         # Fix missing locations for Python 3.8+
-        ast.fix_missing_locations(module)
+        _fix_missing_locations_fast(module)
 
         # Compile to code object
         return compile(
@@ -801,16 +853,18 @@ class Compiler(
                 )
             )
 
-        # Async streaming render function (generated for ALL templates).
-        # For sync templates, these wrap sync code in async def.
-        # This ensures every parent template has render_stream_async for
-        # inheritance chains where a child introduces async constructs.
-        self._streaming = True
-        self._async_mode = True
-        module_body.extend(async_stream_blocks)
-        module_body.append(self._make_render_function_stream_async(node, saved_blocks))
-        self._async_mode = False
-        self._streaming = False
+        # Async streaming render function. Sync leaf templates do not need an
+        # async wrapper because Template.render_stream_async() falls back to
+        # render_stream(). Keep wrappers for async templates and inheritance
+        # participants so async child blocks can flow through sync parents.
+        needs_async_stream = self._has_async or bool(saved_blocks) or extends_target is not None
+        if needs_async_stream:
+            self._streaming = True
+            self._async_mode = True
+            module_body.extend(async_stream_blocks)
+            module_body.append(self._make_render_function_stream_async(node, saved_blocks))
+            self._async_mode = False
+            self._streaming = False
 
         return ast.Module(
             body=module_body,
