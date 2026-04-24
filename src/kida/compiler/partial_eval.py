@@ -26,7 +26,7 @@ Integration:
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, final
 
 from kida.nodes import (
@@ -1904,14 +1904,7 @@ class PartialEvaluator:
                 new_value = self._transform_expr(expr.value)
                 if new_value is expr.value:
                     return expr
-                return Filter(
-                    lineno=expr.lineno,
-                    col_offset=expr.col_offset,
-                    name=expr.name,
-                    value=new_value,
-                    args=expr.args,
-                    kwargs=expr.kwargs,
-                )
+                return replace(expr, value=new_value)
 
             case Pipeline():
                 val = self._try_eval(expr)
