@@ -178,6 +178,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         "_local_blocks_async_stream",  # Local async stream block funcs
         "_local_blocks_stream",  # Local stream block funcs
         "_local_blocks_sync",  # Local sync block funcs
+        "_max_output_size",  # Sandbox output limit captured at compile time
         "_metadata_cache",  # Cached analysis results
         "_name",
         "_namespace",  # Compiled namespace with block functions
@@ -328,6 +329,9 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
 
         if isinstance(env, SandboxedEnvironment):
             patch_template_namespace(namespace, env._get_sandbox_policy())
+            self._max_output_size = env._get_sandbox_policy().max_output_size
+        else:
+            self._max_output_size = None
 
         exec(code, namespace)
         self._render_func = namespace.get("render")
@@ -381,14 +385,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
 
     def _get_max_output_size(self) -> int | None:
         """Get max_output_size from sandbox policy, if any."""
-        env = self._env_ref()
-        if env is None:
-            return None
-        from kida.sandbox import SandboxedEnvironment
-
-        if isinstance(env, SandboxedEnvironment):
-            return env._get_sandbox_policy().max_output_size
-        return None
+        return self._max_output_size
 
     def _check_output_size(self, output: str) -> str:
         """Enforce max_output_size if sandbox policy sets one."""
