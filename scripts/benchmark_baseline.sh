@@ -42,6 +42,7 @@ python -m pytest \
     "$PROJECT_DIR/benchmarks/test_benchmark_include_depth.py" \
     "$PROJECT_DIR/benchmarks/test_benchmark_inherited_blocks.py" \
     "$PROJECT_DIR/benchmarks/test_benchmark_output_sanity.py" \
+    "$PROJECT_DIR/benchmarks/test_benchmark_regression_core.py" \
     --benchmark-only \
     --benchmark-save="$NAME" \
     --benchmark-storage="$STORAGE" \

@@ -117,6 +117,9 @@ pytest benchmarks/test_benchmark_scaling.py -v --benchmark-only
 # Output-sanity benchmark guards (count/equivalence assertions + timing)
 pytest benchmarks/test_benchmark_output_sanity.py -v --benchmark-only
 
+# Stable Kida-only hot-path regression probes
+pytest benchmarks/test_benchmark_regression_core.py -v --benchmark-only
+
 # Inherited block hot-path performance
 pytest benchmarks/test_benchmark_inherited_blocks.py -v --benchmark-only
 
