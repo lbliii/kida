@@ -282,13 +282,17 @@ class FunctionCompilationMixin:
             self._locals.add(node.kwarg)
 
         # Compile function body
-        # Macros (def) are always sync functions — disable async mode
-        # to prevent async for/await inside the def body.
+        # Macros (def) are always sync StringBuilder functions — disable
+        # async and streaming modes so surrounding render_stream compilation
+        # does not turn the component body into a generator.
         # Lexical caller scoping: capture _caller to _def_caller so slot functions
         # can reference it without shadowing by the inner _caller wrapper.
         saved_async = getattr(self, "_async_mode", False)
+        saved_streaming = getattr(self, "_streaming", False)
         if saved_async:
             self._async_mode = False
+        if saved_streaming:
+            self._streaming = False
         func_body.append(
             ast.Assign(
                 targets=[ast.Name(id="_def_caller", ctx=ast.Store())],
@@ -347,8 +351,10 @@ class FunctionCompilationMixin:
                 inner_body.extend(self._compile_node(child))
         finally:
             self._def_caller_stack.pop()
-        if saved_async:
-            self._async_mode = saved_async
+            if saved_async:
+                self._async_mode = saved_async
+            if saved_streaming:
+                self._streaming = saved_streaming
 
         # Remove args from locals
         for p in node.params:
@@ -916,8 +922,11 @@ class FunctionCompilationMixin:
             self._locals.add(node.kwarg)
 
         saved_async = getattr(self, "_async_mode", False)
+        saved_streaming = getattr(self, "_streaming", False)
         if saved_async:
             self._async_mode = False
+        if saved_streaming:
+            self._streaming = False
         try:
             for child in node.body:
                 func_body.extend(self._compile_node(child))
@@ -930,6 +939,8 @@ class FunctionCompilationMixin:
                 self._locals.discard(node.kwarg)
             if saved_async:
                 self._async_mode = True
+            if saved_streaming:
+                self._streaming = saved_streaming
 
         func_body.append(
             ast.Return(

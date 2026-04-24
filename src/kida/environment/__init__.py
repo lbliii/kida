@@ -52,6 +52,7 @@ from kida.environment.protocols import Filter, Loader, Test
 from kida.environment.registry import FilterRegistry
 from kida.exceptions import (
     CoercionWarning,
+    ComponentWarning,
     ErrorCode,
     KidaWarning,
     MigrationWarning,
@@ -69,6 +70,7 @@ from kida.exceptions import (
 __all__ = [
     "ChoiceLoader",
     "CoercionWarning",
+    "ComponentWarning",
     "DictLoader",
     "Environment",
     "ErrorCode",

@@ -8,16 +8,32 @@ import os
 import sys
 from datetime import UTC
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from kida.analysis.i18n import ExtractedMessage
 
 from kida import Environment, FileSystemLoader
 from kida.analysis.analyzer import BlockAnalyzer
-from kida.exceptions import TemplateSyntaxError
+from kida.exceptions import ErrorCode, TemplateSyntaxError
 from kida.lexer import Lexer
 from kida.parser import Parser
+
+
+class _ComponentParamRow(TypedDict):
+    name: str
+    annotation: str | None
+    required: bool
+
+
+class _ComponentRow(TypedDict):
+    name: str
+    template: str
+    lineno: int
+    params: list[_ComponentParamRow]
+    slots: list[str]
+    has_default_slot: bool
+
 
 _TEMPLATE_GLOBS = ("*.html", "*.kida")
 
@@ -100,7 +116,11 @@ def _cmd_check(
                 strict_warnings += 1
 
         if validate_calls and tpl._optimized_ast is not None:
-            for issue in BlockAnalyzer().validate_calls(tpl._optimized_ast):
+            imported_defs = env._collect_imported_def_metadata(tpl._optimized_ast, rel)
+            for issue in BlockAnalyzer().validate_calls_with_external_defs(
+                tpl._optimized_ast,
+                imported_defs,
+            ):
                 parts: list[str] = []
                 if issue.unknown_params:
                     parts.append(f"unknown params: {', '.join(issue.unknown_params)}")
@@ -109,7 +129,10 @@ def _cmd_check(
                 if issue.duplicate_params:
                     parts.append(f"duplicate params: {', '.join(issue.duplicate_params)}")
                 loc = f"{rel}:{issue.lineno}"
-                msg = f"Call to '{issue.def_name}' at {loc} — {'; '.join(parts)}"
+                msg = (
+                    f"{loc}: {ErrorCode.COMPONENT_CALL_SIGNATURE.value}: "
+                    f"Call to '{issue.def_name}' — {'; '.join(parts)}"
+                )
                 print(msg, file=sys.stderr)
                 call_issues += 1
 
@@ -138,9 +161,14 @@ def _cmd_check(
                 failed_loads.add(rel)
                 continue
             if tpl._optimized_ast is not None:
-                for mm in BlockAnalyzer().validate_call_types(tpl._optimized_ast):
+                imported_defs = env._collect_imported_def_metadata(tpl._optimized_ast, rel)
+                for mm in BlockAnalyzer().validate_call_types_with_external_defs(
+                    tpl._optimized_ast,
+                    imported_defs,
+                ):
                     print(
-                        f"{rel}:{mm.lineno}: type: {mm.def_name}() param '{mm.param_name}' "
+                        f"{rel}:{mm.lineno}: {ErrorCode.COMPONENT_TYPE_MISMATCH.value}: "
+                        f"type: {mm.def_name}() param '{mm.param_name}' "
                         f"expects {mm.expected}, got {mm.actual_type} ({mm.actual_value!r})",
                         file=sys.stderr,
                     )
@@ -615,7 +643,7 @@ def _cmd_components(
     env = Environment(loader=FileSystemLoader(str(root)), validate_calls=False)
 
     # Collect all def metadata across templates
-    all_defs: list[dict[str, object]] = []
+    all_defs: list[_ComponentRow] = []
     for path in sorted(root.rglob("*.html")):
         rel = path.relative_to(root).as_posix()
         try:

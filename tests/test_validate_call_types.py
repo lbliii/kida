@@ -180,3 +180,19 @@ class TestValidateCallTypesCLI:
         )
         rc = main(["check", str(tmp_path), "--validate-calls"])
         assert rc == 0
+
+    def test_imported_type_mismatch_reported(self, tmp_path, capsys):
+        """kida check validates literal args against imported def metadata."""
+        from kida.cli import main
+
+        (tmp_path / "components.html").write_text("{% def card(title: str) %}{{ title }}{% end %}")
+        (tmp_path / "page.html").write_text(
+            '{% from "components.html" import card %}{{ card(42) }}'
+        )
+
+        rc = main(["check", str(tmp_path), "--validate-calls"])
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "K-CMP-002" in err
+        assert "card()" in err
+        assert "got int" in err

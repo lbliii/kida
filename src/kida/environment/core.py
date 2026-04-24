@@ -23,6 +23,7 @@ Example:
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from dataclasses import dataclass, field
 from hashlib import sha256
@@ -33,6 +34,7 @@ from kida.environment.filters import DEFAULT_FILTERS
 from kida.environment.registry import FilterRegistry
 from kida.environment.tests import DEFAULT_TESTS
 from kida.exceptions import (
+    TemplateError,
     TemplateNotFoundError,
     TemplateSyntaxError,
 )
@@ -62,6 +64,42 @@ def _consume_global(key: str, default: Any = None) -> Any:
     return rc.consume(key, default)
 
 
+def _format_call_validation_parts(issue: Any) -> list[str]:
+    """Format the individual problems in a component call validation result."""
+    parts: list[str] = []
+    if issue.unknown_params:
+        parts.append(f"unknown params: {', '.join(issue.unknown_params)}")
+    if issue.missing_required:
+        parts.append(f"missing required: {', '.join(issue.missing_required)}")
+    if issue.duplicate_params:
+        parts.append(f"duplicate params: {', '.join(issue.duplicate_params)}")
+    return parts
+
+
+def _component_call_warning(issue: Any, template_name: str | None) -> Any:
+    """Build a structured warning for a component call validation issue."""
+    from kida.exceptions import ErrorCode, TemplateWarning
+
+    parts = _format_call_validation_parts(issue)
+    return TemplateWarning(
+        code=ErrorCode.COMPONENT_CALL_SIGNATURE,
+        message=f"Call to '{issue.def_name}' has invalid arguments: {'; '.join(parts)}",
+        template_name=template_name,
+        lineno=issue.lineno,
+        suggestion="Check the component's {% def %} signature and rename, add, or remove arguments.",
+    )
+
+
+def _iter_nodes(root: Any) -> Any:
+    """Yield AST nodes depth-first without depending on a visitor class."""
+    yield root
+    iter_child_nodes = getattr(root, "iter_child_nodes", None)
+    if iter_child_nodes is None:
+        return
+    for child in iter_child_nodes():
+        yield from _iter_nodes(child)
+
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -87,6 +125,7 @@ if TYPE_CHECKING:
 DEFAULT_TEMPLATE_CACHE_SIZE = 400
 DEFAULT_FRAGMENT_CACHE_SIZE = 1000
 DEFAULT_FRAGMENT_TTL = 300.0  # seconds
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -466,6 +505,43 @@ class Environment:
         self._extension_tags = tag_map
         self._extension_compilers = compiler_map
         self._extension_end_keywords = frozenset(end_kw)
+
+    def _collect_imported_def_metadata(
+        self, ast: TemplateNode, current_name: str | None
+    ) -> dict[str, Any]:
+        """Return visible imported component definitions for static validation.
+
+        Only literal ``{% from "template" import name [as alias] %}`` imports
+        are resolved. Dynamic imports and templates that fail to load are
+        skipped so validation remains conservative.
+        """
+        from kida.nodes import Const, FromImport
+
+        imported: dict[str, Any] = {}
+        for node in _iter_nodes(ast):
+            if not isinstance(node, FromImport):
+                continue
+            if not isinstance(node.template, Const) or not isinstance(node.template.value, str):
+                continue
+            template_name = node.template.value
+            if current_name is not None and template_name == current_name:
+                continue
+            try:
+                template = self.get_template(template_name)
+            except TemplateError as exc:
+                logger.debug(
+                    "Skipping component validation metadata for %s imported by %s: %s",
+                    template_name,
+                    current_name,
+                    exc,
+                )
+                continue
+            meta = template.def_metadata()
+            for original, alias in node.names:
+                def_meta = meta.get(original)
+                if def_meta is not None:
+                    imported[alias or original] = def_meta
+        return imported
 
     def install_translations(self, translations: Any) -> None:
         """Install a gettext translations object.
@@ -911,25 +987,18 @@ class Environment:
                 inline_components=self.inline_components,
             )
 
+        validation_warnings: list[Any] = []
+
         # Call-site validation (RFC: typed-def-parameters)
         if self.validate_calls:
-            import warnings
-
             from kida.analysis.analyzer import BlockAnalyzer
 
             analyzer = BlockAnalyzer()
-            call_issues = analyzer.validate_calls(ast)
-            for issue in call_issues:
-                parts: list[str] = []
-                if issue.unknown_params:
-                    parts.append(f"unknown params: {', '.join(issue.unknown_params)}")
-                if issue.missing_required:
-                    parts.append(f"missing required: {', '.join(issue.missing_required)}")
-                if issue.duplicate_params:
-                    parts.append(f"duplicate params: {', '.join(issue.duplicate_params)}")
-                loc = f"{name or '<string>'}:{issue.lineno}"
-                msg = f"Call to '{issue.def_name}' at {loc} — {'; '.join(parts)}"
-                warnings.warn(msg, stacklevel=2)
+            imported_defs = self._collect_imported_def_metadata(ast, name)
+            call_issues = analyzer.validate_calls_with_external_defs(ast, imported_defs)
+            validation_warnings.extend(
+                _component_call_warning(issue, name or "<string>") for issue in call_issues
+            )
 
         # Preserve AST for introspection if enabled
         optimized_ast = ast if self.preserve_ast else None
@@ -970,18 +1039,25 @@ class Environment:
             source=source,
             precomputed=precomputed,
         )
-        tmpl._compile_warnings = compile_warnings
+        tmpl._compile_warnings = validation_warnings + compile_warnings
 
         # Emit Python warnings for integration with pytest and logging
-        if compile_warnings:
+        all_warnings = validation_warnings + compile_warnings
+        if all_warnings:
             import warnings as _warnings_mod
 
-            from kida.exceptions import ErrorCode, MigrationWarning, PrecedenceWarning
+            from kida.exceptions import (
+                ComponentWarning,
+                ErrorCode,
+                MigrationWarning,
+                PrecedenceWarning,
+            )
 
             _warning_categories = {
+                ErrorCode.COMPONENT_CALL_SIGNATURE: ComponentWarning,
                 ErrorCode.JINJA2_SET_SCOPING: MigrationWarning,
             }
-            for w in compile_warnings:
+            for w in all_warnings:
                 category = _warning_categories.get(w.code, PrecedenceWarning)
                 _warnings_mod.warn(w.format_message(), category, stacklevel=2)
 

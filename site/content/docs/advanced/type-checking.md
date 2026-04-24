@@ -93,6 +93,14 @@ The `check_types` function accepts a parsed `Template` AST node and returns a li
 kida check --typed templates/
 ```
 
+For component prop validation, use:
+
+```bash
+kida check --validate-calls templates/
+```
+
+This checks calls to local `{% def %}` components and literal `{% from "..." import ... %}` components. It reports unknown keyword arguments, missing required props, and literal type mismatches with component error codes such as `K-CMP-001` and `K-CMP-002`.
+
 ## Error Messages
 
 The type checker produces three categories of findings:

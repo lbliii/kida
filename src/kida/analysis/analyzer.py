@@ -15,7 +15,13 @@ from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.dependencies import DependencyWalker
 from kida.analysis.landmarks import _LANDMARK_ELEMENTS, _TAG_RE, LandmarkDetector
-from kida.analysis.metadata import BlockMetadata, CallValidation, TemplateMetadata, TypeMismatch
+from kida.analysis.metadata import (
+    BlockMetadata,
+    CallValidation,
+    DefMetadata,
+    TemplateMetadata,
+    TypeMismatch,
+)
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
 from kida.nodes import (
@@ -311,6 +317,26 @@ class BlockAnalyzer:
 
         return issues
 
+    def validate_calls_with_external_defs(
+        self,
+        ast: Template,
+        external_defs: dict[str, DefMetadata],
+    ) -> list[CallValidation]:
+        """Validate calls against local defs plus imported component metadata.
+
+        ``external_defs`` maps the name visible in this template to metadata
+        for a ``{% def %}`` declared in another template. Dynamic imports are
+        intentionally skipped by callers.
+        """
+        signatures: dict[str, _DefSignature] = {
+            name: _DefSignature.from_def_metadata(meta) for name, meta in external_defs.items()
+        }
+        self._collect_defs(ast.body, signatures)
+
+        issues: list[CallValidation] = []
+        self._validate_call_nodes(ast.body, signatures, issues)
+        return issues
+
     def _collect_defs(
         self,
         nodes: Sequence[Node],
@@ -471,6 +497,21 @@ class BlockAnalyzer:
         self._validate_type_nodes(ast.body, signatures, mismatches)
         return mismatches
 
+    def validate_call_types_with_external_defs(
+        self,
+        ast: Template,
+        external_defs: dict[str, DefMetadata],
+    ) -> list[TypeMismatch]:
+        """Validate literal call arg types against local and imported defs."""
+        signatures: dict[str, _DefSignature] = {
+            name: _DefSignature.from_def_metadata(meta) for name, meta in external_defs.items()
+        }
+        self._collect_defs(ast.body, signatures)
+
+        mismatches: list[TypeMismatch] = []
+        self._validate_type_nodes(ast.body, signatures, mismatches)
+        return mismatches
+
     def _validate_type_nodes(
         self,
         nodes: Sequence[Node],
@@ -613,6 +654,21 @@ class _DefSignature:
             param_annotations=annotations,
             has_vararg=node.vararg is not None,
             has_kwarg=node.kwarg is not None,
+        )
+
+    @staticmethod
+    def from_def_metadata(meta: DefMetadata) -> _DefSignature:
+        """Build a signature from introspection metadata for an imported def."""
+        all_names = [p.name for p in meta.params]
+        required = [p.name for p in meta.params if p.is_required]
+        annotations = {p.name: p.annotation for p in meta.params if p.annotation}
+        return _DefSignature(
+            param_names=frozenset(all_names),
+            required_params=tuple(required),
+            ordered_params=tuple(all_names),
+            param_annotations=annotations,
+            has_vararg=False,
+            has_kwarg=False,
         )
 
 

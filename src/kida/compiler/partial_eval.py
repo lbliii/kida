@@ -761,8 +761,13 @@ class PartialEvaluator:
         if isinstance(target, Name):
             target_names: tuple[str, ...] = (target.name,)
             unpack = False
-        elif isinstance(target, Tuple) and all(isinstance(e, Name) for e in target.items):
-            target_names = tuple(e.name for e in target.items)  # type: ignore[union-attr]
+        elif isinstance(target, Tuple):
+            names: list[str] = []
+            for item in target.items:
+                if not isinstance(item, Name):
+                    return _UNRESOLVED
+                names.append(item.name)
+            target_names = tuple(names)
             unpack = True
         else:
             return _UNRESOLVED
