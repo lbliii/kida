@@ -44,6 +44,14 @@ Step-by-step migration with before/after examples, API mapping table, and verifi
 Three fix patterns for the strict_undefined flip, the escape hatch, and the new `?.` / `| get` operators.
 :::{/card}
 
+:::{card} Refactor-Safe Templates
+:icon: folder-tree
+:link: /docs/tutorials/refactor-safe-templates/
+:description: Move folders without breaking includes
+:badge: 0.9
+Use `./` / `../` for co-located partials and `@alias/` for shared libraries so folder moves become zero-edit refactors.
+:::{/card}
+
 :::{card} Flask Integration
 :icon: globe
 :link: /docs/tutorials/flask-integration/

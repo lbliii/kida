@@ -76,7 +76,7 @@ class TemplateInheritanceMixin:
         max_depth, _ = self._get_env_limits()
         depth = 0
         while current._extends_target is not None and depth < max_depth:
-            parent = current._env.get_template(current._extends_target)
+            parent = current._env.get_template(current._extends_target, caller=current._name)
             chain.append(parent)
             current = parent
             depth += 1

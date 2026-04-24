@@ -44,6 +44,7 @@ def _cmd_check(
     validate_calls: bool,
     a11y: bool,
     typed: bool,
+    lint_fragile_paths: bool,
 ) -> int:
     """Parse every template under *template_dir*; exit non-zero on failure."""
     root = template_dir.resolve()
@@ -178,6 +179,39 @@ def _cmd_check(
         if type_issues:
             print(f"kida check: {type_issues} type issue(s)", file=sys.stderr)
             errors += type_issues
+
+    fragile_path_issues = 0
+    if lint_fragile_paths:
+        from kida.analysis.fragile_paths import check_fragile_paths
+
+        for path in _iter_templates(root):
+            rel = path.relative_to(root).as_posix()
+            if rel in failed_loads:
+                continue
+            try:
+                tpl = env.get_template(rel)
+            except Exception as e:
+                print(f"{rel}: {e}", file=sys.stderr)
+                errors += 1
+                failed_loads.add(rel)
+                continue
+            if tpl._optimized_ast is not None:
+                issues = check_fragile_paths(tpl._optimized_ast, rel)
+                for issue in issues:
+                    print(
+                        f"{rel}:{issue.lineno}: lint/fragile-path [WARNING]: "
+                        f'{{% {issue.statement} "{issue.target}" %}} '
+                        f"is in the same folder as the caller — "
+                        f'prefer "{issue.suggestion}" so folder moves stay zero-edit',
+                        file=sys.stderr,
+                    )
+                    fragile_path_issues += 1
+        if fragile_path_issues:
+            print(
+                f"kida check: {fragile_path_issues} fragile-path suggestion(s)",
+                file=sys.stderr,
+            )
+            errors += fragile_path_issues
 
     a11y_issues = 0
     if a11y:
@@ -909,6 +943,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Type-check templates against {%% template %%} declarations",
     )
+    p_check.add_argument(
+        "--lint-fragile-paths",
+        action="store_true",
+        help=(
+            "Suggest ./ relative paths for same-folder includes / extends / embeds / imports "
+            "so folder moves stay zero-edit"
+        ),
+    )
 
     p_render = sub.add_parser(
         "render",
@@ -1160,6 +1202,7 @@ def main(argv: list[str] | None = None) -> int:
             validate_calls=args.validate_calls,
             a11y=args.a11y,
             typed=args.typed,
+            lint_fragile_paths=args.lint_fragile_paths,
         )
     if args.command == "render":
         return _cmd_render(
