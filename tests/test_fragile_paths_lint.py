@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pickle
+import struct
 from typing import TYPE_CHECKING
 
 from kida import DictLoader, Environment
 from kida.analysis.fragile_paths import check_fragile_paths
+from kida.bytecode_cache import BytecodeCache, hash_source
 from kida.cli import main
+from kida.nodes import Filter, Name
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -18,6 +22,24 @@ def _ast(source: str, caller: str) -> object:
     env = Environment(loader=DictLoader({caller: source}))
     tpl = env.get_template(caller)
     return tpl._optimized_ast
+
+
+def _stale_filter_pickle() -> bytes:
+    current = bytearray(
+        pickle.dumps(
+            Filter(
+                lineno=1,
+                col_offset=35,
+                value=Name(lineno=1, col_offset=35, name="route_link_attrs"),
+                name="html_attrs",
+            ),
+            protocol=5,
+        )
+    )
+    del current[-4]  # Drop NEWFALSE for Filter.parenthesized from the state list.
+    frame_len = struct.unpack("<Q", current[3:11])[0]
+    current[3:11] = struct.pack("<Q", frame_len - 1)
+    return bytes(current)
 
 
 def test_same_folder_include_is_flagged() -> None:
@@ -124,6 +146,29 @@ def test_cli_lint_fragile_paths_exit_nonzero(
     assert "lint/fragile-path" in err
     assert "pages/card.html" in err
     assert "./card.html" in err
+
+
+def test_cli_lint_fragile_paths_ignores_stale_cached_ast(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A stale AST cache entry should recompile, not crash the lint visitor."""
+    (tmp_path / "pages").mkdir()
+    source = '{% include "pages/card.html" %}{{ href | upper }}'
+    (tmp_path / "pages" / "about.html").write_text(source)
+    (tmp_path / "pages" / "card.html").write_text("CARD")
+
+    cache = BytecodeCache(tmp_path / "__pycache__" / "kida")
+    source_hash = hash_source(source)
+    cache.set("pages/about.html", source_hash, compile("x = 1", "<stale>", "exec"))
+    path = cache._make_path("pages/about.html", source_hash)
+    path.write_bytes(path.read_bytes() + _stale_filter_pickle())
+
+    exit_code = main(["check", str(tmp_path), "--lint-fragile-paths"])
+    assert exit_code == 1
+
+    err = capsys.readouterr().err
+    assert "lint/fragile-path" in err
+    assert "Traceback" not in err
 
 
 def test_cli_lint_flag_default_off(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -37,9 +37,11 @@ import hashlib
 import logging
 import marshal
 import pickle
+import re
 import struct
 import sys
 import time
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, cast
@@ -49,6 +51,7 @@ from kida.utils.template_keys import normalize_template_name
 logger = logging.getLogger("kida.bytecode_cache")
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from types import CodeType
 
     from kida.nodes.base import Node
@@ -65,6 +68,15 @@ _FRAMED_MAGIC_V3 = b"\x01KDA"
 
 # Python version tag for cache invalidation across Python upgrades
 _PY_VERSION_TAG = f"py{sys.version_info.major}{sys.version_info.minor}"
+
+# Cache ABI tag for Kida compiler/AST changes. Bytecode cache entries contain
+# compiled Python code and, optionally, pickled Kida AST nodes; both are tied to
+# the engine version and to AST dataclass shape.
+try:
+    _KIDA_VERSION_TAG = re.sub(r"[^A-Za-z0-9]+", "_", version("kida-templates")).strip("_")
+except PackageNotFoundError:  # pragma: no cover - package metadata may be absent in ad-hoc embeds
+    _KIDA_VERSION_TAG = "unknown"
+_CACHE_ABI_TAG = f"{_PY_VERSION_TAG}_kida{_KIDA_VERSION_TAG}_ast2"
 
 
 class BytecodeCache:
@@ -122,7 +134,7 @@ class BytecodeCache:
         if context_hash:
             hash_key = f"{hash_key}_{context_hash[:16]}"
         filename = self._pattern.format(
-            version=_PY_VERSION_TAG,
+            version=_CACHE_ABI_TAG,
             name=safe_name,
             hash=hash_key,
         )
@@ -221,6 +233,11 @@ class BytecodeCache:
                             "Bytecode cache: failed to unpickle AST for '%s': %s", name, exc
                         )
                         ast = None
+                    if ast is not None and not _cached_ast_is_compatible(ast):
+                        logger.debug("Bytecode cache: incompatible cached AST for '%s'", name)
+                        with contextlib.suppress(OSError):
+                            path.unlink(missing_ok=True)
+                        return None, None, None
 
                 return code, ast, precomputed
 
@@ -252,6 +269,11 @@ class BytecodeCache:
                             "Bytecode cache: failed to unpickle AST (v2) for '%s': %s", name, exc
                         )
                         ast = None
+                    if ast is not None and not _cached_ast_is_compatible(ast):
+                        logger.debug("Bytecode cache: incompatible cached AST (v2) for '%s'", name)
+                        with contextlib.suppress(OSError):
+                            path.unlink(missing_ok=True)
+                        return None, None, None
 
                 return code, ast, None
             else:
@@ -408,3 +430,39 @@ class BytecodeCache:
 def hash_source(source: str) -> str:
     """Generate hash of template source for cache key."""
     return hashlib.sha256(source.encode()).hexdigest()
+
+
+def _cached_ast_is_compatible(ast: object) -> bool:
+    """Return True when an unpickled AST matches the current dataclass shape."""
+    from kida.nodes.base import Node
+
+    if not isinstance(ast, Node):
+        return False
+
+    stack: list[Node] = [ast]
+    while stack:
+        node = stack.pop()
+        for field_name in node.__dataclass_fields__:
+            try:
+                value = getattr(node, field_name)
+            except AttributeError:
+                return False
+            if isinstance(value, Node):
+                stack.append(value)
+            elif isinstance(value, (list, tuple)):
+                _extend_node_sequence(stack, value)
+            elif isinstance(value, dict):
+                _extend_node_sequence(stack, value.values())
+    return True
+
+
+def _extend_node_sequence(stack: list[Node], seq: Iterable[object]) -> None:
+    from kida.nodes.base import Node
+
+    for item in seq:
+        if isinstance(item, Node):
+            stack.append(item)
+        elif isinstance(item, (list, tuple)):
+            _extend_node_sequence(stack, item)
+        elif isinstance(item, dict):
+            _extend_node_sequence(stack, item.values())
