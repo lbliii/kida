@@ -3,6 +3,8 @@
 Tests persistent template caching for fast cold-start.
 """
 
+import pickle
+import struct
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -10,6 +12,27 @@ import pytest
 
 from kida.bytecode_cache import BytecodeCache, hash_source
 from kida.exceptions import TemplateNotFoundError
+
+
+def _stale_filter_pickle() -> bytes:
+    """Return a Filter pickle from before the parenthesized slot existed."""
+    from kida.nodes import Filter, Name
+
+    current = bytearray(
+        pickle.dumps(
+            Filter(
+                lineno=1,
+                col_offset=3,
+                value=Name(lineno=1, col_offset=3, name="route_link_attrs"),
+                name="html_attrs",
+            ),
+            protocol=5,
+        )
+    )
+    del current[-4]  # Drop NEWFALSE for Filter.parenthesized from the state list.
+    frame_len = struct.unpack("<Q", current[3:11])[0]
+    current[3:11] = struct.pack("<Q", frame_len - 1)
+    return bytes(current)
 
 
 class TestBytecodeCache:
@@ -254,6 +277,18 @@ class TestBytecodeCache:
 
         # Corrupted file should be removed
         assert not corrupted_path.exists()
+
+    def test_incompatible_cached_ast_is_discarded(self, cache):
+        """Stale pickled AST nodes from an older Kida schema do not crash."""
+        source_hash = hash_source("{{ route_link_attrs(href) | html_attrs }}")
+        code = compile("x = 1", "<test>", "exec")
+        cache.set("stale.html", source_hash, code)
+        path = cache._make_path("stale.html", source_hash)
+        path.write_bytes(path.read_bytes() + _stale_filter_pickle())
+
+        assert cache.stats()["file_count"] == 1
+        assert cache.get("stale.html", source_hash) == (None, None, None)
+        assert cache.stats()["file_count"] == 0
 
 
 class TestHashSource:

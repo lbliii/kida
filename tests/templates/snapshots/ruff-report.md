@@ -4,8 +4,8 @@
 
 ### E501 (2)
 
-- `src/app.py:42` — Line too long \(120 \> 88\)
-- `src/models.py:15` — Line too long \(95 \> 88\)
+- `src/app.py:42` — Line too long (120 > 88)
+- `src/models.py:15` — Line too long (95 > 88)
 
 
 ### F401 (1)

@@ -109,7 +109,7 @@
 {% if pr.body_excerpt | default("", true) -%}
   <details><summary>Details</summary>
 
-  {{ pr.body_excerpt }}
+  {{ pr.body_excerpt | safe }}
 
   </details>
 

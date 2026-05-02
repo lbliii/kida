@@ -8,7 +8,7 @@
 Found 3 issues: 1 security warning, 1 bug, 1 suggestion. Overall code quality is good with clear intent, but the SQL query construction and missing error handling should be addressed before merge.
 
 
-<sub>Model: claude\-sonnet\-4\-20250514 · Confidence: 87%</sub>
+<sub>Model: claude-sonnet-4-20250514 · Confidence: 87%</sub>
 
 
 
@@ -17,19 +17,19 @@ Found 3 issues: 1 security warning, 1 bug, 1 suggestion. Overall code quality is
 
 - [ ] :warning: `src/kida/cli.py:42` · `security` · 94%
 
-  Query built with f\-string interpolation. User\-controlled input could modify the query structure.
+  Query built with f-string interpolation. User-controlled input could modify the query structure.
 
 **Suggestion:** Use parameterized queries instead of string interpolation.
 
 ```diff
-  \- query = f\"SELECT \* FROM users WHERE id = {user\_id}\"
-\+ query = \"SELECT \* FROM users WHERE id = %s\"
-\+ cursor.execute\(query, \(user\_id,\)\)
+  \- query = f"SELECT \* FROM users WHERE id = {user\_id}"
+\+ query = "SELECT \* FROM users WHERE id = %s"
+\+ cursor.execute(query, (user\_id,))
   ```
 
 - [ ] :warning: `src/kida/environment/core.py:156` · `bug` · 82%
 
-  The \`get\_template\(\)\` method can return None when the loader fails silently, but the caller assumes a Template object.
+  The \`get\_template()\` method can return None when the loader fails silently, but the caller assumes a Template object.
 
 **Suggestion:** Add a None check or raise TemplateNotFoundError explicitly.
 
@@ -42,7 +42,7 @@ Found 3 issues: 1 security warning, 1 bug, 1 suggestion. Overall code quality is
   The \`self.\_filters\[name\]\` lookup happens on every iteration. Hoist it above the loop for a minor speedup in hot paths.
 
 ```diff
-    def compile\_filter\_chain\(self, node\):
+    def compile\_filter\_chain(self, node):
 \+     filters = self.\_filters
       for f in node.filters:
 \-         handler = self.\_filters\[f.name\]

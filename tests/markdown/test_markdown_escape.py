@@ -17,20 +17,66 @@ class TestMarkdownEscape:
     def test_escapes_underscores(self):
         assert markdown_escape("_italic_") == "\\_italic\\_"
 
-    def test_escapes_brackets(self):
-        assert markdown_escape("[link](url)") == "\\[link\\]\\(url\\)"
-
-    def test_escapes_hash(self):
-        assert markdown_escape("# heading") == "\\# heading"
+    def test_escapes_brackets_only(self):
+        # Square brackets are inline-special; parentheses are not — once
+        # the link's `[` is escaped the trailing `(...)` cannot form a link.
+        assert markdown_escape("[link](url)") == "\\[link\\](url)"
 
     def test_escapes_backtick(self):
         assert markdown_escape("`code`") == "\\`code\\`"
 
-    def test_escapes_pipe(self):
-        assert markdown_escape("a | b") == "a \\| b"
+    def test_escapes_angle_bracket(self):
+        # `<` is escaped to prevent autolinks/raw HTML smuggling.
+        assert markdown_escape("<script>") == "\\<script>"
 
-    def test_escapes_tilde(self):
-        assert markdown_escape("~~strike~~") == "\\~\\~strike\\~\\~"
+    def test_escapes_backslash(self):
+        assert markdown_escape("foo\\bar") == "foo\\\\bar"
+
+    def test_pipe_not_escaped(self):
+        # Pipe is only special in tables; the table filter handles its own.
+        assert markdown_escape("a | b") == "a | b"
+
+    def test_tilde_not_escaped(self):
+        # Tildes are rare and noisy to escape; left to the markdown source.
+        assert markdown_escape("~~strike~~") == "~~strike~~"
+
+    def test_inline_hyphen_unchanged(self):
+        # Dates, identifiers, prose — hyphens mid-line render fine raw.
+        assert markdown_escape("2026-04-24") == "2026-04-24"
+        assert markdown_escape("K-PAR-001 end-tag") == "K-PAR-001 end-tag"
+
+    def test_inline_hash_unchanged(self):
+        assert markdown_escape("issue #123") == "issue #123"
+
+    def test_inline_paren_unchanged(self):
+        assert markdown_escape("note (see ref)") == "note (see ref)"
+
+    def test_block_lead_hash_escaped(self):
+        assert markdown_escape("# heading") == "\\# heading"
+        assert markdown_escape("### h3") == "\\### h3"
+
+    def test_block_lead_hash_after_newline(self):
+        assert markdown_escape("intro\n## Summary\nbody") == "intro\n\\## Summary\nbody"
+
+    def test_block_lead_blockquote_escaped(self):
+        assert markdown_escape("> quoted") == "\\> quoted"
+
+    def test_block_lead_unordered_list_escaped(self):
+        assert markdown_escape("- item") == "\\- item"
+        assert markdown_escape("+ item") == "\\+ item"
+
+    def test_block_lead_ordered_list_escaped(self):
+        assert markdown_escape("1. first") == "\\1. first"
+        assert markdown_escape("42) forty-two") == "\\42) forty-two"
+
+    def test_block_lead_with_indent_escaped(self):
+        assert markdown_escape("  - item") == "  \\- item"
+
+    def test_block_lead_requires_marker_followed_by_space(self):
+        # `#word` is not a heading; should pass through unchanged.
+        assert markdown_escape("#hashtag") == "#hashtag"
+        # Hyphen with no trailing space is mid-word, not a list marker.
+        assert markdown_escape("-1") == "-1"
 
     def test_non_string_converted(self):
         result = markdown_escape(42)

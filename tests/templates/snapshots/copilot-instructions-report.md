@@ -64,7 +64,7 @@ Classify findings using: security, bug, performance, style.
 - Include `diff` for concrete code change suggestions.
 - Don't flag issues a linter would catch (`uv run ruff check` runs in CI).
 - Prefer immutable data structures
-- Always type\-annotate public APIs
+- Always type-annotate public APIs
 ## PR Summary Output
 
 When asked to summarize a pull request, output JSON conforming to the AMP pr-summary schema:

@@ -191,6 +191,14 @@ class Markup(str):
         """
         return self
 
+    def __markdown__(self) -> Self:
+        """Return self — already safe content for markdown autoescape too.
+
+        Lets `{{ value | safe }}` opt out of escaping in markdown mode the
+        same way it does in HTML mode.
+        """
+        return self
+
     def __repr__(self) -> str:
         return f"Markup({super().__repr__()})"
 

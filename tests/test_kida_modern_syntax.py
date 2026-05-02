@@ -192,6 +192,22 @@ class TestNullCoalescing:
             prec_warnings = [x for x in w if issubclass(x.category, PrecedenceWarning)]
             assert len(prec_warnings) == 1
 
+    def test_partial_eval_preserves_parenthesized_filter_fallback(self, env):
+        """Partial evaluation keeps the parser's parenthesized-filter marker."""
+        import warnings
+
+        from kida.exceptions import PrecedenceWarning
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            tmpl = env.from_string(
+                "{{ x ?? ((prefix ~ name) | upper) }}",
+                static_context={"prefix": "hi "},
+            )
+            assert tmpl.render(x=None, name="there") == "HI THERE"
+            prec_warnings = [x for x in w if issubclass(x.category, PrecedenceWarning)]
+            assert prec_warnings == []
+
     def test_null_coalesce_with_filter_requires_parens(self, env):
         """Filters must use parentheses to apply after null coalescing.
 

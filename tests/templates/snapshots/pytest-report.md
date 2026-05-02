@@ -9,8 +9,8 @@
 
 **Message:** ZeroDivisionError: division by zero
 ```
-def test\_divide\_by\_zero\(\):
-    assert divide\(1, 0\) == 0
+def test\_divide\_by\_zero():
+    assert divide(1, 0) == 0
 ZeroDivisionError: division by zero
 ```
 </details>
