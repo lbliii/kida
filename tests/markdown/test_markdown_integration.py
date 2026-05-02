@@ -68,6 +68,39 @@ class TestMarkdownAutoescape:
         assert "| name | score |" in result
         assert "| Alice | 95 |" in result
 
+    def test_table_filter_escapes_report_cell_content(self):
+        env = markdown_env()
+        tpl = env.from_string("{{ data | table }}")
+        data = [
+            {
+                "message": "`failure` in <script>",
+                "path": "src/app.py | generated\n# hidden heading",
+            }
+        ]
+
+        result = tpl.render(data=data)
+
+        assert "\\`failure\\` in \\<script>" in result
+        assert "src/app.py \\| generated<br>\\# hidden heading" in result
+
+    def test_details_filter_escapes_untrusted_report_body(self):
+        env = markdown_env()
+        tpl = env.from_string('{{ body | details("Risk <high>") }}')
+
+        result = tpl.render(body="<summary>fake</summary>\n- injected task")
+
+        assert "<summary>Risk \\<high></summary>" in result
+        assert "\\<summary>fake\\</summary>" in result
+        assert "\\- injected task" in result
+
+    def test_codeblock_filter_handles_embedded_fences(self):
+        env = markdown_env()
+        tpl = env.from_string('{{ log | codeblock("text") }}')
+
+        result = tpl.render(log="before\n```\nafter")
+
+        assert result.strip() == "````text\nbefore\n```\nafter\n````"
+
 
 class TestMarkdownComponents:
     """Test built-in markdown components."""

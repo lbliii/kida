@@ -122,8 +122,9 @@ def make_markdown_filters() -> dict[str, Any]:
         lines.append("| " + " | ".join("---" for _ in col_names) + " |")
         # Data rows
         for row in rows:
-            # Escape pipe chars in cell content
-            escaped = [cell.replace("|", "\\|") for cell in row]
+            escaped = [
+                markdown_escape(cell).replace("|", "\\|").replace("\n", "<br>") for cell in row
+            ]
             lines.append("| " + " | ".join(escaped) + " |")
 
         return Marked("\n".join(lines))
@@ -135,7 +136,16 @@ def make_markdown_filters() -> dict[str, Any]:
     # -----------------------------------------------------------------
     def _filter_codeblock(value: Any, lang: str = "") -> Marked:
         s = str(value)
-        return Marked(f"```{lang}\n{s}\n```")
+        longest_run = 0
+        current_run = 0
+        for char in s:
+            if char == "`":
+                current_run += 1
+                longest_run = max(longest_run, current_run)
+            else:
+                current_run = 0
+        fence = "`" * max(3, longest_run + 1)
+        return Marked(f"{fence}{lang}\n{s}\n{fence}")
 
     filters["codeblock"] = _filter_codeblock
 
@@ -143,7 +153,7 @@ def make_markdown_filters() -> dict[str, Any]:
     # Layout: details
     # -----------------------------------------------------------------
     def _filter_details(value: Any, summary: str = "Details") -> Marked:
-        s = str(value)
+        s = markdown_escape(value)
         return Marked(
             f"<details>\n<summary>{markdown_escape(summary)}</summary>\n\n{s}\n\n</details>"
         )
