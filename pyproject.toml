@@ -24,7 +24,9 @@ classifiers = [
 dependencies = [] # Pure Python, zero runtime dependencies
 
 [project.optional-dependencies]
-docs = ["bengal>=0.2.6"]
+docs = [
+    "bengal>=0.3.2",
+]
 perf = ["markupsafe"]
 
 [project.scripts]
@@ -191,7 +193,7 @@ dev = [
     # Changelog
     "towncrier>=24.0",
 ]
-docs = ["bengal>=0.2.6"]
+docs = ["bengal>=0.3.2"]
 
 # ── Towncrier (changelog management) ──────────────────────────────────
 

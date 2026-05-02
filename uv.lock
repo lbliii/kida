@@ -422,7 +422,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bengal", marker = "extra == 'docs'", specifier = ">=0.2.6" },
+    { name = "bengal", marker = "extra == 'docs'", specifier = ">=0.3.2" },
     { name = "markupsafe", marker = "extra == 'perf'" },
 ]
 provides-extras = ["docs", "perf"]
@@ -443,7 +443,7 @@ dev = [
     { name = "towncrier", specifier = ">=24.0" },
     { name = "ty", specifier = ">=0.0.11" },
 ]
-docs = [{ name = "bengal", specifier = ">=0.2.6" }]
+docs = [{ name = "bengal", specifier = ">=0.3.2" }]
 
 [[package]]
 name = "linkify-it-py"

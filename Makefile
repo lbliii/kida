@@ -109,12 +109,12 @@ verify-rc: verify-stability
 docs:
 	@echo "Building documentation site..."
 	uv sync --group docs
-	cd site && uv run bengal site build
+	cd site && uv run bengal build
 
 docs-serve:
 	@echo "Starting documentation dev server..."
 	uv sync --group docs
-	cd site && uv run bengal site serve
+	cd site && uv run bengal serve
 
 # =============================================================================
 # Build & Release
