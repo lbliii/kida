@@ -44,6 +44,14 @@ Render CI reports from structured tool output as GitHub step summaries and PR co
 | `gotest` | `junit-xml` | go-junit-report |
 | `sarif` | `sarif` | CodeQL, Semgrep, Trivy, ESLint |
 
+## Report contracts
+
+Built-in report templates are fixture-backed and snapshot-tested. AMP templates (`code-review`, `pr-summary`, `deploy-preview`, `dependency-review`, `security-scan`, and `release-notes`) are also checked against their `schemas/amp/v1/` JSON schemas.
+
+Markdown output escapes untrusted tool and agent text before it reaches tables, details blocks, headings, links, or code snippets. Reports are designed to render in both GitHub step summaries and PR comments.
+
+PR comments are updated by a stable HTML marker derived from `comment-header`. Use the same `comment-header` with `comment-mode: append` when multiple report steps should share one comment.
+
 ## Inputs
 
 | Input | Required | Default | Description |
