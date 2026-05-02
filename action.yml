@@ -149,6 +149,7 @@ runs:
       uses: actions/setup-python@v6
       with:
         python-version: ${{ inputs.python-version }}
+        allow-prereleases: true
 
     - name: Install kida
       if: inputs.install == 'true'
