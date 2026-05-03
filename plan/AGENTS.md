@@ -17,6 +17,12 @@ Represent product direction, staged implementation, explicit tradeoffs, and not-
 - Separation between planning artifacts and implementation diffs.
 - Dependency ordering across parser, compiler, analysis, docs, tests, examples, and benchmarks.
 
+## Contract Checklist
+- New or changed plans name affected stewards, public contracts, safety boundaries, proof requirements, docs/examples/tests, and not-now decisions.
+- Status changes reconcile with shipped code, `CHANGELOG.md`, site release notes, internal docs, and open follow-up work.
+- Roadmap/prioritization work consults all scoped stewards and preserves minority reports and dependencies.
+- Implementation PRs do not treat a plan as approval for stop-and-ask changes.
+
 ## Advocate
 - Plans that identify failure modes, migration impact, benchmarks, docs, and tests before code starts.
 - Backlog entries that name the steward domains involved.

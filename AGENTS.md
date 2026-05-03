@@ -19,6 +19,9 @@ For syntax and API reference, read `CLAUDE.md`. This file is the operating const
 - `lexer.py`, `parser/`, `nodes/`, `compiler/`, and `formatter.py` define syntax semantics. New syntax crosses all of them plus analysis and tests.
 - `analysis/` owns static metadata, dependency discovery, purity, type/call validation, a11y, coverage, and pre-render checks.
 - `template/`, `render_context.py`, `render_accumulator.py`, caches, and worker utilities own runtime behavior and thread-safety assumptions.
+- `utils/` owns safe-string wrappers, escape helpers, template key resolution, report parsers, cache helpers, terminal probes, and worker decisions.
+- `contrib/` owns optional framework adapters; integrations must not become runtime dependencies.
+- `readme/` owns the `kida readme` scaffold generator and preset output.
 - `terminal/`, `markdown/`, `environment/terminal.py`, `environment/markdown.py`, render-surface filters, `templates/`, and `.github/kida-templates/` own non-HTML output.
 - `schemas/amp/v1/` and CI report templates are published data contracts for agent and GitHub Action output.
 
@@ -59,22 +62,74 @@ For syntax and API reference, read `CLAUDE.md`. This file is the operating const
 Stewards use this operating model:
 - **Point of View:** who or what the domain represents.
 - **Protect:** invariants, contracts, quality bars, and failure modes.
+- **Contract Checklist:** concrete surfaces to inspect when this domain changes.
 - **Advocate:** features, fixes, and investments the domain should push for.
 - **Serve Peers:** upstream/downstream domains that need clearer contracts, diagnostics, docs, tests, or ergonomics.
 - **Do Not:** local anti-patterns.
 - **Own:** tests, docs, examples, fixtures, and maintenance checks.
+
+## Contract Checklist
+- Identify every surface that should agree: CLI/API, programmatic use, protocol, schema/types, UI, docs, examples, scaffold/templates, tests, benchmarks, and changelog.
+- Every accepted finding must name required proof and collateral updates, or explicitly say `no collateral: <reason>`.
+- Docs, examples, and scaffold/templates move in the same PR as user-facing behavior unless synthesis records why they are unaffected.
+- Contract-affecting PRs include a parity matrix when behavior spans multiple entrypoints.
+
+## Steward Signal Format
+Steward findings should be contract-oriented, evidence-backed, and collateral-aware.
+
+Use this format:
+- Steward:
+- Area:
+- Severity: P0/P1/P2/P3
+- Invariant:
+- Evidence:
+- User Impact:
+- Required Fix:
+- Required Proof:
+- Collateral:
+- Confidence:
+
+## Steward Swarms
+When the user asks for `ask stewards`, `bugbash`, `review swarm`, or `steward synthesis`, and delegation is available:
+- Spawn independent steward agents for affected domains.
+- Each steward reads root plus its closest scoped `AGENTS.md`.
+- Each steward advocates only for that domain's interests.
+- Each steward returns findings in the Steward Signal Format.
+- The implementing agent owns synthesis and final decisions.
+- Stewards advise and create useful tension; they do not own the integrated implementation.
+- Keep PR scope bounded to accepted findings and their proof/collateral.
+- Defer unrelated steward suggestions to not-now/follow-up.
+
+For backlog, roadmap, or prioritization work:
+- Consult all scoped stewards.
+- Produce raw steward signals, confidence, dependencies, risks, convergence, minority reports, ranked backlog, and not-now items.
+
+## Steward Feedback Loop
+- Steward miss: when a bug escapes an applicable steward, update the checklist, a regression test, a docs/snippet check, a routing rule, or record why the miss should not become policy.
+- Steward overreach: when a steward repeatedly pulls unrelated work into PRs, narrow the checklist, split the steward, or move the concern to follow-up.
+- Repeated high-quality findings should become checklist items.
+- Repeated noisy findings should be pruned or clarified.
+- Steward guidance evolves from evidence: escaped bugs, late collateral updates, CI/review misses, and recurring review comments.
 
 ## When To Consult
 - Proactively consult stewards for cross-boundary, public-facing, hard-to-reverse, performance-sensitive, concurrency-sensitive, security-sensitive, or contract-affecting work.
 - Use the nearest steward for local work.
 - Use multiple stewards when ownership lines cross, especially syntax/compiler/analysis/render-surface work.
 - Parallelize steward consultation only when questions are independent.
-- Keep final synthesis with the implementing agent.
+- Keep final synthesis and implementation accountability with the implementing agent.
 
 ## Ask Stewards
-Trigger phrase: **ask stewards**.
+Trigger phrase: `ask stewards`.
 
-For implementation work, consult affected scoped stewards and return a synthesis before editing unless the request explicitly says to proceed. For backlog, roadmap, or prioritization work, consult all scoped stewards and produce a rollup with raw steward signals, confidence, dependencies, risks, convergence, minority reports, ranked backlog, and not-now items.
+For implementation work:
+- Consult affected stewards.
+- Return synthesis before or during the change.
+- Include accepted/deferred findings, merged duplicates, minority reports, required proof, collateral updates, and not-now items.
+
+For multi-surface work, include a parity matrix like:
+
+| Contract | API/CLI | Programmatic | Protocol | Schema/Types | Docs | Examples | Tests |
+|---|---|---|---|---|---|---|---|
 
 ## Extension Routing
 - Custom tags and compiler hooks: `src/kida/extensions.py`, `src/kida/parser/`, `src/kida/compiler/`, `src/kida/nodes/`, plus `examples/extensions/`.
@@ -90,10 +145,11 @@ For implementation work, consult affected scoped stewards and return a synthesis
 - Free-threaded changes explain shared-state, cache, lock, and `ContextVar` reasoning.
 - Public API changes include docs under `site/content/docs/`, changelog fragment or release note, and migration notes when breaking.
 - New warnings/errors carry `ErrorCode`, location where possible, and a useful suggestion.
+- Every accepted steward finding has test/docs/example/benchmark proof or an explicit no-impact note.
 - `make verify-stability` for release-critical, public-contract, sandbox, render-surface, or concurrency work.
 
 ## Review Notes
 - Commit subjects use existing style: `feat:`, `fix:`, `refactor:`, `docs:`, or `release:`; do not add PR numbers manually.
 - Keep one concern per PR unless a bundled refactor is the actual fix.
 - Put the why in the PR description; let the diff show the what.
-- Flag weird tests, dead branches, parser/analysis disagreements, baseline drift, benchmark variance, and downstream compatibility surprises.
+- Flag weird tests, unused public names, suppressions, dead code, parser/analysis disagreements, baseline drift, benchmark gaps, free-threading assumptions, steward disagreement, deferred/not-now findings, and downstream compatibility surprises.

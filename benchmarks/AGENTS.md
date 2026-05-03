@@ -19,6 +19,12 @@ Represent performance claims, release gates, and downstream users choosing Kida 
 - Clear variance handling and threshold rationale.
 - Benchmark templates and contexts that resemble real Kida workloads.
 
+## Contract Checklist
+- Hot-path changes inspect the smallest relevant benchmark, output-sanity assertions, baseline source, variance, and platform/Python/GIL context.
+- Baseline updates inspect committed JSON, `benchmarks/RESULTS.md`, CI workflow thresholds, and PR rationale for drift.
+- Public performance claims inspect docs, README tables, release notes, and exact command/platform evidence.
+- Concurrency benchmarks inspect worker counts, workload size, GIL status, synchronization assumptions, and cache/state interactions.
+
 ## Advocate
 - Before/after benchmark evidence for hot-path compiler, parser, escape, render, cache, streaming, terminal, and worker changes.
 - Product comparison refreshes only when methodology is documented.

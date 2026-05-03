@@ -19,6 +19,12 @@ Represent maintainers, PR authors, release operators, and GitHub Action users wh
 - Built-in `.github/kida-templates/` compatibility with public `templates/` and schemas.
 - Marketplace docs and action examples that match current workflow behavior.
 
+## Contract Checklist
+- Workflow changes inspect `.github/workflows/`, required permissions, triggers, cache keys, artifact names, and failure visibility.
+- Report-template changes compare `.github/kida-templates/`, `templates/`, AMP schemas, fixtures, and rendered snapshots.
+- Release/publish changes inspect `Makefile`, `pyproject.toml`, `CHANGELOG.md`, `site/content/releases/`, action tags, and marketplace docs.
+- CI behavior changes name proof from the affected workflow, local equivalent command, or explain why local proof is unavailable.
+
 ## Advocate
 - Least-privilege workflow permissions.
 - Reusable report generation that dogfoods Kida without hiding raw CI failures.

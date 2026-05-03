@@ -18,6 +18,12 @@ Represent CI readers, PR reviewers, release-note consumers, and GitHub-flavored 
 - Compatibility with AMP schemas and built-in report templates.
 - Parity with terminal/HTML report intent when the same data is rendered in different modes.
 
+## Contract Checklist
+- Escaping changes inspect markdown escape tests, safe-string protocols, CommonMark/GFM behavior, snapshots, and changelog/migration notes for output changes.
+- Report changes inspect `templates/`, `.github/kida-templates/`, AMP schemas, fixtures, rendered snapshots, and GitHub Action docs.
+- Environment changes inspect `markdown_env()`, markdown filters/globals, public docs, and examples.
+- Cross-surface changes compare HTML/terminal/markdown parity corpus and record intentional differences.
+
 ## Advocate
 - Fixtures for every supported report data shape.
 - Output snapshots that catch markdown table, details, code block, and escaping regressions.

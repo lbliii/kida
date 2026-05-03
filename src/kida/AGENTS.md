@@ -20,6 +20,12 @@ Represent framework builders, app authors, and downstream packages that import `
 - Strict undefined behavior, safe-string semantics, escaping guarantees, and source-attributed exceptions.
 - Compatibility between full render, block render, render-with-blocks, streaming, async rendering, and t-string helpers.
 
+## Contract Checklist
+- Public API changes inspect `src/kida/__init__.py`, `pyproject.toml`, public docs, README snippets, public API snapshot tests, and changelog/release notes.
+- Rendering behavior changes compare full render, block render, render-with-blocks, streaming, async streaming, t-strings, and render-surface parity tests.
+- Safety changes inspect sandbox tests, markup/escaping tests, strict undefined diagnostics, and security docs.
+- Concurrency or cache changes inspect copy-on-write state, locks, `ContextVar` usage, GIL-disabled tests, and benchmark/profiling notes when hot-path.
+
 ## Advocate
 - Better diagnostics for downstream framework authors, especially line/col and migration hints.
 - Smaller public surfaces with stronger examples instead of new knobs.

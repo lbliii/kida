@@ -18,6 +18,12 @@ Represent producers and consumers of machine-readable agent output that must ren
 - Backward compatibility for existing templates and fixtures.
 - Clear migration path for any v2-level breaking change.
 
+## Contract Checklist
+- Schema changes inspect `schemas/amp/v1/`, built-in templates, `.github/kida-templates/`, fixtures, validation tests, examples, and producer docs.
+- New fields define type, optionality, privacy implications, rendering behavior, and fallback behavior in templates.
+- Enum or severity changes inspect every renderer and snapshot for consistent interpretation.
+- Breaking changes require versioning/migration notes rather than changing v1 semantics in place.
+
 ## Advocate
 - Schema examples that match real reports.
 - Validation fixtures for every schema used by a built-in template.

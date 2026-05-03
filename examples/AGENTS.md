@@ -17,6 +17,12 @@ Represent new users, migrators, framework authors, and agents looking for canoni
 - Migration examples must call out Kida-specific traps such as block-scoped `set`, no `super()`, and `{% slot %}` inside `{% call %}`.
 - Terminal and CI examples should match render-surface contracts.
 
+## Contract Checklist
+- Example changes inspect the example README, example test, `tests/test_examples.py`, docs/tutorial links, and package import assumptions.
+- Public API or syntax changes search examples for stale patterns and update paired docs snippets.
+- Optional integration examples keep dependencies isolated, documented, and absent from runtime requirements.
+- Render-surface examples compare terminal/markdown/CI output expectations and update snapshots or captured output where relevant.
+
 ## Advocate
 - Small examples that each prove one real workflow.
 - Tests that keep examples from rotting.

@@ -20,6 +20,12 @@ Represent application integrators who need stable, thread-safe customization wit
 - Default filter/test/global curation and safe-string return types.
 - Extension registration semantics for tags, filters, tests, globals, and custom node compilation.
 
+## Contract Checklist
+- Configuration changes inspect `Environment(...)`, factories, public API docs, README/CLAUDE snippets, examples, and changelog/migration notes.
+- Loader changes inspect template key resolution, path traversal tests, relative/alias behavior, diagnostics, and troubleshooting docs.
+- Filter/test/global changes inspect registry copy-on-write behavior, type/safe-string semantics, terminal/markdown variants, docs, and examples.
+- Extension changes inspect parser/compiler hook boundaries, custom extension examples, tests, and stop-and-ask requirements for new syntax.
+
 ## Advocate
 - Contrib or extension examples before expanding default filters/tests/globals.
 - Better docs for custom loaders, filters, tests, globals, and extensions.
