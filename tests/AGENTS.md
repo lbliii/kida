@@ -18,6 +18,12 @@ Represent future maintainers, downstream integrators, and agents who need tests 
 - Stable snapshots for user-facing diagnostics and template outputs.
 - Fixture realism for CI reports, templates, and examples.
 
+## Contract Checklist
+- Behavior changes identify the smallest focused test plus any affected snapshots, fixtures, examples, or parity corpus rows.
+- Diagnostics changes inspect error-code coverage, location assertions, warning classes, and user-facing message snapshots.
+- Safety/concurrency changes inspect GIL-disabled tests, sandbox fuzz/regression tests, cache tests, and synchronization assumptions.
+- Template/report changes inspect schema validation, fixture realism, rendered snapshots, and markdown/terminal parity expectations.
+
 ## Advocate
 - Tests for both values of flags and both success/failure paths.
 - Property tests where lexer/parser/expression/filter inputs have broad edge cases.

@@ -22,6 +22,12 @@ Represent correctness, source mapping, compile-time optimization, and the perfor
 - StringBuilder-style O(n) output accumulation and streaming chunk boundaries.
 - Compiler mixin protocols and existing ty override boundaries.
 
+## Contract Checklist
+- Codegen changes inspect parser node shape, generated AST/source locations, runtime helper contracts, escaping placement, and diagnostics.
+- Optimization changes inspect purity analysis, partial-eval tests, output-regression tests, and benchmark evidence or a clear no-benchmark reason.
+- Render-mode changes compare render, block render, render-with-blocks, streaming, async rendering, and terminal/markdown parity where applicable.
+- Mixin/dispatch changes inspect `pyproject.toml` ty overrides and avoid expanding unresolved-attribute exceptions without a follow-up.
+
 ## Advocate
 - Compile-time simplification when it is provably semantics-preserving.
 - `--explain` and diagnostics that make optimizations auditable.

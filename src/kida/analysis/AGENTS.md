@@ -21,6 +21,12 @@ Represent framework builders, agents, and CI workflows that need reliable metada
 - A11y and coverage findings that are specific enough to fix.
 - Error codes, source snippets, template names, and line numbers.
 
+## Contract Checklist
+- Metadata changes inspect public introspection APIs, CLI output, downstream docs, examples, and snapshot tests.
+- Validation changes inspect parser/compiler agreement, diagnostic codes/classes, source locations, strict-mode behavior, and docs for user action.
+- Purity changes inspect compiler partial-eval behavior, pure filter annotations, benchmark claims, and tests proving no side effects are folded.
+- Coverage/a11y/i18n changes inspect fixtures, CLI flags, report templates if surfaced, and user-facing docs.
+
 ## Advocate
 - Stronger static checks that do not loosen syntax or runtime semantics.
 - JSON/CLI output that agents can consume for bulk migrations.

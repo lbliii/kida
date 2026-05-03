@@ -18,6 +18,12 @@ Represent users trying to install, migrate, extend, debug, and trust Kida withou
 - Reference docs must distinguish stable contracts from advanced/internal hooks.
 - Bengal-generated site config and content structure should remain buildable.
 
+## Contract Checklist
+- Public behavior changes inspect reference docs, tutorials, troubleshooting pages, release notes, README links, examples, and changelog needs.
+- Syntax/API changes compare `CLAUDE.md`, `README.md`, `site/content/docs/reference/`, `site/content/docs/syntax/`, and runnable snippets.
+- Render-surface changes inspect usage docs, terminal/markdown tutorials, report docs, and output examples.
+- Site-structure changes run `make docs` when available or record why the docs build could not run.
+
 ## Advocate
 - Migration-first explanations for Jinja2 traps and static-validation errors.
 - Short examples that compile and match tested behavior.

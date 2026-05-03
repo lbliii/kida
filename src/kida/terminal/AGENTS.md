@@ -19,6 +19,12 @@ Represent CLI authors, Milo users, CI operators, and terminal users across TTY a
 - Thread-safe live renderer updates and spinner frame advancement.
 - Parity with HTML/markdown semantics where templates share syntax.
 
+## Contract Checklist
+- Terminal API changes inspect `docs/terminal-api-contract.md`, `site/content/docs/tutorials/terminal-rendering.md`, examples, and public imports.
+- Formatting changes inspect ANSI width tests, color-depth tests, TTY/non-TTY behavior, Unicode fallback, and captured output snapshots.
+- Live/concurrency changes inspect locking/state ownership, GIL-disabled behavior where relevant, and terminal integration tests.
+- Shared report changes compare terminal templates, markdown templates, schemas, fixtures, and render-surface parity tests.
+
 ## Advocate
 - Golden or snapshot coverage for ANSI output where user-visible.
 - Clear examples for terminal dashboards, deploy reports, live monitors, and CI output.

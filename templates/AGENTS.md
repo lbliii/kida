@@ -18,6 +18,12 @@ Represent developers reading generated CI summaries and PR comments who need fai
 - Output that remains useful in both step summaries and PR comments.
 - Safe escaping for untrusted tool output and agent messages.
 
+## Contract Checklist
+- Template changes inspect declared schemas, fixture payloads, snapshots, markdown escaping, and `.github/kida-templates/` parity.
+- Field usage changes require schema updates or `no collateral: field already declared`, plus fixture coverage.
+- Output-structure changes inspect report readability tests, GitHub Action docs, release/marketplace docs, and dedupe markers.
+- Security-sensitive rendering changes inspect escaping tests and untrusted tool-output fixtures.
+
 ## Advocate
 - Fixture-backed templates for each supported tool/schema.
 - Compact reports that lead with actionable failures.

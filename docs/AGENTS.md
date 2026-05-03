@@ -18,6 +18,12 @@ Represent maintainers reading history, risk, tradeoffs, and product direction af
 - Audit and investigation notes that name evidence, scope, and unresolved risks.
 - Clear distinction between internal docs (`docs/`) and user-facing docs (`site/content/docs/`).
 
+## Contract Checklist
+- Contract doc changes inspect code paths, public docs, examples, tests, and changelog/release notes that rely on the contract.
+- Audit or investigation updates include evidence, scope, status, unresolved risks, and links to follow-up plans or shipped fixes.
+- Roadmap or strategy references reconcile with `plan/`, `docs/strategic-roadmap.md`, active epics, and published docs.
+- User-facing material discovered in `docs/` gets routed or cross-linked to `site/content/docs/`.
+
 ## Advocate
 - Short decision records when a change reverses or narrows a prior plan.
 - Updating stability, contract, and audit docs when reality changes.
