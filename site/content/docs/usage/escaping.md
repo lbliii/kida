@@ -40,7 +40,7 @@ Special characters are replaced:
 | `>` | `&gt;` |
 | `&` | `&amp;` |
 | `"` | `&quot;` |
-| `'` | `&#x27;` |
+| `'` | `&#39;` |
 
 ## Disable Autoescape
 

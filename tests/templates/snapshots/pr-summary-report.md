@@ -7,11 +7,11 @@
 
 ### What changed
 
-Introduces a formal protocol for structured AI agent output with JSON Schema definitions for 6 message types (code-review, pr-summary, deploy-preview, dependency-review, security-scan, release-notes) and corresponding Kida templates that render them as GitHub PR comments, step summaries, Slack messages, and terminal output.
+Introduces a formal protocol for structured AI agent output with JSON Schema definitions for 6 message types (code-review, pr-summary, deploy-preview, dependency-review, security-scan, release-notes) and corresponding Kida templates that render them as GitHub PR comments, step summaries, releases, and terminal variants where provided.
 
 ### Why
 
-AI agents (Copilot, Claude, custom bots) all produce ad-hoc formatted comments with no consistency or customization. AMP decouples message production from presentation — agents output structured JSON, Kida renders it beautifully on any surface. Teams control how agent comments look via templates, not agent config.
+AI agents (Copilot, Claude, custom bots) all produce ad-hoc formatted comments with no consistency or customization. AMP decouples message production from presentation — agents output structured JSON, Kida renders it through fixture-backed templates for supported surfaces. Teams control how agent comments look via templates, not agent config.
 
 
 > **+2840** / **-8** across **18** files · large change

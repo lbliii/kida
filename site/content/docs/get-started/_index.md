@@ -63,6 +63,14 @@ Build and render your first file-based template.
 Build a mini email template system with shared layouts.
 :::{/card}
 
+:::{card} Build Typed Components
+:icon: blocks
+:link: /docs/usage/components/
+:description: Defs, slots, and static validation
+:badge: Core
+Catch bad component props before rendering with `kida check --validate-calls`.
+:::{/card}
+
 :::{card} Coming from Jinja2
 :icon: arrow-right
 :link: /docs/get-started/coming-from-jinja2/
@@ -96,6 +104,7 @@ Flask, Django, Starlette integration and more.
 ## Quick Links
 
 - [[docs/reference/api|API Reference]] — Environment, Template, Loaders
+- [[docs/usage/components|Components]] — Typed props, slots, and validation
 - [[docs/syntax/filters|Filters]] — All built-in filters
 - [[docs/about/comparison|vs Jinja2]] — Feature comparison
 - [[docs/tutorials/migrate-from-jinja2|Full Migration Guide]] — Step-by-step with verification

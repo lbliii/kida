@@ -147,8 +147,7 @@
         "description": "AI code review with file-level findings, severity, confidence, and suggested fixes.",
         "templates": {
           "github-pr-comment": "code-review",
-          "github-step-summary": "code-review",
-          "terminal": "code-review"
+          "github-step-summary": "code-review"
         }
       },
       "pr-summary": {

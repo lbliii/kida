@@ -27,7 +27,7 @@ icon: folder-tree
 Move a folder of templates without touching a single reference inside it.
 
 :::note[Why this tutorial exists]
-Hard-coded, root-relative include paths are brittle: rename `skills/` to `library/skills/` and every `{% include "skills/_status.html" %}` breaks silently at authoring time and loudly at render time. Kida 0.9 ships two resolution modes that eliminate the problem — relative paths (`./`, `../`) for co-located partials, and namespace aliases (`@components/`) for shared libraries. Pick the right tool for each reference and folder moves become zero-edit refactors.
+Hard-coded, root-relative include paths are brittle: rename `skills/` to `library/skills/` and every `{% include "skills/_status.html" %}` breaks silently at authoring time and loudly at render time. Kida 0.8 ships two resolution modes that eliminate the problem — relative paths (`./`, `../`) for co-located partials, and namespace aliases (`@components/`) for shared libraries. Pick the right tool for each reference and folder moves become zero-edit refactors.
 :::
 
 ## TL;DR

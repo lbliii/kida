@@ -1,6 +1,6 @@
 # RFC: Region `_blocks` Parameter
 
-**Status:** Implemented  
+**Status**: Implemented
 **Date:** 2025-03
 
 ## Summary

@@ -29,7 +29,7 @@ icon: book-open
 ## Start Here
 
 New to Kida? Start here to render HTML templates, learn the syntax, migrate from
-Jinja2, and integrate Kida into web frameworks or static site generators.
+Jinja2, build typed components, and integrate Kida into web frameworks or static site generators.
 
 :::{cards}
 :columns: 2
@@ -45,6 +45,12 @@ Jinja2, and integrate Kida into web frameworks or static site generators.
 :icon: book
 :link: /tracks/
 :description: Goal-oriented journeys — Jinja2 migration, Chirp + Kida, framework integration
+:::{/card}
+
+:::{card} Build Typed Components
+:icon: blocks
+:link: /docs/usage/components/
+:description: Defs, slots, scoped state, and static call-site validation
 :::{/card}
 
 :::{card} API Reference
@@ -67,6 +73,12 @@ Master template syntax, rendering patterns, framework integration, and migration
 :icon: code
 :link: ./syntax/
 :description: Variables, control flow, filters, inheritance
+:::{/card}
+
+:::{card} Components
+:icon: blocks
+:link: ./usage/components/
+:description: Typed props, named slots, scoped slots, and validation
 :::{/card}
 
 :::{card} Usage

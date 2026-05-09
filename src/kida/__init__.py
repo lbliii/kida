@@ -30,10 +30,10 @@ Unlike Jinja2 which generates Python source strings, Kida generates
 compile-time optimization, and precise error source mapping.
 
 Thread-Safety:
-All public APIs are thread-safe by design:
+Rendering and template lookup APIs are thread-safe by design:
 - Template compilation is idempotent (same input → same output)
 - Rendering uses only local state (StringBuilder pattern, no shared buffers)
-- Environment caching uses copy-on-write for filters/tests/globals
+- Configure filters/tests/globals at startup; readers use copy-on-write state
 - LRU caches use atomic operations (no locks required)
 
 Free-Threading (PEP 703):

@@ -1,6 +1,6 @@
 # RFC: Milo Vision Doc — Diff Against 0.2.1
 
-**Status**: Draft
+**Status**: Implemented — vision rewrite shipped in v0.5.0 (`docs/milo-vision.md`)
 **Created**: 2026-04-12
 **Epic**: `plan/epic-kida-milo-integration.md` — Sprint 0, Task 0.3
 

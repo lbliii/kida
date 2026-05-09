@@ -40,6 +40,12 @@ Practical patterns for using Kida in your applications.
 :description: Passing variables, globals, nested contexts
 :::{/card}
 
+:::{card} Components
+:icon: blocks
+:link: /docs/usage/components/
+:description: Typed props, named slots, scoped state, and validation
+:::{/card}
+
 :::{card} Streaming
 :icon: zap
 :link: /docs/usage/streaming/

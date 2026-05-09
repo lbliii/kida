@@ -1,5 +1,7 @@
 # Kida Pre-1.0 Stabilization Rituals
 
+**Status**: Active — core gate shipped in v0.8.0; remaining work is release-readiness upkeep
+
 Kida is moving from pre-1.0 feature turbulence to a framework-author-ready
 surface. This is not a plan to cut a major release candidate; it is a plan to
 turn the behaviors framework authors already depend on into visible, repeatable

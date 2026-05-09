@@ -80,14 +80,19 @@ loader = FileSystemLoader("templates/")
 ### 5. Extends/Include Path Error
 
 ```kida
-{# ❌ Wrong path #}
-{% extends "../base.html" %}
+{# ❌ Walks above the template root #}
+{% extends "../../base.html" %}
 
 {# ✅ From loader root #}
 {% extends "layouts/base.html" %}
+
+{# ✅ Or relative to the current template file #}
+{% extends "../layouts/base.html" %}
 ```
 
-**Fix**: Use paths relative to loader root, not current file.
+**Fix**: Use root-relative paths for shared layouts, `./` or `../` paths for
+co-located templates, and `@alias/` paths when your environment configures
+`template_aliases`.
 
 ## Solutions
 

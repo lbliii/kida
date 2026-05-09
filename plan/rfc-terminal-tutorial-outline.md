@@ -1,6 +1,6 @@
 # RFC: Terminal Rendering Tutorial — Outline
 
-**Status**: Draft
+**Status**: Implemented — tutorial shipped in v0.5.0 (`site/content/docs/tutorials/terminal-rendering.md`)
 **Created**: 2026-04-12
 **Epic**: `plan/epic-kida-milo-integration.md` — Sprint 0, Task 0.2
 

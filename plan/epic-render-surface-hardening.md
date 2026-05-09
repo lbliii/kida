@@ -1,6 +1,6 @@
 # Epic: Render Surface Hardening — Parity Tests, Scaffold, Sandbox Fuzz
 
-**Status**: Draft
+**Status**: Complete — parity corpus, fragment scaffold, and sandbox fuzz shipped in v0.7.0
 **Created**: 2026-04-17
 **Priority**: P1 (quality — prevents a recurring class of async/sync drift bugs and strengthens the sandbox story for the 1.0 security review)
 **Affects**: `src/kida/template/core.py`, `src/kida/sandbox.py`, `tests/`

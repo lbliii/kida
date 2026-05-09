@@ -963,6 +963,7 @@ class ExpressionParsingMixin:
         """Parse function call arguments."""
         args: list[Expr] = []
         kwargs: dict[str, Expr] = {}
+        seen_keyword = False
 
         if self._match(TokenType.RPAREN):
             return args, kwargs
@@ -970,10 +971,28 @@ class ExpressionParsingMixin:
         while True:
             # Check for keyword argument
             if self._current.type == TokenType.NAME and self._peek(1).type == TokenType.ASSIGN:
-                name = self._advance().value
+                name_token = self._advance()
+                name = name_token.value
+                if name in kwargs:
+                    raise self._error(
+                        f"Duplicate keyword argument: {name}",
+                        token=name_token,
+                        suggestion=(
+                            f"Remove one '{name}=' argument. Kida call parameters must be "
+                            "unambiguous for static validation."
+                        ),
+                        code=ErrorCode.INVALID_EXPRESSION,
+                    )
                 self._advance()  # consume =
                 kwargs[name] = self._parse_expression()
+                seen_keyword = True
             else:
+                if seen_keyword:
+                    raise self._error(
+                        "Positional argument cannot follow keyword argument",
+                        suggestion="Move positional arguments before keyword arguments.",
+                        code=ErrorCode.INVALID_EXPRESSION,
+                    )
                 args.append(self._parse_expression())
 
             if not self._match(TokenType.COMMA):

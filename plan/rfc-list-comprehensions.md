@@ -1,6 +1,6 @@
 # RFC: List Comprehensions in Kida
 
-**Status**: Proposal  
+**Status**: Implemented — shipped in v0.4.0 (`CHANGELOG.md`)
 **Author**: —  
 **Created**: 2025-03-05
 

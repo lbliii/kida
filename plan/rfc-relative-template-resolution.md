@@ -1,8 +1,8 @@
 # RFC: Relative Template Resolution — Refactor-Safe Includes & Imports
 
-**Status**: Draft
+**Status**: Implemented — shipped in v0.8.0 (`CHANGELOG.md`)
 **Created**: 2026-04-23
-**Target**: v0.9.0
+**Target**: v0.8.0
 **Estimated Effort**: 14–22 hours
 **Dependencies**: None (pure-Python, additive)
 **Source**: Dashboard-migration DX feedback (K-TPL-001 path breakage on folder move); Kida include/def/from-import architecture audit (2026-04-23)

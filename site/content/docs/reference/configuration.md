@@ -59,11 +59,11 @@ loader = DictLoader({"page.html": "..."})
 
 ### autoescape
 
-HTML auto-escaping for output.
+Escaping mode for output.
 
 | Type | Default | Description |
 |------|---------|-------------|
-| `bool \| Callable` | `True` | Enable escaping |
+| `bool \| "html" \| "terminal" \| "markdown" \| Callable` | `True` | Select escaping behavior |
 
 ```python
 # Always escape
@@ -71,6 +71,12 @@ autoescape=True
 
 # Never escape
 autoescape=False
+
+# Terminal ANSI-safe escaping
+autoescape="terminal"
+
+# GitHub-flavored Markdown escaping
+autoescape="markdown"
 
 # Conditional by filename
 def should_escape(name):
@@ -173,6 +179,11 @@ bytecode_cache=False
 # Custom location
 bytecode_cache=BytecodeCache("__pycache__/kida/")
 ```
+
+Bytecode cache files are trusted application state. Store them in an
+application-owned directory, not a shared or user-writable location: cache files
+contain marshalled code and serialized compiler data, and the sandbox does not
+treat bytecode cache contents as untrusted input.
 
 ### static_context
 
@@ -393,7 +404,7 @@ Enable compile-time call-site validation for `{% def %}` functions.
 |------|---------|-------------|
 | `bool` | `False` | Validate call sites against `{% def %}` signatures |
 
-When enabled, the compiler checks every `{{ func(...) }}` call against the matching `{% def %}` signature and emits `UserWarning` for unknown parameters, missing required arguments, and other mismatches.
+When enabled, the compiler checks every `{{ func(...) }}` call against the matching `{% def %}` signature and emits `UserWarning` for unknown parameters, missing required arguments, and other mismatches. Duplicate keyword arguments are rejected by the parser before validation runs.
 
 ```python
 # Enable call validation (recommended for development/CI)

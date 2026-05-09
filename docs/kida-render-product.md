@@ -1,5 +1,11 @@
 # kida render — CI/CD Reporting as a Product
 
+**Status**: Historical product plan. Markdown rendering, the GitHub Action, fixture-backed
+report templates, AMP schemas, and report contract tests have shipped. Current
+user-facing behavior lives in `site/content/docs/usage/github-action.md`; use
+this document for future bets such as gallery, teams, trend tracking, and
+broader transform coverage.
+
 ## One-liner
 
 Turn structured CI output into beautiful, readable reports — on PRs, in logs, everywhere.
@@ -47,7 +53,7 @@ A GitHub Action that renders reports and posts them as PR comments or step summa
   run: pytest --junitxml=results.xml
 
 - name: Post report
-  uses: lbliii/kida@v1
+  uses: lbliii/kida@v0
   with:
     template: pytest           # built-in template name
     data: results.xml
@@ -56,7 +62,7 @@ A GitHub Action that renders reports and posts them as PR comments or step summa
 
 # PR comment (updates in place, no duplicates)
 - name: Post report to PR
-  uses: lbliii/kida@v1
+  uses: lbliii/kida@v0
   with:
     template: pytest
     data: results.xml
@@ -64,7 +70,7 @@ A GitHub Action that renders reports and posts them as PR comments or step summa
     post-to: pr-comment
 ```
 
-Six built-in templates ship with the action: **pytest**, **coverage**, **ruff**, **ty**, **jest**, and **gotest**. Users can also point to custom templates in their repo.
+Seventeen built-in templates ship with the action, covering pytest, coverage, ruff, ty, jest, gotest, SARIF, release notes, and AMP agent reports. Users can also point to custom templates in their repo.
 
 **Value**: One line in a workflow file gets you formatted test reports on every PR. No accounts, no API keys, no external services.
 
@@ -230,17 +236,17 @@ Once the free action has adoption (target: 1000+ repos), launch the paid tier fo
 
 ---
 
-## Technical Requirements
+## Historical Technical Requirements
 
-### Must build (for the action)
+### Shipped for the action
 
-1. **Markdown output mode for kida** — templates that render to GitHub-flavored markdown instead of ANSI. This is the biggest engineering task. The component system (panel, table, badge) needs markdown equivalents.
+1. **Markdown output mode for kida** — shipped.
 
 2. **Data transform layer** — small functions that normalize tool-specific JSON into common schemas. Start with 5 tools, expand via community contributions.
 
-3. **GitHub Action wrapper** — reads inputs, calls `kida render`, posts via GitHub API. Small and straightforward.
+3. **GitHub Action wrapper** — shipped.
 
-4. **Template testing framework** — given a fixture JSON file, render the template and snapshot-test the output. Ensures templates don't break when kida updates.
+4. **Template testing framework** — shipped for built-in report fixtures and snapshots.
 
 ### Nice to have (for teams tier)
 

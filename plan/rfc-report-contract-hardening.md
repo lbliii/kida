@@ -1,6 +1,6 @@
 # Report Contract Hardening
 
-**Status**: Proposed
+**Status**: Partially implemented — contract inventory, AMP schema checks, readability tests, and docs have shipped; workflow audit remains
 **Affects**: `templates/`, `tests/templates/`, `schemas/amp/v1/`, `.github/workflows/`, `.github/kida-templates/`, `src/kida/markdown/`, `src/kida/terminal/`, `site/content/docs/usage/github-action.md`
 **Stewards**: report templates, GitHub workflow, AMP schemas, markdown surface, terminal surface, tests, internal docs, documentation site
 

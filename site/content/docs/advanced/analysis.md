@@ -241,7 +241,7 @@ for issue in issues:
 | `col_offset` | `int` | Column offset of the call site |
 | `unknown_params` | `tuple[str, ...]` | Keyword args not in the definition |
 | `missing_required` | `tuple[str, ...]` | Required params not provided |
-| `duplicate_params` | `tuple[str, ...]` | Params passed more than once |
+| `duplicate_params` | `tuple[str, ...]` | Params passed more than once; parser-produced ASTs reject these before validation |
 
 | Property | Description |
 |----------|-------------|

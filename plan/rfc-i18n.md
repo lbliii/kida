@@ -1,6 +1,6 @@
 # RFC: `{% trans %}` — Internationalization Support
 
-**Status**: Draft
+**Status**: Implemented — shipped in v0.4.0; completion tracked by `plan/epic-i18n-completion.md`
 **Created**: 2026-04-09
 **Updated**: 2026-04-09
 **Related**: Epic: Template Framework Gaps (Sprint 3), Markup Security Hardening RFC
