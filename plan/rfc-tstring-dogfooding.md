@@ -1,6 +1,6 @@
 # RFC: Dogfooding t-strings in Kida Internals
 
-**Status**: Draft  
+**Status**: Superseded — replaced by completed `plan/epic-tstring-dogfooding.md`
 **Created**: 2026-01-11  
 **Updated**: 2026-01-11  
 **Based On**: Benchmark analysis and code audit of string-building patterns in Kida internals.

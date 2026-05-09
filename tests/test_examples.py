@@ -31,6 +31,7 @@ SMOKE_EXAMPLES = [
 ]
 
 # terminal_live uses LiveRenderer + time.sleep — excluded from smoke tests.
+INVENTORY_EXCLUDE = {"__pycache__"}
 
 
 def _load_example(name: str):
@@ -58,3 +59,18 @@ def test_example_runs(example, capsys):
     # Sanity check: most examples produce some output
     captured = capsys.readouterr()
     assert len(captured.out) > 0, f"Example {example!r} produced no output"
+
+
+def test_runnable_examples_are_listed_in_readme():
+    """Every top-level runnable example should be discoverable from examples/README.md."""
+    readme = (EXAMPLES_DIR / "README.md").read_text(encoding="utf-8")
+    runnable = sorted(
+        path.name
+        for path in EXAMPLES_DIR.iterdir()
+        if path.is_dir()
+        and path.name not in INVENTORY_EXCLUDE
+        and ((path / "app.py").exists() or (path / "run.py").exists())
+    )
+
+    missing = [name for name in runnable if f"`{name}/`" not in readme]
+    assert missing == []

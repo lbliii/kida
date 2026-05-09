@@ -26,6 +26,18 @@ chirp-kida:
     - docs/advanced/analysis
     - docs/troubleshooting/render-block-scope
 
+components:
+  title: "Typed Components"
+  description: "Build component templates with typed props, slots, and static validation."
+  duration: "30 min"
+  audience: "Template authors, design-system maintainers"
+  items:
+    - docs/usage/components
+    - docs/syntax/functions
+    - docs/advanced/scoped-slots
+    - docs/advanced/type-checking
+    - docs/reference/cli
+
 framework-integration:
   title: "Framework Integration"
   description: "Integrate Kida into your framework or build system."

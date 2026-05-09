@@ -3,8 +3,8 @@
   "model": "claude-sonnet-4-20250514",
   "confidence": 0.91,
   "title": "Add Agent Message Protocol (AMP) schemas and agentic templates",
-  "what_changed": "Introduces a formal protocol for structured AI agent output with JSON Schema definitions for 6 message types (code-review, pr-summary, deploy-preview, dependency-review, security-scan, release-notes) and corresponding Kida templates that render them as GitHub PR comments, step summaries, Slack messages, and terminal output.",
-  "why": "AI agents (Copilot, Claude, custom bots) all produce ad-hoc formatted comments with no consistency or customization. AMP decouples message production from presentation — agents output structured JSON, Kida renders it beautifully on any surface. Teams control how agent comments look via templates, not agent config.",
+  "what_changed": "Introduces a formal protocol for structured AI agent output with JSON Schema definitions for 6 message types (code-review, pr-summary, deploy-preview, dependency-review, security-scan, release-notes) and corresponding Kida templates that render them as GitHub PR comments, step summaries, releases, and terminal variants where provided.",
+  "why": "AI agents (Copilot, Claude, custom bots) all produce ad-hoc formatted comments with no consistency or customization. AMP decouples message production from presentation — agents output structured JSON, Kida renders it through fixture-backed templates for supported surfaces. Teams control how agent comments look via templates, not agent config.",
   "change_size": "large",
   "files": [
     {"path": "schemas/amp/v1/protocol.json", "change_type": "added", "summary": "Protocol definition: message types, surfaces, composition rules"},

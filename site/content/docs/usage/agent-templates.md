@@ -24,13 +24,13 @@ icon: layout
 
 # Agent Templates
 
-Kida ships six built-in [[docs/usage/amp|AMP]] message types, each backed by a primary agent-report template for rendering structured AI output as formatted GitHub comments, step summaries, releases, and terminal output. Some message types also have multiple surface-specific template variants. Each template consumes structured JSON from an AI agent and produces surface-appropriate output with severity badges, collapsible sections, diff suggestions, and more.
+Kida ships six built-in [[docs/usage/amp|AMP]] message types, each backed by a primary agent-report template for rendering structured AI output as formatted GitHub comments, step summaries, and releases. `release-notes-terminal` is the current terminal-native AMP variant. Each template consumes structured JSON from an AI agent and produces surface-appropriate output with severity badges, collapsible sections, diff suggestions, and more.
 
 ## Template catalog
 
 | Template | AMP type | Schema | Surfaces |
 | --- | --- | --- | --- |
-| `code-review-report.md` | `code-review` | `code-review.schema.json` | PR comment, step summary, terminal |
+| `code-review-report.md` | `code-review` | `code-review.schema.json` | PR comment, step summary |
 | `pr-summary-report.md` | `pr-summary` | `pr-summary.schema.json` | PR comment, step summary |
 | `deploy-preview-report.md` | `deploy-preview` | `deploy-preview.schema.json` | PR comment, step summary |
 | `dependency-review-report.md` | `dependency-review` | `dependency-review.schema.json` | PR comment, step summary |
@@ -317,7 +317,7 @@ kida render .github/templates/my-code-review.md --data review.json --mode markdo
 Or in the GitHub Action:
 
 ```yaml
-- uses: lbliii/kida@v0.7.0
+- uses: lbliii/kida@v0
   with:
     template: .github/templates/my-code-review.md
     data: .amp/collected/code-review.json

@@ -1,7 +1,7 @@
 # Design Note: Render Surface Hardening (Sprint 0)
 
 **Epic**: [epic-render-surface-hardening.md](./epic-render-surface-hardening.md)
-**Status**: Design (paper only)
+**Status**: Complete — Sprint 0 design for completed `plan/epic-render-surface-hardening.md`
 **Created**: 2026-04-17
 **Author**: Lawrence Lane
 

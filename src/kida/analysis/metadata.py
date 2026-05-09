@@ -208,7 +208,9 @@ class CallValidation:
         col_offset: Source column of the call site.
         unknown_params: Keyword argument names not in the definition's parameters.
         missing_required: Required parameters (no default) not provided by the call.
-        duplicate_params: Keyword argument names supplied more than once.
+        duplicate_params: Keyword argument names supplied more than once. Parser-produced
+            ASTs reject duplicate keyword arguments before validation; this field remains
+            for callers validating externally constructed ASTs.
 
     """
 

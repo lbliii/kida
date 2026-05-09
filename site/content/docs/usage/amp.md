@@ -30,7 +30,7 @@ AMP is a protocol for how AI agents express structured output for multi-surface 
 
 Without AMP, AI agents dump raw markdown into PR comments. Each surface renders it differently, composition of multiple agent outputs is ad-hoc, and teams have no control over formatting or severity thresholds.
 
-With AMP, agents emit structured JSON. Kida templates render that JSON to the right format for each surface — GitHub PR comments, step summaries, releases, Slack, or terminal. Composition is declarative.
+With AMP, agents emit structured JSON. Kida templates render that JSON to the right format for each shipped surface — GitHub PR comments, step summaries, and releases today, with terminal variants where a template explicitly ships one.
 
 **Without AMP:**
 
@@ -44,8 +44,8 @@ Agent → yet another format → paste into terminal
 
 ```
 Agent → structured JSON → Kida template → GitHub PR comment (markdown)
-                        → Kida template → Slack message (mrkdwn)
-                        → Kida template → Terminal output (ANSI)
+                        → Kida template → GitHub step summary (markdown)
+                        → Kida template → release notes (markdown or terminal)
 ```
 
 ## How it works
@@ -103,7 +103,7 @@ AMP v1 defines six message types. Each has a JSON Schema and one or more referen
 
 | Type | Description | Surfaces |
 | --- | --- | --- |
-| `code-review` | File-level findings with severity, confidence, and suggested fixes | PR comment, step summary, terminal |
+| `code-review` | File-level findings with severity, confidence, and suggested fixes | PR comment, step summary |
 | `pr-summary` | Auto-generated PR description with what/why/risk analysis | PR comment, step summary |
 | `deploy-preview` | Deploy status with URL, bundle size, and performance scores | PR comment, step summary |
 | `dependency-review` | Dependency changes with vulnerability and license analysis | PR comment, step summary |
@@ -121,10 +121,10 @@ A surface is a rendering target with specific format constraints and capabilitie
 | GitHub PR Comment | markdown | 65 KB | Checkboxes, collapsible sections, alerts, tables, images |
 | GitHub Step Summary | markdown | 1 MB | Same as PR comment, with more room |
 | GitHub Release | markdown | 125 KB | Tables, collapsible sections, code blocks (no checkboxes, no alerts) |
-| Slack | mrkdwn | 40 KB | Links, code blocks, emoji (no tables, no images, no collapsible) |
+| Slack | delivery-only markdown text | 40 KB | The GitHub Action can deliver rendered report text to a webhook; no Slack-specific template variant ships yet |
 | Terminal / CLI | ansi | unlimited | ANSI colors, tables, code blocks (no links, no images) |
 
-Templates can adapt output based on surface capabilities. For example, a code-review template uses `<details>` blocks on GitHub but flat headings on terminal.
+Templates can adapt output based on surface capabilities. Today, terminal-native AMP output is shipped for release notes via `release-notes-terminal`; other AMP templates are markdown-first for GitHub PR comments and step summaries.
 
 ## Composition
 

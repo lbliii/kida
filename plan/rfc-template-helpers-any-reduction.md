@@ -1,8 +1,9 @@
 # RFC: Template Helpers Any Reduction
 
+**Status**: Draft
+
 | Field | Value |
 |-------|-------|
-| **Status** | Draft |
 | **Created** | 2026-03-07 |
 | **Depends On** | `rfc-type-suppression-reduction.md` (Implemented) |
 | **Target** | Python 3.14+ |

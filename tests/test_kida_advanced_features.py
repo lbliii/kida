@@ -817,17 +817,21 @@ class TestCallSiteValidation:
         assert len(issues) == 1
         assert "title" in issues[0].missing_required
 
-    def test_duplicate_param_last_wins(self):
-        """Duplicate kwargs are deduplicated by the parser (last-wins).
+    def test_duplicate_param_rejected_by_parser(self):
+        """Duplicate kwargs are rejected before analysis loses occurrence data."""
+        from kida.parser.errors import ParseError
 
-        The AST stores kwargs in a dict, so duplicates can't be detected
-        at the analysis level. The call is valid since 'title' is provided.
-        """
-        issues = self._validate(
-            "{% def card(title) %}{{ title }}{% end %}{{ card(title='a', title='b') }}"
-        )
-        # No issues — the dict already deduplicated the kwargs
-        assert issues == []
+        with pytest.raises(ParseError, match="Duplicate keyword argument: title"):
+            self._validate(
+                "{% def card(title) %}{{ title }}{% end %}{{ card(title='a', title='b') }}"
+            )
+
+    def test_positional_arg_after_keyword_rejected_by_parser(self):
+        """Call args follow Python's positional-before-keyword rule."""
+        from kida.parser.errors import ParseError
+
+        with pytest.raises(ParseError, match="Positional argument cannot follow keyword argument"):
+            self._validate("{% def card(title) %}{{ title }}{% end %}{{ card(title='a', 'b') }}")
 
     def test_vararg_relaxes_positional(self):
         """*args in def relaxes positional validation."""

@@ -1,6 +1,6 @@
 # RFC: Optional C Extension for HTML Escaping
 
-**Status**: Draft  
+**Status**: Rejected / not-now — superseded by the pure-Python performance strategy and the zero-runtime-dependency contract
 **Created**: 2026-02-10  
 **Updated**: 2026-02-10  
 **Related**: Gap Analysis — Kida/Chirp Strategic Plan, `rfc-performance-optimization.md`  

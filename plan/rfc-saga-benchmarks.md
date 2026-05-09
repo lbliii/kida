@@ -1,6 +1,6 @@
 # RFC: Saga Benchmark Protocol
 
-**Status**: Draft
+**Status**: Implemented — benchmark shipped in v0.5.0 (`benchmarks/test_benchmark_saga.py`)
 **Created**: 2026-04-12
 **Epic**: `plan/epic-kida-milo-integration.md` — Sprint 0, Task 0.1
 

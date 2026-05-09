@@ -393,8 +393,8 @@ Run it with `python dashboard.py` and watch the service statuses, latencies, and
 
 You now have the tools to build rich terminal output with Kida. Here are some directions to explore:
 
-- [[docs/reference/terminal-filters|Terminal Filter Reference]] — full list of terminal filters with examples
-- [[docs/reference/terminal-components|Built-in Components]] — panels, headers, columns, and other layout components
+- [[docs/usage/terminal-rendering|Terminal Rendering]] — terminal filters, layout components, and rendering patterns
+- [[docs/reference/filters|Filter Reference]] — full list of built-in filters
 - The `--explain` flag for inspecting compiled templates and verifying optimizations
 - `examples/terminal_dashboard/` and `examples/terminal_deploy/` in the Kida repository for more patterns
 - [Milo](https://github.com/kida-lang/milo) for building fully interactive terminal applications on top of Kida's rendering layer

@@ -1,6 +1,6 @@
 # RFC: `{% slot %}` Scoped Bindings — `let:` Syntax for Data-Exposing Slots
 
-**Status**: Draft
+**Status**: Implemented — shipped in v0.4.0 (`CHANGELOG.md`)
 **Created**: 2026-04-09
 **Updated**: 2026-04-09
 **Related**: Named slots (v0.2.2), `{% yield %}` directive (RFC), `provide`/`consume` render context (v0.3.4)

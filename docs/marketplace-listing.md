@@ -5,7 +5,7 @@ Steps to list the Kida Report action on GitHub Marketplace.
 ## Prerequisites
 
 - [x] `action.yml` with `name`, `description`, `branding` (icon + color)
-- [x] 7 built-in templates in `templates/`
+- [x] 17 built-in templates in `templates/`
 - [x] Composite action with Python setup, install, render, and post steps
 - [x] PR comment deduplication via HTML markers
 - [x] Self-dogfooded in `.github/workflows/tests.yml`
@@ -18,13 +18,13 @@ Steps to list the Kida Report action on GitHub Marketplace.
 4. Fill in:
    - **Primary category**: Code quality
    - **Secondary category**: Continuous integration
-5. Publish the release (e.g., v0.3.2 or the next tag)
+5. Publish the release (e.g., the current `pyproject.toml` version tag)
 
 ## Marketplace Description
 
 Use this as the short description (appears in search results):
 
-> Render CI reports from pytest, coverage, ruff, and other tools as GitHub step summaries and PR comments. 7 built-in templates, custom template support, JUnit XML / JSON / SARIF / LCOV parsing.
+> Render CI reports from pytest, coverage, ruff, and other tools as GitHub step summaries and PR comments. 17 built-in templates, custom template support, JUnit XML / JSON / SARIF / LCOV parsing.
 
 ## Search Keywords
 
@@ -66,7 +66,7 @@ jobs:
 
       - name: Post test report
         if: always()
-        uses: lbliii/kida@v0.3.3
+        uses: lbliii/kida@v0
         with:
           template: pytest
           data: results.xml
@@ -74,7 +74,7 @@ jobs:
 
       - name: Post coverage report
         if: always()
-        uses: lbliii/kida@v0.3.3
+        uses: lbliii/kida@v0
         with:
           template: coverage
           data: coverage.json

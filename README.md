@@ -179,7 +179,7 @@ md = env.from_string("# {{ title }}\n\n{{ body }}").render(
 Turn pytest, coverage, ruff, and other tool output into step summaries and PR comments.
 
 ```yaml
-- uses: lbliii/kida@v0.7.0
+- uses: lbliii/kida@v0
   with:
     template: pytest
     data: results.xml
@@ -187,7 +187,7 @@ Turn pytest, coverage, ruff, and other tool output into step summaries and PR co
     post-to: step-summary,pr-comment
 ```
 
-Built-in templates for pytest, coverage, ruff, ty, jest, gotest, and sarif.
+Built-in templates for pytest, coverage, ruff, ty, jest, gotest, sarif, release notes, and AMP agent reports.
 [Full action docs &rarr;](https://lbliii.github.io/kida/docs/usage/github-action/)
 
 </details>

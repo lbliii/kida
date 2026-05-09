@@ -57,7 +57,7 @@ env = Environment(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `loader` | `Loader` | `None` | Template source provider |
-| `autoescape` | `bool \| Callable` | `True` | HTML auto-escaping |
+| `autoescape` | `bool \| "html" \| "terminal" \| "markdown" \| Callable` | `True` | Output escaping mode |
 | `auto_reload` | `bool` | `True` | Check for source changes |
 | `cache_size` | `int` | `400` | Max cached templates |
 | `fragment_cache_size` | `int` | `1000` | Max cached fragments |

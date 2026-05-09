@@ -60,7 +60,7 @@ kida check <template_dir> [flags]
 | Flag | Description |
 |------|-------------|
 | `--strict` | Fail on bare `{% end %}` closers. Requires explicit `{% endif %}`, `{% endblock %}`, `{% endcall %}`, etc. |
-| `--validate-calls` | Validate macro call sites against `{% def %}` signatures. Reports unknown parameters, missing required parameters, and duplicates. |
+| `--validate-calls` | Validate macro call sites against `{% def %}` signatures. Reports unknown parameters and missing required parameters. Duplicate keyword arguments are rejected earlier as parser errors. |
 | `--a11y` | Check templates for accessibility issues (missing `alt` attributes, heading order, etc.). |
 | `--typed` | Type-check templates against `{% template %}` declarations. |
 | `--lint-fragile-paths` | Suggest `./` relative paths for same-folder include, extends, embed, and import statements so folder moves stay zero-edit. |

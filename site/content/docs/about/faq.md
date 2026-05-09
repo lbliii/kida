@@ -152,11 +152,11 @@ See [[docs/about/performance|Performance]].
 
 ### Is Kida thread-safe?
 
-Yes. All public APIs are thread-safe:
+Yes for rendering and template lookup APIs:
 
 - Configuration is immutable after creation
 - Rendering uses only local variables (no shared mutable state)
-- Filter/test additions use copy-on-write (no locks)
+- Add filters, tests, and globals during startup before concurrent rendering
 - Caches use atomic operations
 
 ### What's free-threading support?

@@ -226,9 +226,46 @@ Use for styling first/last rows, row numbers, and progress indicators.
 cd examples/loop_context && python app.py
 ```
 
+## Additional Examples by Track
+
+These examples are also part of the public catalog and are covered by focused
+tests, smoke tests, or both.
+
+### Component and State Patterns
+
+- `provide_consume/` -- parent-to-child state propagation with `{% provide %}` and `consume()`.
+- `content_stacks/` -- push/stack patterns for head tags, scripts, and deferred content.
+- `list_comprehensions/` -- Python-style list comprehensions in template expressions.
+
+### Agents and CI Reports
+
+- `amp/` -- agent instruction examples for AMP-compatible structured output.
+- `coverage/` -- render coverage data as a report.
+
+### Extension and Safety Patterns
+
+- `extensions/` -- custom parser/compiler extension hooks.
+- `sandbox/` -- sandboxed rendering policy examples.
+
+### Terminal Rendering
+
+- `terminal_basic/` -- minimal terminal rendering.
+- `terminal_render/` -- render terminal templates from structured data.
+- `terminal_report/` -- terminal report output.
+- `terminal_table/` -- table formatting.
+- `terminal_layout/` -- columns and layout helpers.
+- `terminal_dashboard/` -- dashboard-style terminal output.
+- `terminal_deploy/` -- deployment progress output.
+- `terminal_gitlog/` -- git log formatting.
+- `terminal_monitor/` -- monitoring-style output.
+- `terminal_live/` -- live renderer loop; intentionally excluded from fast smoke tests.
+- `terminal_saga_dashboard/` -- Milo-style saga dashboard with `Store` and `LiveRenderer`.
+
 ## Running Tests
 
-Each example has a `test_<name>.py` that verifies it works end-to-end.
+Most examples have a local `test_<name>.py` that verifies behavior end-to-end.
+`tests/test_examples.py` also smoke-runs practical `run.py` examples and checks
+that every runnable top-level example is listed here.
 
 ```bash
 # All examples

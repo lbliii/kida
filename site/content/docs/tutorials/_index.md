@@ -48,7 +48,7 @@ Three fix patterns for the strict_undefined flip, the escape hatch, and the new 
 :icon: folder-tree
 :link: /docs/tutorials/refactor-safe-templates/
 :description: Move folders without breaking includes
-:badge: 0.9
+:badge: 0.8
 Use `./` / `../` for co-located partials and `@alias/` for shared libraries so folder moves become zero-edit refactors.
 :::{/card}
 

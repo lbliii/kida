@@ -1,6 +1,6 @@
 # RFC: `{% try %}` / `{% fallback %}` — Error Boundaries for Template Rendering
 
-**Status**: Draft
+**Status**: Implemented — shipped in v0.4.0 (`CHANGELOG.md`)
 **Created**: 2026-04-09
 **Updated**: 2026-04-09
 **Related**: Epic: Template Framework Gaps (Sprint 2), RenderContext line tracking, exception hierarchy

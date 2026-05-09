@@ -1,8 +1,8 @@
 # Epic: Kida × Milo Integration — Prove the Stack End-to-End
 
-**Status**: Draft
+**Status**: Active — Sprints 0–2 complete; Sprint 3 marketplace and external dogfooding remains
 **Created**: 2026-04-12
-**Target**: v0.5.0
+**Target**: v0.5.0 for Sprints 0–2; Sprint 3 ongoing
 **Estimated Effort**: 20–30h
 **Dependencies**: Milo 0.2.1+ (shipped 2026-04-12), Kida v0.4.1+
 **Source**: `docs/strategic-roadmap.md` (closed), Milo 0.2.1 release analysis, codebase audit

@@ -209,12 +209,12 @@ async def render_many(env):
 | `from_string()` | ✅ Yes |
 | `template.render()` | ✅ Yes |
 | `template.render_stream()` | ✅ Yes |
-| `add_filter()` | ✅ Yes (copy-on-write) |
-| `add_test()` | ✅ Yes (copy-on-write) |
-| `add_global()` | ✅ Yes (copy-on-write) |
+| `add_filter()` | Startup/configuration only |
+| `add_test()` | Startup/configuration only |
+| `add_global()` | Startup/configuration only |
 | `clear_cache()` | ✅ Yes |
 
-Concurrent `render()` and `render_stream()` on the same template from different threads is safe. BytecodeCache and Environment copy-on-write are tested under concurrent get/set.
+Concurrent `render()` and `render_stream()` on the same template from different threads is safe. Configure filters, tests, and globals before serving traffic; those registries use copy-on-write for reader safety, but concurrent writer ordering is not a public contract.
 
 ## Component Concurrency Matrix
 

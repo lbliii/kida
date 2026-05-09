@@ -305,7 +305,9 @@ env = Environment(
 )
 ```
 
-Compiled bytecode is persisted to disk and loaded on subsequent runs.
+Compiled bytecode is persisted to disk and loaded on subsequent runs. Treat the
+cache directory as trusted application-owned state, just like Python bytecode:
+do not place it on a shared or user-writable path.
 
 ## See Also
 
