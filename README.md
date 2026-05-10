@@ -343,6 +343,9 @@ for the `strict_undefined=True` migration patterns.
 Moving from 0.7.x? See the [Upgrade to 0.8 tutorial](https://lbliii.github.io/kida/docs/tutorials/upgrade-to-v0.8/)
 for the Mapping behavior change in null-safe access (`?.` and `?[...]`).
 
+Moving from 0.8.x? See the [0.9 release notes](https://lbliii.github.io/kida/releases/0.9.0/)
+for the Markdown escaping and `| safe` trust-boundary changes.
+
 ## The Bengal Ecosystem
 
 Kida is part of a pure-Python stack built for 3.14t free-threading.

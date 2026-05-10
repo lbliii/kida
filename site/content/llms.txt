@@ -1,0 +1,16 @@
+# Kida
+
+Kida is a pure-Python template component framework for Python 3.14 and free-threaded Python 3.14t.
+
+Useful entry points:
+- /docs/
+- /docs/get-started/
+- /docs/reference/
+- /docs/usage/
+- /docs/advanced/
+- /docs/tutorials/
+- /releases/
+- /api/
+
+Package: kida-templates
+Repository: https://github.com/lbliii/kida

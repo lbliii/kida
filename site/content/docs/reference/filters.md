@@ -110,12 +110,14 @@ Replace occurrences.
 
 ### safe
 
-Mark as safe HTML (no escaping).
+Mark a value as safe for the active render surface.
 
 ```kida
 {{ html_content | safe }}
 {{ trusted | safe(reason="sanitized") }}
 ```
+
+In HTML mode, this means trusted HTML. In Markdown mode, this means trusted Markdown and bypasses Markdown autoescape via the `__markdown__` protocol. Keep `safe` off untrusted issue, PR, tool, or user-provided text.
 
 ### striptags
 

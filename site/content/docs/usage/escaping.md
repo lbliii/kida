@@ -1,6 +1,6 @@
 ---
 title: Escaping
-description: HTML escaping and safe content handling
+description: HTML and Markdown escaping plus safe content handling
 draft: false
 weight: 30
 lang: en
@@ -19,7 +19,7 @@ icon: shield
 
 # Escaping
 
-Kida auto-escapes output by default to prevent XSS vulnerabilities.
+Kida auto-escapes output by default. HTML mode protects browser output from injection, Markdown mode protects CI reports and comments from accidental formatting, and terminal mode sanitizes ANSI control sequences.
 
 ## Autoescape
 
@@ -64,7 +64,7 @@ env = Environment(autoescape=False)
 
 ## Safe Filter
 
-Mark content as trusted HTML:
+Mark content as trusted for the active render surface:
 
 ```kida
 {{ html_content | safe }}
@@ -77,9 +77,40 @@ With optional reason for code review:
 {{ admin_html | safe(reason="admin-only content") }}
 ```
 
+Under `autoescape=True` / `autoescape="html"`, `safe` means trusted HTML. Under `autoescape="markdown"`, `safe` means trusted Markdown. Do not use it for untrusted issue text, PR bodies, tool output, user comments, or any value that has not already crossed a clear trust boundary.
+
+## Markdown Autoescape
+
+Use Markdown mode for GitHub step summaries, PR comments, release notes, and other Markdown output:
+
+```python
+from kida.markdown import markdown_env
+
+env = markdown_env()
+template = env.from_string("{{ text }}")
+template.render(text="Use *literal* [text]")
+# Use \*literal\* \[text\]
+```
+
+Markdown autoescape targets CommonMark/GFM formatting triggers. It escapes inline backslashes, backticks, emphasis markers, brackets, and angle brackets. Since 0.9.0, it no longer escapes punctuation that is harmless in normal inline text, such as hyphens, parentheses, hashes, pipes, and tildes. Block-leading Markdown markers like `#`, `>`, `-`, `+`, and ordered-list digits are still escaped when they appear at the start of a line.
+
+`Markup` implements both `__html__` and `__markdown__`, so `safe` is honored by Markdown autoescape:
+
+```python
+from kida.markdown import markdown_env
+
+env = markdown_env()
+template = env.from_string("{{ body }}\n{{ body | safe }}")
+template.render(body="## Trusted heading")
+# \## Trusted heading
+# ## Trusted heading
+```
+
+If you keep committed snapshots for Markdown reports, regenerate them after upgrading to 0.9.0. Expected diffs usually remove unnecessary backslashes from prose, dates, diagnostic codes, and function-call text.
+
 ## Markup Class
 
-Create safe HTML in Python:
+Create safe content in Python:
 
 ```python
 from kida import Markup
@@ -88,6 +119,8 @@ from kida import Markup
 safe_html = Markup("<b>Bold</b>")
 template.render(content=safe_html)  # Not escaped
 ```
+
+`Markup` preserves safety in HTML and Markdown modes. Treat it like `safe`: only wrap content that is already sanitized or authored by trusted code.
 
 ### Markup Operations
 

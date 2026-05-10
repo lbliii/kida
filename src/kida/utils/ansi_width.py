@@ -81,7 +81,7 @@ def configure_width(
     wcwidth_fn = None
     if use_wcwidth:
         try:
-            from wcwidth import wcwidth as _wcwidth  # type: ignore[import-not-found]
+            from wcwidth import wcwidth as _wcwidth
 
             wcwidth_fn = _wcwidth
         except ImportError:

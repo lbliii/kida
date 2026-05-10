@@ -85,7 +85,7 @@ def render_template(template_name: str, **context: Any) -> str:
     Returns:
         Rendered HTML string.
     """
-    from flask import current_app  # type: ignore[import-untyped]
+    from flask import current_app
 
     env: Environment = current_app.extensions["kida"]
     template = env.get_template(template_name)

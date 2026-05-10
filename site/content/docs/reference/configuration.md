@@ -87,6 +87,8 @@ def should_escape(name):
 autoescape=should_escape
 ```
 
+Markdown mode is for generated Markdown such as GitHub step summaries, PR comments, and release notes. It escapes CommonMark/GFM formatting triggers while keeping ordinary punctuation readable. Since 0.9.0, inline hyphens, parentheses, hashes, pipes, and tildes are not escaped unless they appear where Markdown treats them as block markers. Values marked with `| safe` or `Markup(...)` bypass Markdown escaping through `__markdown__`, so only mark trusted Markdown safe.
+
 ### auto_reload
 
 Check for template source changes.

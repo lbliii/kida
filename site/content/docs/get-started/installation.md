@@ -67,7 +67,7 @@ uv sync
 
 ```python
 import kida
-print(kida.__version__)  # 0.7.0
+print(kida.__version__)  # 0.9.0
 ```
 
 Or from the command line:
@@ -80,23 +80,17 @@ python -c "import kida; print(kida.__version__)"
 
 Kida is optimized for Python 3.14t with free-threading enabled (PEP 703). To use free-threading:
 
-:::{steps}
-:::{step} Install free-threaded Python 3.14
+1. Install free-threaded Python 3.14
 
 Look for `python3.14t` or the "free-threaded" installer option.
 
-:::{/step}
-:::{step} Install Kida normally
+2. Install Kida normally
 
 Use pip or uv as shown above.
 
-:::{/step}
-:::{step} Render templates concurrently
+3. Render templates concurrently
 
 Use true parallelism with `ThreadPoolExecutor` or similar.
-
-:::{/step}
-:::{/steps}
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
