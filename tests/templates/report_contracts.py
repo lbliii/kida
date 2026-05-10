@@ -17,7 +17,9 @@ class ReportContract:
 
     name: str
     fixture: str | None = None
+    data_format: str = "json"
     render_mode: str = "markdown"
+    surfaces: tuple[str, ...] = ("github-pr-comment", "github-step-summary")
     amp_schema: str | None = None
 
     @property
@@ -38,12 +40,12 @@ class ReportContract:
 
 
 REPORT_CONTRACTS = [
-    ReportContract("pytest"),
-    ReportContract("coverage"),
+    ReportContract("pytest", data_format="junit-xml"),
+    ReportContract("coverage", data_format="json|lcov"),
     ReportContract("ruff"),
-    ReportContract("ty"),
+    ReportContract("ty", data_format="junit-xml"),
     ReportContract("jest"),
-    ReportContract("gotest"),
+    ReportContract("gotest", data_format="junit-xml"),
     ReportContract("sarif"),
     ReportContract("code-review", amp_schema="code-review"),
     ReportContract("pr-summary", amp_schema="pr-summary"),
@@ -51,13 +53,33 @@ REPORT_CONTRACTS = [
     ReportContract("dependency-review", amp_schema="dependency-review"),
     ReportContract("security-scan", amp_schema="security-scan"),
     ReportContract("copilot-instructions"),
-    ReportContract("release-notes", fixture="release-notes", amp_schema="release-notes"),
-    ReportContract("release-notes-compact", fixture="release-notes", amp_schema="release-notes"),
-    ReportContract("release-notes-detailed", fixture="release-notes", amp_schema="release-notes"),
+    ReportContract(
+        "release-notes",
+        fixture="release-notes",
+        data_format="github-prs",
+        surfaces=("github-release", "github-step-summary"),
+        amp_schema="release-notes",
+    ),
+    ReportContract(
+        "release-notes-compact",
+        fixture="release-notes",
+        data_format="github-prs",
+        surfaces=("github-pr-comment",),
+        amp_schema="release-notes",
+    ),
+    ReportContract(
+        "release-notes-detailed",
+        fixture="release-notes",
+        data_format="github-prs",
+        surfaces=("github-release", "github-step-summary"),
+        amp_schema="release-notes",
+    ),
     ReportContract(
         "release-notes-terminal",
         fixture="release-notes",
+        data_format="github-prs",
         render_mode="terminal",
+        surfaces=("terminal",),
         amp_schema="release-notes",
     ),
 ]

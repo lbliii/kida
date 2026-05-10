@@ -1,0 +1,11 @@
+{% from "../components/card.html" import stat_card %}
+{% from "../components/table.html" import user_table %}
+
+<section>
+  <h1>{{ page.title }}</h1>
+  <p>Owner: {{ owner.name }}</p>
+
+  {{ stat_card("Open issues", stats.open_issues, tone="warning") }}
+  {{ stat_card("Closed issues", stats.closed_issues, tone="success") }}
+  {{ user_table(users) }}
+</section>
