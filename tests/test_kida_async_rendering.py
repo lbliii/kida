@@ -15,6 +15,7 @@ import pytest
 
 from kida import DictLoader, Environment
 from kida.environment.exceptions import TemplateRuntimeError, TemplateSyntaxError
+from kida.render_context import get_render_context_required, render_context
 from kida.template.loop_context import AsyncLoopContext
 
 if TYPE_CHECKING:
@@ -291,11 +292,47 @@ class TestRenderBlockStreamAsync:
 
     @pytest.mark.asyncio
     async def test_block_not_found_raises(self, env: Environment) -> None:
-        """Missing block raises KeyError."""
+        """Missing block raises a structured Kida runtime error."""
         tmpl = env.from_string("{% block content %}hello{% endblock %}")
-        with pytest.raises(KeyError, match="nonexistent"):
+        with pytest.raises(TemplateRuntimeError, match="nonexistent") as exc_info:
             async for _ in tmpl.render_block_stream_async("nonexistent"):
                 pass
+        assert "Available blocks: ['content']" in str(exc_info.value)
+        assert exc_info.value.code.value == "K-RUN-007"
+
+    @pytest.mark.asyncio
+    async def test_render_block_stream_async_inherits_parent_metadata(
+        self, env: Environment
+    ) -> None:
+        """Async block rendering inherits framework metadata like sync rendering."""
+
+        def meta_value(key: str) -> object:
+            return get_render_context_required().get_meta(key, "missing")
+
+        env.add_global("meta_value", meta_value)
+        tmpl = env.from_string("{% block content %}{{ meta_value('request_id') }}{% endblock %}")
+
+        with render_context() as ctx:
+            ctx.set_meta("request_id", "req-123")
+            chunks = [chunk async for chunk in tmpl.render_block_stream_async("content")]
+
+        assert "".join(chunks) == "req-123"
+
+    @pytest.mark.asyncio
+    async def test_render_stream_async_inherits_parent_metadata(self, env: Environment) -> None:
+        """Async full rendering inherits framework metadata like sync rendering."""
+
+        def meta_value(key: str) -> object:
+            return get_render_context_required().get_meta(key, "missing")
+
+        env.add_global("meta_value", meta_value)
+        tmpl = env.from_string("{{ meta_value('request_id') }}")
+
+        with render_context() as ctx:
+            ctx.set_meta("request_id", "req-456")
+            chunks = [chunk async for chunk in tmpl.render_stream_async()]
+
+        assert "".join(chunks) == "req-456"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
