@@ -40,9 +40,7 @@ def test_report_template_contract_names_match_action_docs_and_amp_protocol() -> 
         encoding="utf-8"
     )
     amp_doc = (ROOT_DIR / "site/content/docs/usage/amp.md").read_text(encoding="utf-8")
-    protocol = json.loads(
-        (ROOT_DIR / "schemas/amp/v1/protocol.json").read_text(encoding="utf-8")
-    )
+    protocol = json.loads((ROOT_DIR / "schemas/amp/v1/protocol.json").read_text(encoding="utf-8"))
     message_types = protocol["default"]["message_types"]
 
     for contract in REPORT_CONTRACTS:

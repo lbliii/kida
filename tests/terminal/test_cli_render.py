@@ -26,6 +26,22 @@ class TestCliRender:
         data.write_text(json.dumps({"x": "hello"}))
         assert main(["render", str(tpl), "--data", str(data)]) == 0
 
+    def test_render_with_json_list_data_file(self, tmp_path, capsys):
+        tpl = tmp_path / "test.txt"
+        tpl.write_text("{{ data | length }}")
+        data = tmp_path / "data.json"
+        data.write_text(json.dumps([{"code": "F401"}, {"code": "E501"}]))
+
+        assert main(["render", str(tpl), "--data", str(data)]) == 0
+        assert capsys.readouterr().out == "2\n"
+
+    def test_render_with_json_list_data_str(self, tmp_path, capsys):
+        tpl = tmp_path / "test.txt"
+        tpl.write_text("{{ data[0] }}")
+
+        assert main(["render", str(tpl), "--data-str", '["ruff"]']) == 0
+        assert capsys.readouterr().out == "ruff\n"
+
     def test_render_invalid_data_file(self, tmp_path):
         tpl = tmp_path / "test.txt"
         tpl.write_text("{{ x }}")

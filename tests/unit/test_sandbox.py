@@ -234,7 +234,6 @@ class TestIsTypeBlocked:
         assert _is_type_blocked(None, DEFAULT_POLICY) is False
 
     def test_custom_blocked_type(self):
-
         class Evil:
             pass
 
@@ -242,7 +241,6 @@ class TestIsTypeBlocked:
         assert _is_type_blocked(Evil(), policy) is True
 
     def test_custom_blocked_does_not_affect_builtins(self):
-
         class Evil:
             pass
 
