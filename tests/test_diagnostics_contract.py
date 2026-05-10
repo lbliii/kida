@@ -64,20 +64,43 @@ def test_components_json_output_snapshot(tmp_path: Path, capsys) -> None:
             "name": "badge",
             "template": "card.html",
             "lineno": 1,
-            "params": [{"name": "label", "annotation": "str", "required": True}],
+            "params": [
+                {
+                    "name": "label",
+                    "annotation": "str",
+                    "has_default": False,
+                    "required": True,
+                }
+            ],
             "slots": [],
             "has_default_slot": False,
+            "depends_on": [],
+            "vararg": None,
+            "kwarg": None,
         },
         {
             "name": "card",
             "template": "card.html",
             "lineno": 1,
             "params": [
-                {"name": "title", "annotation": "str", "required": True},
-                {"name": "subtitle", "annotation": "str", "required": False},
+                {
+                    "name": "title",
+                    "annotation": "str",
+                    "has_default": False,
+                    "required": True,
+                },
+                {
+                    "name": "subtitle",
+                    "annotation": "str",
+                    "has_default": True,
+                    "required": False,
+                },
             ],
             "slots": ["header"],
             "has_default_slot": True,
+            "depends_on": [],
+            "vararg": None,
+            "kwarg": None,
         },
     ]
 

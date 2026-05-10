@@ -124,6 +124,19 @@ class TestDefMetadata:
         assert greet.params[0].annotation is None
         assert greet.params[1].annotation is None
 
+    def test_def_dependency_and_variadic_metadata(self, env):
+        """Def metadata exposes outer dependencies and variadic parameter names."""
+        t = env.from_string(
+            "{% def card(title: str, *items, **attrs) %}"
+            "{{ site.title }} {{ title }} {{ items }} {{ attrs }}"
+            "{% end %}"
+        )
+        meta = t.def_metadata()
+        card = meta["card"]
+        assert card.depends_on == frozenset({"site.title"})
+        assert card.vararg == "items"
+        assert card.kwarg == "attrs"
+
     def test_caching(self, env):
         """def_metadata() is cached after first call."""
         t = env.from_string("{% def x() %}X{% end %}")
@@ -183,6 +196,8 @@ class TestDefMetadataDataclass:
         assert dm.slots == ()
         assert dm.has_default_slot is False
         assert dm.depends_on == frozenset()
+        assert dm.vararg is None
+        assert dm.kwarg is None
 
 
 class TestComponentMetadataContract:
@@ -231,6 +246,8 @@ class TestComponentMetadataContract:
             "slots": card.slots,
             "has_default_slot": card.has_default_slot,
             "depends_on": sorted(card.depends_on),
+            "vararg": card.vararg,
+            "kwarg": card.kwarg,
         } == {
             "name": "card",
             "template_name": "page.html",
@@ -246,6 +263,8 @@ class TestComponentMetadataContract:
             "slots": ("header",),
             "has_default_slot": True,
             "depends_on": [],
+            "vararg": None,
+            "kwarg": None,
         }
 
         assert template.list_blocks() == ["shell", "sidebar"]

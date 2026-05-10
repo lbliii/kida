@@ -283,6 +283,9 @@ print(card.lineno)            # 3
 print(card.params)            # (DefParamInfo(name='title', annotation='str', ...), ...)
 print(card.slots)             # ('actions', 'footer')
 print(card.has_default_slot)  # True
+print(card.depends_on)        # frozenset({'site.title'})
+print(card.vararg)            # None or '*args' parameter name
+print(card.kwarg)             # None or '**kwargs' parameter name
 ```
 
 **DefMetadata** fields:
@@ -295,6 +298,9 @@ print(card.has_default_slot)  # True
 | `params` | `tuple[DefParamInfo, ...]` | Parameter metadata |
 | `slots` | `tuple[str, ...]` | Named slot names |
 | `has_default_slot` | `bool` | Whether `{% slot %}` (unnamed) exists |
+| `depends_on` | `frozenset[str]` | Context paths read by the def body outside declared params and locals |
+| `vararg` | `str \| None` | Name of `*args` parameter, if present |
+| `kwarg` | `str \| None` | Name of `**kwargs` parameter, if present |
 
 **DefParamInfo** fields:
 

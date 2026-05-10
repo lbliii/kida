@@ -312,7 +312,12 @@ class DependencyWalker(NodeVisitor):
             self.visit(default)
 
         # Push function parameter names into scope
-        self._push_scope({p.name for p in node.params})
+        param_names = {p.name for p in node.params}
+        if node.vararg is not None:
+            param_names.add(node.vararg)
+        if node.kwarg is not None:
+            param_names.add(node.kwarg)
+        self._push_scope(param_names)
 
         # Visit body
         for child in node.body:
@@ -327,7 +332,12 @@ class DependencyWalker(NodeVisitor):
             self.visit(default)
 
         # Push region parameter names into scope
-        self._push_scope({p.name for p in node.params})
+        param_names = {p.name for p in node.params}
+        if node.vararg is not None:
+            param_names.add(node.vararg)
+        if node.kwarg is not None:
+            param_names.add(node.kwarg)
+        self._push_scope(param_names)
 
         # Visit body
         for child in node.body:

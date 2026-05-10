@@ -667,8 +667,8 @@ class _DefSignature:
             required_params=tuple(required),
             ordered_params=tuple(all_names),
             param_annotations=annotations,
-            has_vararg=False,
-            has_kwarg=False,
+            has_vararg=meta.vararg is not None,
+            has_kwarg=meta.kwarg is not None,
         )
 
 
