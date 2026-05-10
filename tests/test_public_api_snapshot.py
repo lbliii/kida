@@ -202,6 +202,8 @@ EXPECTED_PUBLIC_API = {
             "slots",
             "has_default_slot",
             "depends_on",
+            "vararg",
+            "kwarg",
         ],
         "TemplateMetadata": ["name", "extends", "blocks", "top_level_depends_on"],
         "TemplateStructureManifest": [

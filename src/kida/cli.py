@@ -23,6 +23,7 @@ from kida.parser import Parser
 class _ComponentParamRow(TypedDict):
     name: str
     annotation: str | None
+    has_default: bool
     required: bool
 
 
@@ -33,6 +34,9 @@ class _ComponentRow(TypedDict):
     params: list[_ComponentParamRow]
     slots: list[str]
     has_default_slot: bool
+    depends_on: list[str]
+    vararg: str | None
+    kwarg: str | None
 
 
 _TEMPLATE_GLOBS = ("*.html", "*.kida")
@@ -665,6 +669,7 @@ def _cmd_components(
                 param: _ComponentParamRow = {
                     "name": p.name,
                     "annotation": p.annotation,
+                    "has_default": p.has_default,
                     "required": p.is_required,
                 }
                 params.append(param)
@@ -675,6 +680,9 @@ def _cmd_components(
                 "params": params,
                 "slots": list(dm.slots),
                 "has_default_slot": dm.has_default_slot,
+                "depends_on": sorted(dm.depends_on),
+                "vararg": dm.vararg,
+                "kwarg": dm.kwarg,
             }
             all_defs.append(row)
 
@@ -706,6 +714,10 @@ def _cmd_components(
                 if not p["required"]:
                     sig += " = ..."
                 parts.append(sig)
+            if d["vararg"]:
+                parts.append(f"*{d['vararg']}")
+            if d["kwarg"]:
+                parts.append(f"**{d['kwarg']}")
             sig_str = ", ".join(parts)
             print(f"  def {d['name']}({sig_str})")
 
@@ -715,6 +727,8 @@ def _cmd_components(
                 slots.insert(0, "(default)")
             if slots:
                 print(f"    slots: {', '.join(slots)}")
+            if d["depends_on"]:
+                print(f"    depends_on: {', '.join(d['depends_on'])}")
         print()
 
     print(f"{len(all_defs)} component(s) found.")

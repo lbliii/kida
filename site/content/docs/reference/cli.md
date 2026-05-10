@@ -254,7 +254,10 @@ components/nav.html
 2 component(s) found.
 ```
 
-JSON output produces an array of objects with `name`, `template`, `lineno`, `params`, `slots`, and `has_default_slot` fields.
+JSON output produces an array of objects with `name`, `template`, `lineno`,
+`params`, `slots`, `has_default_slot`, `depends_on`, `vararg`, and `kwarg`
+fields. Each param includes `name`, `annotation`, `has_default`, and
+`required`.
 
 ## kida manifest
 

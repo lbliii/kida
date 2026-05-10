@@ -294,6 +294,8 @@ class DefMetadata:
         slots: Named slots referenced in the def body (excludes ``"default"``).
         has_default_slot: True if the body contains an unnamed ``{% slot %}``.
         depends_on: Context paths the def body may access (conservative superset).
+        vararg: Name of the ``*args`` parameter, if declared.
+        kwarg: Name of the ``**kwargs`` parameter, if declared.
 
     Example:
             >>> meta = template.def_metadata()
@@ -310,6 +312,8 @@ class DefMetadata:
     slots: tuple[str, ...] = ()
     has_default_slot: bool = False
     depends_on: frozenset[str] = frozenset()
+    vararg: str | None = None
+    kwarg: str | None = None
 
 
 @final

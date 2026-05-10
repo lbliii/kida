@@ -6,7 +6,7 @@ If these tests break, chirp's core differentiator (HTML fragments) breaks.
 
 import pytest
 
-from kida import DictLoader, Environment, TemplateError
+from kida import DictLoader, Environment, TemplateRuntimeError
 
 
 def _env(**templates: str) -> Environment:
@@ -45,8 +45,12 @@ class TestRenderBlock:
     def test_nonexistent_block_raises(self) -> None:
         env = _env(page="{% block real %}content{% endblock %}")
         template = env.get_template("page")
-        with pytest.raises((KeyError, TemplateError)):
+        with pytest.raises(TemplateRuntimeError) as exc_info:
             template.render_block("nonexistent")
+        message = str(exc_info.value)
+        assert "Block 'nonexistent' not found" in message
+        assert "Available blocks: ['real']" in message
+        assert exc_info.value.code.value == "K-RUN-007"
 
     def test_empty_block(self) -> None:
         env = _env(page="{% block empty %}{% endblock %}")

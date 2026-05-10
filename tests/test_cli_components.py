@@ -14,7 +14,7 @@ def component_dir(tmp_path):
     """Create a temp directory with component templates."""
     (tmp_path / "card.html").write_text(
         "{% def card(title: str, subtitle: str = None) %}"
-        "<div>{% slot header %}{% slot %}</div>"
+        "<div>{{ site.title }}{% slot header %}{% slot %}</div>"
         "{% end %}"
         "{% def badge(label: str) %}"
         "<span>{{ label }}</span>"
@@ -59,10 +59,13 @@ class TestComponentsCommand:
         assert len(card["params"]) == 2
         assert card["params"][0]["name"] == "title"
         assert card["params"][0]["annotation"] == "str"
+        assert card["params"][0]["has_default"] is False
         assert card["params"][0]["required"] is True
+        assert card["params"][1]["has_default"] is True
         assert card["params"][1]["required"] is False
         assert card["has_default_slot"] is True
         assert "header" in card["slots"]
+        assert card["depends_on"] == ["site.title"]
 
     def test_json_output_contract_snapshot(self, component_dir, capsys):
         """--json output preserves the component inventory schema."""
@@ -74,28 +77,61 @@ class TestComponentsCommand:
                 "name": "badge",
                 "template": "card.html",
                 "lineno": 1,
-                "params": [{"name": "label", "annotation": "str", "required": True}],
+                "params": [
+                    {
+                        "name": "label",
+                        "annotation": "str",
+                        "has_default": False,
+                        "required": True,
+                    }
+                ],
                 "slots": [],
                 "has_default_slot": False,
+                "depends_on": [],
+                "vararg": None,
+                "kwarg": None,
             },
             {
                 "name": "card",
                 "template": "card.html",
                 "lineno": 1,
                 "params": [
-                    {"name": "title", "annotation": "str", "required": True},
-                    {"name": "subtitle", "annotation": "str", "required": False},
+                    {
+                        "name": "title",
+                        "annotation": "str",
+                        "has_default": False,
+                        "required": True,
+                    },
+                    {
+                        "name": "subtitle",
+                        "annotation": "str",
+                        "has_default": True,
+                        "required": False,
+                    },
                 ],
                 "slots": ["header"],
                 "has_default_slot": True,
+                "depends_on": ["site.title"],
+                "vararg": None,
+                "kwarg": None,
             },
             {
                 "name": "nav",
                 "template": "page.html",
                 "lineno": 1,
-                "params": [{"name": "items", "annotation": "list", "required": True}],
+                "params": [
+                    {
+                        "name": "items",
+                        "annotation": "list",
+                        "has_default": False,
+                        "required": True,
+                    }
+                ],
                 "slots": [],
                 "has_default_slot": False,
+                "depends_on": [],
+                "vararg": None,
+                "kwarg": None,
             },
         ]
 
@@ -156,3 +192,36 @@ class TestComponentsCommand:
         data = json.loads(capsys.readouterr().out)
         assert len(data) == 1
         assert data[0]["name"] == "badge"
+
+    def test_json_reports_varargs_kwargs_and_dependencies(self, tmp_path, capsys):
+        """--json exposes large-app component catalog fields."""
+        (tmp_path / "flex.html").write_text(
+            "{% def flex(title: str, *items, **attrs) %}"
+            "{{ site.title }} {{ title }} {{ items }} {{ attrs }}"
+            "{% end %}"
+        )
+
+        rc = main(["components", str(tmp_path), "--json"])
+
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data == [
+            {
+                "name": "flex",
+                "template": "flex.html",
+                "lineno": 1,
+                "params": [
+                    {
+                        "name": "title",
+                        "annotation": "str",
+                        "has_default": False,
+                        "required": True,
+                    }
+                ],
+                "slots": [],
+                "has_default_slot": False,
+                "depends_on": ["site.title"],
+                "vararg": "items",
+                "kwarg": "attrs",
+            }
+        ]

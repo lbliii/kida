@@ -448,6 +448,28 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             if gs is not None:
                 gs(ctx)
 
+    def _missing_block_error(
+        self, block_name: str, available: list[str] | set[str]
+    ) -> TemplateRuntimeError:
+        """Build a structured runtime error for missing fragment blocks."""
+        from difflib import get_close_matches
+
+        sorted_available = sorted(available)
+        matches = get_close_matches(block_name, sorted_available, n=1, cutoff=0.6)
+        if matches:
+            suggestion = f"Did you mean '{matches[0]}'?"
+        elif sorted_available:
+            suggestion = f"Use one of: {', '.join(sorted_available)}."
+        else:
+            suggestion = "Add a top-level {% block name %} or {% fragment name %} to render it."
+        return TemplateRuntimeError(
+            f"Block '{block_name}' not found in template '{self._name or '(inline)'}'. "
+            f"Available blocks: {sorted_available}",
+            template_name=self._name,
+            code=ErrorCode.RUNTIME_ERROR,
+            suggestion=suggestion,
+        )
+
     # ------------------------------------------------------------------
     # Render scaffold — shared setup for all render variants
     # ------------------------------------------------------------------
@@ -586,12 +608,15 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             (ctx, render_ctx)
         """
         ctx = self._build_context(args, kwargs, method_name)
+        parent_ctx = get_render_context()
+        parent_meta = parent_ctx._meta if parent_ctx else None
         max_extends, max_include = self._get_env_limits()
 
         async with async_render_context(
             template_name=self._name,
             filename=self._filename,
             source=self._source,
+            parent_meta=parent_meta,
             max_extends_depth=max_extends,
             max_include_depth=max_include,
         ) as render_ctx:
@@ -723,17 +748,14 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             Rendered block HTML as string
 
         Raises:
-            KeyError: If block doesn't exist in template
+            TemplateRuntimeError: If block doesn't exist in template
             RuntimeError: If template not properly compiled
         """
         effective = self._effective_block_map("sync")
         block_func = effective.get(block_name)
 
         if block_func is None:
-            raise KeyError(
-                f"Block '{block_name}' not found in template '{self._name}'. "
-                f"Available blocks: {list(effective.keys())}"
-            )
+            raise self._missing_block_error(block_name, set(effective))
 
         with self._fragment_scaffold(args, kwargs, "render_block") as (
             ctx,
@@ -754,8 +776,10 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         then inject it as the ``content`` block of a parent layout template,
         without needing ``{% extends %}`` in the template source.
 
-        Each key in *block_overrides* names a block; the value is a
+        Each key in *block_overrides* names a block; the value is a trusted,
         pre-rendered HTML string that replaces that block's default content.
+        Kida injects these strings directly, so callers must escape or sanitize
+        untrusted content before building the override mapping.
 
         Args:
             block_overrides: Mapping of block name → pre-rendered HTML string.
@@ -921,6 +945,8 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         # Use native async stream if available, else wrap sync stream
         async_func = self._render_stream_async_func
         sync_func = self._render_stream_func
+        parent_ctx = get_render_context()
+        parent_meta = parent_ctx._meta if parent_ctx else None
         max_extends, max_include = self._get_env_limits()
 
         async with async_render_context(
@@ -929,6 +955,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             source=self._source,
             cached_blocks=cached_blocks,
             cache_stats=cache_stats,
+            parent_meta=parent_meta,
             max_extends_depth=max_extends,
             max_include_depth=max_include,
         ) as render_ctx:
@@ -986,10 +1013,7 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         block_func = effective.get(block_name)
 
         if block_func is None:
-            raise KeyError(
-                f"Block '{block_name}' not found in template '{self._name}'. "
-                f"Available blocks: {list(effective.keys())}"
-            )
+            raise self._missing_block_error(block_name, set(effective))
 
         async with self._fragment_scaffold_async(args, kwargs, "render_block_stream_async") as (
             ctx,

@@ -77,14 +77,15 @@ class TemplateIntrospectionMixin:
         - params: Parameter names, annotations, and defaults
         - slots: Named slots used in the def body
         - has_default_slot: Whether an unnamed ``{% slot %}`` exists
+        - depends_on: Context paths read by the def body outside its params
 
         Results are cached after first call.
 
         Returns empty dict if AST was not preserved (preserve_ast=False).
 
         Note:
-            ``depends_on`` is not currently computed for defs and will
-            be an empty frozenset.
+            ``depends_on`` is conservative and excludes declared parameters,
+            loop locals, slot bindings, and other lexical locals.
 
         Example:
             >>> meta = template.def_metadata()
@@ -372,6 +373,7 @@ class TemplateIntrospectionMixin:
 
     def _analyze_defs(self) -> None:
         """Walk the AST to extract DefMetadata for all {% def %} nodes."""
+        from kida.analysis.dependencies import DependencyWalker
         from kida.analysis.metadata import DefMetadata, DefParamInfo
         from kida.nodes.functions import Def, Slot
 
@@ -446,6 +448,9 @@ class TemplateIntrospectionMixin:
                         params=tuple(params),
                         slots=tuple(dict.fromkeys(named_slots)),  # deduplicate, preserve order
                         has_default_slot=has_default_slot,
+                        depends_on=DependencyWalker().analyze(node),
+                        vararg=node.vararg,
+                        kwarg=node.kwarg,
                     )
                     # Don't recurse into def bodies for nested defs
                     continue

@@ -200,6 +200,8 @@ for name, meta in template.def_metadata().items():
     print(f"  def {name}({params})")
     if meta.slots:
         print(f"    slots: {', '.join(meta.slots)}")
+    if meta.depends_on:
+        print(f"    reads: {', '.join(sorted(meta.depends_on))}")
 ```
 
 ## Typed Props
