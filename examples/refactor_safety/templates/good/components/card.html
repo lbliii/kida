@@ -1,0 +1,6 @@
+{% def stat_card(title: str, value: int, tone: str = "neutral") %}
+<article class="card card-{{ tone }}">
+  <h2>{{ title }}</h2>
+  <strong>{{ value }}</strong>
+</article>
+{% end %}

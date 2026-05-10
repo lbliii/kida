@@ -530,6 +530,11 @@ def _cmd_render(
         print(f"kida render: not a file: {template_path}", file=sys.stderr)
         return 2
 
+    def _coerce_json_context(value: Any) -> dict[str, Any]:
+        if isinstance(value, dict):
+            return value
+        return {"data": value}
+
     # Build context from --data / --data-str
     context: dict[str, Any] = {}
     if data_file is not None:
@@ -559,13 +564,13 @@ def _cmd_render(
                 return 2
         else:
             try:
-                context = json.loads(data_file.read_text(encoding="utf-8"))
+                context = _coerce_json_context(json.loads(data_file.read_text(encoding="utf-8")))
             except Exception as e:
                 print(f"kida render: invalid JSON in {data_file}: {e}", file=sys.stderr)
                 return 2
     elif data_str is not None:
         try:
-            context = json.loads(data_str)
+            context = _coerce_json_context(json.loads(data_str))
         except Exception as e:
             print(f"kida render: invalid JSON: {e}", file=sys.stderr)
             return 2
@@ -655,23 +660,23 @@ def _cmd_components(
         for dm in meta.values():
             if filter_name and filter_name.lower() not in dm.name.lower():
                 continue
-            all_defs.append(
-                {
-                    "name": dm.name,
-                    "template": rel,
-                    "lineno": dm.lineno,
-                    "params": [
-                        {
-                            "name": p.name,
-                            "annotation": p.annotation,
-                            "required": p.is_required,
-                        }
-                        for p in dm.params
-                    ],
-                    "slots": list(dm.slots),
-                    "has_default_slot": dm.has_default_slot,
+            params: list[_ComponentParamRow] = []
+            for p in dm.params:
+                param: _ComponentParamRow = {
+                    "name": p.name,
+                    "annotation": p.annotation,
+                    "required": p.is_required,
                 }
-            )
+                params.append(param)
+            row: _ComponentRow = {
+                "name": dm.name,
+                "template": rel,
+                "lineno": dm.lineno,
+                "params": params,
+                "slots": list(dm.slots),
+                "has_default_slot": dm.has_default_slot,
+            }
+            all_defs.append(row)
 
     if not all_defs:
         if filter_name:

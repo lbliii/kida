@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "description": "Checked inventory for built-in Kida report templates. This is a contract-audit artifact, not a new public schema.",
+  "templates": [
+    {
+      "name": "pytest",
+      "template": "templates/pytest-report.md",
+      "fixture": "tests/templates/fixtures/pytest.json",
+      "snapshot": "tests/templates/snapshots/pytest-report.md",
+      "data_format": "junit-xml",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": null
+    },
+    {
+      "name": "coverage",
+      "template": "templates/coverage-report.md",
+      "fixture": "tests/templates/fixtures/coverage.json",
+      "snapshot": "tests/templates/snapshots/coverage-report.md",
+      "data_format": "json|lcov",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": null
+    },
+    {
+      "name": "ruff",
+      "template": "templates/ruff-report.md",
+      "fixture": "tests/templates/fixtures/ruff.json",
+      "snapshot": "tests/templates/snapshots/ruff-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": null
+    },
+    {
+      "name": "ty",
+      "template": "templates/ty-report.md",
+      "fixture": "tests/templates/fixtures/ty.json",
+      "snapshot": "tests/templates/snapshots/ty-report.md",
+      "data_format": "junit-xml",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": null
+    },
+    {
+      "name": "jest",
+      "template": "templates/jest-report.md",
+      "fixture": "tests/templates/fixtures/jest.json",
+      "snapshot": "tests/templates/snapshots/jest-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": null
+    },
+    {
+      "name": "gotest",
+      "template": "templates/gotest-report.md",
+      "fixture": "tests/templates/fixtures/gotest.json",
+      "snapshot": "tests/templates/snapshots/gotest-report.md",
+      "data_format": "junit-xml",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": null
+    },
+    {
+      "name": "sarif",
+      "template": "templates/sarif-report.md",
+      "fixture": "tests/templates/fixtures/sarif.json",
+      "snapshot": "tests/templates/snapshots/sarif-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": null
+    },
+    {
+      "name": "code-review",
+      "template": "templates/code-review-report.md",
+      "fixture": "tests/templates/fixtures/code-review.json",
+      "snapshot": "tests/templates/snapshots/code-review-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": "code-review"
+    },
+    {
+      "name": "pr-summary",
+      "template": "templates/pr-summary-report.md",
+      "fixture": "tests/templates/fixtures/pr-summary.json",
+      "snapshot": "tests/templates/snapshots/pr-summary-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": "pr-summary"
+    },
+    {
+      "name": "deploy-preview",
+      "template": "templates/deploy-preview-report.md",
+      "fixture": "tests/templates/fixtures/deploy-preview.json",
+      "snapshot": "tests/templates/snapshots/deploy-preview-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": "deploy-preview"
+    },
+    {
+      "name": "dependency-review",
+      "template": "templates/dependency-review-report.md",
+      "fixture": "tests/templates/fixtures/dependency-review.json",
+      "snapshot": "tests/templates/snapshots/dependency-review-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": "dependency-review"
+    },
+    {
+      "name": "security-scan",
+      "template": "templates/security-scan-report.md",
+      "fixture": "tests/templates/fixtures/security-scan.json",
+      "snapshot": "tests/templates/snapshots/security-scan-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": "security-scan"
+    },
+    {
+      "name": "copilot-instructions",
+      "template": "templates/copilot-instructions-report.md",
+      "fixture": "tests/templates/fixtures/copilot-instructions.json",
+      "snapshot": "tests/templates/snapshots/copilot-instructions-report.md",
+      "data_format": "json",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment", "github-step-summary"],
+      "amp_schema": null
+    },
+    {
+      "name": "release-notes",
+      "template": "templates/release-notes-report.md",
+      "fixture": "tests/templates/fixtures/release-notes.json",
+      "snapshot": "tests/templates/snapshots/release-notes-report.md",
+      "data_format": "github-prs",
+      "render_mode": "markdown",
+      "surfaces": ["github-release", "github-step-summary"],
+      "amp_schema": "release-notes"
+    },
+    {
+      "name": "release-notes-compact",
+      "template": "templates/release-notes-compact-report.md",
+      "fixture": "tests/templates/fixtures/release-notes.json",
+      "snapshot": "tests/templates/snapshots/release-notes-compact-report.md",
+      "data_format": "github-prs",
+      "render_mode": "markdown",
+      "surfaces": ["github-pr-comment"],
+      "amp_schema": "release-notes"
+    },
+    {
+      "name": "release-notes-detailed",
+      "template": "templates/release-notes-detailed-report.md",
+      "fixture": "tests/templates/fixtures/release-notes.json",
+      "snapshot": "tests/templates/snapshots/release-notes-detailed-report.md",
+      "data_format": "github-prs",
+      "render_mode": "markdown",
+      "surfaces": ["github-release", "github-step-summary"],
+      "amp_schema": "release-notes"
+    },
+    {
+      "name": "release-notes-terminal",
+      "template": "templates/release-notes-terminal-report.md",
+      "fixture": "tests/templates/fixtures/release-notes.json",
+      "snapshot": "tests/templates/snapshots/release-notes-terminal-report.md",
+      "data_format": "github-prs",
+      "render_mode": "terminal",
+      "surfaces": ["terminal"],
+      "amp_schema": "release-notes"
+    }
+  ]
+}

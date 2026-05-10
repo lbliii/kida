@@ -241,6 +241,11 @@ tests, smoke tests, or both.
 
 - `amp/` -- agent instruction examples for AMP-compatible structured output.
 - `coverage/` -- render coverage data as a report.
+- `review_packet/` -- render tests, lint, coverage, diagnostics, and steward findings as one PR review packet.
+
+### Adoption and Refactor Safety
+
+- `refactor_safety/` -- passing and broken template trees that demonstrate static call validation, parser diagnostics, fragile include linting, and pre-render context checks.
 
 ### Extension and Safety Patterns
 

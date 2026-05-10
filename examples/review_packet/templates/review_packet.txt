@@ -1,0 +1,50 @@
+KIDA REVIEW PACKET #{{ pull_request.number }}
+{{ pull_request.title }}
+{{ pull_request.branch }} -> {{ pull_request.base }}
+
+STATUS
+  {{ status }}
+
+SUMMARY
+  {{ summary }}
+
+CHECKS
+{% for check in checks -%}
+  [{{ check.status }}] {{ check.name }} - {{ check.detail }}
+      next: {{ check.next_action }}
+{% endfor %}
+
+COVERAGE
+  overall: {{ coverage.percent }}%
+{% for file in coverage.changed_files -%}
+  - {{ file.path }}: {{ file.display }}
+{% endfor %}
+
+CHANGED FILES
+{% for file in changed_files -%}
+  - {{ file.risk }} {{ file.path }} ({{ file.kind }})
+    {{ file.summary }}
+{% endfor %}
+
+KIDA DIAGNOSTICS
+{% if diagnostics -%}
+{% for diag in diagnostics -%}
+  - {{ diag.severity }} {{ diag.code }} {{ diag.template }}:{{ diag.line }}
+    {{ diag.message }}
+    next: {{ diag.next_action }}
+{% endfor %}
+{% else -%}
+  none
+{% end %}
+
+STEWARD FINDINGS
+{% for finding in steward_findings -%}
+  - {{ finding.severity }} {{ finding.steward }} / {{ finding.area }}
+    {{ finding.finding }}
+{% endfor %}
+
+RELEASE PREVIEW
+  {{ release_preview.headline }}
+{% for note in release_preview.notes -%}
+  - {{ note }}
+{% endfor %}
