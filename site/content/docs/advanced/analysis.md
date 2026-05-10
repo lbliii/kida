@@ -245,6 +245,23 @@ prove user input was sanitized. `| safe` findings include the optional
 `reason=` text when present; missing reasons get a suggestion so code review and
 CI reports can point at explicit trust boundaries.
 
+## Privacy Lint
+
+Use `lint_privacy()` to catch likely private data exposure before templates or
+report fixtures are published:
+
+```python
+from kida.analysis import lint_privacy
+
+for finding in lint_privacy(template):
+    print(finding.code, finding.kind, finding.path, finding.message)
+```
+
+The first version is intentionally narrow. It reports sensitive-looking context
+paths, secret-like string literals without echoing their values, `| safe` on
+sensitive-looking values, broad debug context output, and dynamic template names
+that a framework policy cannot statically allowlist.
+
 ## Call-Site Validation
 
 Kida can validate `{% def %}` call sites at compile time, catching parameter errors
@@ -426,6 +443,7 @@ See [Framework Integration](/docs/usage/framework-integration/) for the full ada
 | `check_context_contract()` | `(template, provided, ...) -> list[ContextContractIssue]` | Dotted context contract diagnostics |
 | `extract_literal_attributes()` | `(template_or_ast, names=..., prefixes=...) -> list[LiteralAttribute]` | Literal HTML attributes with source locations |
 | `audit_escaping()` | `(template_or_ast, include_output_sites=True) -> list[EscapeAuditFinding]` | Static escape and trusted-markup findings |
+| `lint_privacy()` | `(template_or_ast) -> list[PrivacyFinding]` | Sensitive path, secret literal, and broad-output findings |
 | `block_metadata()` | `() -> dict[str, BlockMetadata]` | Per-block analysis results |
 | `template_metadata()` | `() -> TemplateMetadata \| None` | Full template analysis |
 | `is_cacheable()` | `(block_name: str \| None) -> bool` | Cache safety check |

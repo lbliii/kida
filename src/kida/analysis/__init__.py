@@ -53,6 +53,7 @@ from kida.analysis.metadata import (
     TemplateStructureManifest,
     TypeMismatch,
 )
+from kida.analysis.privacy import PrivacyFinding, lint_privacy
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
 
@@ -71,6 +72,7 @@ __all__ = [
     "ExtractedMessage",
     "LandmarkDetector",
     "LiteralAttribute",
+    "PrivacyFinding",
     "PurityAnalyzer",
     "TemplateMetadata",
     "TemplateStructureManifest",
@@ -80,4 +82,5 @@ __all__ = [
     "classify_role",
     "extract_literal_attributes",
     "infer_cache_scope",
+    "lint_privacy",
 ]
