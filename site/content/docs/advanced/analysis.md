@@ -180,6 +180,31 @@ top-level variable names against the provided context keys plus environment
 globals. It returns a sorted list of missing names, or an empty list if
 everything is present.
 
+### Dotted Context Contracts
+
+Frameworks that know more than top-level keys can compare a route or handler
+contract against Kida's dotted dependency paths:
+
+```python
+from kida.analysis import check_context_contract
+
+issues = check_context_contract(
+    template,
+    provided={"page.title", "page.author.name"},
+    globals={"csrf_token"},
+    optional={"flash.message"},
+)
+
+for issue in issues:
+    print(issue.code, issue.path, issue.message)
+```
+
+`provided`, `globals`, and `optional` can be dotted-path iterables or nested
+mappings. This checker is deliberately route-agnostic: frameworks supply the
+contract shape, and Kida reports only whether template dependency paths are
+covered. Enable `check_extra=True` when a narrow contract should also warn about
+provided paths the template does not read.
+
 ## Call-Site Validation
 
 Kida can validate `{% def %}` call sites at compile time, catching parameter errors
@@ -358,6 +383,7 @@ See [Framework Integration](/docs/usage/framework-integration/) for the full ada
 | `required_context()` | `() -> frozenset[str]` | Top-level variable names needed |
 | `depends_on()` | `() -> frozenset[str]` | All dotted dependency paths |
 | `validate_context()` | `(context: dict) -> list[str]` | Missing variable names |
+| `check_context_contract()` | `(template, provided, ...) -> list[ContextContractIssue]` | Dotted context contract diagnostics |
 | `block_metadata()` | `() -> dict[str, BlockMetadata]` | Per-block analysis results |
 | `template_metadata()` | `() -> TemplateMetadata \| None` | Full template analysis |
 | `is_cacheable()` | `(block_name: str \| None) -> bool` | Cache safety check |

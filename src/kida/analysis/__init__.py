@@ -38,6 +38,7 @@ from __future__ import annotations
 from kida.analysis.analyzer import BlockAnalyzer
 from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
+from kida.analysis.context_contracts import ContextContractIssue, check_context_contract
 from kida.analysis.dependencies import DependencyWalker
 from kida.analysis.i18n import ExtractedMessage, ExtractMessagesVisitor
 from kida.analysis.landmarks import LandmarkDetector
@@ -59,6 +60,7 @@ __all__ = [
     "BlockAnalyzer",
     "BlockMetadata",
     "CallValidation",
+    "ContextContractIssue",
     "DefMetadata",
     "DefParamInfo",
     "DependencyWalker",
@@ -69,6 +71,7 @@ __all__ = [
     "TemplateMetadata",
     "TemplateStructureManifest",
     "TypeMismatch",
+    "check_context_contract",
     "classify_role",
     "infer_cache_scope",
 ]
