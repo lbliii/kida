@@ -41,6 +41,7 @@ from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.context_contracts import ContextContractIssue, check_context_contract
 from kida.analysis.dependencies import DependencyWalker
+from kida.analysis.escape_audit import EscapeAuditFinding, audit_escaping
 from kida.analysis.i18n import ExtractedMessage, ExtractMessagesVisitor
 from kida.analysis.landmarks import LandmarkDetector
 from kida.analysis.metadata import (
@@ -65,6 +66,7 @@ __all__ = [
     "DefMetadata",
     "DefParamInfo",
     "DependencyWalker",
+    "EscapeAuditFinding",
     "ExtractMessagesVisitor",
     "ExtractedMessage",
     "LandmarkDetector",
@@ -73,6 +75,7 @@ __all__ = [
     "TemplateMetadata",
     "TemplateStructureManifest",
     "TypeMismatch",
+    "audit_escaping",
     "check_context_contract",
     "classify_role",
     "extract_literal_attributes",

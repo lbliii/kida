@@ -227,6 +227,24 @@ such as `{{ attrs }}`, `xmlattr`, or helper-generated markup are intentionally
 not inferred. Kida provides the generic facts; frameworks decide whether a
 literal `data-*`, `hx-*`, `id`, or other attribute has route-specific meaning.
 
+## Escape Audit
+
+Use `audit_escaping()` to inventory where a template outputs escaped values,
+where autoescape is disabled, and where filters intentionally produce trusted
+markup:
+
+```python
+from kida.analysis import audit_escaping
+
+for finding in audit_escaping(template):
+    print(finding.code, finding.kind, finding.expression, finding.message)
+```
+
+Findings are static diagnostics only. They do not change rendering and do not
+prove user input was sanitized. `| safe` findings include the optional
+`reason=` text when present; missing reasons get a suggestion so code review and
+CI reports can point at explicit trust boundaries.
+
 ## Call-Site Validation
 
 Kida can validate `{% def %}` call sites at compile time, catching parameter errors
@@ -407,6 +425,7 @@ See [Framework Integration](/docs/usage/framework-integration/) for the full ada
 | `validate_context()` | `(context: dict) -> list[str]` | Missing variable names |
 | `check_context_contract()` | `(template, provided, ...) -> list[ContextContractIssue]` | Dotted context contract diagnostics |
 | `extract_literal_attributes()` | `(template_or_ast, names=..., prefixes=...) -> list[LiteralAttribute]` | Literal HTML attributes with source locations |
+| `audit_escaping()` | `(template_or_ast, include_output_sites=True) -> list[EscapeAuditFinding]` | Static escape and trusted-markup findings |
 | `block_metadata()` | `() -> dict[str, BlockMetadata]` | Per-block analysis results |
 | `template_metadata()` | `() -> TemplateMetadata \| None` | Full template analysis |
 | `is_cacheable()` | `(block_name: str \| None) -> bool` | Cache safety check |
