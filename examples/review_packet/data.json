@@ -1,0 +1,128 @@
+{
+  "project": "kida",
+  "status": "needs-attention",
+  "pull_request": {
+    "number": 127,
+    "title": "docs: sharpen adoption roadmap and validation",
+    "branch": "codex/adoption-roadmap-cleanup",
+    "base": "main"
+  },
+  "summary": "Adoption-roadmap cleanup plus component discovery, report contract truth, and static call validation.",
+  "checks": [
+    {
+      "name": "pytest",
+      "status": "pass",
+      "detail": "98 passed, 5 warnings",
+      "next_action": "Warnings are from terminal examples rendered without template names."
+    },
+    {
+      "name": "ruff",
+      "status": "pass",
+      "detail": "Focused files clean",
+      "next_action": "None."
+    },
+    {
+      "name": "ty",
+      "status": "pass",
+      "detail": "Focused files clean",
+      "next_action": "None."
+    },
+    {
+      "name": "pre-commit",
+      "status": "warn",
+      "detail": "Local hook blocked by parent uv nested workspace",
+      "next_action": "Run hooks from a non-nested checkout before merge."
+    }
+  ],
+  "coverage": {
+    "percent": 73.5,
+    "changed_files": [
+      {
+        "path": "src/kida/parser/expressions.py",
+        "display": "91.0%"
+      },
+      {
+        "path": "tests/test_kida_advanced_features.py",
+        "display": "100.0%"
+      },
+      {
+        "path": "site/content/docs/usage/amp.md",
+        "display": "n/a"
+      }
+    ]
+  },
+  "changed_files": [
+    {
+      "path": "src/kida/parser/expressions.py",
+      "kind": "runtime",
+      "risk": "medium",
+      "summary": "Rejects duplicate keyword args and positional args after keyword args."
+    },
+    {
+      "path": "tests/templates/fixtures/pr-summary.json",
+      "kind": "contract",
+      "risk": "medium",
+      "summary": "Narrows overclaimed Slack and terminal surface language."
+    },
+    {
+      "path": "site/content/tracks/components.md",
+      "kind": "docs",
+      "risk": "low",
+      "summary": "Adds a component learning track."
+    }
+  ],
+  "diagnostics": [
+    {
+      "code": "K-CMP-001",
+      "severity": "error",
+      "template": "pages/dashboard.html",
+      "line": 8,
+      "message": "Call to 'stat_card' is missing required prop 'value'.",
+      "next_action": "Pass value=... or add a default in the component definition."
+    },
+    {
+      "code": "K-CMP-002",
+      "severity": "error",
+      "template": "pages/dashboard.html",
+      "line": 12,
+      "message": "Param 'count' expects int, got str.",
+      "next_action": "Convert the literal or change the prop annotation."
+    },
+    {
+      "code": "K-PAR-003",
+      "severity": "error",
+      "template": "pages/broken.html",
+      "line": 3,
+      "message": "Duplicate keyword argument 'title'.",
+      "next_action": "Remove the duplicate argument before render."
+    }
+  ],
+  "steward_findings": [
+    {
+      "steward": "Render Surfaces",
+      "severity": "P1",
+      "area": "Report contracts",
+      "finding": "Keep PR comments and step summaries backed by fixtures and snapshots."
+    },
+    {
+      "steward": "Parser/Analysis",
+      "severity": "P1",
+      "area": "Static validation",
+      "finding": "Use real diagnostic codes and locations in adoption demos."
+    },
+    {
+      "steward": "Runtime",
+      "severity": "P2",
+      "area": "Data preparation",
+      "finding": "Collect data before render; templates should not perform network or git I/O."
+    }
+  ],
+  "release_preview": {
+    "headline": "Review packets turn Kida reports into a concrete engineering workflow.",
+    "notes": [
+      "Adds a checked report-template contract inventory.",
+      "Adds a review packet example rendered to Markdown and terminal output.",
+      "Adds refactor-safety demos for static component diagnostics."
+    ]
+  }
+}

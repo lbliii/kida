@@ -1,0 +1,12 @@
+{% def user_table(users: list) %}
+<table>
+  <thead>
+    <tr><th>Name</th><th>Role</th></tr>
+  </thead>
+  <tbody>
+    {% for user in users %}
+    <tr><td>{{ user.name }}</td><td>{{ user.role }}</td></tr>
+    {% end %}
+  </tbody>
+</table>
+{% end %}
