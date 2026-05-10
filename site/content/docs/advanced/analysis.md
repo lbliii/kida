@@ -205,6 +205,28 @@ contract shape, and Kida reports only whether template dependency paths are
 covered. Enable `check_extra=True` when a narrow contract should also warn about
 provided paths the template does not read.
 
+## Literal Attribute Extraction
+
+Framework adapters and CI reports can inspect literal HTML attributes without
+parsing Kida's AST themselves:
+
+```python
+from kida.analysis import extract_literal_attributes
+
+attrs = extract_literal_attributes(
+    template,
+    prefixes=("data-", "hx-"),
+)
+
+for attr in attrs:
+    print(attr.tag, attr.name, attr.value, attr.lineno)
+```
+
+This reports only attributes visible in static template text. Dynamic attributes
+such as `{{ attrs }}`, `xmlattr`, or helper-generated markup are intentionally
+not inferred. Kida provides the generic facts; frameworks decide whether a
+literal `data-*`, `hx-*`, `id`, or other attribute has route-specific meaning.
+
 ## Call-Site Validation
 
 Kida can validate `{% def %}` call sites at compile time, catching parameter errors
@@ -384,6 +406,7 @@ See [Framework Integration](/docs/usage/framework-integration/) for the full ada
 | `depends_on()` | `() -> frozenset[str]` | All dotted dependency paths |
 | `validate_context()` | `(context: dict) -> list[str]` | Missing variable names |
 | `check_context_contract()` | `(template, provided, ...) -> list[ContextContractIssue]` | Dotted context contract diagnostics |
+| `extract_literal_attributes()` | `(template_or_ast, names=..., prefixes=...) -> list[LiteralAttribute]` | Literal HTML attributes with source locations |
 | `block_metadata()` | `() -> dict[str, BlockMetadata]` | Per-block analysis results |
 | `template_metadata()` | `() -> TemplateMetadata \| None` | Full template analysis |
 | `is_cacheable()` | `(block_name: str \| None) -> bool` | Cache safety check |

@@ -36,6 +36,7 @@ Safe for concurrent use across threads.
 from __future__ import annotations
 
 from kida.analysis.analyzer import BlockAnalyzer
+from kida.analysis.attributes import LiteralAttribute, extract_literal_attributes
 from kida.analysis.cache import infer_cache_scope
 from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.context_contracts import ContextContractIssue, check_context_contract
@@ -67,11 +68,13 @@ __all__ = [
     "ExtractMessagesVisitor",
     "ExtractedMessage",
     "LandmarkDetector",
+    "LiteralAttribute",
     "PurityAnalyzer",
     "TemplateMetadata",
     "TemplateStructureManifest",
     "TypeMismatch",
     "check_context_contract",
     "classify_role",
+    "extract_literal_attributes",
     "infer_cache_scope",
 ]
