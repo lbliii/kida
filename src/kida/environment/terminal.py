@@ -330,7 +330,7 @@ def _resolve_ambiguous_width(explicit: int | None, is_tty: bool) -> int:
 
     # 3. wcwidth library
     try:
-        from wcwidth import wcwidth  # type: ignore[import-not-found]
+        from wcwidth import wcwidth
 
         w = wcwidth("\u2605")  # ★ — Ambiguous
         if w in (1, 2):

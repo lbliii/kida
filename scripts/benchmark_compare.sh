@@ -30,6 +30,13 @@ BENCHMARK_DIR="${BENCHMARK_STORAGE_DIR:-$PROJECT_DIR/benchmarks}"
 STORAGE="file://$BENCHMARK_DIR"
 SUITE="${BENCHMARK_SUITE:-core}"
 COMPARE_STAT="${BENCHMARK_COMPARE_STAT:-median}"
+if [ -n "${PYTHON_CMD:-}" ]; then
+    read -r -a PYTHON_RUNNER <<< "$PYTHON_CMD"
+elif command -v uv >/dev/null 2>&1; then
+    PYTHON_RUNNER=(uv run python)
+else
+    PYTHON_RUNNER=(python)
+fi
 
 # shellcheck source=benchmark_suites.sh
 source "$SCRIPT_DIR/benchmark_suites.sh"
@@ -61,7 +68,7 @@ echo "Suite: $SUITE ($SUITE_DESCRIPTION)"
 echo "Threshold: ${THRESHOLD}% regression"
 echo "Compare stat: $COMPARE_STAT"
 echo "Storage: $STORAGE"
-echo "Python: $(python --version 2>&1)"
+echo "Python: $("${PYTHON_RUNNER[@]}" --version 2>&1)"
 echo "Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 if [ "${BENCHMARK_INCLUDE_ALL:-0}" != "1" ] && [ -n "$EXCLUDE_K" ]; then
     echo "Filter: $EXCLUDE_K"
@@ -69,7 +76,7 @@ fi
 echo ""
 
 # Check baseline exists for current platform (pytest-benchmark uses platform-specific dirs)
-PLATFORM_DIR=$(python -c "from pytest_benchmark.utils import get_machine_id; print(get_machine_id())")
+PLATFORM_DIR=$("${PYTHON_RUNNER[@]}" -c "from pytest_benchmark.utils import get_machine_id; print(get_machine_id())")
 # find exits 1 when path doesn't exist; avoid triggering set -e so we can handle gracefully
 BASELINE_FILE=""
 if [ -d "$BENCHMARK_DIR/$PLATFORM_DIR" ]; then
@@ -97,7 +104,7 @@ echo ""
 # Keep compare settings aligned with benchmark_baseline.sh to avoid artificial drift.
 echo "--- Running benchmarks ---"
 if [ "${BENCHMARK_INCLUDE_ALL:-0}" = "1" ] || [ -z "$EXCLUDE_K" ]; then
-    python -m pytest "${BENCHMARK_FILES[@]}" \
+    "${PYTHON_RUNNER[@]}" -m pytest "${BENCHMARK_FILES[@]}" \
         --benchmark-only \
         --benchmark-compare="*_${BASELINE}" \
         --benchmark-compare-fail="${COMPARE_STAT}:${THRESHOLD}%" \
@@ -105,7 +112,7 @@ if [ "${BENCHMARK_INCLUDE_ALL:-0}" = "1" ] || [ -z "$EXCLUDE_K" ]; then
         --benchmark-min-rounds=10 \
         -q
 else
-    python -m pytest "${BENCHMARK_FILES[@]}" \
+    "${PYTHON_RUNNER[@]}" -m pytest "${BENCHMARK_FILES[@]}" \
         -k "$EXCLUDE_K" \
         --benchmark-only \
         --benchmark-compare="*_${BASELINE}" \

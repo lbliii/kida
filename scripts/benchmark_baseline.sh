@@ -19,6 +19,13 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 STORAGE_DIR="${BENCHMARK_STORAGE_DIR:-$PROJECT_DIR/benchmarks}"
 STORAGE="file://$STORAGE_DIR"
 SUITE="${BENCHMARK_SUITE:-core}"
+if [ -n "${PYTHON_CMD:-}" ]; then
+    read -r -a PYTHON_RUNNER <<< "$PYTHON_CMD"
+elif command -v uv >/dev/null 2>&1; then
+    PYTHON_RUNNER=(uv run python)
+else
+    PYTHON_RUNNER=(python)
+fi
 
 # shellcheck source=benchmark_suites.sh
 source "$SCRIPT_DIR/benchmark_suites.sh"
@@ -36,7 +43,7 @@ echo "=== Kida Benchmark Baseline ==="
 echo "Name:    $NAME"
 echo "Suite:   $SUITE ($SUITE_DESCRIPTION)"
 echo "Storage: $STORAGE"
-echo "Python:  $(python --version 2>&1)"
+echo "Python:  $("${PYTHON_RUNNER[@]}" --version 2>&1)"
 echo "Date:    $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo ""
 
@@ -52,7 +59,7 @@ fi
 
 # Run the selected suite (must match benchmark_compare.sh)
 echo "--- Running benchmark suite ---"
-python -m pytest "${BENCHMARK_FILES[@]}" \
+"${PYTHON_RUNNER[@]}" -m pytest "${BENCHMARK_FILES[@]}" \
     --benchmark-only \
     --benchmark-save="$NAME" \
     --benchmark-storage="$STORAGE" \

@@ -52,22 +52,22 @@ install:
 	@bash -c 'source "$(VENV_DIR)/bin/activate" && uv sync --active --group dev --frozen'
 
 test:
-	uv run pytest -q --tb=short
+	uv run python -m pytest -q --tb=short
 
 test-cov:
-	uv run pytest --cov=kida --cov-report=term-missing --cov-fail-under=83
+	uv run python -m pytest --cov=kida --cov-report=term-missing --cov-fail-under=83
 
 test-thread:
 	@echo "Running thread safety stress tests..."
-	PYTHON_GIL=0 uv run pytest tests/test_kida_stress_test.py -v --tb=short
+	PYTHON_GIL=0 uv run python -m pytest tests/test_kida_stress_test.py -v --tb=short
 
 test-async:
 	@echo "Running async feature tests..."
-	PYTHON_GIL=0 uv run pytest tests/test_kida_async_features.py -v --tb=short
+	PYTHON_GIL=0 uv run python -m pytest tests/test_kida_async_features.py -v --tb=short
 
 test-safety:
 	@echo "Running focused safety/concurrency tests..."
-	PYTHON_GIL=0 uv run pytest \
+	PYTHON_GIL=0 uv run python -m pytest \
 		tests/test_render_surface_parity.py \
 		tests/test_sandbox_fuzz.py \
 		tests/test_bytecode_cache_concurrency.py \

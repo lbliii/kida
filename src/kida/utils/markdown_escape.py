@@ -91,7 +91,7 @@ class Marked(str):
 
     # --- Operations that escape non-Marked values ---
 
-    def __add__(self, other: str) -> Self:  # type: ignore[override]
+    def __add__(self, other: str) -> Self:
         if isinstance(other, str) and not isinstance(other, Marked):
             other = markdown_escape(other)
         return self.__class__(super().__add__(other))
@@ -101,10 +101,10 @@ class Marked(str):
             other = markdown_escape(other)
         return self.__class__(other.__add__(self))
 
-    def __mul__(self, n: SupportsIndex) -> Self:  # type: ignore[override]
+    def __mul__(self, n: SupportsIndex) -> Self:
         return self.__class__(super().__mul__(n))
 
-    def __mod__(self, args: Any) -> Self:  # type: ignore[override]
+    def __mod__(self, args: Any) -> Self:
         escaped_args: Any
         if isinstance(args, tuple):
             args_tuple = cast("tuple[Any, ...]", args)
@@ -121,12 +121,12 @@ class Marked(str):
             return self
         return self.__class__(format(str(self), format_spec))
 
-    def format(self, *args: Any, **kwargs: Any) -> Self:  # type: ignore[override]
+    def format(self, *args: Any, **kwargs: Any) -> Self:
         args = tuple(_escape_arg(a) for a in args)
         kwargs = {k: _escape_arg(v) for k, v in kwargs.items()}
         return self.__class__(super().format(*args, **kwargs))
 
-    def join(self, seq: Iterable[str]) -> Self:  # type: ignore[override]
+    def join(self, seq: Iterable[str]) -> Self:
         return self.__class__(super().join(_escape_arg(s) for s in seq))
 
 

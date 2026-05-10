@@ -7,14 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-10
+
 ### Breaking
 
 - **`markdown_escape` no longer escapes inline hyphens, parens, hashes, pipes, or tildes** — The autoescape table for `autoescape="markdown"` now only escapes characters that actually trigger formatting at any inline position (`\`, `` ` ``, `*`, `_`, `[`, `]`, `<`). Block-leading markers (`#`, `>`, `-`, `+`, ordered-list digits) are still escaped, but only at line start (after up to 3 spaces of indent). Output for prose, dates, version numbers, identifiers, and function-call syntax is now clean — no more `2026\-04\-24`, `K\-PAR\-001`, or `divide\(1, 0\)` in rendered markdown. **Migration**: regenerate any committed snapshot files comparing markdown-mode output (`pytest --update-snapshots` for the built-in templates). Behavior matches CommonMark/GFM parsing — characters that don't need a backslash to render correctly no longer get one.
 - **`Markup` now implements `__markdown__`** — `{{ value | safe }}` (which returns `Markup`) is now honored by markdown autoescape just like HTML autoescape. Previously, `safe` was a no-op under `autoescape="markdown"` because `Markup` only implemented the `__html__` protocol. Templates that relied on the old behavior will now correctly pass safe content through unescaped.
 
+### Added
+
+- **Route-agnostic context contract checker** — `kida.analysis.check_context_contract()` compares template dependency paths against framework or route-provided context contracts and returns machine-readable `K-CTX-001` / `K-CTX-002` findings for missing or unused context paths.
+- **Static literal attribute extraction** — `kida.analysis.extract_literal_attributes()` reports literal HTML attributes from static template text, including source locations, so frameworks can inspect IDs, targets, and data attributes without AST spelunking.
+- **Static escape audit** — `kida.analysis.audit_escaping()` reports escaped output sites, disabled autoescape blocks, `| safe` uses and `reason=` text, plus trusted-markup-producing filters such as `tojson` and `xmlattr`.
+- **Static privacy lint** — `kida.analysis.lint_privacy()` flags sensitive-looking context paths, secret-like literals, broad debug/context output, `| safe` on sensitive-looking values, and dynamic template names without echoing secret values.
+- **Stabilized component catalog metadata** — Component metadata and `kida components --json` now include more deliberate contract fields for dependencies, source locations, call sites, and slot/default information, with public API snapshot and diagnostics coverage.
+- **Report template contract manifest** — `docs/report-template-contracts.json` records built-in report templates, fixtures, snapshots, surfaces, and AMP schema mappings so template/schema drift is checked explicitly.
+- **Review packet and refactor-safety examples** — New examples show multi-surface review packet rendering and refactor-safe component/template validation workflows with tests.
+- **Agent steward hierarchy** — Root and scoped `AGENTS.md` files now define domain steward responsibilities across runtime, parser, compiler, analysis, render surfaces, docs, tests, schemas, examples, and workflows.
+
+### Changed
+
+- **Report contract hardening** — Built-in report templates now have stronger snapshot, readability, AMP schema, GitHub report, and manifest tests. Markdown table/detail/code-block rendering is covered with fixture-backed checks.
+- **Large-app ergonomics analysis docs** — Advanced analysis docs now cover context contracts, component catalogs, literal attributes, escape audits, privacy linting, and review-packet inspection for framework-scale users.
+- **Benchmark scripts use the project runner** — Benchmark baseline/compare scripts prefer `uv run python` and accept `PYTHON_CMD=...`, avoiding stale global pytest/plugin environments during release gates.
+
 ### Fixed
 
 - **Built-in `release-notes` templates pass PR-body markdown through `| safe`** — `body_excerpt` and `body` fields on PRs are now marked safe in `templates/release-notes-report.md` and `templates/release-notes-detailed-report.md`, so headings (`## Summary`), bullet lists, and inline code inside PR bodies render as the PR author intended instead of as backslash-escaped literals inside `<details>` blocks.
+- **Fragment render contract hardening** — Sync and async block rendering now preserve metadata and fragment/block behavior consistently across `render_block`, stream, async, and `render_with_blocks` surfaces.
+- **CLI report rendering accepts list JSON roots** — `kida render` report paths now handle JSON files whose top-level value is a list, matching real CI/tool outputs.
+- **Fragile-path lint no longer crashes on stale AST cache entries** — Bytecode cache metadata now avoids stale optimized-AST failures when the fragile-path lint checks templates after source changes.
+- **Docs Pages build repairs** — Documentation build and release-page collateral were updated so generated docs, API pages, and health checks remain clean for the 0.9.0 release.
 
 ## [0.8.0] - 2026-04-24
 

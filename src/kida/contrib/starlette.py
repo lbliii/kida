@@ -87,7 +87,7 @@ class KidaTemplates:
         Returns:
             starlette.responses.HTMLResponse
         """
-        from starlette.responses import HTMLResponse  # type: ignore[import-untyped]
+        from starlette.responses import HTMLResponse
 
         ctx = {"request": request}
         if context:
