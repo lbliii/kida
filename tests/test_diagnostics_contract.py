@@ -6,7 +6,9 @@ import json
 import warnings
 from pathlib import Path
 
-from kida import Environment, ErrorCode
+import pytest
+
+from kida import Environment, ErrorCode, FileSystemLoader, UndefinedError
 from kida.cli import main
 
 
@@ -121,3 +123,46 @@ def test_component_warning_format_snapshot() -> None:
         "  Hint: Check the component's {% def %} signature and rename, add, "
         "or remove arguments."
     ]
+
+
+def test_undefined_error_structured_diagnostic_for_framework_views(tmp_path: Path) -> None:
+    """UndefinedError exposes plain data so HTML views do not parse terminal text."""
+    (tmp_path / "page.html").write_text(
+        "\n".join(
+            [
+                "<main>",
+                "  <script>{{ usernme }}</script>",
+                "</main>",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    env = Environment(loader=FileSystemLoader(str(tmp_path)), fstring_coalescing=False)
+    template = env.get_template("page.html")
+
+    with pytest.raises(UndefinedError) as exc_info:
+        template.render(username="Ada")
+
+    exc = exc_info.value
+    diagnostic = exc.to_diagnostic()
+
+    assert diagnostic.code == "K-RUN-001"
+    assert diagnostic.kind == "variable"
+    assert diagnostic.location.template == "page.html"
+    assert diagnostic.location.line == 2
+    assert diagnostic.suggestion == "username"
+    assert "Did you mean 'username'?" in diagnostic.hints
+    assert diagnostic.docs_url == ErrorCode.UNDEFINED_VARIABLE.docs_url
+    assert diagnostic.metadata_dict() == {
+        "name": "usernme",
+        "kind": "variable",
+    }
+    assert diagnostic.source_snippet is not None
+    assert diagnostic.source_snippet.error_line == 2
+
+    html = diagnostic.format_html_fragment()
+    assert "&lt;script&gt;{{ usernme }}&lt;/script&gt;" in html
+    assert "<script>{{ usernme }}</script>" not in html
+    assert "K-RUN-001" in html
+    assert "page.html:2" in html
