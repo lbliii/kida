@@ -308,7 +308,16 @@ class FStringCoalescingMixin:
                 i += 1
 
             if len(coalesceable) >= COALESCE_MIN_NODES:
-                # Generate single f-string append
+                # Generate single f-string append, preserving the first risky
+                # output line for UndefinedError/source-snippet attribution.
+                from kida.nodes import Output
+
+                first_output = next(
+                    (node for node in coalesceable if isinstance(node, Output)),
+                    None,
+                )
+                if first_output is not None:
+                    stmts.append(self._make_line_marker(first_output.lineno))
                 stmts.append(self._compile_coalesced_output(coalesceable))
             elif coalesceable:
                 # Single node - use normal compilation

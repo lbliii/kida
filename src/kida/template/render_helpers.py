@@ -119,9 +119,13 @@ class MacroWrapper:
         prev_name = render_ctx.template_name
         prev_line = render_ctx.line
         prev_source = render_ctx.source
+        prev_component_call_template = render_ctx.component_call_template
+        prev_component_call_line = render_ctx.component_call_line
         render_ctx.template_name = self._kida_source_template
         render_ctx.line = 0
         render_ctx.source = self._source
+        render_ctx.component_call_template = caller_name
+        render_ctx.component_call_line = caller_line
         if self._needs_outer_ctx:
             kwargs_to_use = {**kwargs, "_outer_ctx": self._defining_namespace}
         else:
@@ -133,6 +137,8 @@ class MacroWrapper:
             render_ctx.template_name = prev_name
             render_ctx.line = prev_line
             render_ctx.source = prev_source
+            render_ctx.component_call_template = prev_component_call_template
+            render_ctx.component_call_line = prev_component_call_line
 
     def __iter__(self) -> Iterator[object]:
         """Raise helpful error when a macro is used in a for loop.

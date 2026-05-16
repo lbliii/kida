@@ -876,9 +876,11 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 suggestion="Ensure the template was compiled with streaming support.",
             )
 
-        with self._render_scaffold(
-            args, kwargs, "render_stream", use_cached_blocks=True, enhance_errors=False
-        ) as (ctx, _render_ctx, blocks_arg):
+        with self._render_scaffold(args, kwargs, "render_stream", use_cached_blocks=True) as (
+            ctx,
+            _render_ctx,
+            blocks_arg,
+        ):
             for chunk in stream_func(ctx, blocks_arg):
                 if chunk is not None:
                     yield chunk
@@ -971,22 +973,33 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                         stats=render_ctx.cache_stats,
                     )
 
-            if async_func is not None:
-                async for chunk in async_func(ctx, blocks_arg):
-                    if chunk is not None:
-                        yield chunk
-            elif sync_func is not None:
-                # Wrap sync stream for API compatibility
-                for chunk in sync_func(ctx, blocks_arg):
-                    if chunk is not None:
-                        yield chunk
-            else:
-                raise TemplateRuntimeError(
-                    f"Template '{self._name or '(inline)'}' has no render_stream function",
-                    template_name=self._name,
-                    code=ErrorCode.NOT_COMPILED,
-                    suggestion="Ensure the template was compiled with streaming support.",
-                )
+            try:
+                if async_func is not None:
+                    async for chunk in async_func(ctx, blocks_arg):
+                        if chunk is not None:
+                            yield chunk
+                elif sync_func is not None:
+                    # Wrap sync stream for API compatibility
+                    for chunk in sync_func(ctx, blocks_arg):
+                        if chunk is not None:
+                            yield chunk
+                else:
+                    raise TemplateRuntimeError(
+                        f"Template '{self._name or '(inline)'}' has no render_stream function",
+                        template_name=self._name,
+                        code=ErrorCode.NOT_COMPILED,
+                        suggestion="Ensure the template was compiled with streaming support.",
+                    )
+            except TemplateRuntimeError:
+                raise
+            except Exception as e:
+                from kida.sandbox import SecurityError
+
+                if isinstance(
+                    e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError, SecurityError)
+                ):
+                    raise
+                raise enhance_template_error(e, render_ctx, self._source) from e
 
     async def render_block_stream_async(
         self, block_name: str, *args: Any, **kwargs: Any
@@ -1017,16 +1030,27 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
 
         async with self._fragment_scaffold_async(args, kwargs, "render_block_stream_async") as (
             ctx,
-            _render_ctx,
+            render_ctx,
         ):
-            if inspect.isasyncgenfunction(block_func):
-                async for chunk in block_func(ctx, effective):
-                    if chunk is not None:
-                        yield chunk
-            else:
-                for chunk in block_func(ctx, effective):
-                    if chunk is not None:
-                        yield chunk
+            try:
+                if inspect.isasyncgenfunction(block_func):
+                    async for chunk in block_func(ctx, effective):
+                        if chunk is not None:
+                            yield chunk
+                else:
+                    for chunk in block_func(ctx, effective):
+                        if chunk is not None:
+                            yield chunk
+            except TemplateRuntimeError:
+                raise
+            except Exception as e:
+                from kida.sandbox import SecurityError
+
+                if isinstance(
+                    e, (UndefinedError, TemplateNotFoundError, TemplateSyntaxError, SecurityError)
+                ):
+                    raise
+                raise enhance_template_error(e, render_ctx, self._source) from e
 
     def __repr__(self) -> str:
         return f"<Template {self._name or '(inline)'}>"

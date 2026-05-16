@@ -166,3 +166,96 @@ def test_undefined_error_structured_diagnostic_for_framework_views(tmp_path: Pat
     assert "<script>{{ usernme }}</script>" not in html
     assert "K-RUN-001" in html
     assert "page.html:2" in html
+
+
+def test_coalesced_output_preserves_undefined_source_line(tmp_path: Path) -> None:
+    """F-string coalescing must not erase the line used by diagnostics."""
+    (tmp_path / "page.html").write_text(
+        "\n".join(
+            [
+                "<main>",
+                "  <script>{{ usernme }}</script>",
+                "</main>",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    env = Environment(loader=FileSystemLoader(str(tmp_path)))
+
+    with pytest.raises(UndefinedError) as exc_info:
+        env.get_template("page.html").render(username="Ada")
+
+    diagnostic = exc_info.value.to_diagnostic()
+    assert diagnostic.location.line == 2
+    assert diagnostic.source_snippet is not None
+    assert diagnostic.source_snippet.error_line == 2
+
+
+def test_attribute_undefined_diagnostic_keeps_component_stack() -> None:
+    """Attribute/key misses carry the same stack context as variable misses."""
+
+    class User:
+        name = "Ada"
+
+    template = Environment().from_string(
+        "{% def card(user) %}{{ user.nmae }}{% end %}{{ card(user) }}",
+        name="page.html",
+    )
+
+    with pytest.raises(UndefinedError) as exc_info:
+        template.render(user=User())
+
+    diagnostic = exc_info.value.to_diagnostic()
+    assert diagnostic.kind == "attribute/key"
+    assert diagnostic.suggestion == "User.name"
+    assert diagnostic.component_stack
+    assert diagnostic.component_stack[0].template == "page.html"
+    assert diagnostic.component_stack[0].line == 1
+    assert diagnostic.component_stack[0].name == "card"
+
+
+def test_imported_macro_slot_error_points_to_caller_template(tmp_path: Path) -> None:
+    """Slot bodies from imported components report the caller source."""
+    (tmp_path / "components.html").write_text(
+        "{% def card() %}<section>{% slot %}</section>{% end %}",
+        encoding="utf-8",
+    )
+    (tmp_path / "page.html").write_text(
+        "\n".join(
+            [
+                '{% from "components.html" import card %}',
+                "{% call card() %}",
+                "  {{ missing_in_slot }}",
+                "{% end %}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    env = Environment(loader=FileSystemLoader(str(tmp_path)))
+
+    with pytest.raises(UndefinedError) as exc_info:
+        env.get_template("page.html").render()
+
+    diagnostic = exc_info.value.to_diagnostic()
+    assert diagnostic.location.template == "page.html"
+    assert diagnostic.location.line == 3
+    assert diagnostic.component_stack
+    assert diagnostic.component_stack[0].template == "page.html"
+    assert diagnostic.component_stack[0].line == 2
+    assert all(frame.line > 0 for frame in diagnostic.component_stack)
+
+
+def test_render_stream_enhances_generic_runtime_errors() -> None:
+    """Streaming diagnostics match render() for generic runtime exceptions."""
+    template = Environment().from_string("{{ 1 / zero }}", name="calc.html")
+
+    with pytest.raises(Exception) as exc_info:
+        list(template.render_stream(zero=0))
+
+    exc = exc_info.value
+    assert exc.__class__.__name__ == "TemplateRuntimeError"
+    assert isinstance(exc.__cause__, ZeroDivisionError)
+    assert exc.template_name == "calc.html"
+    assert exc.lineno == 1
