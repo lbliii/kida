@@ -414,6 +414,97 @@ class TemplateDiagnostic:
         parts.append("</section>")
         return "".join(parts)
 
+    def format_html_page(self, *, page_title: str = "Kida Template Error") -> str:
+        """Render a standalone escaped HTML diagnostic page."""
+        summary_items = [
+            ("Error", self.title),
+            ("Location", self.location.format()),
+        ]
+        if self.suggestion:
+            summary_items.append(("Closest name", self.suggestion))
+        summary_items.extend((key.replace("_", " ").title(), value) for key, value in self.metadata)
+
+        summary = "".join(
+            "<div><dt>" + html_escape(label) + "</dt><dd>" + html_escape(value) + "</dd></div>"
+            for label, value in summary_items
+        )
+        primary_hint = self.hints[0] if self.hints else "Inspect the template location above."
+        css = "".join(
+            [
+                "*{box-sizing:border-box}",
+                "body{margin:0;background:#10141f;color:#d8dee9;",
+                "font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}",
+                ".wrap{max-width:1120px;margin:0 auto;padding:32px}",
+                ".hero{border:1px solid #384258;background:#171d2b;border-radius:8px;padding:20px}",
+                ".code{color:#ff7b93;font-weight:700}",
+                ".message{color:#f2cc8f;margin:12px 0 0;white-space:pre-wrap}",
+                ".fix{margin-top:16px;padding:12px 14px;background:#10291d;",
+                "border:1px solid #2d6a4f;border-radius:6px;color:#b7f7c9}",
+                ".facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));",
+                "gap:10px;margin:18px 0 0}",
+                ".facts div{border:1px solid #30394d;border-radius:6px;",
+                "padding:10px;background:#111827}",
+                ".facts dt{color:#8ea4c8;font-size:12px;text-transform:uppercase}",
+                ".facts dd{margin:4px 0 0;word-break:break-word}",
+                ".panel{margin-top:20px;border:1px solid #30394d;border-radius:8px;",
+                "background:#121827;overflow:hidden}",
+                ".panel h2{font-size:14px;margin:0;padding:10px 14px;",
+                "background:#192235;color:#9cc4ff}",
+                ".panel pre{margin:0;padding:14px;overflow:auto}",
+                ".panel ol{margin:0;padding:12px 14px 12px 34px}",
+                ".panel li{margin:4px 0}",
+                ".docs a{color:#9cc4ff}",
+                ".trace-note{color:#8ea4c8;margin-top:18px}",
+            ]
+        )
+        parts = [
+            "<!doctype html>",
+            '<html lang="en"><head><meta charset="utf-8">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1">',
+            f"<title>{html_escape(page_title)}</title>",
+            f'<style>{css}</style></head><body><main class="wrap">',
+            '<section class="hero">',
+            f'<div class="code">{html_escape(self.code or "Kida")}</div>',
+            f"<h1>{html_escape(self.title)}</h1>",
+            f'<p class="message">{html_escape(self.message)}</p>',
+            f'<div class="fix"><strong>First fix:</strong> {html_escape(primary_hint)}</div>',
+            f'<dl class="facts">{summary}</dl>',
+            "</section>",
+        ]
+        if self.source_snippet:
+            parts.append('<section class="panel"><h2>Template Source</h2><pre><code>')
+            for lineno, content in self.source_snippet.lines:
+                marker = ">" if lineno == self.source_snippet.error_line else " "
+                parts.append(f"{marker}{lineno:4} | {html_escape(content)}\n")
+            if self.source_snippet.column is not None:
+                caret = " " * self.source_snippet.column + "^"
+                parts.append(f"     | {html_escape(caret)}\n")
+            parts.append("</code></pre></section>")
+        if len(self.hints) > 1:
+            parts.append('<section class="panel"><h2>Other Fix Options</h2><ol>')
+            parts.extend(f"<li>{html_escape(hint)}</li>" for hint in self.hints[1:])
+            parts.append("</ol></section>")
+        if self.component_stack:
+            parts.append('<section class="panel"><h2>Component Path</h2><ol>')
+            parts.extend(
+                f"<li>{html_escape(frame.format())}</li>" for frame in self.component_stack
+            )
+            parts.append("</ol></section>")
+        if self.template_stack:
+            parts.append('<section class="panel"><h2>Template Path</h2><ol>')
+            parts.extend(f"<li>{html_escape(frame.format())}</li>" for frame in self.template_stack)
+            parts.append("</ol></section>")
+        parts.append(
+            '<p class="trace-note">Python traceback frames are secondary for Kida template errors; '
+            "the template location above is authoritative.</p>"
+        )
+        if self.docs_url:
+            parts.append(
+                f'<p class="docs"><a href="{html_escape(self.docs_url)}">Kida error documentation</a></p>'
+            )
+        parts.append("</main></body></html>")
+        return "".join(parts)
+
     def format_markdown(self) -> str:
         """Render a GitHub-flavored Markdown diagnostic from plain fields."""
         from kida.utils.markdown_escape import markdown_escape

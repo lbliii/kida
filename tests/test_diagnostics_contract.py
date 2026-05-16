@@ -289,3 +289,26 @@ def test_format_compact_uses_structured_kind() -> None:
 
     assert "Undefined attribute/key" in compact
     assert "x?.y" in compact
+
+
+def test_undefined_diagnostic_html_page_leads_with_fix(tmp_path: Path) -> None:
+    """Standalone HTML page keeps the actionable diagnostic before traceback copy."""
+    (tmp_path / "page.html").write_text(
+        "<main>{{ usernme }}</main>",
+        encoding="utf-8",
+    )
+    env = Environment(loader=FileSystemLoader(str(tmp_path)), fstring_coalescing=False)
+
+    with pytest.raises(UndefinedError) as exc_info:
+        env.get_template("page.html").render(username="Ada")
+
+    page = exc_info.value.to_diagnostic().format_html_page()
+
+    assert page.startswith("<!doctype html>")
+    assert "First fix:" in page
+    assert "Did you mean &#x27;username&#x27;?" in page
+    assert "Template Source" in page
+    assert "&lt;main&gt;{{ usernme }}&lt;/main&gt;" in page
+    assert "<main>{{ usernme }}</main>" not in page
+    assert page.index("First fix:") < page.index("Template Source")
+    assert page.index("Template Source") < page.index("Python traceback frames are secondary")
