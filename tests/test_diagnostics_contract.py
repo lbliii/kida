@@ -259,3 +259,33 @@ def test_render_stream_enhances_generic_runtime_errors() -> None:
     assert isinstance(exc.__cause__, ZeroDivisionError)
     assert exc.template_name == "calc.html"
     assert exc.lineno == 1
+
+
+def test_undefined_diagnostic_markdown_escapes_surrounding_text(tmp_path: Path) -> None:
+    """Markdown diagnostics share the same data without escaping code fences twice."""
+    (tmp_path / "page.html").write_text(
+        "## heading\n{{ missing_value }} | @here",
+        encoding="utf-8",
+    )
+
+    env = Environment(loader=FileSystemLoader(str(tmp_path)), fstring_coalescing=False)
+
+    with pytest.raises(UndefinedError) as exc_info:
+        env.get_template("page.html").render()
+
+    markdown = exc_info.value.to_diagnostic().format_markdown()
+    assert "### K-RUN-001: Undefined variable" in markdown
+    assert "**Location:** `page.html:2`" in markdown
+    assert "```text" in markdown
+    assert ">   2 | {{ missing_value }} | @here" in markdown
+    assert "\\#\\# heading" not in markdown
+
+
+def test_format_compact_uses_structured_kind() -> None:
+    """Terminal compact output stays aligned with diagnostic kind."""
+    err = UndefinedError("dict.nickname", kind="attribute/key")
+
+    compact = err.format_compact()
+
+    assert "Undefined attribute/key" in compact
+    assert "x?.y" in compact

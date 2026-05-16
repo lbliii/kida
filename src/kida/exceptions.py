@@ -414,6 +414,42 @@ class TemplateDiagnostic:
         parts.append("</section>")
         return "".join(parts)
 
+    def format_markdown(self) -> str:
+        """Render a GitHub-flavored Markdown diagnostic from plain fields."""
+        from kida.utils.markdown_escape import markdown_escape
+
+        heading = f"### {markdown_escape(self.code)}: {markdown_escape(self.title)}"
+        if not self.code:
+            heading = f"### {markdown_escape(self.title)}"
+        parts = [
+            heading,
+            "",
+            markdown_escape(self.message),
+            "",
+            f"**Location:** `{markdown_escape(self.location.format())}`",
+        ]
+        if self.source_snippet:
+            parts.extend(["", "```text"])
+            for lineno, content in self.source_snippet.lines:
+                marker = ">" if lineno == self.source_snippet.error_line else " "
+                parts.append(f"{marker}{lineno:4} | {content}")
+            if self.source_snippet.column is not None:
+                caret = " " * self.source_snippet.column + "^"
+                parts.append(f"     | {caret}")
+            parts.append("```")
+        if self.hints:
+            parts.extend(["", "**Hints:**"])
+            parts.extend(f"- {markdown_escape(hint)}" for hint in self.hints)
+        if self.component_stack:
+            parts.extend(["", "**Component stack:**"])
+            parts.extend(f"- `{markdown_escape(frame.format())}`" for frame in self.component_stack)
+        if self.template_stack:
+            parts.extend(["", "**Template stack:**"])
+            parts.extend(f"- `{markdown_escape(frame.format())}`" for frame in self.template_stack)
+        if self.docs_url:
+            parts.extend(["", f"[Documentation]({self.docs_url})"])
+        return "\n".join(parts)
+
 
 def build_source_snippet(
     source: str,
@@ -1003,46 +1039,44 @@ class UndefinedError(TemplateError):
     def format_compact(self) -> str:
         """Format undefined variable error as structured terminal diagnostic."""
         terminal = _terminal()
+        diagnostic = self.to_diagnostic()
         parts: list[str] = []
 
         # Header: code + message
-        location = self.template
-        if self.lineno:
-            location += f":{self.lineno}"
         msg = terminal.format_error_header(
-            self.code.value if self.code else None,
-            f"Undefined variable '{self.name}' in {terminal.location(location)}",
+            diagnostic.code,
+            f"Undefined {diagnostic.kind} '{self.name}' in "
+            f"{terminal.location(diagnostic.location.format())}",
         )
 
         # "Did you mean?" suggestion
-        if self.suggestion:
-            suggested = terminal.suggestion(self.suggestion)
+        if diagnostic.suggestion:
+            suggested = terminal.suggestion(diagnostic.suggestion)
             msg += f". Did you mean '{suggested}'?"
         parts.append(msg)
 
         # Source snippet
-        if self.source_snippet:
-            parts.append(self.source_snippet.format())
+        if diagnostic.source_snippet:
+            parts.append(diagnostic.source_snippet.format())
 
         # Component stack trace (Sprint 1.3)
-        if self.component_stack:
+        if diagnostic.component_stack:
             parts.append("")
             parts.append(format_component_stack(self.component_stack))
 
         # Template stack trace (Feature 2.1)
-        if self.template_stack:
+        if diagnostic.template_stack:
             parts.append("")
             parts.append(format_template_stack(self.template_stack))
 
         # Hint
-        hint_text = self._hint_text()
-        parts.append(f"  {terminal.hint('Hint:')} {hint_text}")
-        nullsafe = self._nullsafe_hint_text()
-        if nullsafe:
-            parts.append(f"  {terminal.hint('Hint:')} {nullsafe}")
+        for hint in diagnostic.hints:
+            if hint.startswith("Did you mean "):
+                continue
+            parts.append(f"  {terminal.hint('Hint:')} {hint}")
 
         # Docs URL
-        if self.code:
-            parts.append(f"  {terminal.dim_text('Docs:')} {terminal.docs_url(self.code.docs_url)}")
+        if diagnostic.docs_url:
+            parts.append(f"  {terminal.dim_text('Docs:')} {terminal.docs_url(diagnostic.docs_url)}")
 
         return "\n".join(parts)
