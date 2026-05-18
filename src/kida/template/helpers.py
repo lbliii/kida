@@ -226,16 +226,31 @@ def _raise_undefined_attr(obj: object, name: str, *, preserve_none: bool = False
     lineno = render_ctx.line if render_ctx else None
     source = render_ctx.source if render_ctx else None
     snippet = build_source_snippet(source, lineno) if source and lineno else None
+    template_stack = list(render_ctx.template_stack) if render_ctx else []
+    component_stack = list(render_ctx.component_stack) if render_ctx else []
+    declared = render_ctx.declared_definitions if render_ctx else None
 
     obj_type = type(obj).__name__
     qual_name = name if obj is None else f"{obj_type}.{name}"
+    if isinstance(obj, Mapping):
+        available_names = frozenset(f"{obj_type}.{key}" for key in obj if isinstance(key, str))
+    elif obj is None:
+        available_names = frozenset()
+    else:
+        available_names = frozenset(
+            f"{obj_type}.{attr}" for attr in dir(obj) if not attr.startswith("_")
+        )
 
     raise UndefinedError(
         qual_name,
         template_name,
         lineno,
+        available_names=available_names,
         source_snippet=snippet,
+        template_stack=template_stack,
+        component_stack=component_stack,
         kind="attribute/key",
+        declared_definitions=declared,
     ) from None
 
 

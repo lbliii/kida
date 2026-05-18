@@ -29,6 +29,13 @@ Debug `UndefinedError` exceptions.
 UndefinedError: Undefined variable 'usre' in page.html:5
 ```
 
+Recent Kida diagnostics also carry structured fields for frameworks:
+
+- `to_diagnostic().location` — template name, line, and optional column
+- `to_diagnostic().source_snippet` — surrounding source lines
+- `to_diagnostic().hints` — ordered next actions
+- `to_diagnostic().template_stack` and `.component_stack` — render path context
+
 ## Common Causes
 
 :::{dropdown} Typo in variable name
@@ -73,6 +80,22 @@ Ensure all template variables are passed in `render()`.
 Verify object attributes match your code.
 :::
 
+:::{dropdown} Imported component slot uses a missing caller value
+:icon: layers
+
+```kida
+{% from "components/card.html" import card %}
+
+{% call card() %}
+  {{ missing_in_slot }}
+{% end %}
+```
+
+Kida reports this against the caller template line that owns the slot body, not
+the imported component file. Use the component stack to see which component was
+rendering when the slot failed.
+:::
+
 :::{dropdown} Nested object is None or missing
 :icon: layers
 
@@ -93,6 +116,9 @@ Under strict mode (the default), `{% if page.parent %}` alone raises if `parent`
 :::
 
 ## Solutions
+
+Hints are ordered by confidence. A close typo match appears first; optional
+value patterns such as `default(...)`, `??`, or null-safe access follow.
 
 ### Use default Filter
 

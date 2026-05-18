@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from html import escape as html_escape
 from typing import Any, final
 
 
@@ -292,6 +293,252 @@ class SourceSnippet:
             caret = " " * self.column + "^"
             parts.append(f"{terminal.dim_text('   |')} {terminal.error_line(caret)}")
         parts.append(terminal.dim_text("   |"))
+        return "\n".join(parts)
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class DiagnosticLocation:
+    """Surface-neutral template location for exception renderers."""
+
+    template: str
+    line: int | None = None
+    column: int | None = None
+    filename: str | None = None
+
+    def format(self) -> str:
+        """Return ``template[:line[:column]]`` without terminal styling."""
+        location = self.template
+        if self.line:
+            location += f":{self.line}"
+            if self.column is not None:
+                location += f":{self.column}"
+        return location
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class DiagnosticFrame:
+    """Surface-neutral stack frame for template/component diagnostics."""
+
+    template: str
+    line: int
+    name: str | None = None
+
+    def format(self) -> str:
+        """Return a plain frame label."""
+        location = f"{self.template}:{self.line}"
+        if self.name:
+            return f"{location} -> {self.name}()"
+        return location
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class TemplateDiagnostic:
+    """Structured diagnostic data for downstream renderers.
+
+    This payload intentionally stores plain strings and immutable tuples only.
+    HTML, markdown, and terminal escaping/styling belongs to the renderer that
+    consumes it.
+    """
+
+    code: str | None
+    title: str
+    message: str
+    kind: str
+    location: DiagnosticLocation
+    source_snippet: SourceSnippet | None = None
+    hints: tuple[str, ...] = ()
+    docs_url: str | None = None
+    suggestion: str | None = None
+    template_stack: tuple[DiagnosticFrame, ...] = ()
+    component_stack: tuple[DiagnosticFrame, ...] = ()
+    metadata: tuple[tuple[str, str], ...] = ()
+
+    def metadata_dict(self) -> dict[str, str]:
+        """Return metadata as a regular dict for consumers that prefer mapping APIs."""
+        return dict(self.metadata)
+
+    def format_html_fragment(self) -> str:
+        """Render a dependency-free escaped HTML diagnostic fragment.
+
+        This is intentionally compact and unstyled so framework debug pages can
+        wrap it in their own chrome without inheriting terminal formatting.
+        """
+
+        code = (
+            f'<span class="kida-error-code">{html_escape(self.code)}</span> ' if self.code else ""
+        )
+        parts = [
+            '<section class="kida-diagnostic" data-kida-diagnostic="true">',
+            f"<h1>{code}{html_escape(self.title)}</h1>",
+            f'<p class="kida-diagnostic-message">{html_escape(self.message)}</p>',
+            '<dl class="kida-diagnostic-facts">',
+            f"<dt>Location</dt><dd>{html_escape(self.location.format())}</dd>",
+        ]
+        if self.suggestion:
+            parts.append(f"<dt>Suggestion</dt><dd>{html_escape(self.suggestion)}</dd>")
+        parts.append("</dl>")
+
+        if self.source_snippet:
+            parts.append('<pre class="kida-source-snippet"><code>')
+            for lineno, content in self.source_snippet.lines:
+                marker = ">" if lineno == self.source_snippet.error_line else " "
+                parts.append(f"{marker}{lineno:4} | {html_escape(content)}\n")
+            if self.source_snippet.column is not None:
+                caret = " " * self.source_snippet.column + "^"
+                parts.append(f"     | {html_escape(caret)}\n")
+            parts.append("</code></pre>")
+
+        if self.hints:
+            parts.append('<ol class="kida-diagnostic-hints">')
+            parts.extend(f"<li>{html_escape(hint)}</li>" for hint in self.hints)
+            parts.append("</ol>")
+
+        if self.component_stack:
+            parts.append("<h2>Component stack</h2><ol>")
+            parts.extend(
+                f"<li>{html_escape(frame.format())}</li>" for frame in self.component_stack
+            )
+            parts.append("</ol>")
+        if self.template_stack:
+            parts.append("<h2>Template stack</h2><ol>")
+            parts.extend(f"<li>{html_escape(frame.format())}</li>" for frame in self.template_stack)
+            parts.append("</ol>")
+        if self.docs_url:
+            parts.append(
+                f'<p class="kida-diagnostic-docs"><a href="{html_escape(self.docs_url)}">'
+                "Documentation</a></p>"
+            )
+        parts.append("</section>")
+        return "".join(parts)
+
+    def format_html_page(self, *, page_title: str = "Kida Template Error") -> str:
+        """Render a standalone escaped HTML diagnostic page."""
+        summary_items = [
+            ("Error", self.title),
+            ("Location", self.location.format()),
+        ]
+        if self.suggestion:
+            summary_items.append(("Closest name", self.suggestion))
+        summary_items.extend((key.replace("_", " ").title(), value) for key, value in self.metadata)
+
+        summary = "".join(
+            "<div><dt>" + html_escape(label) + "</dt><dd>" + html_escape(value) + "</dd></div>"
+            for label, value in summary_items
+        )
+        primary_hint = self.hints[0] if self.hints else "Inspect the template location above."
+        css = "".join(
+            [
+                "*{box-sizing:border-box}",
+                "body{margin:0;background:#10141f;color:#d8dee9;",
+                "font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}",
+                ".wrap{max-width:1120px;margin:0 auto;padding:32px}",
+                ".hero{border:1px solid #384258;background:#171d2b;border-radius:8px;padding:20px}",
+                ".code{color:#ff7b93;font-weight:700}",
+                ".message{color:#f2cc8f;margin:12px 0 0;white-space:pre-wrap}",
+                ".fix{margin-top:16px;padding:12px 14px;background:#10291d;",
+                "border:1px solid #2d6a4f;border-radius:6px;color:#b7f7c9}",
+                ".facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));",
+                "gap:10px;margin:18px 0 0}",
+                ".facts div{border:1px solid #30394d;border-radius:6px;",
+                "padding:10px;background:#111827}",
+                ".facts dt{color:#8ea4c8;font-size:12px;text-transform:uppercase}",
+                ".facts dd{margin:4px 0 0;word-break:break-word}",
+                ".panel{margin-top:20px;border:1px solid #30394d;border-radius:8px;",
+                "background:#121827;overflow:hidden}",
+                ".panel h2{font-size:14px;margin:0;padding:10px 14px;",
+                "background:#192235;color:#9cc4ff}",
+                ".panel pre{margin:0;padding:14px;overflow:auto}",
+                ".panel ol{margin:0;padding:12px 14px 12px 34px}",
+                ".panel li{margin:4px 0}",
+                ".docs a{color:#9cc4ff}",
+                ".trace-note{color:#8ea4c8;margin-top:18px}",
+            ]
+        )
+        parts = [
+            "<!doctype html>",
+            '<html lang="en"><head><meta charset="utf-8">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1">',
+            f"<title>{html_escape(page_title)}</title>",
+            f'<style>{css}</style></head><body><main class="wrap">',
+            '<section class="hero">',
+            f'<div class="code">{html_escape(self.code or "Kida")}</div>',
+            f"<h1>{html_escape(self.title)}</h1>",
+            f'<p class="message">{html_escape(self.message)}</p>',
+            f'<div class="fix"><strong>First fix:</strong> {html_escape(primary_hint)}</div>',
+            f'<dl class="facts">{summary}</dl>',
+            "</section>",
+        ]
+        if self.source_snippet:
+            parts.append('<section class="panel"><h2>Template Source</h2><pre><code>')
+            for lineno, content in self.source_snippet.lines:
+                marker = ">" if lineno == self.source_snippet.error_line else " "
+                parts.append(f"{marker}{lineno:4} | {html_escape(content)}\n")
+            if self.source_snippet.column is not None:
+                caret = " " * self.source_snippet.column + "^"
+                parts.append(f"     | {html_escape(caret)}\n")
+            parts.append("</code></pre></section>")
+        if len(self.hints) > 1:
+            parts.append('<section class="panel"><h2>Other Fix Options</h2><ol>')
+            parts.extend(f"<li>{html_escape(hint)}</li>" for hint in self.hints[1:])
+            parts.append("</ol></section>")
+        if self.component_stack:
+            parts.append('<section class="panel"><h2>Component Path</h2><ol>')
+            parts.extend(
+                f"<li>{html_escape(frame.format())}</li>" for frame in self.component_stack
+            )
+            parts.append("</ol></section>")
+        if self.template_stack:
+            parts.append('<section class="panel"><h2>Template Path</h2><ol>')
+            parts.extend(f"<li>{html_escape(frame.format())}</li>" for frame in self.template_stack)
+            parts.append("</ol></section>")
+        parts.append(
+            '<p class="trace-note">Python traceback frames are secondary for Kida template errors; '
+            "the template location above is authoritative.</p>"
+        )
+        if self.docs_url:
+            parts.append(
+                f'<p class="docs"><a href="{html_escape(self.docs_url)}">Kida error documentation</a></p>'
+            )
+        parts.append("</main></body></html>")
+        return "".join(parts)
+
+    def format_markdown(self) -> str:
+        """Render a GitHub-flavored Markdown diagnostic from plain fields."""
+        from kida.utils.markdown_escape import markdown_escape
+
+        heading = f"### {markdown_escape(self.code)}: {markdown_escape(self.title)}"
+        if not self.code:
+            heading = f"### {markdown_escape(self.title)}"
+        parts = [
+            heading,
+            "",
+            markdown_escape(self.message),
+            "",
+            f"**Location:** `{markdown_escape(self.location.format())}`",
+        ]
+        if self.source_snippet:
+            parts.extend(["", "```text"])
+            for lineno, content in self.source_snippet.lines:
+                marker = ">" if lineno == self.source_snippet.error_line else " "
+                parts.append(f"{marker}{lineno:4} | {content}")
+            if self.source_snippet.column is not None:
+                caret = " " * self.source_snippet.column + "^"
+                parts.append(f"     | {caret}")
+            parts.append("```")
+        if self.hints:
+            parts.extend(["", "**Hints:**"])
+            parts.extend(f"- {markdown_escape(hint)}" for hint in self.hints)
+        if self.component_stack:
+            parts.extend(["", "**Component stack:**"])
+            parts.extend(f"- `{markdown_escape(frame.format())}`" for frame in self.component_stack)
+        if self.template_stack:
+            parts.extend(["", "**Template stack:**"])
+            parts.extend(f"- `{markdown_escape(frame.format())}`" for frame in self.template_stack)
+        if self.docs_url:
+            parts.extend(["", f"[Documentation]({self.docs_url})"])
         return "\n".join(parts)
 
 
@@ -743,17 +990,30 @@ class UndefinedError(TemplateError):
         self.name = name
         self.template = template or "<template>"
         self.lineno = lineno
-        self._available_names = available_names
+        self.available_names = frozenset(available_names or ())
+        self._available_names = self.available_names or None
         self.source_snippet = source_snippet
-        self.template_stack = template_stack or []
-        self.component_stack = component_stack or []
+        self.template_stack = list(template_stack or [])
+        self.component_stack = list(component_stack or [])
+        self.kind = kind
         self._kind = kind
         # Top-level {% def %} / {% region %} names declared by the current
         # template. When ``self.name`` is one of these, the error swaps the
         # generic ``| default('')`` hint for a directed message pointing the
         # user at the missing top-level declaration. See _hint_text().
-        self._declared_definitions = declared_definitions or frozenset()
+        self.declared_definitions = frozenset(declared_definitions or ())
+        self._declared_definitions = self.declared_definitions
+        self.suggestion = self._closest_available_name()
         super().__init__(self._format_message())
+
+    def _closest_available_name(self) -> str | None:
+        """Return the best fuzzy match from available names, if any."""
+        if not self._available_names:
+            return None
+        from difflib import get_close_matches
+
+        matches = get_close_matches(self.name, list(self._available_names), n=1, cutoff=0.6)
+        return matches[0] if matches else None
 
     def _hint_text(self) -> str:
         """Return the hint line shown after the error message.
@@ -800,13 +1060,9 @@ class UndefinedError(TemplateError):
         msg = f"Undefined {self._kind} '{self.name}' in {terminal.location(location)}"
 
         # "Did you mean?" suggestion via fuzzy matching
-        if self._available_names:
-            from difflib import get_close_matches
-
-            matches = get_close_matches(self.name, list(self._available_names), n=1, cutoff=0.6)
-            if matches:
-                suggested = terminal.suggestion(matches[0])
-                msg += f". Did you mean '{suggested}'?"
+        if self.suggestion:
+            suggested = terminal.suggestion(self.suggestion)
+            msg += f". Did you mean '{suggested}'?"
 
         # Source snippet (shows the template line where error occurred)
         if self.source_snippet:
@@ -827,53 +1083,91 @@ class UndefinedError(TemplateError):
             msg += f"\n  {terminal.hint('Hint:')} {nullsafe}"
         return msg
 
+    def diagnostic_hints(self) -> tuple[str, ...]:
+        """Return ordered plain-text hints for structured renderers."""
+        hints: list[str] = []
+        if self.suggestion:
+            hints.append(f"Did you mean '{self.suggestion}'?")
+        nullsafe = self._nullsafe_hint_text()
+        if nullsafe:
+            hints.append(nullsafe)
+        hints.append(self._hint_text())
+        return tuple(hints)
+
+    def to_diagnostic(self) -> TemplateDiagnostic:
+        """Return a surface-neutral diagnostic payload for this error."""
+        location = DiagnosticLocation(
+            template=self.template,
+            line=self.lineno,
+            column=self.source_snippet.column if self.source_snippet else None,
+        )
+        message = f"Undefined {self.kind} '{self.name}' in {location.format()}"
+        metadata = (
+            ("name", self.name),
+            ("kind", self.kind),
+        )
+        return TemplateDiagnostic(
+            code=self.code.value if self.code else None,
+            title=f"Undefined {self.kind}",
+            message=message,
+            kind=self.kind,
+            location=location,
+            source_snippet=self.source_snippet,
+            hints=self.diagnostic_hints(),
+            docs_url=self.code.docs_url if self.code else None,
+            suggestion=self.suggestion,
+            template_stack=tuple(
+                DiagnosticFrame(template=template, line=line)
+                for template, line in self.template_stack
+            ),
+            component_stack=tuple(
+                DiagnosticFrame(template=template, line=line, name=name)
+                for template, line, name in self.component_stack
+            ),
+            metadata=metadata,
+        )
+
     def format_compact(self) -> str:
         """Format undefined variable error as structured terminal diagnostic."""
         terminal = _terminal()
+        diagnostic = self.to_diagnostic()
         parts: list[str] = []
 
         # Header: code + message
-        location = self.template
-        if self.lineno:
-            location += f":{self.lineno}"
         msg = terminal.format_error_header(
-            self.code.value if self.code else None,
-            f"Undefined variable '{self.name}' in {terminal.location(location)}",
+            diagnostic.code,
+            f"Undefined {diagnostic.kind} '{self.name}' in "
+            f"{terminal.location(diagnostic.location.format())}",
         )
 
         # "Did you mean?" suggestion
-        if self._available_names:
-            from difflib import get_close_matches
-
-            matches = get_close_matches(self.name, list(self._available_names), n=1, cutoff=0.6)
-            if matches:
-                suggested = terminal.suggestion(matches[0])
-                msg += f". Did you mean '{suggested}'?"
+        if diagnostic.suggestion:
+            suggested = terminal.suggestion(diagnostic.suggestion)
+            msg += f". Did you mean '{suggested}'?"
         parts.append(msg)
 
         # Source snippet
-        if self.source_snippet:
-            parts.append(self.source_snippet.format())
+        if diagnostic.source_snippet:
+            parts.append(diagnostic.source_snippet.format())
 
         # Component stack trace (Sprint 1.3)
-        if self.component_stack:
+        if diagnostic.component_stack:
             parts.append("")
             parts.append(format_component_stack(self.component_stack))
 
         # Template stack trace (Feature 2.1)
-        if self.template_stack:
+        if diagnostic.template_stack:
             parts.append("")
             parts.append(format_template_stack(self.template_stack))
 
         # Hint
-        hint_text = self._hint_text()
-        parts.append(f"  {terminal.hint('Hint:')} {hint_text}")
-        nullsafe = self._nullsafe_hint_text()
-        if nullsafe:
-            parts.append(f"  {terminal.hint('Hint:')} {nullsafe}")
+        for hint in diagnostic.hints:
+            if hint.startswith("Did you mean "):
+                continue
+            parts.append(f"  {terminal.hint('Hint:')} {hint}")
 
         # Docs URL
-        if self.code:
-            parts.append(f"  {terminal.dim_text('Docs:')} {terminal.docs_url(self.code.docs_url)}")
+        if diagnostic.docs_url:
+            parts.append(f"  {terminal.dim_text('Docs:')} {terminal.docs_url(diagnostic.docs_url)}")
 
         return "\n".join(parts)

@@ -301,7 +301,45 @@ class FunctionCompilationMixin:
         )
 
         # Component call stack: push frame on entry (Sprint 1.3)
-        # _rc.component_stack.append((_rc.template_name or '', _rc.line, 'def_name'))
+        # Imported macro wrappers set component_call_* so this frame points to
+        # the caller site while template_name/source still point at the def.
+        component_template_expr = ast.BoolOp(
+            op=ast.Or(),
+            values=[
+                ast.Attribute(
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                    attr="component_call_template",
+                    ctx=ast.Load(),
+                ),
+                ast.Attribute(
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                    attr="template_name",
+                    ctx=ast.Load(),
+                ),
+                ast.Constant(value=""),
+            ],
+        )
+        component_line_expr = ast.IfExp(
+            test=ast.Compare(
+                left=ast.Attribute(
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                    attr="component_call_line",
+                    ctx=ast.Load(),
+                ),
+                ops=[ast.IsNot()],
+                comparators=[ast.Constant(value=None)],
+            ),
+            body=ast.Attribute(
+                value=ast.Name(id="_rc", ctx=ast.Load()),
+                attr="component_call_line",
+                ctx=ast.Load(),
+            ),
+            orelse=ast.Attribute(
+                value=ast.Name(id="_rc", ctx=ast.Load()),
+                attr="line",
+                ctx=ast.Load(),
+            ),
+        )
         func_body.append(
             ast.Expr(
                 value=ast.Call(
@@ -317,22 +355,8 @@ class FunctionCompilationMixin:
                     args=[
                         ast.Tuple(
                             elts=[
-                                ast.BoolOp(
-                                    op=ast.Or(),
-                                    values=[
-                                        ast.Attribute(
-                                            value=ast.Name(id="_rc", ctx=ast.Load()),
-                                            attr="template_name",
-                                            ctx=ast.Load(),
-                                        ),
-                                        ast.Constant(value=""),
-                                    ],
-                                ),
-                                ast.Attribute(
-                                    value=ast.Name(id="_rc", ctx=ast.Load()),
-                                    attr="line",
-                                    ctx=ast.Load(),
-                                ),
+                                component_template_expr,
+                                component_line_expr,
                                 ast.Constant(value=def_name),
                             ],
                             ctx=ast.Load(),
@@ -632,7 +656,7 @@ class FunctionCompilationMixin:
         # def _caller_wrapper(_scope_stack, slot="default", **_slot_kwargs):
         #     f = _caller_slots.get(slot)
         #     return f(_scope_stack, **_slot_kwargs) if f else _Markup("")
-        wrapper_body: list[ast.stmt] = [
+        wrapper_call_body: list[ast.stmt] = [
             ast.Assign(
                 targets=[ast.Name(id="_f", ctx=ast.Store())],
                 value=ast.Call(
@@ -666,6 +690,113 @@ class FunctionCompilationMixin:
                 ),
             ),
         ]
+        wrapper_body: list[ast.stmt] = [
+            ast.Assign(
+                targets=[ast.Name(id="_rc", ctx=ast.Store())],
+                value=ast.BoolOp(
+                    op=ast.Or(),
+                    values=[
+                        ast.Call(
+                            func=ast.Name(id="_get_render_ctx", ctx=ast.Load()),
+                            args=[],
+                            keywords=[],
+                        ),
+                        ast.Name(id="_null_rc", ctx=ast.Load()),
+                    ],
+                ),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_prev_template_name", ctx=ast.Store())],
+                value=ast.Attribute(
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                    attr="template_name",
+                    ctx=ast.Load(),
+                ),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_prev_source", ctx=ast.Store())],
+                value=ast.Attribute(
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                    attr="source",
+                    ctx=ast.Load(),
+                ),
+            ),
+            ast.Assign(
+                targets=[ast.Name(id="_prev_line", ctx=ast.Store())],
+                value=ast.Attribute(
+                    value=ast.Name(id="_rc", ctx=ast.Load()),
+                    attr="line",
+                    ctx=ast.Load(),
+                ),
+            ),
+            ast.Assign(
+                targets=[
+                    ast.Attribute(
+                        value=ast.Name(id="_rc", ctx=ast.Load()),
+                        attr="template_name",
+                        ctx=ast.Store(),
+                    )
+                ],
+                value=ast.Name(id="_caller_template_name", ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[
+                    ast.Attribute(
+                        value=ast.Name(id="_rc", ctx=ast.Load()),
+                        attr="source",
+                        ctx=ast.Store(),
+                    )
+                ],
+                value=ast.Name(id="_caller_source", ctx=ast.Load()),
+            ),
+            ast.Assign(
+                targets=[
+                    ast.Attribute(
+                        value=ast.Name(id="_rc", ctx=ast.Load()),
+                        attr="line",
+                        ctx=ast.Store(),
+                    )
+                ],
+                value=ast.Name(id="_caller_line", ctx=ast.Load()),
+            ),
+            ast.Try(
+                body=wrapper_call_body,
+                handlers=[],
+                orelse=[],
+                finalbody=[
+                    ast.Assign(
+                        targets=[
+                            ast.Attribute(
+                                value=ast.Name(id="_rc", ctx=ast.Load()),
+                                attr="template_name",
+                                ctx=ast.Store(),
+                            )
+                        ],
+                        value=ast.Name(id="_prev_template_name", ctx=ast.Load()),
+                    ),
+                    ast.Assign(
+                        targets=[
+                            ast.Attribute(
+                                value=ast.Name(id="_rc", ctx=ast.Load()),
+                                attr="source",
+                                ctx=ast.Store(),
+                            )
+                        ],
+                        value=ast.Name(id="_prev_source", ctx=ast.Load()),
+                    ),
+                    ast.Assign(
+                        targets=[
+                            ast.Attribute(
+                                value=ast.Name(id="_rc", ctx=ast.Load()),
+                                attr="line",
+                                ctx=ast.Store(),
+                            )
+                        ],
+                        value=ast.Name(id="_prev_line", ctx=ast.Load()),
+                    ),
+                ],
+            ),
+        ]
         stmts.append(
             ast.Assign(
                 targets=[ast.Name(id="_caller_slots", ctx=ast.Store())],
@@ -675,6 +806,21 @@ class FunctionCompilationMixin:
                 ),
             )
         )
+        for attr, local_name in (
+            ("template_name", "_caller_template_name"),
+            ("source", "_caller_source"),
+            ("line", "_caller_line"),
+        ):
+            stmts.append(
+                ast.Assign(
+                    targets=[ast.Name(id=local_name, ctx=ast.Store())],
+                    value=ast.Attribute(
+                        value=ast.Name(id="_rc", ctx=ast.Load()),
+                        attr=attr,
+                        ctx=ast.Load(),
+                    ),
+                )
+            )
         # Use _caller_wrapper to avoid shadowing the def's _caller parameter
         # (which would cause UnboundLocalError when _def_caller = _caller runs)
         # Wrapper takes (_scope_stack, slot, **_slot_kwargs) so slot functions get
