@@ -71,6 +71,8 @@ class FStringCoalescingMixin:
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
 
+        def _make_line_marker(self, lineno: int) -> ast.stmt: ...
+
         # From BasicStatementMixin
         @staticmethod
         def _expr_may_produce_none(node: Expr) -> bool: ...
@@ -308,7 +310,16 @@ class FStringCoalescingMixin:
                 i += 1
 
             if len(coalesceable) >= COALESCE_MIN_NODES:
-                # Generate single f-string append
+                # Generate single f-string append, preserving the first risky
+                # output line for UndefinedError/source-snippet attribution.
+                from kida.nodes import Output
+
+                first_output = next(
+                    (node for node in coalesceable if isinstance(node, Output)),
+                    None,
+                )
+                if first_output is not None:
+                    stmts.append(self._make_line_marker(first_output.lineno))
                 stmts.append(self._compile_coalesced_output(coalesceable))
             elif coalesceable:
                 # Single node - use normal compilation

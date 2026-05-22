@@ -876,9 +876,11 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                 suggestion="Ensure the template was compiled with streaming support.",
             )
 
-        with self._render_scaffold(
-            args, kwargs, "render_stream", use_cached_blocks=True, enhance_errors=False
-        ) as (ctx, _render_ctx, blocks_arg):
+        with self._render_scaffold(args, kwargs, "render_stream", use_cached_blocks=True) as (
+            ctx,
+            _render_ctx,
+            blocks_arg,
+        ):
             for chunk in stream_func(ctx, blocks_arg):
                 if chunk is not None:
                     yield chunk

@@ -208,6 +208,30 @@ class KidaAdapter:
 
 [Chirp](https://github.com/lbliii/chirp) uses this pattern in `KidaAdapter`.
 
+## Framework Error Views
+
+Frameworks should render Kida diagnostics from structured exception data, not by
+scraping `str(exc)` or terminal-oriented `format_compact()` output.
+
+```python
+from kida import TemplateError, UndefinedError
+
+try:
+    html = template.render(context)
+except UndefinedError as exc:
+    diagnostic = exc.to_diagnostic()
+    html = diagnostic.format_html_page()
+except TemplateError as exc:
+    html = f"<pre>{exc.format_compact()}</pre>"
+```
+
+For `UndefinedError`, the diagnostic payload includes the error code, kind,
+missing name, template location, source snippet, ordered hints, documentation
+URL, template stack, and component stack. The built-in HTML and Markdown
+renderers escape source text and names at the final surface. If a framework
+builds its own page, it should keep the Kida template location as authoritative
+and collapse generated Python traceback frames by default.
+
 ## Case Studies
 
 ### Bengal (Static Site Generator)

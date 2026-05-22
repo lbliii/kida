@@ -42,12 +42,22 @@ class _NullRenderContext:
     generated def code that pushes/pops component stack frames.
     """
 
-    __slots__ = ("component_stack", "line", "template_name")
+    __slots__ = (
+        "component_call_line",
+        "component_call_template",
+        "component_stack",
+        "line",
+        "source",
+        "template_name",
+    )
 
     def __init__(self) -> None:
         self.line = 0
         self.component_stack: list[tuple[str, int, str]] = []
         self.template_name: str | None = None
+        self.source: str | None = None
+        self.component_call_template: str | None = None
+        self.component_call_line: int | None = None
 
 
 # Module-level singleton — used as fallback in generated code preambles.
@@ -115,6 +125,13 @@ class RenderContext:
     # List of (template_name, line_number, def_name) showing the def call chain.
     # Pushed on def entry, popped on def exit. Shows "in card() called from page.html:14".
     component_stack: list[tuple[str, int, str]] = field(default_factory=list)
+
+    # Optional call-site override used by imported macros. During an imported
+    # def call, template_name/source switch to the defining template so errors
+    # inside the def get the right source snippet, but the component stack frame
+    # should still name the caller's template line.
+    component_call_template: str | None = None
+    component_call_line: int | None = None
 
     # Block caching (RFC: kida-template-introspection)
     cached_blocks: dict[str, str] = field(default_factory=dict)
@@ -312,6 +329,8 @@ class RenderContext:
             _meta=self._meta,  # Share metadata with child templates
             template_stack=new_stack,  # Pass stack to child
             component_stack=self.component_stack,  # Share component stack with child
+            component_call_template=self.component_call_template,
+            component_call_line=self.component_call_line,
             # declared_definitions is per-template; the include/extends path
             # overrides this on the child context once the child template
             # has been resolved (see Template._render_scaffold and
@@ -356,6 +375,8 @@ class RenderContext:
             _meta=self._meta,
             template_stack=new_stack,
             component_stack=self.component_stack,  # Share component stack with parent
+            component_call_template=self.component_call_template,
+            component_call_line=self.component_call_line,
         )
 
 

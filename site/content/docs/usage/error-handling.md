@@ -267,7 +267,23 @@ The compact format includes:
 - **Hint** with suggestions (typo corrections, `default` filter usage)
 - **Docs link** to the relevant error code documentation
 
-This is the recommended format for frameworks that wrap Kida errors (like Chirp and Bengal).
+Use `format_compact()` for terminal output and logs. Framework debug pages should
+prefer `UndefinedError.to_diagnostic()` so they can render the same code,
+location, source snippet, hints, documentation URL, template stack, and component
+stack without parsing terminal text.
+
+```python
+from kida import UndefinedError
+
+try:
+    template.render()
+except UndefinedError as exc:
+    diagnostic = exc.to_diagnostic()
+    html = diagnostic.format_html_page()
+```
+
+The diagnostic payload stores plain strings. HTML, Markdown, and terminal
+escaping happen only in the final renderer.
 
 ## Source Snippets
 
@@ -283,7 +299,8 @@ except UndefinedError as e:
     if snippet:
         print(snippet.lines)       # List of (line_number, line_text) tuples
         print(snippet.error_line)  # The line number with the error
-        print(snippet.filename)    # Template filename
+        print(e.template)          # Template name
+        print(e.lineno)            # Error line
 ```
 
 You can also build snippets manually with `build_source_snippet()`:
@@ -307,10 +324,22 @@ Fix: Check for typos, ensure variable is passed to render().
 ### Attribute Error
 
 ```
-UndefinedError: 'dict' object has no attribute 'nmae'
+UndefinedError: Undefined attribute/key 'User.nmae' in page.html:5
 ```
 
 Fix: Check attribute spelling, verify object type.
+
+## Reading Template and Component Stacks
+
+`template_stack` explains how rendering reached another template through
+`include`, `extends`, or imported macros. `component_stack` explains which
+`{% def %}` components were active. In an HTML error view, show the source
+location first, then these stacks as supporting context. Python traceback frames
+from generated code are secondary.
+
+For imported components with slots, Kida reports slot-body errors against the
+caller template while still keeping the imported component path in the component
+stack.
 
 ### Type Error in Filter
 
