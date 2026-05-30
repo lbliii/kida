@@ -144,15 +144,34 @@ release: build publish
 gh-release:
 	@VERSION=$$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/'); \
 	PROJECT=$$(grep -m1 '^name = ' pyproject.toml | sed 's/name = "\(.*\)"/\1/'); \
+	TAG="v$$VERSION"; \
 	NOTES="site/content/releases/$$VERSION.md"; \
+	if [ -n "$$(git status --porcelain)" ]; then echo "Error: working tree is not clean."; exit 1; fi; \
 	if [ ! -f "$$NOTES" ]; then echo "Error: $$NOTES not found"; exit 1; fi; \
-	echo "Creating release v$$VERSION for $$PROJECT..."; \
-	git push origin main 2>/dev/null || true; \
-	git push origin v$$VERSION 2>/dev/null || true; \
-	awk '/^---$$/{c++;next}c>=2' "$$NOTES" | gh release create v$$VERSION \
+	if gh release view "$$TAG" >/dev/null 2>&1; then echo "Error: release $$TAG already exists"; exit 1; fi; \
+	git fetch origin main --tags; \
+	LOCAL=$$(git rev-parse HEAD); \
+	REMOTE=$$(git rev-parse origin/main); \
+	if [ "$$LOCAL" != "$$REMOTE" ]; then \
+		echo "Error: HEAD must match origin/main before releasing."; \
+		echo "HEAD=$$LOCAL"; \
+		echo "origin/main=$$REMOTE"; \
+		exit 1; \
+	fi; \
+	REMOTE_TAG=$$(git ls-remote origin "refs/tags/$$TAG" | awk '{print $$1}'); \
+	if [ -n "$$REMOTE_TAG" ] && [ "$$REMOTE_TAG" != "$$LOCAL" ]; then \
+		echo "Error: remote $$TAG points at $$REMOTE_TAG, not $$LOCAL"; \
+		exit 1; \
+	fi; \
+	git tag -f "$$TAG" HEAD; \
+	if [ -z "$$REMOTE_TAG" ]; then git push origin "$$TAG"; fi; \
+	echo "Creating release $$TAG for $$PROJECT..."; \
+	awk '/^---$$/{c++;next}c>=2' "$$NOTES" | gh release create "$$TAG" \
+		--verify-tag \
+		--target main \
 		--title "$$PROJECT $$VERSION" \
 		-F -; \
-	echo "✓ GitHub release v$$VERSION created (PyPI publish will run via workflow)"; \
+	echo "✓ GitHub release $$TAG created (PyPI publish will run via workflow)"; \
 	$(MAKE) action-tag
 
 # Move the floating major action tag so `uses: lbliii/kida@v0` tracks the latest release.

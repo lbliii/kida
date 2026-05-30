@@ -8,6 +8,10 @@ on:
       tag:
         description: 'Release tag (e.g., v0.3.3)'
         required: true
+      target_ref:
+        description: 'Branch to check out and update when writing changelog changes'
+        default: main
+        required: true
 
 permissions:
   contents: write
@@ -18,6 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event_name == 'release' && github.event.release.target_commitish || inputs.target_ref }}
           fetch-depth: 0  # full history for tag detection and diff stats
 
       - name: Resolve tag
@@ -25,8 +30,12 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "release" ]]; then
             echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+            echo "target_ref=${{ github.event.release.target_commitish }}" >> "$GITHUB_OUTPUT"
+            echo "markdown_post_to=step-summary" >> "$GITHUB_OUTPUT"
           else
             echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "target_ref=${{ inputs.target_ref }}" >> "$GITHUB_OUTPUT"
+            echo "markdown_post_to=release,step-summary" >> "$GITHUB_OUTPUT"
           fi
 
       # ── Surface 1: GitHub Release body + step summary ──────────
@@ -39,7 +48,7 @@ jobs:
           data-format: github-prs
           head-ref: ${{ steps.tag.outputs.tag }}
           release-tag: ${{ steps.tag.outputs.tag }}
-          post-to: release,step-summary
+          post-to: ${{ steps.tag.outputs.markdown_post_to }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Surface 2: Terminal-formatted release asset ────────────
@@ -59,6 +68,7 @@ jobs:
 
       # ── Surface 3: Compact notes for changelog ─────────────────
       - name: Generate release notes (compact)
+        if: github.event_name == 'workflow_dispatch'
         uses: ./
         id: compact
         with:
@@ -72,7 +82,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Commit changelog updates
-        if: steps.compact.outcome == 'success'
+        if: github.event_name == 'workflow_dispatch' && steps.compact.outcome == 'success'
         run: |
           if git diff --quiet CHANGELOG.md 2>/dev/null; then
             echo "No changelog changes to commit."
@@ -81,5 +91,5 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add CHANGELOG.md
             git commit -m "docs: update CHANGELOG for ${{ steps.tag.outputs.tag }}"
-            git push
+            git push origin "HEAD:${{ steps.tag.outputs.target_ref }}"
           fi

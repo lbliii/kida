@@ -1,9 +1,9 @@
 # Release Roadmap: Kida 0.10.0
 
-**Status**: Release candidate prepared; local gates passed; local tag prepared; publishing not performed
+**Status**: Release branch candidate prepared; final local gates passed; publishing not performed
 **Created**: 2026-05-30
 **Target theme**: Structured diagnostics and release-readiness hardening
-**Baseline**: `v0.9.0-6-g216e221`
+**Baseline**: `origin/main` at `66cf8ec` (`[codex] Improve UndefinedError diagnostics for framework views (#132)`)
 
 ## Objective
 
@@ -15,10 +15,13 @@ large-app ergonomics features that still need separate approval.
 
 - Initial audit found `pyproject.toml` at `0.9.0`; release prep now updates the
   project metadata and lockfile to `0.10.0`.
-- `git log v0.9.0..HEAD` shows six commits, all in the diagnostics line:
-  structured undefined diagnostics, preserved undefined attribution, render
-  surface diagnostic parity, a standalone diagnostic HTML page, public docs, and
-  the coalescing line-marker contract.
+- Initial local audit before fetching remote state found six post-`v0.9.0`
+  diagnostics commits: structured undefined diagnostics, preserved undefined
+  attribution, render surface diagnostic parity, a standalone diagnostic HTML
+  page, public docs, and the coalescing line-marker contract. Remote `main` now
+  carries that work as squash commit `66cf8ec` from PR #132, so the release
+  branch is based on current `origin/main` instead of replaying the pre-squash
+  local history.
 - Focused diagnostics tests pass, and `make lint` / `make ty` are clean on the
   current baseline.
 - `CHANGELOG.md` initially had an empty `[Unreleased]` section; release prep now
@@ -246,6 +249,16 @@ configuration, schemas, workflow permissions, or dependencies for this release.
   the prepared `0.10.0` release candidate.
 - 2026-05-30: README and installation docs updated for `0.10.0` upgrade/version
   collateral; `make docs` rebuilt the site successfully with clean health checks.
-- 2026-05-30: Local lightweight tag `v0.10.0` prepared at the verified release
-  candidate commit. Remote tag push, GitHub release, PyPI publish, and floating
-  action tag update remain pending.
+- 2026-05-30: After fetching, remote `main` was at `66cf8ec` and the local
+  pre-squash history diverged. Release prep was replayed onto
+  `codex/release-0.10.0` from current `origin/main` to avoid publishing the
+  duplicate pre-squash history. Remote tag push, GitHub release, PyPI publish,
+  and floating action tag update remain pending.
+- 2026-05-30: Origin-main-based focused verification passed:
+  `uv run pytest tests/test_diagnostics_contract.py tests/test_public_api_snapshot.py tests/test_kida_async_rendering.py::TestAsyncExceptionPropagation::test_error_in_async_iterable_propagates`
+  reported 15 passed.
+- 2026-05-30: Origin-main-based docs verification passed: `make docs` found no
+  pending site changes and completed with clean health checks.
+- 2026-05-30: Origin-main-based final `make verify-stability` passed: lint,
+  format-check, ty, full coverage, safety, and package smoke completed
+  successfully. Coverage summary: 84.1% against the 83% floor.

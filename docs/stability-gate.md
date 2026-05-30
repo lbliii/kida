@@ -28,6 +28,41 @@ The package smoke test verifies:
 - component metadata
 - sandbox denial for blocked reflection attributes
 
+## Release Automation Gate
+
+Before running the release target, merge the release-prep PR and work from a
+clean checkout whose `HEAD` matches `origin/main`. The release target expects
+the version in `pyproject.toml` to match a source page at
+`site/content/releases/<version>.md` and creates `v<version>` from the merged
+main commit:
+
+```bash
+make gh-release
+```
+
+The target fails if the worktree is dirty, if `HEAD` differs from `origin/main`,
+if the GitHub release already exists, or if an existing remote version tag points
+at a different commit. It pushes the version tag, creates the GitHub release from
+the curated site release notes, and then moves the floating major action tag
+with `make action-tag`.
+
+After `make gh-release`, verify:
+
+- `refs/heads/main`, `refs/tags/v<version>`, and `refs/tags/v<major>` point at
+  the same release commit
+- the GitHub release body still contains the curated release notes
+- the `Upload Python Package` release workflow succeeded
+- `https://pypi.org/pypi/kida-templates/<version>/json` returns the released
+  wheel and sdist metadata
+- the docs release page is reachable under
+  `https://lbliii.github.io/kida/releases/<version>/`
+
+The `Release Notes` workflow dogfoods Kida's release-note templates on release
+events, but release events do not rewrite the curated GitHub release body or
+commit changelog changes. Use its manual `workflow_dispatch` mode when a
+maintainer explicitly wants to regenerate release-note/changelog output for a
+tag and target branch.
+
 ## Benchmark Evidence
 
 Linux 3.14t benchmark baselines are the performance comparison baseline. Darwin
