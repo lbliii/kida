@@ -148,7 +148,7 @@ When an error occurs inside a `{% def %}` component, `TemplateRuntimeError` and 
 try:
     template.render(data=data)
 except TemplateRuntimeError as e:
-    for def_name, lineno, tpl_name in e.component_stack:
+    for tpl_name, lineno, def_name in e.component_stack:
         print(f"  in {def_name}() at {tpl_name}:{lineno}")
 ```
 
@@ -230,7 +230,7 @@ from kida import UndefinedError, ErrorCode
 try:
     template.render()
 except UndefinedError as e:
-    print(e.code)        # ErrorCode.K_RUN_001
+    print(e.code)        # ErrorCode.UNDEFINED_VARIABLE
     print(e.code.value)  # "K-RUN-001"
 ```
 

@@ -700,9 +700,10 @@ class TestAsyncExceptionPropagation:
             raise ValueError("boom")
 
         tmpl = env.from_string("{% async for x in items %}{{ x }}{% end %}")
-        with pytest.raises(ValueError, match="boom"):
+        with pytest.raises(TemplateRuntimeError, match="ValueError: boom") as exc_info:
             async for _ in tmpl.render_stream_async(items=exploding_items()):
                 pass
+        assert isinstance(exc_info.value.__cause__, ValueError)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
