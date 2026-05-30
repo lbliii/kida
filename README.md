@@ -346,6 +346,9 @@ for the Mapping behavior change in null-safe access (`?.` and `?[...]`).
 Moving from 0.8.x? See the [0.9 release notes](https://lbliii.github.io/kida/releases/0.9.0/)
 for the Markdown escaping and `| safe` trust-boundary changes.
 
+Moving from 0.9.x? See the [0.10 release notes](https://lbliii.github.io/kida/releases/0.10.0/)
+for structured diagnostics and source-attribution hardening.
+
 ## The Bengal Ecosystem
 
 Kida is part of a pure-Python stack built for 3.14t free-threading.

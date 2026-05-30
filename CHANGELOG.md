@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-05-30
+
+### Added
+
+- **Structured undefined diagnostics for framework debug views** — `UndefinedError.to_diagnostic()` now returns a surface-neutral payload with error code, kind, location, source snippet, ordered hints, docs URL, metadata, template stack, and component stack. The diagnostic can render escaped HTML fragments/pages or GitHub-flavored Markdown without frameworks parsing terminal-formatted exception strings.
+
+### Fixed
+
+- **Undefined-error source attribution survives optimized rendering paths** — F-string coalescing now preserves the template line marker used by diagnostics, so optimized templates still report the editable source line.
+- **Imported component slot failures point at caller-owned source** — Errors raised inside slot bodies provided to imported components now attribute the primary diagnostic location to the caller template while retaining component-stack context.
+- **Streaming runtime errors use the same template-enhanced diagnostics as full render** — Generic Python exceptions raised during `render_stream()` are wrapped with template name and line information consistently with `render()`.
+
 ## [0.9.0] - 2026-05-10
 
 ### Breaking
