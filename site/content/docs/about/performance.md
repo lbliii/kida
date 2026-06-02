@@ -38,7 +38,7 @@ Methodology: `pytest-benchmark`, identical templates and contexts, `auto_reload=
 | Large (1000 loop items) | 1.91ms  |
 | Complex (inheritance)   | 21.4µs  |
 
-Large templates benefit from the StringBuilder pattern. Medium templates are dominated by HTML escaping. Kida uses pure Python by default (zero-dependency); install `kida[perf]` for optional MarkupSafe (C extension) to speed up escaping.
+Large templates benefit from the StringBuilder pattern. Medium templates are dominated by HTML escaping. Kida uses pure Python by default (zero-dependency); install `kida-templates[perf]` for optional MarkupSafe (C extension) to speed up escaping.
 
 ### Concurrent Performance (Free-Threading)
 
@@ -97,7 +97,7 @@ Kida builds a full AST (lexer → parser → AST → compiler → Python code �
 For faster HTML escaping on medium templates, install the optional `perf` extra:
 
 ```bash
-pip install kida[perf]
+pip install kida-templates[perf]
 # or: uv sync --optional perf
 ```
 
@@ -105,7 +105,7 @@ When MarkupSafe is installed, Kida uses its C-accelerated `escape()` instead of 
 
 ### Where to Improve Next
 
-- Medium templates: HTML escaping overhead dominates (pure Python unless `kida[perf]` installed)
+- Medium templates: HTML escaping overhead dominates (pure Python unless `kida-templates[perf]` installed)
 - Cold-start: lazy analysis imports cut import time from 60ms to 31ms (48% improvement)
 - Compilation: amortized by bytecode cache
 
