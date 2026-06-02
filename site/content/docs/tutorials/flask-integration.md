@@ -30,7 +30,7 @@ Integrate Kida templates into your Flask application.
 ## Step 1: Install Dependencies
 
 ```bash
-pip install flask kida
+pip install flask kida-templates
 ```
 
 ## Step 2: Configure Kida with Flask
