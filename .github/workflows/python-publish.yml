@@ -19,7 +19,7 @@ jobs:
   release-gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -54,7 +54,7 @@ jobs:
       - release-gate
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:
