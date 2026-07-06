@@ -37,11 +37,14 @@ FunctionLoader delegates to the user-provided callable).
 from __future__ import annotations
 
 import importlib.resources
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kida.exceptions import TemplateNotFoundError
 from kida.utils.template_keys import normalize_template_name
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -423,8 +426,18 @@ class PackageLoader:
                     templates.append(name if prefix else item.name)
                 elif item.is_dir() and not item.name.startswith((".", "__")):
                     templates.extend(self._walk(item, name if prefix else item.name))
-        except FileNotFoundError, TypeError:
-            pass
+        except (FileNotFoundError, TypeError) as exc:
+            # Package resources may disappear during uninstall/reload, and
+            # some Traversable implementations cannot enumerate directories.
+            # Keep any entries already discovered and make the fallback
+            # diagnosable without turning optional discovery into a failure.
+            logger.debug(
+                "Package template traversal stopped for %s/%s at %s: %s",
+                self._package_name,
+                self._package_path,
+                prefix or ".",
+                exc,
+            )
         return templates
 
 

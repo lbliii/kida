@@ -3,6 +3,7 @@
 Tests autoescape, whitespace control, loaders, caching, and configuration.
 """
 
+import logging
 import sys
 
 import pytest
@@ -563,6 +564,22 @@ class TestPackageLoader:
         assert "index.html" in templates
         assert "base.html" in templates
         assert "pages/about.html" in templates
+
+    def test_list_templates_logs_unavailable_traversable(self, caplog):
+        """Resource enumeration failures return partial results with debug context."""
+
+        class UnavailableTraversable:
+            def iterdir(self):
+                raise FileNotFoundError("package changed during traversal")
+
+        loader = PackageLoader("example_pkg", "templates")
+        with caplog.at_level(logging.DEBUG, logger="kida.environment.loaders"):
+            templates = loader._walk(UnavailableTraversable(), "components")
+
+        assert templates == []
+        assert "Package template traversal stopped" in caplog.text
+        assert "example_pkg/templates" in caplog.text
+        assert "components" in caplog.text
 
     def test_filename_in_source(self, mock_package):
         """get_source returns meaningful filename."""
