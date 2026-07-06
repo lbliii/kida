@@ -21,7 +21,10 @@ icon: zap
 
 # Starlette & FastAPI Integration
 
-Use Kida with Starlette and FastAPI through `kida.contrib.starlette`. The integration provides `KidaTemplates` -- a drop-in replacement for Starlette's `Jinja2Templates` that supports context processors, HTMX metadata, and async rendering.
+Use Kida with Starlette and FastAPI through `kida.contrib.starlette`. The
+integration provides `KidaTemplates`, a small adapter with a familiar
+`TemplateResponse()` API, context processors, HTMX metadata, and direct access
+to Kida's separate async rendering APIs.
 
 ## Installation
 
@@ -60,7 +63,9 @@ The `KidaTemplates` constructor accepts:
 | `context_processors` | List of callables that take a request and return a dict |
 | `**env_kwargs` | Extra keyword arguments passed to `Environment()` |
 
-You must provide either `directory` or `env`, but not both.
+Provide a pre-configured `env` when you need custom Kida setup; otherwise a
+`directory` is required. If both are supplied, the explicit environment is
+used.
 
 ### Using a Pre-configured Environment
 
@@ -136,6 +141,11 @@ async def user_profile(request: Request, username: str):
 | `media_type` | `None` | Response media type |
 
 The `request` object is automatically added to the template context, so you can access it in templates as `{{ request }}`.
+
+`TemplateResponse()` renders synchronously with `template.render()`. This is
+appropriate for ordinary synchronous templates, even when called from an
+`async def` endpoint. For templates containing `{% async for %}` or
+`{{ await }}`, use `get_template()` with `render_stream_async()` as shown below.
 
 ## Streaming Responses
 

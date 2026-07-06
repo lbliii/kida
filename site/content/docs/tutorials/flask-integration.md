@@ -35,35 +35,28 @@ pip install flask kida-templates
 
 ## Step 2: Configure Kida with Flask
 
-Create a Flask app with Kida templates:
+Register Kida on a Flask app. This keeps Flask's Jinja environment intact and
+adds a separate Kida environment at `app.extensions["kida"]`:
 
 ```python
-from flask import Flask, request
-from kida import Environment, FileSystemLoader
+from flask import Flask
+from kida.contrib.flask import init_kida, render_template
 
 app = Flask(__name__)
-
-# Configure Kida environment
-kida_env = Environment(
-    loader=FileSystemLoader("templates/"),
-    autoescape=True,
-)
-
-# Add Flask-specific globals
-kida_env.add_global("url_for", lambda *a, **kw: "#")  # Replace with real url_for
-kida_env.add_global("request", request)
+kida_env = init_kida(app)
 ```
 
-## Step 3: Create a Render Helper
+`init_kida()` uses `app.template_folder` by default. Pass
+`template_folder="other-templates"` to override it, or pass Kida
+`Environment` keyword arguments such as `cache_size=400`.
+
+## Step 3: Use the Render Helper
+
+Import the adapter's `render_template()` inside routes. It reads the Kida
+environment from Flask's current app and returns the rendered HTML string:
 
 ```python
-from flask import make_response
-
-def render_template(template_name, **context):
-    """Render a Kida template."""
-    template = kida_env.get_template(template_name)
-    html = template.render(**context)
-    return make_response(html)
+from kida.contrib.flask import render_template
 ```
 
 ## Step 4: Use in Routes
@@ -112,25 +105,16 @@ def user_profile(name):
 ## Complete Example
 
 ```python
-from flask import Flask, request, make_response
-from kida import Environment, FileSystemLoader
+from flask import Flask
+from kida.contrib.flask import init_kida, render_template
 
 app = Flask(__name__)
 
-# Kida environment with caching
-kida_env = Environment(
-    loader=FileSystemLoader("templates/"),
-    autoescape=True,
+kida_env = init_kida(
+    app,
     cache_size=100,
     auto_reload=app.debug,  # Only reload in debug mode
 )
-
-def render_template(template_name, **context):
-    template = kida_env.get_template(template_name)
-    html = template.render(**context)
-    response = make_response(html)
-    response.headers["Content-Type"] = "text/html"
-    return response
 
 @app.route("/")
 def home():

@@ -1,6 +1,7 @@
 """Flask integration for Kida.
 
-Provides ``init_kida`` to replace Flask's default Jinja2 engine with Kida.
+Provides ``init_kida`` to register a Kida environment and render helper on a
+Flask application. Flask's own Jinja environment remains unchanged.
 
 Usage::
 
@@ -32,8 +33,9 @@ def init_kida(
 ) -> Environment:
     """Initialize Kida as the template engine for a Flask app.
 
-    Replaces Flask's default Jinja2 environment with Kida. Templates
-    are loaded from the app's template folder.
+    Registers a Kida environment and render helper on the app. Templates are
+    loaded from the app's template folder; Flask's Jinja environment is not
+    replaced.
 
     Args:
         app: Flask application instance.
@@ -59,13 +61,12 @@ def init_kida(
     # Store the environment on the app for access
     app.extensions["kida"] = env
 
-    # Override render_template
+    # Attach an app-local render helper without changing Flask's Jinja helper.
     def render_template(template_name: str, **context: Any) -> str:
         """Render a template using Kida."""
         template = env.get_template(template_name)
         return template.render(**context)
 
-    # Monkey-patch Flask's render_template in the app context
     app.kida_env = env
     app.kida_render = render_template
 
