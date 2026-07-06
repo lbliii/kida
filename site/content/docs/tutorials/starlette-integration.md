@@ -26,9 +26,9 @@ Use Kida with Starlette and FastAPI through `kida.contrib.starlette`. The integr
 ## Installation
 
 ```bash
-pip install starlette kida
+pip install starlette kida-templates
 # or for FastAPI:
-pip install fastapi uvicorn kida
+pip install fastapi uvicorn kida-templates
 ```
 
 ## Starlette Setup

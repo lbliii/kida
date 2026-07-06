@@ -24,7 +24,7 @@ Use Kida as a drop-in Django template backend with `kida.contrib.django`. The in
 ## Installation
 
 ```bash
-pip install django kida
+pip install django kida-templates
 ```
 
 ## Django Settings

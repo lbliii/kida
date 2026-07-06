@@ -32,7 +32,7 @@ Kida is **not** compatible with Jinja2. Templates must be rewritten using Kida s
 ## Step 1: Install Kida
 
 ```bash
-pip install kida
+pip install kida-templates
 ```
 
 ## Step 2: Update Imports
