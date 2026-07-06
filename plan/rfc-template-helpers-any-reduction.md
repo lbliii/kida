@@ -1,6 +1,6 @@
 # RFC: Template Helpers Any Reduction
 
-**Status**: Draft
+**Status**: Draft — refresh and implementation tracked in GitHub issue #146
 
 | Field | Value |
 |-------|-------|
@@ -9,6 +9,12 @@
 | **Target** | Python 3.14+ |
 
 ---
+
+> [!NOTE]
+> The hotspot counts in this draft predate substantial runtime growth and must
+> be refreshed before implementation. The bounded current follow-up is
+> [GitHub issue #146](https://github.com/lbliii/kida/issues/146); this RFC does
+> not authorize changing inherently dynamic public template-context contracts.
 
 ## Summary
 

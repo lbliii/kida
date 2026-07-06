@@ -1,10 +1,18 @@
 # RFC: Type Checking Strategy — Pyright to mypy Migration
 
-**Status**: Implemented  
+**Status**: Historical — implemented as a Pyright-to-mypy migration, then superseded by ty in v0.2.0
 **Created**: 2026-01-04  
 **Issue**: Pyright strict mode incompatible with mixin patterns
 
 ---
+
+> [!NOTE]
+> This RFC records a completed, intermediate migration and is not current
+> operational guidance. Kida now runs Astral ty via `make ty`; the live
+> configuration is in `pyproject.toml`. Remaining parser/compiler/analysis
+> override debt is tracked in [GitHub issue #142](https://github.com/lbliii/kida/issues/142).
+> The mypy commands, counts, configuration, and unchecked follow-ups below are
+> retained only as historical decision context.
 
 ## Summary
 
