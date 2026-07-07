@@ -27,9 +27,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, final
+from typing import Any
 
 from kida.compiler import partial_eval_constants as _constants
+from kida.compiler import partial_eval_dead_code as _dead_code
+from kida.compiler import partial_eval_nodes as _partial_eval_nodes
 from kida.nodes import (
     BinOp,
     Block,
@@ -78,6 +80,10 @@ _UNRESOLVED = _constants.UNRESOLVED
 _PARTIAL_EVAL_EXCEPTIONS = _constants.PARTIAL_EVAL_EXCEPTIONS
 _compare_op = _constants.compare_op
 _try_eval_const_only = _constants.try_eval_const_only
+_InlinedBody = _partial_eval_nodes.InlinedBody
+_flatten_inlined = _partial_eval_nodes.flatten_inlined
+_body_has_scoping_nodes = _dead_code.body_has_scoping_nodes
+eliminate_dead_code = _dead_code.eliminate_dead_code
 
 # Maximum number of iterations to unroll in a static for-loop
 _MAX_UNROLL = 200
@@ -144,224 +150,6 @@ class _LoopProperties:
     length: int
     revindex: int
     revindex0: int
-
-
-# ---------------------------------------------------------------------------
-# Dead code elimination (const-only, no static_context)
-# ---------------------------------------------------------------------------
-
-
-def _body_has_scoping_nodes(nodes: Sequence[Node]) -> bool:
-    """True if body contains Set, Let, Capture, or Export (block-scoped)."""
-    for n in nodes:
-        if isinstance(n, (Set, Let, Capture, Export)):
-            return True
-        if isinstance(n, Block) and _body_has_scoping_nodes(n.body):
-            return True
-    return False
-
-
-def _dce_transform_if(node: If) -> Node | None:
-    """Eliminate dead branches when test is const-only resolvable."""
-    test_val = _try_eval_const_only(node.test)
-    if test_val is _UNRESOLVED:
-        return node
-
-    if test_val:
-        if _body_has_scoping_nodes(node.body):
-            return node  # Preserve If structure for block scoping
-        body = _dce_transform_body(node.body)
-        if len(body) == 1:
-            return body[0]
-        return _InlinedBody(
-            lineno=node.lineno,
-            col_offset=node.col_offset,
-            nodes=body,
-        )
-
-    for cond, branch_body in node.elif_:
-        cond_val = _try_eval_const_only(cond)
-        if cond_val is _UNRESOLVED:
-            return node
-        if cond_val:
-            if _body_has_scoping_nodes(branch_body):
-                return node
-            body = _dce_transform_body(branch_body)
-            if len(body) == 1:
-                return body[0]
-            return _InlinedBody(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                nodes=body,
-            )
-
-    if node.else_:
-        if _body_has_scoping_nodes(node.else_):
-            return node
-        body = _dce_transform_body(node.else_)
-        if len(body) == 1:
-            return body[0]
-        return _InlinedBody(
-            lineno=node.lineno,
-            col_offset=node.col_offset,
-            nodes=body,
-        )
-
-    return None
-
-
-def _dce_transform_match(node: Match) -> Node | None:
-    """Eliminate dead match/case branches when subject is a const literal."""
-    if node.subject is None:
-        return node
-    subject_val = _try_eval_const_only(node.subject)
-    if subject_val is _UNRESOLVED:
-        # Recurse into case bodies
-        new_cases: list[tuple[Expr, Expr | None, Sequence[Node]]] = []
-        changed = False
-        for pattern, guard, case_body in node.cases:
-            new_body = _dce_transform_body(case_body)
-            if new_body is not case_body:
-                changed = True
-            new_cases.append((pattern, guard, new_body))
-        if not changed:
-            return node
-        return Match(
-            lineno=node.lineno,
-            col_offset=node.col_offset,
-            subject=node.subject,
-            cases=tuple(new_cases),
-        )
-
-    # Subject is a constant — find the matching case
-    for pattern, guard, case_body in node.cases:
-        if isinstance(pattern, Name) and pattern.name == "_":
-            if guard is not None:
-                guard_val = _try_eval_const_only(guard)
-                if guard_val is _UNRESOLVED:
-                    return node  # Can't resolve guard
-                if not guard_val:
-                    continue
-            if _body_has_scoping_nodes(case_body):
-                return node
-            body = _dce_transform_body(case_body)
-            if len(body) == 1:
-                return body[0]
-            return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=body)
-
-        if isinstance(pattern, Const):
-            if subject_val == pattern.value:
-                if guard is not None:
-                    guard_val = _try_eval_const_only(guard)
-                    if guard_val is _UNRESOLVED:
-                        return node
-                    if not guard_val:
-                        continue
-                if _body_has_scoping_nodes(case_body):
-                    return node
-                body = _dce_transform_body(case_body)
-                if len(body) == 1:
-                    return body[0]
-                return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=body)
-            continue
-
-        # Complex pattern — bail
-        return node
-
-    # No match found — remove the node
-    return None
-
-
-def _dce_transform_body(body: Sequence[Node]) -> Sequence[Node]:
-    """Transform body, eliminating dead If nodes and flattening _InlinedBody."""
-    result: list[Node] = []
-    changed = False
-
-    for node in body:
-        match node:
-            case If():
-                transformed = _dce_transform_if(node)
-                if transformed is None:
-                    changed = True
-                    continue
-                if isinstance(transformed, _InlinedBody):
-                    changed = True
-                    result.extend(transformed.nodes)
-                else:
-                    result.append(transformed)
-            case Match():
-                transformed = _dce_transform_match(node)
-                if transformed is None:
-                    changed = True
-                    continue
-                if isinstance(transformed, _InlinedBody):
-                    changed = True
-                    result.extend(transformed.nodes)
-                else:
-                    if transformed is not node:
-                        changed = True
-                    result.append(transformed)
-            case Block():
-                new_block_body = _dce_transform_body(node.body)
-                if new_block_body is not node.body:
-                    changed = True
-                    result.append(
-                        Block(
-                            lineno=node.lineno,
-                            col_offset=node.col_offset,
-                            name=node.name,
-                            body=new_block_body,
-                            scoped=node.scoped,
-                            required=node.required,
-                        )
-                    )
-                else:
-                    result.append(node)
-            case Output():
-                val = _try_eval_const_only(node.expr)
-                if val is not _UNRESOLVED:
-                    str_val = "" if val is None else str(val)
-                    # Only fold safely: numerics never need escaping,
-                    # strings only fold when escape is not required
-                    if isinstance(val, (int, float, bool)) or not node.escape:
-                        changed = True
-                        if str_val:
-                            result.append(
-                                Data(
-                                    lineno=node.lineno,
-                                    col_offset=node.col_offset,
-                                    value=str_val,
-                                )
-                            )
-                    else:
-                        result.append(node)
-                else:
-                    result.append(node)
-            case _:
-                result.append(node)
-
-    if not changed:
-        return body
-    return tuple(result)
-
-
-def eliminate_dead_code(template: Template) -> Template:
-    """Remove branches whose conditions are provably constant.
-
-    Runs without static_context. Eliminates e.g. {% if false %}...{% end %},
-    {% if true %}x{% else %}y{% end %}, {% if 1+1==2 %}...{% end %}.
-    """
-    new_body = _dce_transform_body(template.body)
-    if new_body is template.body:
-        return template
-    result = Template(
-        lineno=template.lineno,
-        col_offset=template.col_offset,
-        body=new_body,
-        extends=template.extends,
-        context_type=template.context_type,
-    )
-    return _flatten_inlined(result)
 
 
 class PartialEvaluator:
@@ -2037,19 +1825,6 @@ class PartialEvaluator:
         return expr
 
 
-@final
-@dataclass(frozen=True, slots=True)
-class _InlinedBody(Node):
-    """Temporary node for inlined If branches.
-
-    Holds multiple nodes that replace a single If node.  The parent's
-    ``_transform_body`` flattens these into the body sequence.
-
-    """
-
-    nodes: Sequence[Node] = ()
-
-
 def partial_evaluate(
     template: Template,
     static_context: dict[str, Any],
@@ -2093,82 +1868,3 @@ def partial_evaluate(
 
     # Flatten any _InlinedBody nodes
     return _flatten_inlined(result)
-
-
-def _flatten_inlined(template: Template) -> Template:
-    """Flatten _InlinedBody nodes from branch elimination."""
-    new_body = _flatten_body(template.body)
-    if new_body is template.body:
-        return template
-    return Template(
-        lineno=template.lineno,
-        col_offset=template.col_offset,
-        body=new_body,
-        extends=template.extends,
-        context_type=template.context_type,
-    )
-
-
-def _flatten_body(body: Sequence[Node]) -> Sequence[Node]:
-    """Flatten any _InlinedBody nodes in a body sequence."""
-    result: list[Node] = []
-    changed = False
-    for node in body:
-        if isinstance(node, _InlinedBody):
-            changed = True
-            for inner in node.nodes:
-                if isinstance(inner, _InlinedBody):
-                    result.extend(inner.nodes)
-                else:
-                    result.append(inner)
-        elif isinstance(node, Block):
-            new_block_body = _flatten_body(node.body)
-            if new_block_body is not node.body:
-                changed = True
-                result.append(
-                    Block(
-                        lineno=node.lineno,
-                        col_offset=node.col_offset,
-                        name=node.name,
-                        body=new_block_body,
-                        scoped=node.scoped,
-                        required=node.required,
-                    )
-                )
-            else:
-                result.append(node)
-        elif isinstance(node, CallBlock):
-            new_slots = {k: _flatten_body(v) for k, v in node.slots.items()}
-            if any(new_slots[k] is not node.slots[k] for k in node.slots):
-                changed = True
-                result.append(
-                    CallBlock(
-                        lineno=node.lineno,
-                        col_offset=node.col_offset,
-                        call=node.call,
-                        slots=new_slots,
-                        args=node.args,
-                    )
-                )
-            else:
-                result.append(node)
-        elif isinstance(node, SlotBlock):
-            new_body = _flatten_body(node.body)
-            if new_body is not node.body:
-                changed = True
-                result.append(
-                    SlotBlock(
-                        lineno=node.lineno,
-                        col_offset=node.col_offset,
-                        name=node.name,
-                        body=new_body,
-                    )
-                )
-            else:
-                result.append(node)
-        else:
-            result.append(node)
-
-    if not changed:
-        return body
-    return tuple(result)
