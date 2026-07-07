@@ -16,7 +16,6 @@ Current contributor commands and invariants live in `AGENTS.md`, `CLAUDE.md`,
 | Pre-1.0 stability rituals | Active upkeep | `plan/epic-pre-1.0-stabilization.md` |
 | Kida/Milo marketplace and external dogfooding | Active; external publication and PR work remains | `plan/epic-kida-milo-integration.md` |
 | Large-app ergonomics | Proposed; stop-and-ask items are not approved by the plan | `plan/epic-large-app-ergonomics.md` |
-| Parser/compiler/analysis ty override debt | Active issue | [#142](https://github.com/lbliii/kida/issues/142) |
 | Runtime-helper `Any` reduction | Active; baseline refreshed and first bounded slice implemented | [#146](https://github.com/lbliii/kida/issues/146) |
 
 ## Historical Type-Checking Sequence

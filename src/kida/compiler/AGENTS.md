@@ -20,13 +20,15 @@ Represent correctness, source mapping, compile-time optimization, and the perfor
 - Partial evaluation safety: only pure deterministic filters fold at compile time.
 - Component inlining and block recompilation semantics.
 - StringBuilder-style O(n) output accumulation and streaming chunk boundaries.
-- Compiler mixin protocols and existing ty override boundaries.
+- Compiler mixin protocols and default ty error severity without core
+  `unresolved-attribute` overrides.
 
 ## Contract Checklist
 - Codegen changes inspect parser node shape, generated AST/source locations, runtime helper contracts, escaping placement, and diagnostics.
 - Optimization changes inspect purity analysis, partial-eval tests, output-regression tests, and benchmark evidence or a clear no-benchmark reason.
 - Render-mode changes compare render, block render, render-with-blocks, streaming, async rendering, and terminal/markdown parity where applicable.
-- Mixin/dispatch changes inspect `pyproject.toml` ty overrides and avoid expanding unresolved-attribute exceptions without a follow-up.
+- Mixin/dispatch changes run ty at default severity and must not restore core
+  `unresolved-attribute` overrides without an explicit contract review.
 
 ## Advocate
 - Compile-time simplification when it is provably semantics-preserving.
