@@ -59,6 +59,15 @@ coverage.lcov
 *.swo
 *~
 
+# Cursor (project-owned skills are the only tracked Cursor assets)
+.cursor/*
+!.cursor/skills/
+.cursor/skills/*
+!.cursor/skills/README.md
+!.cursor/skills/*/
+.cursor/skills/*/*
+!.cursor/skills/*/SKILL.md
+
 # OS
 .DS_Store
 Thumbs.db
@@ -81,6 +90,9 @@ benchmarks/output/
 # DORI (local/ephemeral)
 .dori/local/
 .dori/events/
+
+# Generated audit reports
+reports/type-baseline.md
 
 # AMP (collected agent output is ephemeral)
 .amp/collected/

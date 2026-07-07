@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from time import perf_counter as _perf_counter
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Never, cast
 
 from kida.render_accumulator import RenderAccumulator
 from kida.render_accumulator import get_accumulator as _get_accumulator
@@ -216,7 +216,7 @@ def getitem_preserve_none(obj: object, key: object) -> object:
 # returning UNDEFINED/"". Used when the user wants to catch template typos.
 
 
-def _raise_undefined_attr(obj: object, name: str, *, preserve_none: bool = False) -> Any:
+def _raise_undefined_attr(obj: object, name: str, *, preserve_none: bool = False) -> Never:
     """Raise UndefinedError for missing attribute/key access."""
     from kida.exceptions import UndefinedError, build_source_snippet
     from kida.render_context import get_render_context
@@ -362,7 +362,7 @@ def strict_getitem_preserve_none(obj: object, key: object) -> object:
 _REGION_DEFAULT = object()
 
 
-def markup_concat(left: Any, right: Any) -> str:
+def markup_concat(left: object, right: object) -> str:
     """Concatenate for ~ operator, preserving Markup safety.
 
     If either operand is Markup, the result is Markup and the non-Markup
@@ -397,7 +397,7 @@ STATIC_NAMESPACE: dict[str, Any] = {
 }
 
 
-def record_filter_usage(acc: RenderAccumulator | None, name: str, result: Any) -> Any:
+def record_filter_usage[T](acc: RenderAccumulator | None, name: str, result: T) -> T:
     """Record filter usage for profiling, returning the result unchanged.
 
     Called by compiled code for every filter invocation. When profiling
@@ -416,7 +416,7 @@ def record_filter_usage(acc: RenderAccumulator | None, name: str, result: Any) -
     return result
 
 
-def record_macro_usage(acc: RenderAccumulator | None, name: str, result: Any) -> Any:
+def record_macro_usage[T](acc: RenderAccumulator | None, name: str, result: T) -> T:
     """Record macro ({% def %}) call for profiling, returning the result unchanged.
 
     Called by compiled code for every macro invocation. When profiling
@@ -528,10 +528,10 @@ def lookup_scope(ctx: dict[str, Any], scope_stack: list[dict[str, Any]], var_nam
 
 
 def default_safe(
-    value_fn: Callable[[], Any],
-    default_value: Any = "",
+    value_fn: Callable[[], object],
+    default_value: object = "",
     boolean: bool = False,
-) -> Any:
+) -> object:
     """Safe default filter that works with strict mode.
 
     In strict mode, the value expression might raise UndefinedError.
@@ -561,7 +561,7 @@ def default_safe(
         return value if (value is not None and not isinstance(value, _Undefined)) else default_value
 
 
-def is_defined(value_fn: Callable[[], Any]) -> bool:
+def is_defined(value_fn: Callable[[], object]) -> bool:
     """Check if a value is defined in strict mode.
 
     In strict mode, we need to catch UndefinedError to determine
@@ -591,7 +591,7 @@ def is_defined(value_fn: Callable[[], Any]) -> bool:
         return False
 
 
-def null_coalesce(left_fn: Callable[[], Any], right_fn: Callable[[], Any]) -> Any:
+def null_coalesce(left_fn: Callable[[], object], right_fn: Callable[[], object]) -> object:
     """Safe null coalescing that handles undefined variables.
 
     In strict mode, the left expression might raise UndefinedError.
@@ -667,7 +667,7 @@ def add_polymorphic(left: Any, right: Any) -> str:
     return left + right
 
 
-def coerce_numeric(value: Any) -> int | float:
+def coerce_numeric(value: object) -> int | float:
     """Coerce value to numeric type for arithmetic operations.
 
     Handles Markup objects (from macros) and strings that represent numbers.
@@ -744,7 +744,11 @@ def consume(key: str, default: Any = None) -> Any:
     return rc.consume(key, default)
 
 
-def optional_call(callee: Any, *args: object, **kwargs: object) -> Any:
+def optional_call(
+    callee: Callable[..., object] | _Undefined | None,
+    *args: object,
+    **kwargs: object,
+) -> object:
     """Call callee only if it is not None or UNDEFINED.
 
     Used for obj?.method() so that when obj is None or obj.attr is UNDEFINED,
@@ -752,4 +756,4 @@ def optional_call(callee: Any, *args: object, **kwargs: object) -> Any:
     """
     if callee is None or callee is UNDEFINED:
         return UNDEFINED
-    return callee(*args, **kwargs)
+    return cast("Callable[..., object]", callee)(*args, **kwargs)

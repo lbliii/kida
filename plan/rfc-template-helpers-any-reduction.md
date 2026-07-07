@@ -1,6 +1,6 @@
 # RFC: Template Helpers Any Reduction
 
-**Status**: Draft — refresh and implementation tracked in GitHub issue #146
+**Status**: Active — baseline refreshed and first bounded helper slice implemented (#146)
 
 | Field | Value |
 |-------|-------|
@@ -11,14 +11,43 @@
 ---
 
 > [!NOTE]
-> The hotspot counts in this draft predate substantial runtime growth and must
-> be refreshed before implementation. The bounded current follow-up is
-> [GitHub issue #146](https://github.com/lbliii/kida/issues/146); this RFC does
-> not authorize changing inherently dynamic public template-context contracts.
+> The first bounded [#146](https://github.com/lbliii/kida/issues/146) slice is
+> implemented. Remaining `Any` at dynamic template-context and generated-code
+> boundaries is intentional; future slices require fresh call-site evidence.
 
 ## Summary
 
-Reduce `Any` usage in Kida's template runtime helpers (`helpers.py`, `render_helpers.py`, `environment/filters/_validation.py`) to improve type safety without breaking the polymorphic nature of template context. This RFC complements the completed mixin/type-suppression work by addressing the remaining ~20 `Any` hotspots in runtime code.
+Reduce `Any` usage in Kida's template runtime helpers (`helpers.py`, `render_helpers.py`, `environment/filters/_validation.py`) to improve type safety without breaking the polymorphic nature of template context. This RFC complements the completed mixin/type-suppression work while preserving `Any` at genuinely dynamic context and generated-code boundaries.
+
+## Current Audit (2026-07-06)
+
+The original counts no longer describe the current tree. A reproducible lexical
+scan with `rg -o '\bAny\b' ... | wc -l` reports:
+
+| Scope | `Any` tokens before this slice |
+|---|---:|
+| `src/kida/` (`*.py`) | 658 across 63 files |
+| `template/helpers.py` | 36 |
+| `template/render_helpers.py` | 19 |
+| `template/core.py` | 37 |
+| `environment/filters/_validation.py` | 0 |
+
+After this slice, the same scan reports 641 tokens under `src/kida/` and 19
+in `template/helpers.py`, a reduction of 17 without changing runtime behavior.
+
+These are lexical token counts, so they include imports, annotations, casts,
+comments, and docstrings. They are a trend baseline, not a quality score.
+
+The first #146 slice narrows only contracts that are provably independent of
+template-context shape:
+
+- `_raise_undefined_attr()` returns `Never`;
+- `markup_concat()`, `coerce_numeric()`, lazy default/defined/coalescing helpers,
+  and `optional_call()` accept or return `object` where values are arbitrary;
+- profiling pass-through helpers use a generic type so their result type is
+  preserved;
+- dynamic context dictionaries, namespace dictionaries, generated-call
+  boundaries, and unchecked subscript casts remain `Any` by design for now.
 
 ---
 
@@ -152,14 +181,14 @@ class RenderHelpers(TypedDict, total=False):
 
 ```yaml
 Phase 1 (Low-Risk) - 1-2 hours:
-  - [ ] 1.1: helpers.py — object instead of Any for get, safe_getattr, getattr_preserve_none
-  - [ ] 1.2: filters/_validation.py — object for _filter_default, _filter_require
-  - [ ] 1.3: Run ty check, pytest
+  - [x] 1.1: helpers.py — object instead of Any for get, safe_getattr, getattr_preserve_none
+  - [x] 1.2: filters/_validation.py — object for _filter_default, _filter_require
+  - [x] 1.3: Run ty check, pytest
 
 Phase 2 (Render Helpers) - 2-3 hours:
-  - [ ] 2.1: render_helpers.py — MacroWrapper, _make_macro_wrapper, make_render_helpers
+  - [x] 2.1: render_helpers.py — MacroWrapper, _make_macro_wrapper, make_render_helpers
   - [ ] 2.2: core.py — docstring only for render(**kwargs)
-  - [ ] 2.3: Run ty check, pytest
+  - [x] 2.3: Run ty check, pytest
 
 Phase 3 (Optional):
   - [ ] 3.1: RenderHelpers TypedDict if desired
@@ -179,14 +208,18 @@ uv run ruff check src/
 
 ## Success Criteria
 
-| Metric | Before | After Phase 1 | After Phase 2 |
-|--------|--------|---------------|---------------|
-| `Any` in helpers.py | 4 | 0 | 0 |
-| `Any` in render_helpers.py | 4 | 4 | 1 (MacroWrapper return if kept) |
-| `Any` in filters/_validation.py | 2 | 0 | 0 |
-| `Any` in core.py | 8 | 8 | 8 (unchanged; documented) |
-| ty check | Pass | Pass | Pass |
-| pytest | Pass | Pass | Pass |
+Lexical counts include imports, casts, comments, and docstrings; they are used
+only to make the direction and bounded scope reproducible.
+
+| Metric | Before #146 slice | After #146 slice |
+|--------|------------------:|-----------------:|
+| `Any` tokens in `helpers.py` | 36 | 19 |
+| `Any` tokens in `render_helpers.py` | 19 | 19 (unchanged) |
+| `Any` tokens in `filters/_validation.py` | 0 | 0 |
+| `Any` tokens in `core.py` | 37 | 37 (unchanged) |
+| `Any` tokens in `src/kida/` | 658 | 641 |
+| `make ty` | Pass | Pass |
+| Focused runtime tests | Pass | Pass |
 
 ---
 
