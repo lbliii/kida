@@ -13,9 +13,10 @@ Run the full local gate:
 make verify-stability
 ```
 
-This runs lint, format check, `ty`, full pytest with `--cov-fail-under=83`,
-focused render/sandbox/concurrency safety tests under `PYTHON_GIL=0`, and a
-wheel/sdist build plus clean-venv package smoke test.
+This runs lint, format check, `ty`, full pytest across `tests/` and `examples/`
+with `--cov-fail-under=83`, focused render/sandbox/concurrency safety tests
+under `PYTHON_GIL=0`, and a wheel/sdist build plus clean-venv package smoke
+test.
 
 `make verify-rc` remains an alias for contributors who already use that name.
 
