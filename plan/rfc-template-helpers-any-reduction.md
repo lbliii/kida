@@ -10,6 +10,11 @@
 
 ---
 
+> [!NOTE]
+> The first bounded [#146](https://github.com/lbliii/kida/issues/146) slice is
+> implemented. Remaining `Any` at dynamic template-context and generated-code
+> boundaries is intentional; future slices require fresh call-site evidence.
+
 ## Summary
 
 Reduce `Any` usage in Kida's template runtime helpers (`helpers.py`, `render_helpers.py`, `environment/filters/_validation.py`) to improve type safety without breaking the polymorphic nature of template context. This RFC complements the completed mixin/type-suppression work while preserving `Any` at genuinely dynamic context and generated-code boundaries.

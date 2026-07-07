@@ -4,6 +4,7 @@ This domain owns RFCs, epics, and roadmap planning artifacts. It matters because
 
 Related docs:
 - root `AGENTS.md`
+- `plan/README.md`
 - `docs/strategic-roadmap.md`
 - `docs/stability-gate.md`
 - active `plan/epic-*.md` and `plan/rfc-*.md`

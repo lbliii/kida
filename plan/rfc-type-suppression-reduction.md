@@ -1,11 +1,22 @@
 # RFC: Type Suppression Reduction
 
-**Status**: ✅ Implemented (migrated to ty; 1 justified override remains for Markup class)  
+**Status**: Historical — mypy-era reduction completed; current ty debt is tracked separately
 **Created**: 2026-01-04  
 **Updated**: 2026-02-08  
 **Depends On**: `rfc-type-checking-strategy.md` (Implemented)
 
 ---
+
+> [!NOTE]
+> This RFC's implementation phases and suppression counts describe the former
+> mypy configuration. Kida now uses ty, configured in `pyproject.toml`, with
+> narrowly scoped overrides for safe-string method covariance, cross-mixin
+> attributes, analysis visitors, and optional integrations. Current mixin and
+> visitor override reduction is tracked in
+> [GitHub issue #142](https://github.com/lbliii/kida/issues/142); runtime-helper
+> `Any` reduction is tracked in
+> [GitHub issue #146](https://github.com/lbliii/kida/issues/146). Use `make ty`
+> for current verification. The body below remains historical evidence.
 
 ## Summary
 
