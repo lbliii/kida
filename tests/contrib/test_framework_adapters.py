@@ -6,7 +6,7 @@ Kida's minimal-install import boundary and render-context handoff in isolation.
 
 from __future__ import annotations
 
-import importlib
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -24,12 +24,34 @@ if TYPE_CHECKING:
 
 
 def test_contrib_modules_import_without_optional_frameworks() -> None:
-    for module_name in (
-        "kida.contrib.flask",
-        "kida.contrib.django",
-        "kida.contrib.starlette",
-    ):
-        assert importlib.import_module(module_name) is not None
+    script = """
+import importlib
+import importlib.abc
+import sys
+
+class BlockFrameworks(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path, target=None):
+        if fullname.partition('.')[0] in {'django', 'flask', 'starlette'}:
+            raise ModuleNotFoundError(fullname)
+        return None
+
+sys.meta_path.insert(0, BlockFrameworks())
+for name in (
+    'kida.contrib.flask',
+    'kida.contrib.django',
+    'kida.contrib.starlette',
+):
+    importlib.import_module(name)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_flask_init_registers_environment_and_app_render_helper(tmp_path: Path) -> None:
