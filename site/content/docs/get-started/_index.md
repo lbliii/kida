@@ -1,6 +1,6 @@
 ---
 title: Get Started
-description: Install Kida and render your first HTML template with a Python template engine built for modern apps
+description: Install Kida and render your first typed server-side component in pure Python
 draft: false
 weight: 10
 lang: en
@@ -12,8 +12,10 @@ keywords:
 - getting started
 - installation
 - quickstart
-- python template engine
-- html templates
+- server-side components
+- python components
+- typed props
+- named slots
 - jinja2 alternative
 category: onboarding
 cascade:
@@ -31,15 +33,18 @@ pip install kida-templates
 
 Requires Python 3.14 or later. See [[docs/get-started/installation|installation]] for alternative methods.
 
-## Render a Template
+## Render a Typed Component
 
 ```python
 from kida import Environment
 
 env = Environment()
-template = env.from_string("Hello, {{ name }}!")
-print(template.render(name="World"))
-# Output: Hello, World!
+template = env.from_string("""
+{% def badge(label: str) %}<strong>{{ label }}</strong>{% enddef %}
+{{ badge("Ready") }}
+""")
+print(template.render().strip())
+# Output: <strong>Ready</strong>
 ```
 
 ## What's Next?
@@ -48,11 +53,25 @@ print(template.render(name="World"))
 :columns: 1-2-3
 :gap: medium
 
+:::{card} Build Typed Components
+:icon: blocks
+:link: /docs/usage/components/
+:description: Defs, slots, and static validation
+:badge: Start Here
+Catch bad component props before rendering with `kida check --validate-calls`.
+:::{/card}
+
+:::{card} Component Comparison
+:icon: columns
+:link: /docs/tutorials/component-comparison/
+:description: Kida components vs Jinja2 macros
+See how typed props, named slots, and validation change composition.
+:::{/card}
+
 :::{card} Quickstart
 :icon: zap
 :link: /docs/get-started/quickstart/
 :description: Complete walkthrough in 2 minutes
-:badge: Start Here
 Build and render your first file-based template.
 :::{/card}
 
@@ -61,14 +80,6 @@ Build and render your first file-based template.
 :link: /docs/get-started/first-project/
 :description: Inheritance, filters, and multi-page rendering
 Build a mini email template system with shared layouts.
-:::{/card}
-
-:::{card} Build Typed Components
-:icon: blocks
-:link: /docs/usage/components/
-:description: Defs, slots, and static validation
-:badge: Core
-Catch bad component props before rendering with `kida check --validate-calls`.
 :::{/card}
 
 :::{card} Coming from Jinja2

@@ -7,13 +7,14 @@ cascade:
   type: doc
   variant: standard
 category: documentation
-description: Documentation for the Kida Python template engine, including syntax, streaming, and Jinja2 migration
+description: Build statically validated server-side components for Python with typed props, slots, and pure-Python rendering
 keywords:
 - documentation
-- python template engine
-- templates
+- server-side components
+- python components
+- typed props
+- named slots
 - jinja2 alternative
-- html templates
 - api
 menu:
   main:
@@ -28,29 +29,36 @@ icon: book-open
 
 ## Start Here
 
-New to Kida? Start here to render HTML templates, learn the syntax, migrate from
-Jinja2, build typed components, and integrate Kida into web frameworks or static site generators.
+New to Kida? Start with typed components and slots, then learn how the pure-Python
+rendering substrate fits your framework, templates, and deployment.
 
 :::{cards}
 :columns: 2
 :gap: medium
 
+:::{card} Build Typed Components
+:icon: blocks
+:link: /docs/usage/components/
+:description: Defs, slots, scoped state, and static call-site validation
+:badge: Core
+:::{/card}
+
 :::{card} Get Started
 :icon: arrow-clockwise
 :link: ./get-started/
-:description: Install Kida and render your first template
+:description: Install Kida and render your first component
+:::{/card}
+
+:::{card} Kida vs Jinja2 Macros
+:icon: columns
+:link: /docs/tutorials/component-comparison/
+:description: Compare typed props, named slots, scoping, and validation
 :::{/card}
 
 :::{card} Learning Tracks
 :icon: book
 :link: /tracks/
 :description: Goal-oriented journeys — Jinja2 migration, Chirp + Kida, framework integration
-:::{/card}
-
-:::{card} Build Typed Components
-:icon: blocks
-:link: /docs/usage/components/
-:description: Defs, slots, scoped state, and static call-site validation
 :::{/card}
 
 :::{card} API Reference
@@ -63,17 +71,12 @@ Jinja2, build typed components, and integrate Kida into web frameworks or static
 
 ## Learn Kida
 
-Master template syntax, rendering patterns, framework integration, and migration paths.
+Master component composition, rendering patterns, framework integration, and the
+template syntax underneath them.
 
 :::{cards}
 :columns: 2
 :gap: medium
-
-:::{card} Syntax
-:icon: code
-:link: ./syntax/
-:description: Variables, control flow, filters, inheritance
-:::{/card}
 
 :::{card} Components
 :icon: blocks
@@ -81,16 +84,22 @@ Master template syntax, rendering patterns, framework integration, and migration
 :description: Typed props, named slots, scoped slots, and validation
 :::{/card}
 
+:::{card} Framework Integration
+:icon: puzzle
+:link: ./usage/framework-integration/
+:description: Bring Kida components to Python frameworks and static sites
+:::{/card}
+
+:::{card} Syntax
+:icon: code
+:link: ./syntax/
+:description: Variables, control flow, filters, and inheritance
+:::{/card}
+
 :::{card} Usage
 :icon: terminal
 :link: ./usage/
 :description: Loading templates, contexts, escaping, errors
-:::{/card}
-
-:::{card} Framework Integration
-:icon: puzzle
-:link: ./usage/framework-integration/
-:description: Block rendering, introspection, adapters for Chirp and Bengal
 :::{/card}
 
 :::{card} Extending
