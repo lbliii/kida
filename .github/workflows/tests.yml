@@ -192,13 +192,13 @@ jobs:
 
       - name: Run ruff check
         run: |
-          uv run ruff check src/kida tests/ benchmarks/ scripts/
+          uv run ruff check .
 
       - name: Run ruff (report)
         if: always()
         run: |
           mkdir -p reports
-          uv run ruff check src/kida tests/ benchmarks/ scripts/ \
+          uv run ruff check . \
             --output-format json > reports/ruff.json || true
 
       - name: Render ruff report
@@ -219,7 +219,7 @@ jobs:
 
       - name: Run ruff format check
         run: |
-          uv run ruff format --check src/kida tests/ benchmarks/ scripts/
+          uv run ruff format --check .
 
   # Thread safety tests
   thread-safety:
