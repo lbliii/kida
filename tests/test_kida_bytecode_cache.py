@@ -3,10 +3,12 @@
 Tests persistent template caching for fast cold-start.
 """
 
+import logging
 import pickle
 import struct
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
 
@@ -155,6 +157,31 @@ class TestBytecodeCache:
         # Fake version file should still exist
         assert fake_file.exists()
 
+    def test_clear_skips_and_logs_unremovable_entry(
+        self, cache, cache_dir, caplog, monkeypatch
+    ) -> None:
+        """A permission race does not abort best-effort cache eviction."""
+        blocked = cache_dir / "__kida_py314_blocked_1234567890123456.pyc"
+        blocked.write_bytes(b"blocked")
+        removable = cache_dir / "__kida_py314_removable_1234567890123456.pyc"
+        removable.write_bytes(b"removable")
+        original_unlink = Path.unlink
+
+        def deny_blocked(path: Path, *, missing_ok: bool = False) -> None:
+            if path == blocked:
+                raise PermissionError("unlink denied")
+            original_unlink(path, missing_ok=missing_ok)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(Path, "unlink", deny_blocked)
+            with caplog.at_level(logging.DEBUG, logger="kida.bytecode_cache"):
+                assert cache.clear() == 1
+
+        assert blocked.exists()
+        assert not removable.exists()
+        assert "could not remove" in caplog.text
+        assert str(blocked) in caplog.text
+
     def test_stats(self, cache):
         """Stats returns file count and size."""
         code = compile("x = 1", "<test>", "exec")
@@ -209,6 +236,31 @@ class TestBytecodeCache:
 
         # All files should remain
         assert cache.stats()["file_count"] == 2
+
+    def test_cleanup_skips_and_logs_unreadable_entry(
+        self, cache, cache_dir, caplog, monkeypatch
+    ) -> None:
+        """An unreadable cache entry does not stop cleanup of the directory."""
+        blocked = cache_dir / "__kida_py314_blocked_1234567890123456.pyc"
+        blocked.write_bytes(b"blocked")
+        removable = cache_dir / "__kida_py314_removable_1234567890123456.pyc"
+        removable.write_bytes(b"removable")
+        original_stat = Path.stat
+
+        def deny_blocked(path: Path, *args, **kwargs):
+            if path == blocked:
+                raise PermissionError("stat denied")
+            return original_stat(path, *args, **kwargs)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(Path, "stat", deny_blocked)
+            with caplog.at_level(logging.DEBUG, logger="kida.bytecode_cache"):
+                assert cache.cleanup(max_age_days=0) == 1
+
+        assert blocked.exists()
+        assert not removable.exists()
+        assert "could not inspect or remove" in caplog.text
+        assert str(blocked) in caplog.text
 
     def test_cleanup_respects_max_age_days(self, cache, cache_dir):
         """Cleanup respects the max_age_days parameter."""

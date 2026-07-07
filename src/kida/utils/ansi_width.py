@@ -85,7 +85,8 @@ def configure_width(
 
             wcwidth_fn = _wcwidth
         except ImportError:
-            pass
+            # Optional accelerator unavailable; retain the stdlib strategy.
+            wcwidth_fn = None
 
     _strategy = WidthStrategy(
         ambiguous_width=ambiguous_width,

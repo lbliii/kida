@@ -79,19 +79,19 @@ test-rc-safety: test-safety
 
 lint:
 	@echo "Running ruff linter..."
-	uv run ruff check src/ tests/
+	uv run ruff check .
 
 lint-fix:
 	@echo "Running ruff linter with auto-fix..."
-	uv run ruff check src/ tests/ --fix
+	uv run ruff check . --fix
 
 format:
 	@echo "Running ruff formatter..."
-	uv run ruff format src/ tests/
+	uv run ruff format .
 
 format-check:
 	@echo "Checking ruff formatting..."
-	uv run ruff format --check src/ tests/
+	uv run ruff format --check .
 
 ty:
 	@echo "Running ty type checker (Astral, Rust-based)..."

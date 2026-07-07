@@ -1,5 +1,7 @@
 """Tests for terminal color utilities (Feature 2.1 Phase 2: Terminal Colors)."""
 
+import sys
+
 import pytest
 
 from kida.environment import terminal
@@ -37,6 +39,17 @@ class TestColorDetection:
         assert "\033[31m" in result  # red
         assert "\033[1m" in result  # bold
         assert "\033[0m" in result  # reset
+
+    def test_ambiguous_width_uses_locale_when_wcwidth_is_missing(self, monkeypatch):
+        """The optional wcwidth import falls through to documented heuristics."""
+        monkeypatch.setitem(sys.modules, "wcwidth", None)
+        monkeypatch.setenv("LANG", "zh_CN.UTF-8")
+        monkeypatch.delenv("LC_ALL", raising=False)
+
+        assert terminal._resolve_ambiguous_width(None, is_tty=False) == 2
+
+        monkeypatch.setenv("LANG", "en_US.UTF-8")
+        assert terminal._resolve_ambiguous_width(None, is_tty=False) == 1
 
     def test_strip_colors_removes_ansi_codes(self):
         """Test strip_colors removes all ANSI escape sequences."""

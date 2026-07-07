@@ -377,8 +377,10 @@ class BytecodeCache:
             try:
                 path.unlink(missing_ok=True)
                 count += 1
-            except OSError:
-                pass
+            except OSError as exc:
+                # Cache eviction is best-effort; an inaccessible entry must
+                # not prevent other entries from being cleared.
+                logger.debug("Bytecode cache: could not remove '%s': %s", path, exc)
         return count
 
     def cleanup(self, max_age_days: int = 30) -> int:
@@ -406,9 +408,10 @@ class BytecodeCache:
                 if path.stat().st_mtime < threshold:
                     path.unlink(missing_ok=True)
                     count += 1
-            except OSError:
-                # Skip files that can't be accessed (permissions, etc.)
-                pass
+            except OSError as exc:
+                # Cleanup is best-effort. Preserve the entry and continue so
+                # one permission or race failure cannot block other cleanup.
+                logger.debug("Bytecode cache: could not inspect or remove '%s': %s", path, exc)
 
         return count
 

@@ -5,11 +5,12 @@
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://pypi.org/project/kida-templates/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**Pure-Python components for HTML, Markdown, terminal output, and CI reports.**
+**Server-side components for Python — no npm, no build step.**
 
-Kida gives Python templates a real component model: typed props, named slots,
-static call-site validation, scoped state, error boundaries, and free-threaded
-rendering on Python 3.14t. No JavaScript build step. No runtime dependencies.
+Kida brings typed props, named slots, static call-site validation, scoped state,
+and error boundaries to pure-Python templates. Components render to HTML,
+Markdown, terminal output, and CI reports on free-threaded Python 3.14t, with no
+runtime dependencies.
 
 ## Quick Start
 

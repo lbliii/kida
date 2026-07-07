@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import textwrap
 from pathlib import Path
 
@@ -10,7 +11,10 @@ import pytest
 
 from kida.readme import render_readme
 from kida.readme.detect import (
+    _detect_author,
     _detect_build_tool,
+    _detect_repo_url,
+    _extract_docstring,
     _render_tree,
     annotate_tree,
     collapse_tree,
@@ -426,6 +430,22 @@ class TestAnnotateTree:
         annotate_tree(tmp_path, tree)
         assert tree["empty.py"] is None
 
+    def test_malformed_python_has_no_annotation(self, tmp_path: Path):
+        source = tmp_path / "broken.py"
+        source.write_text("def broken(:\n", encoding="utf-8")
+
+        assert _extract_docstring(source) is None
+
+    def test_unreadable_python_has_no_annotation(self, tmp_path: Path, monkeypatch):
+        source = tmp_path / "blocked.py"
+        source.write_text('"""Hidden."""\n', encoding="utf-8")
+
+        def deny_read(_path: Path, *args, **kwargs):
+            raise PermissionError("read denied")
+
+        monkeypatch.setattr(Path, "read_text", deny_read)
+        assert _extract_docstring(source) is None
+
     def test_non_python_files_not_annotated(self, tmp_path: Path):
         (tmp_path / "data.json").write_text("{}\n")
 
@@ -445,6 +465,22 @@ class TestAnnotateTree:
         annotate_tree(tmp_path, tree)
         assert tree["sub"]["__annotation__"] == "Sub package"
         assert tree["sub"]["inner"]["__annotation__"] == "Inner package"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [FileNotFoundError("git missing"), subprocess.TimeoutExpired("git", 5)],
+)
+def test_git_metadata_detection_falls_back_to_none(tmp_path: Path, monkeypatch, error) -> None:
+    """Missing or unresponsive git does not break README detection."""
+
+    def fail_git(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr("kida.readme.detect.subprocess.run", fail_git)
+
+    assert _detect_repo_url({}, tmp_path) is None
+    assert _detect_author({}, tmp_path) is None
 
 
 # ── Collapse tree ────────────────────────────────────────────────────────

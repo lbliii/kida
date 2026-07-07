@@ -1,12 +1,12 @@
 ---
 title: Kida
-description: A Python template engine and Jinja2 alternative for HTML templates, streaming, and framework integration
+description: Server-side components for Python with typed props, named slots, and static validation — no npm or build step
 template: home.html
 weight: 100
 type: page
 draft: false
 lang: en
-keywords: [kida, python template engine, jinja2 alternative, html templates, streaming templates, async templates]
+keywords: [kida, server-side components, python components, typed props, named slots, static validation, jinja2 alternative]
 category: home
 
 # Hero configuration
@@ -17,86 +17,95 @@ cta_buttons:
   - text: Get Started
     url: /docs/get-started/
     style: primary
-  - text: Syntax Guide
-    url: /docs/syntax/
+  - text: Build Components
+    url: /docs/usage/components/
     style: secondary
 
 show_recent_posts: false
 ---
 
-## Python Template Engine for Modern Templates
+## Server-Side Components for Python
 
-**Jinja2 alternative. AST-native. Streaming-ready.**
+**Typed props. Named slots. Static validation. No npm. No build step.**
 
-Kida is a pure-Python template engine for HTML templates, partials, and reusable
-components. It compiles templates directly to Python AST, supports block rendering and
-streaming output, and works well as a Jinja2 alternative for Python 3.14+ projects.
+Kida gives server-rendered Python apps a real component model. Define components
+with typed props, compose them with named slots, and catch broken calls before a
+request reaches production. The rendering substrate is pure Python 3.14+ with no
+runtime dependencies or JavaScript toolchain.
 
-```python
-from kida import Environment
+```kida
+{% def card(title: str, variant: str = "default") %}
+<article class="card card--{{ variant }}">
+  <header>{{ title }}</header>
+  <div class="card__body">{% slot %}</div>
+</article>
+{% enddef %}
 
-env = Environment()
-template = env.from_string("Hello, {{ name }}!")
-print(template.render(name="World"))
-# Output: Hello, World!
+{% call card("Settings", variant="elevated") %}
+  <p>Configure your preferences.</p>
+{% endcall %}
 ```
 
 ---
 
-## Why Use Kida
+## A Component Model, Not a Macro Convention
 
 :::{cards}
 :columns: 2
 :gap: medium
 
-:::{card} AST-Native Compilation
-:icon: cpu
-Compiles templates to `ast.Module` objects directly. No string concatenation, no regex
-parsing, no code-generation layer.
+:::{card} Typed Props
+:icon: check-circle
+Declare `title: str` and defaults where the component is defined. Kida validates
+literal call sites before render.
+:::{/card}
+
+:::{card} Named and Scoped Slots
+:icon: blocks
+Compose headers, bodies, actions, and data-bearing child content without reducing
+everything to one `caller()` blob.
 :::{/card}
 
 :::{card} Free-Threading Ready
 :icon: zap
-Built for Python 3.14t (PEP 703). Renders templates concurrently without the GIL. Declares `_Py_mod_gil = 0`.
+Built for Python 3.14t (PEP 703), with immutable compiled templates, `ContextVar`
+render state, and copy-on-write environment mutation.
 :::{/card}
 
-:::{card} Modern Syntax
-:icon: code
-Unified `{% end %}` for all blocks. Pattern matching with `{% match %}`. Pipelines with `|>`. Built-in caching.
-:::{/card}
-
-:::{card} Zero Dependencies
+:::{card} Pure Python
 :icon: package
-Pure Python with no runtime dependencies. Includes native `Markup` class—no markupsafe required.
+No npm, build step, or runtime dependencies. Use Kida from Flask, Django,
+FastAPI/Starlette, Chirp, Bengal, scripts, and CI.
 :::{/card}
 
 :::{/cards}
 
-## Common Use Cases
+## Catch Broken Calls Before Render
 
-- Rendering HTML templates for web apps, static sites, and email output
-- Replacing or evaluating Jinja2 in Python codebases
-- Streaming template output for chunked responses and SSE
-- Rendering blocks or regions for HTMX partials and layout composition
-- Integrating template analysis and metadata into higher-level frameworks
+```kida
+{% def badge(count: int, label: str) %}
+<span class="badge">{{ count }} {{ label }}</span>
+{% enddef %}
+
+{{ badge(count="five", lable="Messages") }}
+```
+
+```text
+K-CMP-001: Call to 'badge' — unknown params: lable; missing required: label
+K-CMP-002: param 'count' expects int, got str ('five')
+```
 
 ---
 
-## Performance
+## Use Kida Where You Are
 
-StringBuilder rendering for O(n) concatenation:
+- Add typed components to an existing Flask, Django, FastAPI, or Starlette app.
+- Render full pages, HTMX fragments, streamed responses, or static sites.
+- Reuse the same component semantics for HTML, Markdown, terminal output, and CI reports.
+- Give frameworks structured component metadata instead of asking them to inspect AST internals.
 
-```python
-# Kida: O(n) StringBuilder
-_out.append(...)
-return "".join(_out)
-```
-
-| Template Size | Time |
-|---------------|------|
-| Small (10 vars) | ~0.3ms |
-| Medium (100 vars) | ~2ms |
-| Large (1000 vars) | ~15ms |
+[Build typed components](/docs/usage/components/) or compare
+[Kida components with Jinja2 macros](/docs/tutorials/component-comparison/).
 
 ---
 
@@ -123,7 +132,7 @@ A structured reactive stack — every layer written in pure Python for 3.14t fre
 | **∿∿** | [Purr](https://github.com/lbliii/purr) | Content runtime | — |
 | **⌁⌁** | [Chirp](https://github.com/lbliii/chirp) | Web framework | [Docs](https://lbliii.github.io/chirp/) |
 | **=^..^=** | [Pounce](https://github.com/lbliii/pounce) | ASGI server | [Docs](https://lbliii.github.io/pounce/) |
-| **)彡** | **Kida** | Template engine ← You are here | [Docs](https://lbliii.github.io/kida/) |
+| **)彡** | **Kida** | Server-side component system ← You are here | [Docs](https://lbliii.github.io/kida/) |
 | **ฅᨐฅ** | [Patitas](https://github.com/lbliii/patitas) | Markdown parser | [Docs](https://lbliii.github.io/patitas/) |
 | **⌾⌾⌾** | [Rosettes](https://github.com/lbliii/rosettes) | Syntax highlighter | [Docs](https://lbliii.github.io/rosettes/) |
 

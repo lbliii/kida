@@ -25,5 +25,19 @@ def test_ci_workflow_keeps_raw_output_alongside_rendered_reports():
     assert "uv run pytest -n 0 -q --tb=short --cov=kida" in workflow
     assert "uv run ty check src/kida\n" in workflow
     assert "uv run ty check src/kida --output-format junit > reports/ty.xml || true" in workflow
-    assert "uv run ruff check src/kida tests/ benchmarks/ scripts/\n" in workflow
+    assert "uv run ruff check .\n" in workflow
     assert "--output-format json > reports/ruff.json || true" in workflow
+    assert "uv run ruff format --check .\n" in workflow
+
+
+def test_local_ruff_targets_use_the_same_repository_scope_as_ci():
+    """Local lint, fix, format, and format-check targets cover the whole repo."""
+    makefile = (ROOT_DIR / "Makefile").read_text(encoding="utf-8")
+
+    for command in (
+        "uv run ruff check .",
+        "uv run ruff check . --fix",
+        "uv run ruff format .",
+        "uv run ruff format --check .",
+    ):
+        assert f"\t{command}\n" in makefile
