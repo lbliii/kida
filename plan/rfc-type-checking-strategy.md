@@ -9,8 +9,9 @@
 > [!NOTE]
 > This RFC records a completed, intermediate migration and is not current
 > operational guidance. Kida now runs Astral ty via `make ty`; the live
-> configuration is in `pyproject.toml`. Remaining parser/compiler/analysis
-> override debt is tracked in [GitHub issue #142](https://github.com/lbliii/kida/issues/142).
+> configuration is in `pyproject.toml`. Parser/compiler/analysis override debt
+> was completed in [GitHub issue #142](https://github.com/lbliii/kida/issues/142)
+> and [PR #176](https://github.com/lbliii/kida/pull/176).
 > The mypy commands, counts, configuration, and unchecked follow-ups below are
 > retained only as historical decision context.
 

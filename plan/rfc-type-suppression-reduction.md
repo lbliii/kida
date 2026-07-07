@@ -1,6 +1,6 @@
 # RFC: Type Suppression Reduction
 
-**Status**: Historical — mypy-era reduction completed; current ty debt is tracked separately
+**Status**: Historical — mypy-era reduction and core ty override cleanup completed
 **Created**: 2026-01-04  
 **Updated**: 2026-02-08  
 **Depends On**: `rfc-type-checking-strategy.md` (Implemented)
@@ -10,11 +10,11 @@
 > [!NOTE]
 > This RFC's implementation phases and suppression counts describe the former
 > mypy configuration. Kida now uses ty, configured in `pyproject.toml`, with
-> narrowly scoped overrides for safe-string method covariance, cross-mixin
-> attributes, analysis visitors, and optional integrations. Current mixin and
-> visitor override reduction is tracked in
-> [GitHub issue #142](https://github.com/lbliii/kida/issues/142); runtime-helper
-> `Any` reduction is tracked in
+> narrowly scoped overrides only for safe-string method covariance and
+> optional integrations. Core parser, compiler, and analysis override debt was
+> completed in [GitHub issue #142](https://github.com/lbliii/kida/issues/142)
+> and [PR #176](https://github.com/lbliii/kida/pull/176). Runtime-helper `Any`
+> reduction is tracked in
 > [GitHub issue #146](https://github.com/lbliii/kida/issues/146). Use `make ty`
 > for current verification. The body below remains historical evidence.
 

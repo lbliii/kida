@@ -20,13 +20,15 @@ Represent template authors, migrators from Jinja2, agents bulk-editing templates
 - Top-level-only `{% def %}` and `{% region %}` rules.
 - `{% call %}`, `{% slot %}`, scoped slots, and `{% yield %}` composition semantics.
 - Precise token positions, template names, actionable parse errors, and migration hints.
-- Parser mixin boundaries documented in `pyproject.toml` ty overrides.
+- Parser mixin boundaries typed at default ty severity without core
+  `unresolved-attribute` overrides.
 
 ## Contract Checklist
 - Syntax changes inspect lexer tokens, parser blocks/statements/expressions, node definitions, compiler support, formatter output, analysis agreement, and syntax docs.
 - Error changes inspect `ErrorCode`, location metadata, diagnostic snapshots, malformed-source tests, and migration hints in docs.
 - Scoping/composition changes inspect def/call/slot/region tests, examples, README/CLAUDE syntax references, and render-surface parity cases.
-- Mixin or dispatch changes inspect `pyproject.toml` ty overrides and avoid growing ignores without a plan.
+- Mixin or dispatch changes run ty at default severity and must not restore
+  core `unresolved-attribute` overrides without an explicit contract review.
 
 ## Advocate
 - Early, specific parse errors that suggest `kida check <dir> --strict --validate-calls` for nested or bulk-edit failures.

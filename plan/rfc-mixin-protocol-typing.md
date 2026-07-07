@@ -1,6 +1,6 @@
 # RFC: Type-Safe Mixin Patterns via Hybrid Protocol + Inline Declarations
 
-**Status**: Foundation implemented — remaining ty override debt tracked in GitHub issue #142
+**Status**: Implemented — core ty override debt removed in #142/#176
 
 | Field | Value |
 |-------|-------|
@@ -15,12 +15,12 @@
 > [!NOTE]
 > `ParserCoreProtocol`, `CompilerCoreProtocol`, and inline `TYPE_CHECKING`
 > declarations shipped. The original success gate targeted mypy, which Kida no
-> longer uses. Current ty still needs scoped `unresolved-attribute = "warn"`
-> overrides for parser, compiler, and analysis mixin/visitor boundaries; the
-> remaining work is tracked in
-> [GitHub issue #142](https://github.com/lbliii/kida/issues/142). The mypy
-> commands and unchecked migration checklist below are historical, not an
-> active implementation plan.
+> longer uses. The parser, compiler, and analysis `unresolved-attribute`
+> overrides were removed in
+> [GitHub issue #142](https://github.com/lbliii/kida/issues/142) and
+> [PR #176](https://github.com/lbliii/kida/pull/176). The mypy commands and
+> unchecked migration checklist below are historical, not an active
+> implementation plan.
 
 ## Executive Summary
 
