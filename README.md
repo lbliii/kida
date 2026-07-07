@@ -304,15 +304,15 @@ small components with constant args can be inlined. Use
 
 ```python
 # Flask
-from kida.contrib.flask import KidaFlask
-kida = KidaFlask(app)
+from kida.contrib.flask import init_kida, render_template
+kida_env = init_kida(app)
 
 # Starlette / FastAPI
-from kida.contrib.starlette import KidaStarlette
-templates = KidaStarlette(directory="templates")
+from kida.contrib.starlette import KidaTemplates
+templates = KidaTemplates(directory="templates")
 
 # Django
-TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaDjango", ...}]
+TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaTemplates", ...}]
 ```
 
 </details>

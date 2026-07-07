@@ -1,0 +1,33 @@
+{% def panel(title: str) %}
+<section class="panel">
+  <h1>{{ title }}</h1>
+  {% slot %}
+</section>
+{% enddef %}
+
+{% def text_field(name: str, label: str, value: str = "") %}
+<label>
+  {{ label }}
+  <input name="{{ name }}" value="{{ value }}">
+</label>
+{% enddef %}
+
+<!doctype html>
+<title>Kida Components</title>
+
+{% block form %}
+{% call panel("Component form") %}
+<form method="post" action="/preview">
+  {{ text_field("title", "Title", title) }}
+  {{ text_field("summary", "Summary", summary) }}
+  <button type="submit">Preview</button>
+</form>
+{% endcall %}
+{% endblock %}
+
+{% block preview %}
+<article id="preview">
+  <h2>{{ title }}</h2>
+  <p>{{ summary }}</p>
+</article>
+{% endblock %}

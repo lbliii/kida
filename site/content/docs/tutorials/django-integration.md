@@ -1,6 +1,6 @@
 ---
 title: Django Integration
-description: Use Kida as a Django template backend with kida.contrib.django
+description: Add a typed Kida component and fragment view to Django in ten minutes
 draft: false
 weight: 25
 lang: en
@@ -11,208 +11,171 @@ tags:
   - framework
 keywords:
   - Django
+  - typed components
+  - fragment rendering
   - template backend
-  - contrib
-  - integration
 icon: globe
 ---
 
 # Django Integration
 
-Use Kida as a drop-in Django template backend with `kida.contrib.django`. The integration provides `KidaTemplates` -- a backend class that plugs into Django's `TEMPLATES` setting and works with `django.shortcuts.render`, template loaders, and the Django debug toolbar.
+Use Kida through Django's standard template-backend contract, then render a
+named fragment from the same template. Kida requires **Python 3.14 or newer**.
 
-## Installation
+> Migrating Jinja templates? Read [[docs/get-started/coming-from-jinja2|Coming
+> from Jinja2]]. Kida's `{% set %}` is block-scoped, so values do not leak out
+> of loops or other blocks.
+
+## 1. Install
 
 ```bash
-pip install django kida-templates
+uv add django kida-templates
 ```
 
-## Django Settings
+## 2. Configure the backend
 
-Add the Kida backend to your `TEMPLATES` list in `settings.py`:
+Add Kida to `TEMPLATES` in `settings.py`:
 
 ```python
-# settings.py
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 TEMPLATES = [
     {
+        "NAME": "kida",
         "BACKEND": "kida.contrib.django.KidaTemplates",
         "DIRS": [BASE_DIR / "templates"],
-        "OPTIONS": {
-            "autoescape": True,
-            "extensions": [],
-        },
+        "APP_DIRS": False,
+        "OPTIONS": {"autoescape": True},
     },
 ]
 ```
 
-| Key | Description |
-|-----|-------------|
-| `BACKEND` | Must be `"kida.contrib.django.KidaTemplates"` |
-| `DIRS` | List of directories to search for templates |
-| `OPTIONS.autoescape` | Enable HTML autoescaping (default: `True`) |
-| `OPTIONS.extensions` | List of Kida extensions to load |
+`NAME` makes the backend easy to select explicitly when an application uses
+more than one template engine.
 
-## Usage in Views
-
-Once configured, use Django's standard rendering functions. The `request` object is automatically added to the template context:
+## 3. Add full-page and fragment views
 
 ```python
+from django.http import HttpRequest, HttpResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import render
+from django.template import engines
 
-def home(request):
-    return render(request, "home.html", {"title": "Home"})
 
-def user_profile(request, username):
-    user = get_user(username)
-    return render(request, "profile.html", {"user": user})
-```
+def home(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        "components.html",
+        {
+            "title": "First component",
+            "summary": "Edit me",
+            "csrf_token": get_token(request),
+        },
+        using="kida",
+    )
 
-You can also load templates directly through the backend:
 
-```python
-from django.template import loader
-
-def home(request):
-    template = loader.get_template("home.html")
-    html = template.render({"title": "Home"}, request)
+def preview(request: HttpRequest) -> HttpResponse:
+    template = engines["kida"].env.get_template("components.html")
+    html = template.render_block(
+        "preview",
+        title=request.POST.get("title", ""),
+        summary=request.POST.get("summary", ""),
+    )
     return HttpResponse(html)
 ```
 
-Or create templates from strings:
+Wire the views normally:
 
 ```python
-from django.template import engines
+from django.urls import path
 
-kida = engines["kida"]  # Name matches BACKEND path
-template = kida.from_string("Hello {{ name }}!")
-html = template.render({"name": "World"})
-```
+from . import views
 
-## Template Syntax Differences
-
-If you're coming from Django's built-in template language, note these Kida syntax differences:
-
-| Feature | Django | Kida |
-|---------|--------|------|
-| Block end tags | `{% endblock %}` | `{% end %}` |
-| For loop end | `{% endfor %}` | `{% end %}` |
-| If end | `{% endif %}` | `{% end %}` |
-| Comments | `{# comment #}` | `{# comment #}` |
-| Variable output | `{{ var }}` | `{{ var }}` |
-| Filters | `{{ var\|filter }}` | `{{ var \| filter }}` |
-| Extends | `{% extends "base.html" %}` | `{% extends "base.html" %}` |
-
-### Template Example
-
-**templates/base.html:**
-
-```kida
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{% block title %}My Site{% end %}</title>
-</head>
-<body>
-    <nav>{% block nav %}{% end %}</nav>
-    <main>{% block content %}{% end %}</main>
-</body>
-</html>
-```
-
-**templates/home.html:**
-
-```kida
-{% extends "base.html" %}
-
-{% block title %}{{ title }}{% end %}
-
-{% block content %}
-    <h1>{{ title }}</h1>
-    <p>Welcome to the site!</p>
-{% end %}
-```
-
-## Custom Filters and Globals
-
-Access the Kida `Environment` through the backend to register custom filters and globals:
-
-```python
-# templatetags.py (or in your AppConfig.ready())
-from django.template import engines
-
-def setup_kida():
-    backend = engines["kida"]
-    env = backend.env
-
-    # Register a custom filter
-    @env.filter()
-    def format_datetime(value, fmt="%Y-%m-%d"):
-        return value.strftime(fmt)
-
-    # Register a global
-    env.add_global("SITE_NAME", "My Django Site")
-```
-
-Use in templates:
-
-```kida
-<p>Published: {{ post.date | format_datetime("%B %d, %Y") }}</p>
-<footer>{{ SITE_NAME }}</footer>
-```
-
-## Complete Example
-
-```python
-# settings.py
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-TEMPLATES = [
-    {
-        "BACKEND": "kida.contrib.django.KidaTemplates",
-        "DIRS": [BASE_DIR / "templates"],
-        "OPTIONS": {
-            "autoescape": True,
-        },
-    },
+urlpatterns = [
+    path("", views.home),
+    path("preview", views.preview),
 ]
 ```
 
-```python
-# views.py
-from django.shortcuts import render
+The backend wrapper supports Django's normal `render()` path and supplies the
+request in template context. Accessing `backend.env` is the supported route to
+Kida-specific APIs such as `render_block()`.
 
-def home(request):
-    return render(request, "home.html", {
-        "title": "Home",
-        "items": ["Alpha", "Bravo", "Charlie"],
-    })
-```
+## 4. Create the typed component
+
+Save this as `templates/components.html`:
 
 ```kida
-{# templates/home.html #}
-{% extends "base.html" %}
+{% def panel(title: str) %}
+<section class="panel">
+  <h1>{{ title }}</h1>
+  {% slot %}
+</section>
+{% enddef %}
 
-{% block title %}{{ title }}{% end %}
+{% def text_field(name: str, label: str, value: str = "") %}
+<label>
+  {{ label }}
+  <input name="{{ name }}" value="{{ value }}">
+</label>
+{% enddef %}
 
-{% block content %}
-    <h1>{{ title }}</h1>
-    <ul>
-    {% for item in items %}
-        <li>{{ item }}</li>
-    {% end %}
-    </ul>
-{% end %}
+{% block form %}
+{% call panel("Component form") %}
+<form method="post" action="/preview">
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+  {{ text_field("title", "Title", title) }}
+  {{ text_field("summary", "Summary", summary) }}
+  <button type="submit">Preview</button>
+</form>
+{% endcall %}
+{% endblock %}
+
+{% block preview %}
+<article id="preview">
+  <h2>{{ title }}</h2>
+  <p>{{ summary }}</p>
+</article>
+{% endblock %}
 ```
 
-## See Also
+Kida validates component calls against their typed signatures. The full view
+and fragment view share compilation and escaping behavior; the fragment route
+returns only `preview` for HTMX, Turbo, or a similar client.
 
-- [[docs/tutorials/flask-integration|Flask Integration]] -- Flask setup guide
-- [[docs/tutorials/starlette-integration|Starlette & FastAPI Integration]] -- Async framework setup
-- [[docs/advanced/csp|Content Security Policy]] -- CSP nonce injection
-- [[docs/usage/escaping|Escaping]] -- HTML security and autoescaping
+## 5. Run it
+
+```bash
+uv run python manage.py runserver
+```
+
+The repository includes a minimal, smoke-tested Django configuration at
+[`examples/django_components`](https://github.com/lbliii/kida/tree/main/examples/django_components).
+
+## Register filters and globals
+
+Use the named backend from application startup code:
+
+```python
+from django.template import engines
+
+env = engines["kida"].env
+
+
+@env.filter()
+def currency(value: float) -> str:
+    return f"${value:,.2f}"
+
+
+env.add_global("SITE_NAME", "My Django Site")
+```
+
+## Next steps
+
+- [[docs/tutorials/flask-integration|Flask Integration]]
+- [[docs/tutorials/starlette-integration|Starlette & FastAPI Integration]]
+- [[docs/usage/escaping|Escaping]]
+- [[docs/extending/custom-filters|Custom Filters]]

@@ -21,12 +21,37 @@ icon: notepad
 
 # Tutorials
 
-Step-by-step guides for common Kida usage scenarios, migration paths, and integration
-workflows.
+Start with the framework you already use, or follow a migration and workflow
+guide below. Every framework quickstart targets Python 3.14+ and reaches a
+typed component plus fragment response in about ten minutes.
 
 :::{cards}
 :columns: 1
 :gap: medium
+
+:::{card} Flask Integration
+:icon: globe
+:link: /docs/tutorials/flask-integration/
+:description: Add a typed component to Flask
+:badge: 10 minutes
+Build a form and a named fragment route through Kida's Flask adapter.
+:::{/card}
+
+:::{card} Django Integration
+:icon: globe
+:link: /docs/tutorials/django-integration/
+:description: Add a typed component to Django
+:badge: 10 minutes
+Configure Kida as a backend, then render a full form and a named fragment.
+:::{/card}
+
+:::{card} FastAPI & Starlette Integration
+:icon: zap
+:link: /docs/tutorials/starlette-integration/
+:description: Add a typed component to FastAPI
+:badge: 10 minutes
+Build a form and fragment endpoint, with Starlette and streaming patterns.
+:::{/card}
 
 :::{card} Migrate from Jinja2
 :icon: arrow-right
@@ -50,27 +75,6 @@ Three fix patterns for the strict_undefined flip, the escape hatch, and the new 
 :description: Move folders without breaking includes
 :badge: 0.8
 Use `./` / `../` for co-located partials and `@alias/` for shared libraries so folder moves become zero-edit refactors.
-:::{/card}
-
-:::{card} Flask Integration
-:icon: globe
-:link: /docs/tutorials/flask-integration/
-:description: Use Kida with Flask
-Set up Kida as Flask's template engine with custom filters and error handling.
-:::{/card}
-
-:::{card} Django Integration
-:icon: globe
-:link: /docs/tutorials/django-integration/
-:description: Use Kida with Django
-Configure Kida as a Django template backend with settings and views.
-:::{/card}
-
-:::{card} Starlette Integration
-:icon: zap
-:link: /docs/tutorials/starlette-integration/
-:description: Use Kida with Starlette and FastAPI
-Async rendering, streaming responses, and HTMX patterns.
 :::{/card}
 
 :::{card} Build Custom Filters

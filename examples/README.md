@@ -125,14 +125,43 @@ buttons inside cards, cards inside pages.
 cd examples/design_system && python app.py
 ```
 
+### `flask_components/` -- Typed Components in Flask
+
+A real Flask 3.1 app using `kida.contrib.flask`: a typed form component on the
+full-page route and `render_block()` for a POST fragment response. Includes a
+non-network smoke path used by CI.
+
+```bash
+uv run python examples/flask_components/app.py --smoke
+```
+
+### `django_components/` -- Typed Components in Django
+
+A minimal Django 6.0 app registering `kida.contrib.django.KidaTemplates` through
+the standard `TEMPLATES` setting. The GET route uses `django.shortcuts.render`;
+the POST route returns a Kida block fragment.
+
+```bash
+uv run python examples/django_components/app.py --smoke
+```
+
+### `fastapi_components/` -- Typed Components in FastAPI
+
+A FastAPI 0.139 / Starlette 1.3 app using `KidaTemplates.TemplateResponse()` and
+an ASGI-tested POST fragment route, without requiring multipart parsing.
+
+```bash
+uv run python examples/fastapi_components/app.py --smoke
+```
+
 ### `fastapi_async/` -- FastAPI Integration
 
 `render_stream_async()` with FastAPI's `StreamingResponse` for true streaming HTML
-delivery. Templates with `{% async for %}` consume async data sources while the
-response streams to the client.
+delivery on Python 3.14+. Templates with `{% async for %}` consume async data
+sources while the response streams to the client.
 
 ```bash
-pip install fastapi uvicorn
+uv add fastapi uvicorn kida-templates
 cd examples/fastapi_async && uvicorn app:app --reload
 ```
 

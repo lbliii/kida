@@ -1,11 +1,11 @@
 """Starlette/FastAPI integration for Kida.
 
-Provides ``KidaTemplates`` — a drop-in replacement for Starlette's
-``Jinja2Templates``.
+Provides ``KidaTemplates`` — a small adapter with a familiar
+``TemplateResponse`` API and direct access to Kida templates.
 
 Usage::
 
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
     from kida.contrib.starlette import KidaTemplates
 
     app = FastAPI()
@@ -74,7 +74,10 @@ class KidaTemplates:
         headers: dict[str, str] | None = None,
         media_type: str | None = None,
     ) -> Any:
-        """Render a template and return a Starlette Response.
+        """Synchronously render a template and return a Starlette Response.
+
+        Async templates must be rendered through ``get_template()`` and Kida's
+        ``render_stream_async()`` API, then wrapped in ``StreamingResponse``.
 
         Args:
             request: Starlette Request object.

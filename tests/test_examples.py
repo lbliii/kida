@@ -6,6 +6,7 @@ the goal is to catch API breakage early.
 """
 
 import importlib
+import subprocess
 import sys
 from pathlib import Path
 
@@ -29,6 +30,12 @@ SMOKE_EXAMPLES = [
     "terminal_render",
     "terminal_report",
     "terminal_table",
+]
+
+FRAMEWORK_EXAMPLES = [
+    "flask_components",
+    "django_components",
+    "fastapi_components",
 ]
 
 # terminal_live uses LiveRenderer + time.sleep — excluded from smoke tests.
@@ -64,6 +71,23 @@ def test_example_runs(example, capsys):
     # Sanity check: most examples produce some output
     captured = capsys.readouterr()
     assert len(captured.out) > 0, f"Example {example!r} produced no output"
+
+
+@pytest.mark.parametrize("example", FRAMEWORK_EXAMPLES)
+def test_framework_example_smoke(example: str) -> None:
+    """Run optional-framework examples in isolated processes."""
+    example_dir = EXAMPLES_DIR / example
+    result = subprocess.run(
+        [sys.executable, "app.py", "--smoke"],
+        cwd=example_dir,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"{example} OK" in result.stdout
 
 
 def test_runnable_examples_are_listed_in_readme():
