@@ -125,7 +125,7 @@ Flip `strict_undefined=False` once to unblock the release, then fix sites one at
 ### `?.` — optional attribute access (receiver-only in v0.7)
 
 :::note[v0.8.0 changed this]
-The rules below describe v0.7.x semantics. In v0.8.0, `?.` and `?[...]` also short-circuit **missing keys on Mapping receivers** to `None`, aligning with `dict.get()`. See the [v0.8.0 upgrade tutorial]({{< relref "upgrade-to-v0.8.md" >}}).
+The rules below describe v0.7.x semantics. In v0.8.0, `?.` and `?[...]` also short-circuit **missing keys on Mapping receivers** to `None`, aligning with `dict.get()`. See the [v0.8.0 upgrade tutorial](/docs/tutorials/upgrade-to-v0.8/).
 :::
 
 In v0.7.x, `?.` short-circuits when the **receiver** is `None` or undefined. It does **not** suppress `UndefinedError` for a missing attribute/key on a *defined* receiver — strict mode still raises.
@@ -182,7 +182,7 @@ The `get` filter handles dicts, objects, and `None` uniformly. Use it when a sin
 ## Common surprises
 
 :::{dropdown} "My `{% if x %}` guard stopped working"
-:icon: alert-circle
+:icon: warning
 
 Under strict mode, `{% if x %}` raises if `x` is not defined. Use `is defined`:
 

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-07
+
+### Added
+
+- Added current-version Flask, Django, and FastAPI integration guides and
+  smoke-tested component examples covering full-page and fragment rendering. (`#156`)
+
+### Changed
+
+- Hardened GitHub release automation so releases fail before publishing when the
+  worktree, main commit, tag, or curated release notes do not match. (`#134`)
+- Consolidated duplicate ty checks into the report-producing `Type Check (ty)`
+  CI job so pull requests run one authoritative type-check lane. (`#138`)
+- Included public example tests in the standard pytest, local stability, and CI
+  verification gate. (`#140`)
+- Aligned local and CI Ruff gates so every tracked Python source, test, example,
+  benchmark, and maintenance script is checked consistently. (`#141`)
+- Split partial evaluation into phase-owned modules for constant folding,
+  dead-code elimination, expression transforms, loop unrolling, component
+  inlining, and temporary-node flattening without changing public behavior. (`#143`)
+- Repositioned the README, package metadata, and documentation entrypoints around
+  statically validated server-side components for Python. (`#155`)
+
+### Fixed
+
+- Corrected published installation snippets to use the PyPI distribution name,
+  `kida-templates`, while retaining `kida` as the import package. (`#136`)
+- Made best-effort cache, loader, README detection, terminal-width, and template
+  fallback failures explicit and diagnosable while preserving graceful behavior. (`#145`)
+- Fixed the public design-system example to import component definitions through
+  the supported `{% from ... import ... %}` pattern and added it to CI smoke tests. (`#179`)
+
 ## [0.10.0] - 2026-05-30
 
 ### Added

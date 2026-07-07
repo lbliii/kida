@@ -80,4 +80,4 @@ Both `render_block("sidebar", ...)` and `{{ sidebar(...) }}` work, and the regio
 
 - [Framework Integration](/docs/usage/framework-integration/) — Block rendering, introspection, adapters
 - [Functions and macros](/docs/syntax/functions/) — `{% def %}` and `{% from %}`
-- [Block caching](../advanced/block-caching.md) — Caching individual blocks
+- [Block caching](/docs/advanced/block-caching/) — Caching individual blocks

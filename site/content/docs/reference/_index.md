@@ -62,7 +62,7 @@ Command-line tools and flags.
 :::{/card}
 
 :::{card} Error Codes
-:icon: alert-triangle
+:icon: warning
 :link: /docs/errors/
 :description: K-LEX, K-PAR, K-RUN, K-TPL
 Reference for all error codes and fixes.

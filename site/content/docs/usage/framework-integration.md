@@ -234,7 +234,7 @@ and collapse generated Python traceback frames by default.
 
 ## Case Studies
 
-### Bengal (Static Site Generator)
+### Legacy Integration: Bengal (Static Site Generator)
 
 - **Full render** — `render()` for page output
 - **Bytecode cache** — Persistent `.bengal/cache/kida/` for cold-start

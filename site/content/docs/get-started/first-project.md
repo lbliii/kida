@@ -185,7 +185,7 @@ Deep dive into Kida's inheritance model.
 
 :::{card} Filters Reference
 :icon: filter
-:link: ../reference/filters
+:link: /docs/reference/filters/
 :description: 60+ built-in filters
 Browse all available filters with examples.
 :::{/card}
