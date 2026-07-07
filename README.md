@@ -332,9 +332,10 @@ kida extract templates/ -o messages.pot
 
 ## Status
 
-Kida is pre-1.0 and used by Bengal and Chirp. The API can still move, but the
-core design goals are stable: pure Python, static validation, render-surface
-parity, and free-threaded safety.
+Kida is pre-1.0 and used standalone, through mainstream Python frameworks, and
+across the broader Python rendering stack. The API can still move, but the core
+design goals are stable: pure Python, static validation, render-surface parity,
+and free-threaded safety.
 
 ## Upgrading
 
@@ -350,13 +351,18 @@ for the Markdown escaping and `| safe` trust-boundary changes.
 Moving from 0.9.x? See the [0.10 release notes](https://lbliii.github.io/kida/releases/0.10.0/)
 for structured diagnostics and source-attribution hardening.
 
-## The Bengal Ecosystem
+Moving from 0.10.x? See the [0.11 release notes](https://lbliii.github.io/kida/releases/0.11.0/)
+for framework quickstarts, release hardening, and internal compiler modularization.
 
-Kida is part of a pure-Python stack built for 3.14t free-threading.
+## Python Components Ecosystem
+
+Kida is the component layer in a broader pure-Python stack built for 3.14t
+free-threading. Bengal remains a supported legacy integration, but no longer
+defines the stack's product direction.
 
 | | | | |
 |--:|---|---|---|
-| **ᓚᘏᗢ** | [Bengal](https://github.com/lbliii/bengal) | Static site generator | [Docs](https://lbliii.github.io/bengal/) |
+| **ᓚᘏᗢ** | [Bengal](https://github.com/lbliii/bengal) | Legacy static-site integration | [Docs](https://lbliii.github.io/bengal/) |
 | **∿∿** | [Purr](https://github.com/lbliii/purr) | Content runtime | — |
 | **⌁⌁** | [Chirp](https://github.com/lbliii/chirp) | Web framework | [Docs](https://lbliii.github.io/chirp/) |
 | **=^..^=** | [Pounce](https://github.com/lbliii/pounce) | ASGI server | [Docs](https://lbliii.github.io/pounce/) |

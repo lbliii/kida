@@ -62,7 +62,7 @@ Step-by-step migration with before/after examples, API mapping table, and verifi
 :::{/card}
 
 :::{card} Upgrade to 0.7
-:icon: arrow-up-circle
+:icon: arrow-up
 :link: /docs/tutorials/upgrade-to-v0.7/
 :description: Migrate to strict-by-default and null-safe idioms
 :badge: 0.7
@@ -70,7 +70,7 @@ Three fix patterns for the strict_undefined flip, the escape hatch, and the new 
 :::{/card}
 
 :::{card} Refactor-Safe Templates
-:icon: folder-tree
+:icon: tree-structure
 :link: /docs/tutorials/refactor-safe-templates/
 :description: Move folders without breaking includes
 :badge: 0.8

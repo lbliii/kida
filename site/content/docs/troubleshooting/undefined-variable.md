@@ -39,7 +39,7 @@ Recent Kida diagnostics also carry structured fields for frameworks:
 ## Common Causes
 
 :::{dropdown} Typo in variable name
-:icon: spell-check
+:icon: check-circle
 
 ```kida
 {# ❌ Typo #}
@@ -53,7 +53,7 @@ Check spelling against what's passed to `render()`.
 :::
 
 :::{dropdown} Variable not passed to template
-:icon: plug
+:icon: puzzle
 
 ```python
 # ❌ Missing variable

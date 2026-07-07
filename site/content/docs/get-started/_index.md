@@ -54,7 +54,7 @@ print(template.render().strip())
 :gap: medium
 
 :::{card} Build Typed Components
-:icon: blocks
+:icon: layers
 :link: /docs/usage/components/
 :description: Defs, slots, and static validation
 :badge: Start Here
@@ -62,7 +62,7 @@ Catch bad component props before rendering with `kida check --validate-calls`.
 :::{/card}
 
 :::{card} Component Comparison
-:icon: columns
+:icon: sidebar
 :link: /docs/tutorials/component-comparison/
 :description: Kida components vs Jinja2 macros
 See how typed props, named slots, and validation change composition.
@@ -90,7 +90,7 @@ See what's familiar, what changes, and what Kida adds beyond Jinja2.
 :::{/card}
 
 :::{card} T-String Templates
-:icon: type
+:icon: code
 :link: /docs/get-started/tstring-templates/
 :description: PEP 750 inline templates
 Use Python 3.14 t-strings for auto-escaped HTML snippets.

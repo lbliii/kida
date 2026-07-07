@@ -50,14 +50,14 @@ PEP 703 compliance and concurrent rendering.
 :::{/card}
 
 :::{card} Syntax and Features
-:icon: arrows-angle-contract
+:icon: stack
 :link: /docs/about/comparison/
 :description: Kida syntax, comparisons, and when it fits
 Syntax reference, Jinja2 comparison, and migration notes.
 :::{/card}
 
 :::{card} FAQ
-:icon: help-circle
+:icon: question
 :link: /docs/about/faq/
 :description: Frequently asked questions
 Common questions answered.
@@ -66,8 +66,8 @@ Common questions answered.
 :::{card} Ecosystem
 :icon: layers
 :link: /docs/about/ecosystem/
-:description: The Bengal stack
-All seven projects in the reactive Python stack.
+:description: The Python components stack
+Projects around Kida's component, content, application, and transport layers.
 :::{/card}
 
 :::{/cards}
