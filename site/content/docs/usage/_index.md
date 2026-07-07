@@ -1,6 +1,6 @@
 ---
 title: Usage
-description: Loading templates, rendering HTML, streaming output, integrating Kida into Python applications, and rendering AI agent output
+description: Build typed components, render them across surfaces, and integrate Kida into Python applications
 draft: false
 weight: 30
 lang: en
@@ -9,7 +9,9 @@ tags:
 - usage
 keywords:
 - usage
-- loading
+- components
+- typed props
+- named slots
 - rendering
 - contexts
 - streaming templates
@@ -22,11 +24,23 @@ icon: terminal
 
 # Usage
 
-Practical patterns for using Kida in your applications.
+Practical patterns for building and rendering Kida components in your applications.
 
 :::{cards}
 :columns: 2
 :gap: medium
+
+:::{card} Components
+:icon: blocks
+:link: /docs/usage/components/
+:description: Typed props, named slots, scoped state, and validation
+:::{/card}
+
+:::{card} Framework Integration
+:icon: puzzle
+:link: /docs/usage/framework-integration/
+:description: Bring Kida components to Python frameworks and static sites
+:::{/card}
 
 :::{card} Loading Templates
 :icon: folder
@@ -40,22 +54,10 @@ Practical patterns for using Kida in your applications.
 :description: Passing variables, globals, nested contexts
 :::{/card}
 
-:::{card} Components
-:icon: blocks
-:link: /docs/usage/components/
-:description: Typed props, named slots, scoped state, and validation
-:::{/card}
-
 :::{card} Streaming
 :icon: zap
 :link: /docs/usage/streaming/
 :description: Chunked rendering, async streaming, framework integration
-:::{/card}
-
-:::{card} Framework Integration
-:icon: puzzle
-:link: /docs/usage/framework-integration/
-:description: Block rendering, introspection, composition — for Chirp, Bengal, custom adapters
 :::{/card}
 
 :::{card} Escaping

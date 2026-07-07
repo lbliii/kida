@@ -1,6 +1,6 @@
 ---
-title: Kida Syntax and Features
-description: How Kida compares to Jinja2-style template engines and when it fits best
+title: Kida Components and Template Features
+description: How Kida's statically validated component model compares with Jinja2-style template engines
 draft: false
 weight: 40
 lang: en
@@ -18,11 +18,15 @@ keywords:
 icon: arrows-angle-contract
 ---
 
-# Kida Syntax and Features
+# Kida Components and Template Features
 
-Kida uses Jinja2-compatible syntax with extensions. If you are evaluating Python
-template engines, this page shows what carries over from Jinja2, what changes, and
-where Kida fits best.
+Kida uses familiar template syntax as the rendering substrate for a statically
+validated component model. If you are evaluating Python template systems, this
+page shows what carries over from Jinja2 and where typed props, named slots, and
+component metadata change the architecture.
+
+For a component-by-component example, see
+[[docs/tutorials/component-comparison|Kida Components vs Jinja2 Macros]].
 
 ## Syntax
 
@@ -87,7 +91,7 @@ Kida uses `|>` for pipelines (Jinja2 uses `|`):
 
 ## When to Use Kida
 
-- Need a Python template engine for HTML rendering and reusable components
+- Need typed server-side components for an existing Python application
 - Want a Jinja2 alternative with familiar syntax
 - Need free-threading support (Python 3.14t)
 - Want zero dependencies

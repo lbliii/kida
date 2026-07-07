@@ -1,6 +1,6 @@
 ---
-title: "Jinja2 vs Kida: Components"
-description: A real-world dashboard card built in Jinja2 and Kida — side by side
+title: "Kida Components vs Jinja2 Macros"
+description: Compare typed props, named slots, scoped state, and static validation with Jinja2 macro composition
 draft: false
 weight: 15
 lang: en
@@ -20,9 +20,12 @@ keywords:
 icon: columns
 ---
 
-# Jinja2 vs Kida: Components
+# Kida Components vs Jinja2 Macros
 
-A real-world dashboard card component built in both engines. Same HTML output, very different authoring experience.
+A Jinja2 macro can reuse markup. A Kida component adds an explicit contract:
+typed props, named slots, scoped state, and call-site validation before render.
+This real-world dashboard card produces the same HTML in both systems while
+showing the difference between reuse and a statically validated component model.
 
 The component has:
 - Typed props (title, subtitle, variant)
