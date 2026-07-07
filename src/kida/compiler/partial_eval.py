@@ -26,11 +26,12 @@ Integration:
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any
 
 from kida.compiler import partial_eval_constants as _constants
 from kida.compiler import partial_eval_dead_code as _dead_code
+from kida.compiler import partial_eval_loops as _loops
 from kida.compiler import partial_eval_nodes as _partial_eval_nodes
 from kida.nodes import (
     BinOp,
@@ -85,8 +86,8 @@ _flatten_inlined = _partial_eval_nodes.flatten_inlined
 _body_has_scoping_nodes = _dead_code.body_has_scoping_nodes
 eliminate_dead_code = _dead_code.eliminate_dead_code
 
-# Maximum number of iterations to unroll in a static for-loop
-_MAX_UNROLL = 200
+# Maximum number of iterations to unroll in a static for-loop or comprehension
+_MAX_UNROLL = _loops.MAX_UNROLL
 
 
 # Maximum allowed result size for safe builtins that produce sequences
@@ -135,24 +136,7 @@ _SAFE_TESTS: dict[str, Callable[..., bool]] = {
 }
 
 
-@dataclass(frozen=True, slots=True)
-class _LoopProperties:
-    """Compile-time stand-in for LoopContext properties.
-
-    Provides the same attribute names as the runtime LoopContext so that
-    expressions like ``{{ loop.index }}`` resolve during partial evaluation.
-    """
-
-    index0: int
-    index: int
-    first: bool
-    last: bool
-    length: int
-    revindex: int
-    revindex0: int
-
-
-class PartialEvaluator:
+class PartialEvaluator(_loops.LoopUnrollingMixin):
     """Evaluate static expressions in a Kida AST at compile time.
 
     Walks the template AST and replaces expressions that can be fully
@@ -941,32 +925,6 @@ class PartialEvaluator:
         # No else — remove the node entirely
         return None
 
-    def _transform_for(self, node: For) -> Node | None:
-        """Unroll for-loop when iterable is statically known, else recurse."""
-        iter_val = self._try_eval(node.iter)
-
-        if iter_val is not _UNRESOLVED and not node.recursive:
-            # Try to unroll the loop
-            unrolled = self._try_unroll_for(node, iter_val)
-            if unrolled is not None:
-                return unrolled
-
-        # Can't unroll — recurse into body as before
-        new_body = self._transform_body(node.body)
-        new_empty = self._transform_body(node.empty) if node.empty else node.empty
-        if new_body is node.body and new_empty is node.empty:
-            return node
-        return For(
-            lineno=node.lineno,
-            col_offset=node.col_offset,
-            target=node.target,
-            iter=node.iter,
-            body=new_body,
-            empty=new_empty,
-            recursive=node.recursive,
-            test=node.test,
-        )
-
     def _transform_with(self, node: With) -> Node:
         """Propagate static values through {% with %} block bindings.
 
@@ -1093,92 +1051,6 @@ class PartialEvaluator:
             subject=new_subject,
             cases=tuple(new_cases),
         )
-
-    def _try_unroll_for(self, node: For, iter_val: Any) -> Node | None:
-        """Attempt to unroll a for-loop with a known iterable.
-
-        Returns an _InlinedBody of unrolled iterations, or None if
-        unrolling is not possible (too many items, complex target, etc.).
-        """
-        try:
-            items = list(iter_val)
-        except _PARTIAL_EVAL_EXCEPTIONS:
-            return None
-
-        if len(items) > _MAX_UNROLL:
-            return None
-
-        # Handle empty iterable
-        if not items:
-            if node.empty:
-                body = self._transform_body(node.empty)
-                if len(body) == 1:
-                    return body[0]
-                return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=body)
-            return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=())
-
-        # Determine target variable name(s)
-        target = node.target
-        if isinstance(target, Name):
-            target_names: tuple[str, ...] = (target.name,)
-        elif isinstance(target, Tuple):
-            names = []
-            for item in target.items:
-                if not isinstance(item, Name):
-                    return None  # Complex target — bail
-                names.append(item.name)
-            target_names = tuple(names)
-        else:
-            return None
-
-        # Unroll each iteration
-        total_items = len(items)
-        all_nodes: list[Node] = []
-
-        for idx, item in enumerate(items):
-            # Apply loop test filter if present
-            if node.test is not None:
-                sub_ctx = self._build_iter_context(target_names, item)
-                sub_eval = self._make_sub_evaluator(sub_ctx)
-                test_val = sub_eval._try_eval(node.test)
-                if test_val is _UNRESOLVED:
-                    return None  # Can't determine filter — bail
-                if not test_val:
-                    continue
-
-            # Build context with loop variable(s) + loop.* properties
-            iter_ctx = self._build_iter_context(target_names, item)
-            iter_ctx["loop"] = _LoopProperties(
-                index0=idx,
-                index=idx + 1,
-                first=idx == 0,
-                last=idx == total_items - 1,
-                length=total_items,
-                revindex=total_items - idx,
-                revindex0=total_items - idx - 1,
-            )
-
-            sub_eval = self._make_sub_evaluator(iter_ctx)
-            sub_eval._defs = dict(self._defs)
-            transformed = sub_eval._transform_body(node.body)
-            all_nodes.extend(transformed)
-
-        if len(all_nodes) == 1:
-            return all_nodes[0]
-        return _InlinedBody(lineno=node.lineno, col_offset=node.col_offset, nodes=tuple(all_nodes))
-
-    def _build_iter_context(self, target_names: tuple[str, ...], item: Any) -> dict[str, Any]:
-        """Build a sub-context mapping target variable(s) to the current item."""
-        ctx = dict(self._ctx)
-        if len(target_names) == 1:
-            ctx[target_names[0]] = item
-        else:
-            try:
-                values = list(item)
-            except _PARTIAL_EVAL_EXCEPTIONS:
-                return ctx
-            ctx.update(dict(zip(target_names, values, strict=False)))
-        return ctx
 
     def _make_sub_evaluator(self, ctx: dict[str, Any]) -> PartialEvaluator:
         """Create a sub-evaluator with a merged context."""
