@@ -1,6 +1,6 @@
 ---
 title: Flask Integration
-description: Use Kida templates with Flask web framework
+description: Add a typed Kida component and fragment route to Flask in ten minutes
 draft: false
 weight: 20
 lang: en
@@ -11,203 +11,142 @@ tags:
 - web
 keywords:
 - flask
-- fastapi
-- web framework
+- typed components
+- fragment rendering
 - integration
 icon: globe
 ---
 
 # Flask Integration
 
-Integrate Kida templates into your Flask application.
+Add a typed Kida component, a form, and a fragment response to an existing
+Flask application. Kida requires **Python 3.14 or newer**.
 
-## Prerequisites
+> Coming from Jinja2? Read [[docs/get-started/coming-from-jinja2|Coming from
+> Jinja2]] first. In particular, Kida's `{% set %}` is block-scoped rather than
+> leaking into its surrounding scope.
 
-- Python 3.14+
-- Flask installed
-- Basic Flask knowledge
-
-## Step 1: Install Dependencies
+## 1. Install
 
 ```bash
-pip install flask kida-templates
+uv add flask kida-templates
 ```
 
-## Step 2: Configure Kida with Flask
+## 2. Register Kida and add two routes
 
-Register Kida on a Flask app. This keeps Flask's Jinja environment intact and
-adds a separate Kida environment at `app.extensions["kida"]`:
+`init_kida()` leaves Flask's Jinja environment intact and adds a separate Kida
+environment at `app.extensions["kida"]` and `app.kida_env`.
 
 ```python
-from flask import Flask
+from flask import Flask, request
+
 from kida.contrib.flask import init_kida, render_template
 
 app = Flask(__name__)
 kida_env = init_kida(app)
+
+
+@app.get("/")
+def home() -> str:
+    return render_template(
+        "components.html",
+        title="First component",
+        summary="Edit me",
+    )
+
+
+@app.post("/preview")
+def preview() -> str:
+    template = kida_env.get_template("components.html")
+    return template.render_block(
+        "preview",
+        title=request.form.get("title", ""),
+        summary=request.form.get("summary", ""),
+    )
 ```
 
-`init_kida()` uses `app.template_folder` by default. Pass
-`template_folder="other-templates"` to override it, or pass Kida
-`Environment` keyword arguments such as `cache_size=400`.
+`render_template()` reads Kida from Flask's current application context. Pass
+`template_folder=` to `init_kida()` to override `app.template_folder`, or pass
+normal `Environment` options such as `cache_size=400`.
 
-## Step 3: Use the Render Helper
+## 3. Create the typed component
 
-Import the adapter's `render_template()` inside routes. It reads the Kida
-environment from Flask's current app and returns the rendered HTML string:
-
-```python
-from kida.contrib.flask import render_template
-```
-
-## Step 4: Use in Routes
-
-```python
-@app.route("/")
-def home():
-    return render_template("home.html", title="Welcome")
-
-@app.route("/users/<name>")
-def user_profile(name):
-    user = get_user(name)
-    return render_template("profile.html", user=user)
-```
-
-## Step 5: Create Templates
-
-**templates/base.html:**
+Save this as `templates/components.html`:
 
 ```kida
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{% block title %}My App{% end %}</title>
-</head>
-<body>
-    <nav>{% block nav %}{% end %}</nav>
-    <main>{% block content %}{% end %}</main>
-</body>
-</html>
+{% def panel(title: str) %}
+<section class="panel">
+  <h1>{{ title }}</h1>
+  {% slot %}
+</section>
+{% enddef %}
+
+{% def text_field(name: str, label: str, value: str = "") %}
+<label>
+  {{ label }}
+  <input name="{{ name }}" value="{{ value }}">
+</label>
+{% enddef %}
+
+{% block form %}
+{% call panel("Component form") %}
+<form method="post" action="/preview">
+  {{ text_field("title", "Title", title) }}
+  {{ text_field("summary", "Summary", summary) }}
+  <button type="submit">Preview</button>
+</form>
+{% endcall %}
+{% endblock %}
+
+{% block preview %}
+<article id="preview">
+  <h2>{{ title }}</h2>
+  <p>{{ summary }}</p>
+</article>
+{% endblock %}
 ```
 
-**templates/home.html:**
+The component call is checked against the typed `def` signature. The `/`
+route renders the full template; `/preview` renders only the named block for
+HTMX, Turbo, or another HTML-over-the-wire client. Both paths use the same
+autoescaping rules.
 
-```kida
-{% extends "base.html" %}
+## 4. Run it
 
-{% block title %}{{ title }}{% end %}
-
-{% block content %}
-    <h1>{{ title }}</h1>
-    <p>Welcome to the site!</p>
-{% end %}
+```bash
+uv run flask --app app run --debug
 ```
 
-## Complete Example
+The repository includes a runnable, smoke-tested version at
+[`examples/flask_components`](https://github.com/lbliii/kida/tree/main/examples/flask_components).
+
+## Add filters and globals
+
+Register application helpers on the environment returned by `init_kida()`:
 
 ```python
-from flask import Flask
-from kida.contrib.flask import init_kida, render_template
+from flask import url_for
 
-app = Flask(__name__)
+kida_env.add_global("url_for", url_for)
 
-kida_env = init_kida(
-    app,
-    cache_size=100,
-    auto_reload=app.debug,  # Only reload in debug mode
-)
-
-@app.route("/")
-def home():
-    return render_template("home.html", title="Home")
-
-@app.route("/about")
-def about():
-    return render_template("about.html", title="About")
-
-if __name__ == "__main__":
-    app.run(debug=True)
-```
-
-## Custom Filters for Flask
-
-```python
-from datetime import datetime
-from flask import url_for as flask_url_for
-
-# Add Flask's url_for
-kida_env.add_global("url_for", flask_url_for)
-
-# Add custom filters
-@kida_env.filter()
-def format_datetime(value, format="%Y-%m-%d"):
-    if isinstance(value, datetime):
-        return value.strftime(format)
-    return value
 
 @kida_env.filter()
-def pluralize(count, singular, plural=None):
-    if plural is None:
-        plural = singular + "s"
-    return singular if count == 1 else plural
+def currency(value: float) -> str:
+    return f"${value:,.2f}"
 ```
 
-Use in templates:
+## Production setup
 
-```kida
-{{ post.date | format_datetime("%B %d, %Y") }}
-{{ count }} {{ count | pluralize("item") }}
-```
-
-## Error Handling
+Set `auto_reload=False` outside development and size the template cache for
+your application:
 
 ```python
-from kida import TemplateError
-
-@app.errorhandler(TemplateError)
-def handle_template_error(error):
-    app.logger.error(f"Template error: {error}")
-    return render_template("error.html", error=str(error)), 500
+kida_env = init_kida(app, auto_reload=False, cache_size=400)
 ```
 
-## Production Configuration
+## Next steps
 
-```python
-# Production settings
-kida_env = Environment(
-    loader=FileSystemLoader("templates/"),
-    autoescape=True,
-    auto_reload=False,      # Don't check for changes
-    cache_size=400,         # Larger cache
-)
-
-# Clear cache on deploy
-@app.cli.command()
-def clear_cache():
-    """Clear template cache."""
-    kida_env.clear_cache()
-    print("Template cache cleared.")
-```
-
-## FastAPI Integration
-
-Kida works similarly with FastAPI:
-
-```python
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-from kida import Environment, FileSystemLoader
-
-app = FastAPI()
-kida_env = Environment(loader=FileSystemLoader("templates/"))
-
-@app.get("/", response_class=HTMLResponse)
-def home():
-    template = kida_env.get_template("home.html")
-    return template.render(title="FastAPI + Kida")
-```
-
-## Next Steps
-
-- [[docs/extending/custom-filters|Custom Filters]] — Build domain-specific filters
-- [[docs/usage/escaping|Escaping]] — HTML security
-- [[docs/about/performance|Performance]] — Production optimization
+- [[docs/tutorials/django-integration|Django Integration]]
+- [[docs/tutorials/starlette-integration|Starlette & FastAPI Integration]]
+- [[docs/extending/custom-filters|Custom Filters]]
+- [[docs/usage/escaping|Escaping]]

@@ -1,7 +1,7 @@
 """Contract tests for optional framework adapters.
 
-The real frameworks are intentionally not test dependencies. Small doubles
-prove Kida's adapter behavior and minimal-install import boundary.
+Current frameworks are dev-only test dependencies. Focused doubles still prove
+Kida's minimal-install import boundary and render-context handoff in isolation.
 """
 
 from __future__ import annotations
@@ -71,24 +71,65 @@ def test_flask_render_template_uses_current_app(
     assert render_template("hello.html", name="Flask") == "Hello Flask"
 
 
-def test_django_backend_loads_and_wraps_templates(tmp_path: Path) -> None:
-    (tmp_path / "hello.html").write_text("Hello {{ name }}", encoding="utf-8")
-    backend = DjangoKidaTemplates(
-        {
-            "DIRS": [tmp_path],
-            "OPTIONS": {"autoescape": True, "extensions": []},
-        }
-    )
+def test_flask_adapter_with_current_flask(tmp_path: Path) -> None:
+    from flask import Flask
 
+    template_dir = tmp_path / "templates"
+    template_dir.mkdir()
+    (template_dir / "hello.html").write_text("Hello {{ name }}", encoding="utf-8")
+    app = Flask(__name__, root_path=str(tmp_path), template_folder="templates")
+    init_kida(app)
+
+    @app.get("/")
+    def home() -> str:
+        return app.kida_render("hello.html", name="Flask 3")
+
+    response = app.test_client().get("/")
+
+    assert response.status_code == 200
+    assert response.get_data(as_text=True) == "Hello Flask 3"
+
+
+def test_django_backend_loads_and_wraps_templates(tmp_path: Path) -> None:
+    from django.template.utils import EngineHandler
+
+    (tmp_path / "hello.html").write_text("Hello {{ name }}", encoding="utf-8")
+    engines = EngineHandler(
+        templates=[
+            {
+                "NAME": "kida",
+                "BACKEND": "kida.contrib.django.KidaTemplates",
+                "APP_DIRS": False,
+                "DIRS": [tmp_path],
+                "OPTIONS": {"autoescape": True, "extensions": []},
+            }
+        ]
+    )
+    backend = engines["kida"]
+
+    assert isinstance(backend, DjangoKidaTemplates)
     template = backend.get_template("hello.html")
     request = object()
 
-    assert template.render({"name": "Django"}, request) == "Hello Django"
+    assert template.render({"name": "Django 6"}, request) == "Hello Django 6"
     assert template.origin.name == "hello.html"
     assert template.origin.template_name == "hello.html"
     with pytest.warns(UserWarning, match=r"from_string\(\) without name="):
         inline = backend.from_string("Hi {{ name }}")
     assert inline.render({"name": "string"}) == "Hi string"
+
+
+def test_django_backend_ignores_standard_engine_keys(tmp_path: Path) -> None:
+    backend = DjangoKidaTemplates(
+        {
+            "NAME": "kida",
+            "APP_DIRS": False,
+            "DIRS": [tmp_path],
+            "OPTIONS": {"autoescape": True, "extensions": []},
+        }
+    )
+
+    assert backend.env is not None
 
 
 class _FakeTemplate:
@@ -115,43 +156,34 @@ class _FakeEnvironment:
         return self.template
 
 
-class _FakeHTMLResponse:
-    def __init__(
-        self,
-        content: str,
-        status_code: int,
-        headers: dict[str, str] | None,
-        media_type: str | None,
-    ) -> None:
-        self.content = content
-        self.status_code = status_code
-        self.headers = headers
-        self.media_type = media_type
-
-
-def test_starlette_template_response_contract(monkeypatch: pytest.MonkeyPatch) -> None:
-    starlette_module = ModuleType("starlette")
-    starlette_module.__path__ = []
-    responses_module = ModuleType("starlette.responses")
-    responses_module.HTMLResponse = _FakeHTMLResponse
-    monkeypatch.setitem(sys.modules, "starlette", starlette_module)
-    monkeypatch.setitem(sys.modules, "starlette.responses", responses_module)
+def test_starlette_template_response_contract() -> None:
+    from starlette.requests import Request
+    from starlette.responses import HTMLResponse
 
     template = _FakeTemplate()
     env = _FakeEnvironment(template)
     templates = StarletteKidaTemplates(
         env=cast("Environment", env),
-        context_processors=[lambda request: {"processor": request.user}],
+        context_processors=[lambda request: {"processor": request.state.user}],
     )
-    request = SimpleNamespace(
-        user="Ada",
-        headers={
-            "HX-Request": "true",
-            "HX-Target": "results",
-            "HX-Trigger": "search",
-            "HX-Boosted": "true",
-        },
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "query_string": b"",
+            "headers": [
+                (b"hx-request", b"true"),
+                (b"hx-target", b"results"),
+                (b"hx-trigger", b"search"),
+                (b"hx-boosted", b"true"),
+            ],
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "scheme": "http",
+        }
     )
+    request.state.user = "Ada"
 
     response = templates.TemplateResponse(
         request,
@@ -162,11 +194,11 @@ def test_starlette_template_response_contract(monkeypatch: pytest.MonkeyPatch) -
         media_type="text/custom",
     )
 
-    assert isinstance(response, _FakeHTMLResponse)
-    assert response.content == "Hello Starlette"
+    assert isinstance(response, HTMLResponse)
+    assert response.body == b"Hello Starlette"
     assert response.status_code == 201
-    assert response.headers == {"X-Test": "yes"}
-    assert response.media_type == "text/custom"
+    assert response.headers["X-Test"] == "yes"
+    assert response.headers["content-type"] == "text/custom; charset=utf-8"
     assert template.context == {
         "request": request,
         "name": "Starlette",

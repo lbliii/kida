@@ -185,6 +185,13 @@ dev = [
     "hypothesis>=6.100.0",     # Property-based testing
     "jinja2>=3.1.6,<3.2",
     "milo-cli>=0.2.1",         # Saga benchmarks + examples (dev-only)
+    # Optional framework contracts/examples (dev-only; runtime stays dependency-free)
+    "flask>=3.1.3,<3.2",
+    "django>=6.0.6,<6.1",
+    "fastapi>=0.139,<0.140",
+    "starlette>=1.3.1,<1.4",
+    "httpx>=0.28.1,<0.29",
+    "uvicorn>=0.50.2,<0.51",
     # Linting & Type Checking
     "ty>=0.0.11",   # Astral type checker (Rust-based)
     "ruff>=0.15.1", # 0.15.1+ fixes except-parenthesis bug (PEP 758 + as clause)
