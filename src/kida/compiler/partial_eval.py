@@ -31,6 +31,7 @@ from typing import Any
 
 from kida.compiler import partial_eval_constants as _constants
 from kida.compiler import partial_eval_dead_code as _dead_code
+from kida.compiler import partial_eval_inlining as _inlining
 from kida.compiler import partial_eval_loops as _loops
 from kida.compiler import partial_eval_nodes as _partial_eval_nodes
 from kida.nodes import (
@@ -68,7 +69,6 @@ from kida.nodes import (
     Range,
     SafePipeline,
     Set,
-    Slot,
     SlotBlock,
     Template,
     Test,
@@ -136,7 +136,7 @@ _SAFE_TESTS: dict[str, Callable[..., bool]] = {
 }
 
 
-class PartialEvaluator(_loops.LoopUnrollingMixin):
+class PartialEvaluator(_loops.LoopUnrollingMixin, _inlining.ComponentInliningMixin):
     """Evaluate static expressions in a Kida AST at compile time.
 
     Walks the template AST and replaces expressions that can be fully
@@ -1189,151 +1189,6 @@ class PartialEvaluator(_loops.LoopUnrollingMixin):
             body=new_body,
             filter=node.filter,
         )
-
-    # ------------------------------------------------------------------
-    # Component inlining
-    # ------------------------------------------------------------------
-
-    _MAX_INLINE_NODES = 20
-
-    def _try_inline_call(self, node: CallBlock) -> Node | None:
-        """Try to inline a CallBlock by expanding its Def body.
-
-        Returns an _InlinedBody (or single node) on success, None if
-        inlining is not possible.
-
-        Requirements for inlining:
-        - The call target is a simple FuncCall(Name(def_name))
-        - The referenced Def has been seen in this template
-        - The Def body is small (< _MAX_INLINE_NODES)
-        - The Def has no Slot nodes (no caller injection)
-        - No slot content in the CallBlock
-        - All arguments resolve to constants
-        """
-        # Must be a simple call: {{ name(args) }}
-        call = node.call
-        if not isinstance(call, FuncCall):
-            return None
-        if not isinstance(call.func, Name):
-            return None
-
-        def_name = call.func.name
-        defn = self._defs.get(def_name)
-        if defn is None:
-            return None
-
-        # Size guard
-        if self._count_nodes(defn.body) > self._MAX_INLINE_NODES:
-            return None
-
-        # No slots in def body
-        if self._has_slot(defn.body):
-            return None
-
-        # Defs execute with their own local context; inlining bodies that
-        # contain scoping/assignment nodes would leak mutations into the
-        # caller scope and change semantics.
-        if _body_has_scoping_nodes(defn.body):
-            return None
-
-        # No meaningful slot content in the call — whitespace-only is OK
-        def _slot_body_is_empty(body: Sequence[Node]) -> bool:
-            return all(isinstance(child, Data) and not child.value.strip() for child in body)
-
-        if any(not _slot_body_is_empty(body) for body in node.slots.values()):
-            return None
-
-        # No vararg/kwarg
-        if defn.vararg or defn.kwarg:
-            return None
-
-        # Resolve all positional and keyword arguments
-        param_names = [p.name for p in defn.params]
-        arg_values: dict[str, Any] = {}
-
-        # Positional args from call
-        all_args = list(call.args) + list(node.args)
-        for i, arg_expr in enumerate(all_args):
-            if i >= len(param_names):
-                return None  # Too many args
-            val = self._try_eval(arg_expr)
-            if val is _UNRESOLVED:
-                return None
-            arg_values[param_names[i]] = val
-
-        # Keyword args from call
-        for k, v_expr in call.kwargs.items():
-            if k in arg_values:
-                return None  # Duplicate
-            val = self._try_eval(v_expr)
-            if val is _UNRESOLVED:
-                return None
-            arg_values[k] = val
-
-        # Fill defaults for missing params
-        n_required = len(param_names) - len(defn.defaults)
-        for i, param_name in enumerate(param_names):
-            if param_name in arg_values:
-                continue
-            default_idx = i - n_required
-            if default_idx < 0:
-                return None  # Missing required arg
-            val = self._try_eval(defn.defaults[default_idx])
-            if val is _UNRESOLVED:
-                return None
-            arg_values[param_name] = val
-
-        # Inline: create a sub-evaluator with merged context
-        merged_ctx = {**self._ctx, **arg_values}
-        sub_eval = PartialEvaluator(
-            merged_ctx,
-            escape_func=self._escape,
-            pure_filters=self._pure_filters,
-            filter_callables=self._filter_callables,
-            max_eval_depth=self._max_depth,
-            inline_components=self._inline_components,
-        )
-        sub_eval._defs = dict(self._defs)
-
-        inlined_body = sub_eval._transform_body(defn.body)
-        if len(inlined_body) == 1:
-            return inlined_body[0]
-        return _InlinedBody(
-            lineno=node.lineno,
-            col_offset=node.col_offset,
-            nodes=inlined_body,
-        )
-
-    @staticmethod
-    def _count_nodes(body: Sequence[Node]) -> int:
-        """Count total nodes in a body (shallow — does not recurse into children)."""
-        return len(body)
-
-    @staticmethod
-    def _has_slot(body: Sequence[Node]) -> bool:
-        """Check if body contains any Slot nodes (recursively)."""
-        for node in body:
-            if isinstance(node, Slot):
-                return True
-            # Check all child bodies for container nodes
-            if isinstance(node, (Block, If, For)):
-                child_body = getattr(node, "body", ())
-                if PartialEvaluator._has_slot(child_body):
-                    return True
-                # If: check elif branches and else
-                if isinstance(node, If):
-                    for _, branch_body in node.elif_:
-                        if PartialEvaluator._has_slot(branch_body):
-                            return True
-                    if node.else_ and PartialEvaluator._has_slot(node.else_):
-                        return True
-                # For: check empty branch
-                if isinstance(node, For) and node.empty and PartialEvaluator._has_slot(node.empty):
-                    return True
-            # SlotBlock contains a body too
-            if isinstance(node, SlotBlock) and PartialEvaluator._has_slot(node.body):
-                return True
-        return False
 
     def _transform_expr(self, expr: Expr) -> Expr:
         """Try to partially evaluate an expression.
