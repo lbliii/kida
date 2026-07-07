@@ -515,7 +515,7 @@ If you see `Cannot iterate over macro 'X'`, a macro is shadowing a context varia
 ## See Also
 
 - [[docs/usage/components|Components Guide]] — Patterns for building reusable UI components
-- [[docs/tutorials/component-comparison|Jinja2 vs Kida Components]] — Side-by-side comparison
+- [[docs/tutorials/component-comparison|Kida Components vs Jinja2 Macros]] — Side-by-side comparison
 - [[docs/syntax/inheritance|Inheritance]] — Extend base templates
 - [[docs/syntax/includes|Includes]] — Include partials
 - [[docs/extending/custom-filters|Custom Filters]] — Python-defined filters

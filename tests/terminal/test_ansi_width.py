@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from kida.utils.ansi_width import (
@@ -338,3 +340,13 @@ class TestWidthStrategy:
     def test_configure_without_wcwidth(self, _reset_width_strategy) -> None:
         s = configure_width(ambiguous_width=1, use_wcwidth=False)
         assert s._wcwidth_fn is None
+
+    def test_configure_falls_back_when_wcwidth_is_missing(
+        self, _reset_width_strategy, monkeypatch
+    ) -> None:
+        monkeypatch.setitem(sys.modules, "wcwidth", None)
+
+        strategy = configure_width(ambiguous_width=2, use_wcwidth=True)
+
+        assert strategy._wcwidth_fn is None
+        assert strategy.ambiguous_width == 2

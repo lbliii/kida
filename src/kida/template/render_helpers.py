@@ -170,7 +170,9 @@ def _make_macro_wrapper(
         sig = inspect.signature(macro_fn)
         needs_outer_ctx = "_outer_ctx" in sig.parameters
     except ValueError, TypeError:
-        pass
+        # Some builtins and extension callables do not expose signatures.
+        # They remain callable; only optional _outer_ctx injection is skipped.
+        needs_outer_ctx = False
     return MacroWrapper(
         _fn=macro_fn,
         _defining_namespace=defining_namespace or {},

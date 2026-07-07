@@ -90,6 +90,27 @@ class TestAutoReload:
         # Should be different template objects
         assert t1 is not t2
 
+    def test_mtime_error_falls_back_to_source_hash(self, monkeypatch) -> None:
+        """An unavailable file mtime still uses authoritative source content."""
+        templates = {"test.html": "Hello"}
+        env = Environment(loader=DictLoader(templates), auto_reload=True)
+        template = env.get_template("test.html")
+        template._filename = "/unstatable/test.html"
+        env._template_mtimes["test.html"] = 1
+
+        class UnstatablePath:
+            def __init__(self, _path: str) -> None:
+                pass
+
+            def stat(self):
+                raise PermissionError("mtime denied")
+
+        monkeypatch.setattr("kida.environment.core.Path", UnstatablePath)
+
+        assert env._is_template_stale("test.html") is False
+        templates["test.html"] = "Changed"
+        assert env._is_template_stale("test.html") is True
+
     def test_clear_template_cache_all(self) -> None:
         """clear_template_cache() clears all templates when names=None."""
         loader = DictLoader({"a.html": "A", "b.html": "B"})

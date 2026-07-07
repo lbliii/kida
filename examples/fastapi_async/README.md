@@ -1,18 +1,19 @@
 # FastAPI Integration
 
-`render_stream_async()` with FastAPI's `StreamingResponse` for true streaming HTML delivery.
+`render_stream_async()` with FastAPI's `StreamingResponse` for true streaming
+HTML delivery on Python 3.14+.
 
 ## Run
 
 ```bash
-pip install fastapi uvicorn
+uv add fastapi uvicorn kida-templates
 cd examples/fastapi_async && uvicorn app:app --reload
 ```
 
 ## Test
 
 ```bash
-pytest examples/fastapi_async/ -v
+uv run pytest examples/fastapi_async/ -v
 ```
 
 ## What It Shows

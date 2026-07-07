@@ -5,11 +5,12 @@
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://pypi.org/project/kida-templates/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**Pure-Python components for HTML, Markdown, terminal output, and CI reports.**
+**Server-side components for Python — no npm, no build step.**
 
-Kida gives Python templates a real component model: typed props, named slots,
-static call-site validation, scoped state, error boundaries, and free-threaded
-rendering on Python 3.14t. No JavaScript build step. No runtime dependencies.
+Kida brings typed props, named slots, static call-site validation, scoped state,
+and error boundaries to pure-Python templates. Components render to HTML,
+Markdown, terminal output, and CI reports on free-threaded Python 3.14t, with no
+runtime dependencies.
 
 ## Quick Start
 
@@ -303,15 +304,15 @@ small components with constant args can be inlined. Use
 
 ```python
 # Flask
-from kida.contrib.flask import KidaFlask
-kida = KidaFlask(app)
+from kida.contrib.flask import init_kida, render_template
+kida_env = init_kida(app)
 
 # Starlette / FastAPI
-from kida.contrib.starlette import KidaStarlette
-templates = KidaStarlette(directory="templates")
+from kida.contrib.starlette import KidaTemplates
+templates = KidaTemplates(directory="templates")
 
 # Django
-TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaDjango", ...}]
+TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaTemplates", ...}]
 ```
 
 </details>

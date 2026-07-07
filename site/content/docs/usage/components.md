@@ -513,4 +513,4 @@ See [[docs/advanced/analysis|Static Analysis]] for the full analysis API.
 - [[docs/usage/provide-consume|Provide / Consume]] — Context propagation
 - [[docs/usage/error-boundaries|Error Boundaries]] — `{% try %}`/`{% fallback %}`
 - [[docs/advanced/content-stacks|Content Stacks]] — `{% push %}`/`{% stack %}`
-- [[docs/tutorials/component-comparison|Jinja2 vs Kida Components]] — Side-by-side comparison
+- [[docs/tutorials/component-comparison|Kida Components vs Jinja2 Macros]] — Side-by-side comparison

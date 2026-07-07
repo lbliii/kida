@@ -1,6 +1,6 @@
 # Report Contract Hardening
 
-**Status**: Partially implemented — contract inventory, AMP schema checks, readability tests, and docs have shipped; workflow audit remains
+**Status**: Complete — contract inventory, AMP schema checks, readability tests, workflow parity checks, and docs shipped in v0.9.0
 **Affects**: `templates/`, `tests/templates/`, `schemas/amp/v1/`, `.github/workflows/`, `.github/kida-templates/`, `src/kida/markdown/`, `src/kida/terminal/`, `site/content/docs/usage/github-action.md`
 **Stewards**: report templates, GitHub workflow, AMP schemas, markdown surface, terminal surface, tests, internal docs, documentation site
 
@@ -122,3 +122,11 @@ Steward notes:
 - Public-contract or render-surface changes run `make verify-stability`.
 - Steward Notes in the PR name consulted stewards, evidence, risks, and unresolved tradeoffs.
 - Any snapshot update is paired with a focused assertion or a clear explanation of why the snapshot itself is the contract.
+
+## Closure
+
+The remaining workflow audit shipped with the v0.9.0 report-contract work.
+`tests/templates/test_github_report_contracts.py` now proves that checked-in
+GitHub report templates match their source templates and that raw lint, type,
+and test output remains visible alongside rendered reports. The release is
+recorded in `CHANGELOG.md` and `site/content/releases/0.9.0.md`.
