@@ -336,7 +336,8 @@ def _resolve_ambiguous_width(explicit: int | None, is_tty: bool) -> int:
         if w in (1, 2):
             return w
     except ImportError:
-        pass
+        # wcwidth is optional; continue through locale and narrow defaults.
+        w = None
 
     # 4. Locale heuristic — CJK locales typically render ambiguous as wide
     lang = os.environ.get("LANG", "") + os.environ.get("LC_ALL", "")

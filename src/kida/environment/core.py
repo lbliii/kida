@@ -1096,8 +1096,14 @@ class Environment:
                         current_mtime = Path(cached_template._filename).stat().st_mtime_ns
                         if current_mtime == cached_mtime:
                             return False  # mtime unchanged → not stale
-                    except OSError:
-                        pass  # Fall through to hash check
+                    except OSError as exc:
+                        # A stat failure does not prove staleness. Preserve
+                        # correctness by falling through to the source hash.
+                        logger.debug(
+                            "Template mtime unavailable for %s; falling back to source hash: %s",
+                            cached_template._filename,
+                            exc,
+                        )
 
             # Slow path: read source and compare hash
             source, _ = self.loader.get_source(name)

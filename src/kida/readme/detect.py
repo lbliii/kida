@@ -122,7 +122,9 @@ def _extract_docstring(path: Path) -> str | None:
         if doc:
             return doc.split("\n")[0].strip().rstrip(".")
     except SyntaxError, UnicodeDecodeError, OSError:
-        pass
+        # Docstrings are optional annotations. Malformed, non-UTF-8, or
+        # unreadable source remains visible in the tree without annotation.
+        return None
     return None
 
 
@@ -264,7 +266,9 @@ def _detect_repo_url(pyproject: dict[str, Any], root: Path) -> str | None:
             url = url.removesuffix(".git")
             return url
     except FileNotFoundError, subprocess.TimeoutExpired:
-        pass
+        # Git is optional for scaffold detection; pyproject metadata remains
+        # authoritative and an unavailable command simply means no fallback.
+        return None
     return None
 
 
@@ -288,7 +292,9 @@ def _detect_author(pyproject: dict[str, Any], root: Path) -> str | None:
         if result.returncode == 0:
             return result.stdout.strip() or None
     except FileNotFoundError, subprocess.TimeoutExpired:
-        pass
+        # Git is optional for scaffold detection. Missing author metadata is
+        # represented by None and normalized by detect_project().
+        return None
     return None
 
 
