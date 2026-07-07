@@ -83,7 +83,7 @@ output = "FastAPI example (run with uvicorn)"
 
 def main() -> None:
     if fastapi is None:
-        print("FastAPI not installed. Install with: pip install fastapi uvicorn")
+        print("FastAPI not installed. Install with: uv add fastapi uvicorn kida-templates")
         return
     print("Run with: uvicorn app:app --reload")
     print("Endpoints:")

@@ -157,11 +157,11 @@ uv run python examples/fastapi_components/app.py --smoke
 ### `fastapi_async/` -- FastAPI Integration
 
 `render_stream_async()` with FastAPI's `StreamingResponse` for true streaming HTML
-delivery. Templates with `{% async for %}` consume async data sources while the
-response streams to the client.
+delivery on Python 3.14+. Templates with `{% async for %}` consume async data
+sources while the response streams to the client.
 
 ```bash
-pip install fastapi uvicorn
+uv add fastapi uvicorn kida-templates
 cd examples/fastapi_async && uvicorn app:app --reload
 ```
 
