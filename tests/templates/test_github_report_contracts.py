@@ -5,6 +5,7 @@ from __future__ import annotations
 from .report_contracts import ROOT_DIR, TEMPLATES_DIR
 
 GITHUB_TEMPLATES_DIR = ROOT_DIR / ".github" / "kida-templates"
+WORKFLOWS_DIR = ROOT_DIR / ".github" / "workflows"
 
 
 def test_github_report_template_copies_match_source_templates():
@@ -19,7 +20,7 @@ def test_github_report_template_copies_match_source_templates():
 
 def test_ci_workflow_keeps_raw_output_alongside_rendered_reports():
     """Dogfooded reports are additive and do not replace raw lint/type/test output."""
-    workflow = (ROOT_DIR / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "tests.yml").read_text(encoding="utf-8")
 
     assert "uv run pytest -n auto -q --tb=short --dist worksteal" in workflow
     assert "uv run pytest -n 0 -q --tb=short --cov=kida" in workflow
@@ -28,6 +29,18 @@ def test_ci_workflow_keeps_raw_output_alongside_rendered_reports():
     assert "uv run ruff check .\n" in workflow
     assert "--output-format json > reports/ruff.json || true" in workflow
     assert "uv run ruff format --check .\n" in workflow
+
+
+def test_ci_has_one_authoritative_ty_lane():
+    """Type checking runs once and keeps the report-producing CI job."""
+    workflows = {
+        path.name: path.read_text(encoding="utf-8") for path in WORKFLOWS_DIR.glob("*.yml")
+    }
+
+    assert "ty.yml" not in workflows
+    assert sum("uv run ty check src/kida\n" in workflow for workflow in workflows.values()) == 1
+    assert "name: Type Check (ty)" in workflows["tests.yml"]
+    assert "--output-format junit > reports/ty.xml || true" in workflows["tests.yml"]
 
 
 def test_local_ruff_targets_use_the_same_repository_scope_as_ci():

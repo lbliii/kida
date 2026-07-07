@@ -25,6 +25,10 @@ all tracked Python under `src/kida/`, `tests/`, `examples/`, `benchmarks/`, and
 tool-managed directories remain intentionally excluded by Ruff's standard
 discovery rules.
 
+The `Type Check (ty)` job in `.github/workflows/tests.yml` is the authoritative
+CI type-check lane. It keeps raw `ty` failure output visible and adds the
+rendered JUnit report; no separate workflow runs the same check.
+
 `make verify-rc` remains an alias for contributors who already use that name.
 
 The package smoke test verifies:
