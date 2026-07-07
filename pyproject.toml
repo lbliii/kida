@@ -45,7 +45,7 @@ Changelog = "https://github.com/lbliii/kida/blob/main/CHANGELOG.md"
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "examples"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

@@ -268,16 +268,23 @@ tests, smoke tests, or both.
 
 ## Running Tests
 
-Most examples have a local `test_<name>.py` that verifies behavior end-to-end.
-`tests/test_examples.py` also smoke-runs practical `run.py` examples and checks
-that every runnable top-level example is listed here.
+Example tests are part of Kida's standard pytest collection, so `make test`,
+`make test-cov`, and CI run them alongside `tests/`. Most examples have a local
+`test_<name>.py` that verifies behavior end-to-end. `tests/test_examples.py`
+also smoke-runs practical `run.py` or `app.py` examples and checks that every
+runnable top-level example is listed here.
+
+New examples should keep focused behavior tests beside the example. Use the
+shared `example_app` fixture from `examples/conftest.py` when the test should
+load the sibling `app.py`; guard optional integrations with
+`pytest.importorskip()` so a minimal Kida checkout still collects cleanly.
 
 ```bash
-# All examples
-pytest examples/
+# Standard suite (tests/ and examples/)
+uv run pytest
 
 # One example
-pytest examples/hello/
+uv run pytest examples/hello/
 ```
 
 ## What Each Example Exercises
