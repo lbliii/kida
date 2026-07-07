@@ -18,6 +18,13 @@ with `--cov-fail-under=83`, focused render/sandbox/concurrency safety tests
 under `PYTHON_GIL=0`, and a wheel/sdist build plus clean-venv package smoke
 test.
 
+Ruff lint and format checks are repository-wide (`ruff check .` and
+`ruff format --check .`) in both Makefile targets and CI. This currently covers
+all tracked Python under `src/kida/`, `tests/`, `examples/`, `benchmarks/`, and
+`scripts/`. Generated builds, virtual environments, caches, and other
+tool-managed directories remain intentionally excluded by Ruff's standard
+discovery rules.
+
 `make verify-rc` remains an alias for contributors who already use that name.
 
 The package smoke test verifies:
