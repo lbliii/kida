@@ -6,7 +6,7 @@ Flask application. Flask's own Jinja environment remains unchanged.
 Usage::
 
     from flask import Flask
-    from kida.contrib.flask import init_kida
+    from kida.contrib.flask import init_kida, render_template
 
     app = Flask(__name__)
     kida_env = init_kida(app)
@@ -31,7 +31,7 @@ def init_kida(
     template_folder: str | None = None,
     **env_kwargs: Any,
 ) -> Environment:
-    """Initialize Kida as the template engine for a Flask app.
+    """Initialize Kida rendering for a Flask app without replacing Jinja.
 
     Registers a Kida environment and render helper on the app. Templates are
     loaded from the app's template folder; Flask's Jinja environment is not

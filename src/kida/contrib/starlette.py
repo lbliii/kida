@@ -5,7 +5,7 @@ Provides ``KidaTemplates`` — a small adapter with a familiar
 
 Usage::
 
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
     from kida.contrib.starlette import KidaTemplates
 
     app = FastAPI()
