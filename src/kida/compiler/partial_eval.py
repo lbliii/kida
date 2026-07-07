@@ -29,6 +29,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, final
 
+from kida.compiler import partial_eval_constants as _constants
 from kida.nodes import (
     BinOp,
     Block,
@@ -73,8 +74,10 @@ from kida.nodes import (
     With,
 )
 
-# Sentinel for "evaluation failed" — distinct from None (which is a valid result)
-_UNRESOLVED = object()
+_UNRESOLVED = _constants.UNRESOLVED
+_PARTIAL_EVAL_EXCEPTIONS = _constants.PARTIAL_EVAL_EXCEPTIONS
+_compare_op = _constants.compare_op
+_try_eval_const_only = _constants.try_eval_const_only
 
 # Maximum number of iterations to unroll in a static for-loop
 _MAX_UNROLL = 200
@@ -143,119 +146,9 @@ class _LoopProperties:
     revindex0: int
 
 
-# Expected errors when constant folding fails — fall back to runtime evaluation.
-# Narrowing avoids silently swallowing KeyboardInterrupt, SystemExit, etc.
-_PARTIAL_EVAL_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    TypeError,
-    KeyError,
-    IndexError,
-    AttributeError,
-    ValueError,
-    OverflowError,
-    ZeroDivisionError,
-)
-
-
 # ---------------------------------------------------------------------------
 # Dead code elimination (const-only, no static_context)
 # ---------------------------------------------------------------------------
-
-
-def _try_eval_const_only(expr: Expr) -> Any:
-    """Evaluate expression using only literals and constant expressions.
-
-    Resolves Const, BinOp, UnaryOp, Compare, BoolOp. No Name/Getattr/Getitem
-    (those require static_context). Used for dead code elimination.
-    """
-    match expr:
-        case Const():
-            return expr.value
-
-        case BinOp():
-            left = _try_eval_const_only(expr.left)
-            right = _try_eval_const_only(expr.right)
-            if left is _UNRESOLVED or right is _UNRESOLVED:
-                return _UNRESOLVED
-            try:
-                if expr.op == "+":
-                    return left + right
-                if expr.op == "-":
-                    return left - right
-                if expr.op == "*":
-                    return left * right
-                if expr.op == "/":
-                    return left / right
-                if expr.op == "//":
-                    return left // right
-                if expr.op == "%":
-                    return left % right
-                if expr.op == "**":
-                    return left**right
-                if expr.op == "~":
-                    # Compile-time only: operands are constants, never Markup.
-                    # Runtime ~ uses _markup_concat for Markup preservation.
-                    return str(left) + str(right)
-            except _PARTIAL_EVAL_EXCEPTIONS:
-                return _UNRESOLVED
-            return _UNRESOLVED
-
-        case UnaryOp():
-            operand = _try_eval_const_only(expr.operand)
-            if operand is _UNRESOLVED:
-                return _UNRESOLVED
-            try:
-                if expr.op == "-":
-                    return -operand
-                if expr.op == "+":
-                    return +operand
-                if expr.op == "not":
-                    return not operand
-            except _PARTIAL_EVAL_EXCEPTIONS:
-                return _UNRESOLVED
-            return _UNRESOLVED
-
-        case Compare():
-            left = _try_eval_const_only(expr.left)
-            if left is _UNRESOLVED:
-                return _UNRESOLVED
-            for op, comp_node in zip(expr.ops, expr.comparators, strict=True):
-                right = _try_eval_const_only(comp_node)
-                if right is _UNRESOLVED:
-                    return _UNRESOLVED
-                try:
-                    result = _compare_op(op, left, right)
-                except _PARTIAL_EVAL_EXCEPTIONS:
-                    return _UNRESOLVED
-                if not result:
-                    return False
-                left = right
-            return True
-
-        case BoolOp():
-            if expr.op == "and":
-                for val_node in expr.values:
-                    val = _try_eval_const_only(val_node)
-                    if val is _UNRESOLVED:
-                        return _UNRESOLVED
-                    if not val:
-                        return val
-                return val
-            for val_node in expr.values:
-                val = _try_eval_const_only(val_node)
-                if val is _UNRESOLVED:
-                    return _UNRESOLVED
-                if val:
-                    return val
-            return val
-
-        case CondExpr():
-            test = _try_eval_const_only(expr.test)
-            if test is _UNRESOLVED:
-                return _UNRESOLVED
-            return _try_eval_const_only(expr.if_true if test else expr.if_false)
-
-        case _:
-            return _UNRESOLVED
 
 
 def _body_has_scoping_nodes(nodes: Sequence[Node]) -> bool:
@@ -2155,32 +2048,6 @@ class _InlinedBody(Node):
     """
 
     nodes: Sequence[Node] = ()
-
-
-def _compare_op(op: str, left: Any, right: Any) -> bool:
-    """Evaluate a comparison operator."""
-    if op == "==":
-        return left == right
-    if op == "!=":
-        return left != right
-    if op == "<":
-        return left < right
-    if op == "<=":
-        return left <= right
-    if op == ">":
-        return left > right
-    if op == ">=":
-        return left >= right
-    if op == "in":
-        return left in right
-    if op == "not in":
-        return left not in right
-    if op == "is":
-        return left is right
-    if op == "is not":
-        return left is not right
-    msg = f"Unknown comparison operator: {op}"
-    raise ValueError(msg)
 
 
 def partial_evaluate(
