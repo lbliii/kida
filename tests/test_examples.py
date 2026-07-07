@@ -17,6 +17,7 @@ EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 SMOKE_EXAMPLES = [
     "content_stacks",
     "coverage",
+    "design_system",
     "extensions",
     "sandbox",
     "terminal_basic",
@@ -35,9 +36,13 @@ INVENTORY_EXCLUDE = {"__pycache__"}
 
 
 def _load_example(name: str):
-    """Import an example's run module by path."""
-    run_path = EXAMPLES_DIR / name / "run.py"
-    spec = importlib.util.spec_from_file_location(f"examples.{name}.run", run_path)
+    """Import an example's run or app module by path."""
+    module_path = EXAMPLES_DIR / name / "run.py"
+    if not module_path.exists():
+        module_path = EXAMPLES_DIR / name / "app.py"
+    spec = importlib.util.spec_from_file_location(
+        f"examples.{name}.{module_path.stem}", module_path
+    )
     mod = importlib.util.module_from_spec(spec)
     # Temporarily add src/ to path so `import kida` resolves
     src = str(EXAMPLES_DIR.parent / "src")
