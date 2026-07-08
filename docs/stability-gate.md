@@ -40,6 +40,29 @@ The package smoke test verifies:
 - component metadata
 - sandbox denial for blocked reflection attributes
 
+## Scheduled Free-Threading Stress
+
+The required `Thread Safety` CI job runs one deterministic randomized seed on
+every pull request. Weekly and manual CI runs expand the same test to 25 seeds.
+Each seed assigns ten supported shared-runtime operations to different workers
+for 40 barrier-synchronized rounds, covering 400 operations without sleep-based
+correctness assertions. The weekly window therefore covers 10,000 operations
+across distinct role, key, invalidation, and submission schedules.
+
+Pytest includes the seed in each test ID and the test prints it before execution.
+Reproduce a reported seed locally with the GIL disabled:
+
+```bash
+PYTHON_GIL=0 KIDA_STRESS_SEED=17 KIDA_STRESS_RUNS=1 \
+  uv run pytest tests/test_randomized_thread_stress.py \
+  -vv -s --tb=short --timeout=120
+```
+
+Increase `KIDA_STRESS_RUNS` to exercise consecutive seeds beginning at
+`KIDA_STRESS_SEED`. The accepted weekly window is 25 consecutive seeds; larger
+manual windows are allowed up to 100 seeds. A failure is actionable only with
+its seed, Python build, GIL status, and failing operation/assertion preserved.
+
 ## Release Automation Gate
 
 Before running the release target, merge the release-prep PR and work from a

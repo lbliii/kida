@@ -68,6 +68,22 @@ def test_ci_has_one_authoritative_ty_lane():
     assert "--output-format junit > reports/ty.xml || true" in workflows["tests.yml"]
 
 
+def test_ci_repeats_seeded_thread_stress_on_scheduled_runs():
+    """Required CI uses one seed while weekly/manual runs expand the same proof."""
+    workflow = (WORKFLOWS_DIR / "tests.yml").read_text(encoding="utf-8")
+
+    assert "name: Run seeded randomized thread stress" in workflow
+    assert 'KIDA_STRESS_SEED: "0"' in workflow
+    assert (
+        "KIDA_STRESS_RUNS: ${{ (github.event_name == 'schedule' || "
+        "github.event_name == 'workflow_dispatch') && '25' || '1' }}" in workflow
+    )
+    assert (
+        "uv run pytest tests/test_randomized_thread_stress.py -vv -s "
+        "--tb=short --timeout=120" in workflow
+    )
+
+
 def test_setup_uv_steps_only_use_supported_inputs():
     """setup-uv steps do not pass setup-python-only inputs."""
     sources = [
