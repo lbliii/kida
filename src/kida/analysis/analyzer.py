@@ -51,7 +51,9 @@ class BlockAnalyzer:
     Combines dependency analysis, purity checking, landmark detection,
     and role classification into a unified analysis pass.
 
-    Thread-safe: Stateless analyzers, creates new result objects.
+    Thread-safe: Traversal helpers keep mutable state in ``ContextVar`` and
+    each call creates a distinct result object. Shared result mappings remain
+    caller-visible and must be treated as read-only while shared.
 
     Example:
             >>> analyzer = BlockAnalyzer()

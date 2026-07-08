@@ -1048,6 +1048,171 @@ class TestMixedRenderConcurrency:
         assert sorted(worker for _kind, worker in results) == list(range(len(operation_kinds)))
 
 
+class TestPublicShareabilityContracts:
+    """Prove public objects whose docs permit shared concurrent reads."""
+
+    def test_shared_dependency_walker_keeps_results_isolated(self, monkeypatch) -> None:
+        """Two synchronized calls on one walker never share dependency state."""
+        import concurrent.futures
+        import threading
+
+        from kida.analysis import DependencyWalker
+        from kida.nodes import Name
+
+        walker = DependencyWalker()
+        visit_barrier = threading.Barrier(2)
+        original_visit = walker.visit
+
+        def coordinated_visit(node):
+            if isinstance(node, Name) and node.name in {"alpha", "beta"}:
+                visit_barrier.wait(timeout=30)
+                result = original_visit(node)
+                visit_barrier.wait(timeout=30)
+                return result
+            return original_visit(node)
+
+        monkeypatch.setattr(walker, "visit", coordinated_visit)
+        nodes = [Name(1, 0, "alpha"), Name(1, 0, "beta")]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(walker.analyze, nodes))
+
+        assert results == [frozenset({"alpha"}), frozenset({"beta"})]
+
+    def test_shared_block_analyzer_keeps_template_results_isolated(self, monkeypatch) -> None:
+        """BlockAnalyzer composes its shared traversal helpers without leakage."""
+        import concurrent.futures
+        import threading
+
+        from kida.analysis import BlockAnalyzer
+        from kida.nodes import Name
+
+        env = Environment()
+        templates = [env.from_string("{{ alpha }}"), env.from_string("{{ beta }}")]
+        asts = [template._optimized_ast for template in templates]
+        assert all(ast is not None for ast in asts)
+
+        analyzer = BlockAnalyzer()
+        visit_barrier = threading.Barrier(2)
+        original_visit = analyzer._dep_walker.visit
+
+        def coordinated_visit(node):
+            if isinstance(node, Name) and node.name in {"alpha", "beta"}:
+                visit_barrier.wait(timeout=30)
+                result = original_visit(node)
+                visit_barrier.wait(timeout=30)
+                return result
+            return original_visit(node)
+
+        monkeypatch.setattr(analyzer._dep_walker, "visit", coordinated_visit)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(analyzer.analyze, asts))
+
+        assert [result.top_level_depends_on for result in results] == [
+            frozenset({"alpha"}),
+            frozenset({"beta"}),
+        ]
+
+    def test_shared_purity_analyzer_isolates_include_cycles(self) -> None:
+        """Concurrent include analysis cannot share circular-include tracking."""
+        import concurrent.futures
+        import threading
+
+        from kida.analysis import PurityAnalyzer
+
+        env = Environment(loader=DictLoader({"shared.html": "{{ value }}"}))
+        included = env.get_template("shared.html")
+        root = env.from_string('{% include "shared.html" %}')
+        assert root._optimized_ast is not None
+        visit_barrier = threading.Barrier(2)
+
+        class CoordinatedPurityAnalyzer(PurityAnalyzer):
+            def _visit_name(self, node):
+                visit_barrier.wait(timeout=30)
+                return super()._visit_name(node)
+
+        analyzer = CoordinatedPurityAnalyzer(
+            template_resolver=lambda _name: included,
+        )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(analyzer.analyze, root._optimized_ast) for _ in range(2)]
+            results = [future.result() for future in futures]
+
+        assert results == ["pure", "pure"]
+
+    def test_shared_landmark_detector_uses_call_local_state(self) -> None:
+        """One detector returns exact landmarks across synchronized calls."""
+        import concurrent.futures
+        import threading
+
+        from kida.analysis import LandmarkDetector
+
+        env = Environment()
+        asts = [
+            env.from_string("<nav>One</nav>")._optimized_ast,
+            env.from_string("<main>Two</main>")._optimized_ast,
+        ]
+        assert all(ast is not None for ast in asts)
+        detector = LandmarkDetector()
+        start = threading.Barrier(2)
+
+        def detect(index: int) -> frozenset[str]:
+            start.wait(timeout=30)
+            result = frozenset()
+            for _ in range(100):
+                result = detector.detect(asts[index])
+            return result
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(detect, range(2)))
+
+        assert results == [frozenset({"nav"}), frozenset({"main"})]
+
+    def test_all_builtin_loaders_support_shared_stable_reads(self, tmp_path) -> None:
+        """Every built-in loader returns stable sources when shared by readers."""
+        import concurrent.futures
+        import threading
+
+        from kida import (
+            ChoiceLoader,
+            FileSystemLoader,
+            FunctionLoader,
+            PackageLoader,
+            PrefixLoader,
+        )
+
+        file_source = "filesystem {{ value }}"
+        (tmp_path / "page.html").write_text(file_source, encoding="utf-8")
+        cases = [
+            (FileSystemLoader(tmp_path), "page.html"),
+            (DictLoader({"page.html": "dictionary"}), "page.html"),
+            (ChoiceLoader([DictLoader({"page.html": "choice"})]), "page.html"),
+            (PrefixLoader({"app": DictLoader({"page.html": "prefix"})}), "app/page.html"),
+            (PackageLoader("kida", "analysis"), "__init__.py"),
+            (FunctionLoader(lambda name: f"function:{name}"), "page.html"),
+        ]
+
+        def read_source(
+            loader: Any,
+            name: str,
+            start: threading.Barrier,
+        ) -> list[tuple[str, str | None]]:
+            start.wait(timeout=30)
+            return [loader.get_source(name) for _ in range(20)]
+
+        for loader, name in cases:
+            expected = loader.get_source(name)
+            start = threading.Barrier(8)
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                futures = [executor.submit(read_source, loader, name, start) for _ in range(8)]
+                results = [result for future in futures for result in future.result()]
+
+            assert results == [expected] * 160
+
+
 class TestConcurrentCompilation:
     """Test concurrent template compilation."""
 

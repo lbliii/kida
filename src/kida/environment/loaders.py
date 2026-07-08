@@ -27,10 +27,11 @@ Implement the Loader protocol:
 
 Thread-Safety:
 Loaders should be thread-safe for concurrent `get_source()` calls.
-All built-in loaders are safe (FileSystemLoader reads files atomically,
-DictLoader uses immutable dict lookup, ChoiceLoader and PrefixLoader
-delegate to their child loaders, PackageLoader reads via importlib,
-FunctionLoader delegates to the user-provided callable).
+Built-in loaders are safe for concurrent reads when their configured sources
+remain stable. Do not mutate a `DictLoader`/`PrefixLoader` mapping or loader
+list while it is shared. `ChoiceLoader` and `PrefixLoader` inherit their child
+loaders' guarantees, and `FunctionLoader` inherits its callable's guarantee.
+Filesystem/package updates are outside the loader synchronization contract.
 
 """
 
@@ -146,6 +147,7 @@ class DictLoader:
     Note:
         Returns `None` as filename since templates are not file-backed.
         Error messages will show `<template>` instead of a path.
+        Concurrent reads are safe while the caller-owned mapping is not mutated.
 
     Example:
             >>> loader = DictLoader({
@@ -370,7 +372,7 @@ class PackageLoader:
         ModuleNotFoundError: If ``package_name`` is not installed
 
     Thread-Safety:
-        Safe. ``importlib.resources`` is thread-safe for reads.
+        Safe for concurrent reads while installed package resources are stable.
     """
 
     __slots__ = ("_encoding", "_package_name", "_package_path")

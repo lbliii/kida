@@ -7,6 +7,8 @@ excludes paths that are actually used.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from kida.analysis.node_visitor import NodeVisitor
@@ -125,6 +127,15 @@ _BUILTIN_NAMES = frozenset(
 )
 
 
+@dataclass(slots=True)
+class _DependencyState:
+    """Mutable traversal state isolated to one analysis context."""
+
+    scope_stack: list[set[str]]
+    all_locals: set[str]
+    dependencies: set[str]
+
+
 class DependencyWalker(NodeVisitor):
     """Extract context variable dependencies from AST expressions.
 
@@ -134,7 +145,8 @@ class DependencyWalker(NodeVisitor):
     Produces a conservative superset: may include paths not actually
     used at runtime, but never excludes paths that are used.
 
-    Thread-safe: Creates new state for each analyze() call.
+    Thread-safe: ``analyze()`` stores traversal state in a ``ContextVar``, so
+    one walker may be shared by concurrent threads or async tasks.
 
     Example:
             >>> walker = DependencyWalker()
@@ -151,10 +163,11 @@ class DependencyWalker(NodeVisitor):
     """
 
     def __init__(self) -> None:
-        """Initialize walker (stateless until analyze() is called)."""
-        self._scope_stack: list[set[str]] = []
-        self._all_locals: set[str] = set()
-        self._dependencies: set[str] = set()
+        """Initialize a walker with context-local traversal state."""
+        self._state: ContextVar[_DependencyState | None] = ContextVar(
+            f"kida_dependency_walker_state_{id(self)}",
+            default=None,
+        )
 
     def analyze(self, node: Node) -> frozenset[str]:
         """Analyze a node and return all context dependencies.
@@ -165,12 +178,21 @@ class DependencyWalker(NodeVisitor):
         Returns:
             Frozen set of context paths (e.g., {"page.title", "site.pages"})
         """
-        # Reset state for each analysis
-        self._scope_stack = [set()]
-        self._all_locals = set()
-        self._dependencies = set()
-        self.visit(node)
-        return frozenset(self._dependencies)
+        state = _DependencyState(scope_stack=[set()], all_locals=set(), dependencies=set())
+        token = self._state.set(state)
+        try:
+            self.visit(node)
+            return frozenset(state.dependencies)
+        finally:
+            self._state.reset(token)
+
+    def _state_for_call(self) -> _DependencyState:
+        """Return this context's state, including for direct ``visit()`` use."""
+        state = self._state.get()
+        if state is None:
+            state = _DependencyState(scope_stack=[set()], all_locals=set(), dependencies=set())
+            self._state.set(state)
+        return state
 
     def visit_Name(self, node: Name) -> None:  # noqa: N802
         """Handle variable reference."""
@@ -185,13 +207,13 @@ class DependencyWalker(NodeVisitor):
             return
 
         # It's a context variable
-        self._dependencies.add(name)
+        self._state_for_call().dependencies.add(name)
 
     def visit_Getattr(self, node: Getattr) -> None:  # noqa: N802
         """Handle attribute access: obj.attr"""
         path = self._build_path(node)
         if path:
-            self._dependencies.add(path)
+            self._state_for_call().dependencies.add(path)
         else:
             # Couldn't build full path, visit children
             self.visit(node.obj)
@@ -201,7 +223,7 @@ class DependencyWalker(NodeVisitor):
         # Same logic as regular getattr
         path = self._build_path(node)
         if path:
-            self._dependencies.add(path)
+            self._state_for_call().dependencies.add(path)
         else:
             self.visit(node.obj)
 
@@ -211,7 +233,7 @@ class DependencyWalker(NodeVisitor):
         if isinstance(node.key, Const) and isinstance(node.key.value, str):
             path = self._build_path(node)
             if path:
-                self._dependencies.add(path)
+                self._state_for_call().dependencies.add(path)
                 return
 
         # Dynamic key - track the base object and the key expression
@@ -224,7 +246,7 @@ class DependencyWalker(NodeVisitor):
         if isinstance(node.key, Const) and isinstance(node.key.value, str):
             path = self._build_path(node)
             if path:
-                self._dependencies.add(path)
+                self._state_for_call().dependencies.add(path)
                 return
 
         self.visit(node.obj)
@@ -356,8 +378,9 @@ class DependencyWalker(NodeVisitor):
 
         # Add target to current scope
         targets = self._extract_targets(node.target)
-        if self._scope_stack:
-            self._scope_stack[-1] |= targets
+        state = self._state_for_call()
+        if state.scope_stack:
+            state.scope_stack[-1] |= targets
 
     def visit_Let(self, node: Let) -> None:  # noqa: N802
         """Handle let statement (template-scoped)."""
@@ -365,9 +388,10 @@ class DependencyWalker(NodeVisitor):
         self.visit(node.value)
 
         # Add to root scope
-        if self._scope_stack:
+        state = self._state_for_call()
+        if state.scope_stack:
             targets = self._extract_targets(node.name)
-            self._scope_stack[0] |= targets
+            state.scope_stack[0] |= targets
 
     def visit_Export(self, node: Export) -> None:  # noqa: N802
         """Handle export statement."""
@@ -386,8 +410,9 @@ class DependencyWalker(NodeVisitor):
             self.visit(filter_node)
 
         # Add captured name to current scope
-        if self._scope_stack:
-            self._scope_stack[-1].add(node.name)
+        state = self._state_for_call()
+        if state.scope_stack:
+            state.scope_stack[-1].add(node.name)
 
     def visit_Filter(self, node: Filter) -> None:  # noqa: N802
         """Handle filter expression."""
@@ -578,16 +603,18 @@ class DependencyWalker(NodeVisitor):
         """Handle import statement."""
         self.visit(node.template)
         # Add imported name to scope
-        if self._scope_stack:
-            self._scope_stack[-1].add(node.target)
+        state = self._state_for_call()
+        if state.scope_stack:
+            state.scope_stack[-1].add(node.target)
 
     def visit_FromImport(self, node: FromImport) -> None:  # noqa: N802
         """Handle from...import statement."""
         self.visit(node.template)
         # Add imported names to scope
-        if self._scope_stack:
+        state = self._state_for_call()
+        if state.scope_stack:
             for name, alias in node.names:
-                self._scope_stack[-1].add(alias or name)
+                state.scope_stack[-1].add(alias or name)
 
     def visit_If(self, node: If) -> None:  # noqa: N802
         """Handle if statement."""
@@ -759,15 +786,17 @@ class DependencyWalker(NodeVisitor):
 
     def _push_scope(self, names: set[str]) -> None:
         """Push a new scope and update the flat locals set."""
-        self._scope_stack.append(names)
-        self._all_locals |= names
+        state = self._state_for_call()
+        state.scope_stack.append(names)
+        state.all_locals |= names
 
     def _pop_scope(self) -> None:
         """Pop the top scope and rebuild the flat locals set."""
-        self._scope_stack.pop()
+        state = self._state_for_call()
+        state.scope_stack.pop()
         # Rebuild flat set from remaining scopes
-        self._all_locals = set().union(*self._scope_stack) if self._scope_stack else set()
+        state.all_locals = set().union(*state.scope_stack) if state.scope_stack else set()
 
     def _is_local(self, name: str) -> bool:
         """Check if a name is in local scope (O(1) via flat set)."""
-        return name in self._all_locals
+        return name in self._state_for_call().all_locals
