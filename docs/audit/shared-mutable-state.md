@@ -205,6 +205,35 @@ the documented writer limitation, but rejects torn key/value publication,
 baseline loss, render drift, and exceptions. It runs in the required
 `PYTHON_GIL=0` thread-safety job without sleep-based assertions.
 
+### 4.3 Coverage Instrumentation Lifecycle
+
+**Owner:** `CoverageCollector` owns per-collector hit data and the
+`ContextVar` token created by `start()`. The coverage module owns the process-wide
+`RenderContext.__setattr__` instrumentation patch.
+
+**State and mutation protocol:** `_patch_lock` serializes the global active
+collector count and class patch installation/removal. The first active collector
+installs `_coverage_setattr`; the last stopping collector removes it. Coverage
+data selection is context-local through `_coverage_data`, so a patched assignment
+in an unrelated rendering thread records nothing. The patch may remain installed
+briefly in a context with no active collector, but that path is a safe no-op.
+
+**Lifecycle limitation:** A collector instance stores one `ContextVar` token.
+Its `start()` and matching `stop()` must run in the same thread or async context,
+and one instance must not have concurrent lifecycle owners. Distinct collectors
+may start, collect, and stop concurrently. Callers should stop collection before
+reading reports, clearing data, or transferring ownership.
+
+**Proof:**
+`TestCoverageCollectorConcurrency.test_repeated_start_stop_while_other_threads_render`
+uses per-phase barriers for 30 rounds with six collector owners and four
+uncollected renderers. Half the collectors stop while observers render; the
+remaining collectors then stop while observers render again. Each collector
+records only its uniquely named template, all renders retain exact context
+markers, the patch remains present while collectors are active, and every round
+confirms complete patch removal before another start. Barrier aborts surface
+worker failures without sleeps or deadlocks. The test runs under `PYTHON_GIL=0`.
+
 ---
 
 ## 5. Summary
@@ -221,5 +250,6 @@ baseline loss, render drift, and exceptions. It runs in the required
 | Cache miss/invalidation/eviction | OK | RLock or atomic file publication; clear is not a generation barrier; synchronized no-GIL proof |
 | Shared Template reads | OK | Local/ContextVar render state; complete metadata publication; synchronized no-GIL proof |
 | Environment registries | Reader-safe publication | Copy-on-write through supported registration APIs; competing writers require external serialization |
+| Coverage instrumentation | Locked global lifecycle | Context-local data; distinct collectors may overlap; one lifecycle owner per collector |
 
 No critical violations. The codebase is structured for free-threading compliance.
