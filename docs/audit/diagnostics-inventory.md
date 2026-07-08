@@ -1,6 +1,6 @@
 # Diagnostic Contracts Inventory
 
-Status: living inventory; model, CLI surfaces, programmatic API, and first safe edits are implemented
+Status: complete; model, surfaces, programmatic API, safe edits, and extension protocol are implemented
 
 Scope: exceptions, compiler warnings, parser and lexer failures, static-analysis
 findings, `kida check`, renderers, framework adapters, and machine-facing output
@@ -52,7 +52,10 @@ the existing text surface, and can emit diagnostics JSON v1 or SARIF 2.1.0.
 bytecode caches; and `diagnostic_from_exception()` gives framework adapters a
 safe conversion path. Strict unified closers now carry exact, snapshot-backed
 safe edits, and `apply_safe_edits()` rejects stale or overlapping edits before
-application. Extension hooks remain a separate contract decision.
+application. Namespaced `Extension.diagnose()` hooks receive immutable source,
+AST, and visible component metadata only for caller-supplied source diagnosis.
+Core validation rejects namespace/category/confidence/location/edit violations,
+and isolates each hook failure as a partial `K-RUN-007` finding.
 
 ## Current Topology
 
@@ -244,8 +247,8 @@ This is sequencing guidance, not approval to implement the contracts.
    adapters, and codemods.
 6. **Complete:** emit only proven safe edits and reject stale, incomplete, or
    overlapping applications.
-7. Add extension hooks only after ownership, namespacing, and failure isolation
-   are defined.
+7. **Complete:** add extension hooks after defining ownership, namespacing,
+   immutable context, current-source validation, and failure isolation.
 
 Issue #147 depends on the collection and rendering seams described here; issue
 #194 depends on stable diagnostic attribution. Public editor and codemod work
@@ -260,7 +263,7 @@ should wait for the model, range, and safe-edit contracts.
 | JSON or SARIF field names and versioning | New published schema commitment |
 | Changing diagnostic types or collection functions | Public API compatibility change; the module remains intentionally absent from root `kida.__all__` |
 | Expanding safe-edit applicability | Automatic source changes require exact spans, snapshot verification, and proof that the replacement is unambiguous |
-| Extension diagnostic protocol | New extension surface and code namespace policy |
+| Extension diagnostic protocol | **Complete:** public `ExtensionDiagnosticContext`, `K-{NAMESPACE}-{NNN}` ownership, core validation, built-in ordering/de-duplication, and per-hook `K-RUN-007` isolation |
 | Framework-specific debug behavior | Public adapter behavior and possible information exposure |
 
 ## Required Proof For Follow-up Work
@@ -272,6 +275,7 @@ should wait for the model, range, and safe-edit contracts.
 | JSON/SARIF output | Schema snapshots, escaping/redaction tests, malformed/partial input behavior, and SARIF validator coverage | CLI reference, examples, changelog, and schema/version policy |
 | Programmatic API | **Complete:** public API snapshot, typing checks, concurrent shared-read proof, CLI parity, unsaved-source and framework-exception tests | API docs, README example, changelog; no migration note because no older general API was replaced |
 | Safe edits | **Complete:** exact source-span tests, stale-source rejection, overlapping-edit behavior, multi-edit application, and advisory-only negative proof | API/CLI docs, README example, changelog; JSON v1 shape unchanged |
+| Extension diagnostics | **Complete:** namespace registration rejection, public API snapshot, local/imported `DefMetadata`, immutable context, ordering/de-duplication, safe-edit validation, peer continuation, and concurrent shared-environment proof | Extension guide, API reference, runnable example, changelog; no CLI/schema/render change |
 
 ## Existing Proof
 

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added namespaced `Extension.diagnose()` hooks to programmatic unsaved-source
+  diagnosis. Hooks receive immutable source, AST, and visible component
+  metadata; Kida validates ownership, confidence, current-template locations,
+  and safe-edit snapshots, and isolates failures as partial `K-RUN-007`
+  reports. Rendering, directory diagnosis, and CLI discovery are unchanged.
 - Added snapshot-verified safe edits for strict unified closers. JSON, SARIF,
   and the public diagnostic model identify the exact `end` keyword replacement,
   while `kida.diagnostics.apply_safe_edits()` rejects stale, incomplete, or

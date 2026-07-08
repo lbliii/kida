@@ -18,6 +18,85 @@ if TYPE_CHECKING:
     from kida.template.core import Template
 
 
+def _collect_def_metadata(ast: TemplateNode, template_name: str | None) -> dict[str, DefMetadata]:
+    """Build component metadata from a parsed template without compiling it."""
+    from kida.analysis.dependencies import DependencyWalker
+    from kida.analysis.metadata import DefMetadata, DefParamInfo
+    from kida.nodes.functions import Def, Slot
+
+    def _collect_slots(body: object) -> tuple[list[str], bool]:
+        named: list[str] = []
+        has_default = False
+        if isinstance(body, (list, tuple)):
+            nodes_to_visit = list(body)
+        else:
+            nodes_to_visit = list(getattr(body, "body", [body]))
+        while nodes_to_visit:
+            node = nodes_to_visit.pop()
+            if isinstance(node, Slot):
+                if node.name == "default":
+                    has_default = True
+                else:
+                    named.append(node.name)
+            if not isinstance(node, Def):
+                for attr in ("body", "else_", "empty", "fallback"):
+                    children = getattr(node, attr, None)
+                    if isinstance(children, (list, tuple)):
+                        nodes_to_visit.extend(children)
+                elif_ = getattr(node, "elif_", None)
+                if elif_:
+                    for _test, child_body in elif_:
+                        nodes_to_visit.extend(child_body)
+                cases = getattr(node, "cases", None)
+                if cases:
+                    for _pattern, _guard, child_body in cases:
+                        nodes_to_visit.extend(child_body)
+        return named, has_default
+
+    result: dict[str, DefMetadata] = {}
+    to_visit = list(ast.body)
+    while to_visit:
+        node = to_visit.pop()
+        if isinstance(node, Def):
+            n_defaults = len(node.defaults)
+            n_params = len(node.params)
+            params = tuple(
+                DefParamInfo(
+                    name=param.name,
+                    annotation=param.annotation,
+                    has_default=index >= (n_params - n_defaults),
+                    is_required=index < (n_params - n_defaults),
+                )
+                for index, param in enumerate(node.params)
+            )
+            named_slots, has_default_slot = _collect_slots(node.body)
+            result[node.name] = DefMetadata(
+                name=node.name,
+                template_name=template_name,
+                lineno=node.lineno,
+                params=params,
+                slots=tuple(dict.fromkeys(named_slots)),
+                has_default_slot=has_default_slot,
+                depends_on=DependencyWalker().analyze(node),
+                vararg=node.vararg,
+                kwarg=node.kwarg,
+            )
+            continue
+        for attr in ("body", "else_", "empty", "fallback"):
+            children = getattr(node, attr, None)
+            if isinstance(children, (list, tuple)):
+                to_visit.extend(children)
+        elif_ = getattr(node, "elif_", None)
+        if elif_:
+            for _test, child_body in elif_:
+                to_visit.extend(child_body)
+        cases = getattr(node, "cases", None)
+        if cases:
+            for _pattern, _guard, child_body in cases:
+                to_visit.extend(child_body)
+    return result
+
+
 class TemplateIntrospectionMixin:
     """Mixin adding static analysis and introspection to Template.
 
@@ -373,100 +452,6 @@ class TemplateIntrospectionMixin:
 
     def _analyze_defs(self) -> None:
         """Walk the AST to extract DefMetadata for all {% def %} nodes."""
-        from kida.analysis.dependencies import DependencyWalker
-        from kida.analysis.metadata import DefMetadata, DefParamInfo
-        from kida.nodes.functions import Def, Slot
-
         if self._optimized_ast is None:
             return
-
-        def _collect_slots(body: object) -> tuple[list[str], bool]:
-            """Recursively find Slot nodes in a def body.
-
-            Returns (named_slots, has_default_slot).
-            """
-            named: list[str] = []
-            has_default = False
-            if isinstance(body, (list, tuple)):
-                nodes_to_visit = list(body)
-            else:
-                nodes_to_visit = list(getattr(body, "body", [body]))
-            while nodes_to_visit:
-                node = nodes_to_visit.pop()
-                if isinstance(node, Slot):
-                    if node.name == "default":
-                        has_default = True
-                    else:
-                        named.append(node.name)
-                # Recurse into child bodies (but not into nested defs)
-                if not isinstance(node, Def):
-                    for attr in ("body", "else_", "empty", "fallback"):
-                        children = getattr(node, attr, None)
-                        if isinstance(children, (list, tuple)):
-                            nodes_to_visit.extend(children)
-                    # Handle elif: list of (test, body) tuples
-                    elif_ = getattr(node, "elif_", None)
-                    if elif_:
-                        for _test, body in elif_:
-                            nodes_to_visit.extend(body)
-                    # Handle match cases: list of (pattern, guard, body) tuples
-                    cases = getattr(node, "cases", None)
-                    if cases:
-                        for _pattern, _guard, body in cases:
-                            nodes_to_visit.extend(body)
-            return named, has_default
-
-        def _walk_for_defs(nodes: object) -> dict[str, DefMetadata]:
-            """Walk AST collecting top-level Def nodes."""
-            result: dict[str, DefMetadata] = {}
-            to_visit = list(getattr(nodes, "body", []) if not isinstance(nodes, list) else nodes)
-            while to_visit:
-                node = to_visit.pop()
-                if isinstance(node, Def):
-                    # Build param info
-                    n_defaults = len(node.defaults)
-                    n_params = len(node.params)
-                    params: list[DefParamInfo] = []
-                    for i, p in enumerate(node.params):
-                        has_default = i >= (n_params - n_defaults)
-                        params.append(
-                            DefParamInfo(
-                                name=p.name,
-                                annotation=p.annotation,
-                                has_default=has_default,
-                                is_required=not has_default,
-                            )
-                        )
-
-                    # Collect slots from body
-                    named_slots, has_default_slot = _collect_slots(node.body)
-
-                    result[node.name] = DefMetadata(
-                        name=node.name,
-                        template_name=self._name,
-                        lineno=getattr(node, "lineno", 0),
-                        params=tuple(params),
-                        slots=tuple(dict.fromkeys(named_slots)),  # deduplicate, preserve order
-                        has_default_slot=has_default_slot,
-                        depends_on=DependencyWalker().analyze(node),
-                        vararg=node.vararg,
-                        kwarg=node.kwarg,
-                    )
-                    # Don't recurse into def bodies for nested defs
-                    continue
-                # Recurse into non-def children
-                for attr in ("body", "else_", "empty", "fallback"):
-                    children = getattr(node, attr, None)
-                    if isinstance(children, (list, tuple)):
-                        to_visit.extend(children)
-                elif_ = getattr(node, "elif_", None)
-                if elif_:
-                    for _test, body in elif_:
-                        to_visit.extend(body)
-                cases = getattr(node, "cases", None)
-                if cases:
-                    for _pattern, _guard, body in cases:
-                        to_visit.extend(body)
-            return result
-
-        self._def_metadata_cache = _walk_for_defs(self._optimized_ast)
+        self._def_metadata_cache = _collect_def_metadata(self._optimized_ast, self._name)

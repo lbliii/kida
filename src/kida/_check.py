@@ -6,6 +6,8 @@ JSON and SARIF renderers one deduplicated set of canonical diagnostics.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, final
 
@@ -27,6 +29,7 @@ from kida.diagnostics import (
     SafeEdit,
     SourcePosition,
     SourceSpan,
+    apply_safe_edits,
 )
 from kida.exceptions import ErrorCode, TemplateError, TemplateSyntaxError, build_source_snippet
 from kida.lexer import Lexer, LexerError
@@ -35,6 +38,7 @@ from kida.parser import Parser
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from kida.nodes import Template as TemplateNode
     from kida.template import Template
 
 
@@ -48,6 +52,7 @@ _PHASE_ORDER = {
     "type": 5,
     "fragile-path": 6,
     "accessibility": 7,
+    "extension": 8,
 }
 
 
@@ -195,6 +200,152 @@ def _exception_diagnostic(exc: Exception, path: str | None) -> Diagnostic:
         confidence=DiagnosticConfidence.RUNTIME_ONLY,
         documentation_url=code.docs_url,
     )
+
+
+def _extension_failure_diagnostic(extension: object, path: str, exc: Exception) -> Diagnostic:
+    code = ErrorCode.RUNTIME_ERROR
+    extension_name = type(extension).__name__
+    return Diagnostic(
+        code=code.value,
+        category=code.category,
+        severity=DiagnosticSeverity.ERROR,
+        message=(f"Extension {extension_name}.diagnose() failed: {type(exc).__name__}: {exc}"),
+        span=SourceSpan(path=path),
+        title="Extension diagnostic failure",
+        kind="extension-diagnostic-failure",
+        suggestion="Fix or disable the extension's diagnostic hook.",
+        confidence=DiagnosticConfidence.RUNTIME_ONLY,
+        documentation_url=code.docs_url,
+    )
+
+
+def _safe_edit_snapshot(source: str, edit: SafeEdit) -> DiagnosticSnippet:
+    start = edit.span.start
+    end = edit.span.end
+    if start is None or end is None:  # SafeEdit already enforces exact positions.
+        raise ValueError("safe edit range must be exact")
+    lines = [line.removesuffix("\r") for line in source.split("\n")]
+    if end.line > len(lines):
+        raise ValueError(f"safe edit line {end.line} is outside the current source")
+    return DiagnosticSnippet(
+        lines=tuple(
+            (line_number, lines[line_number - 1]) for line_number in range(start.line, end.line + 1)
+        ),
+        error_line=start.line,
+        column=start.column,
+    )
+
+
+def _normalize_extension_diagnostic(
+    diagnostic: Diagnostic,
+    *,
+    extension: object,
+    source: str,
+    path: str,
+) -> Diagnostic:
+    namespace = getattr(extension, "diagnostic_namespace", None)
+    extension_name = type(extension).__name__
+    if namespace is None:
+        raise ValueError(
+            f"{extension_name} must declare diagnostic_namespace before returning findings"
+        )
+    if re.fullmatch(rf"K-{re.escape(namespace)}-[0-9]{{3}}", diagnostic.code) is None:
+        raise ValueError(
+            f"{extension_name} diagnostic code {diagnostic.code!r} is outside namespace "
+            f"K-{namespace}-NNN"
+        )
+    if diagnostic.category != "extension":
+        raise ValueError(
+            f"{extension_name} diagnostic {diagnostic.code} must use category='extension'"
+        )
+    if diagnostic.confidence is DiagnosticConfidence.UNKNOWN:
+        raise ValueError(f"{extension_name} diagnostic {diagnostic.code} must declare confidence")
+    if diagnostic.span.path not in (None, path):
+        raise ValueError(
+            f"{extension_name} diagnostic {diagnostic.code} must target current template {path!r}"
+        )
+
+    normalized = diagnostic
+    if diagnostic.span.path is None:
+        normalized = replace(
+            normalized,
+            span=SourceSpan(
+                path=path,
+                start=diagnostic.span.start,
+                end=diagnostic.span.end,
+            ),
+        )
+
+    edit = normalized.safe_edit
+    if edit is not None:
+        if edit.span.path != path:
+            raise ValueError(
+                f"{extension_name} diagnostic {diagnostic.code} safe edit must target {path!r}"
+            )
+        if normalized.source_snippet is None:
+            normalized = replace(normalized, source_snippet=_safe_edit_snapshot(source, edit))
+        apply_safe_edits(source, (normalized,), path=path)
+    elif normalized.source_snippet is None and normalized.span.start is not None:
+        normalized = replace(
+            normalized,
+            source_snippet=_snippet(
+                source,
+                normalized.span.start.line,
+                normalized.span.start.column,
+            ),
+        )
+    return normalized
+
+
+def _collect_extension_diagnostics(
+    collector: _Collector,
+    *,
+    env: Environment,
+    ast: TemplateNode,
+    source: str,
+    name: str,
+) -> None:
+    if not env._extension_instances:
+        return
+
+    from kida.extensions import ExtensionDiagnosticContext
+    from kida.template.introspection import _collect_def_metadata
+
+    imported_defs = env._collect_imported_def_metadata(ast, name)
+    definitions = {**imported_defs, **_collect_def_metadata(ast, name)}
+    context = ExtensionDiagnosticContext(
+        template_name=name,
+        source=source,
+        ast=ast,
+        definitions=definitions,
+    )
+    for extension in env._extension_instances:
+        try:
+            findings = extension.diagnose(context)
+            if not isinstance(findings, Iterable):
+                raise TypeError("diagnose() must return an iterable of Diagnostic records")
+            normalized: list[Diagnostic] = []
+            for finding in findings:
+                if not isinstance(finding, Diagnostic):
+                    raise TypeError("diagnose() must return only Diagnostic records")
+                normalized.append(
+                    _normalize_extension_diagnostic(
+                        finding,
+                        extension=extension,
+                        source=source,
+                        path=name,
+                    )
+                )
+        except Exception as exc:
+            collector.add(
+                _extension_failure_diagnostic(extension, name, exc),
+                phase="extension",
+                text="",
+            )
+            collector.partial = True
+            continue
+        for diagnostic in sorted(normalized, key=_diagnostic_key):
+            collector.add(diagnostic, phase="extension", text="")
 
 
 def _invalid_root_result(root: Path) -> CheckResult:
@@ -579,5 +730,13 @@ def collect_source_diagnostics(
         converted = [convert_a11y_issue(issue, template_name=name) for issue in check_a11y(ast)]
         for diagnostic in sorted(converted, key=_diagnostic_key):
             collector.add(diagnostic, phase="accessibility", text="")
+
+    _collect_extension_diagnostics(
+        collector,
+        env=env,
+        ast=ast,
+        source=source,
+        name=name,
+    )
 
     return collector.build(exit_code=1 if collector.keys else 0)
