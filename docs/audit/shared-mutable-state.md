@@ -102,6 +102,39 @@ The following are **intentionally shared** between parent and child contexts (do
 - **Generated code:** Calls `lookup`, `lookup_scope`, `_safe_getattr` — all pure or use ContextVar.
 - **Include/extends:** Each child gets its own `RenderContext` with copied `import_stack` and `template_stack`.
 
+### 4.1 Shared `Template` Read Contract
+
+**Owner:** The `Environment`/loader creates the compiled `Template`; callers may
+share that object across threads for read-only rendering and introspection.
+
+**State and mutation protocol:**
+
+- Generated render functions, the optimized AST, block functions, and template
+  identity are read-only after compilation.
+- Full, block, and streaming renders allocate their output buffers and
+  `RenderContext` per invocation. The current context is isolated by
+  `ContextVar`; it is not stored on the shared `Template`.
+- `_metadata_cache` and `_def_metadata_cache` are lazy publication caches. Two
+  readers may compute the same value concurrently, but each publishes a
+  complete metadata result. Metadata records are frozen, and their contained
+  mappings are treated as read-only by contract. Duplicate computation is
+  allowed; partial metadata is never exposed.
+- The related `Environment._analysis_cache` behavior and its redundant-work
+  limitation remain documented in section 3.2.
+
+**Proof:**
+`TestMixedRenderConcurrency.test_shared_template_render_block_stream_and_introspection`
+uses a barrier to start 12 workers together and repeatedly mixes `render`,
+`render_stream`, `render_block`, and first-use metadata/list operations on one
+compiled template. Every render uses a unique context marker to detect leakage.
+The test uses futures and synchronization rather than sleeps and runs in the
+required `PYTHON_GIL=0` thread-safety job.
+
+**Unsupported mutation:** Callers must not mutate private compiled functions,
+AST fields, or metadata cache attributes while reads are in flight. Registry or
+loader mutation follows the separate `Environment` copy-on-write/cache contract;
+it is not a `Template` mutation API.
+
 ---
 
 ## 5. Summary
@@ -115,5 +148,6 @@ The following are **intentionally shared** between parent and child contexts (do
 | Environment _cache_lock | OK | Protects _template_hashes, _analysis_cache, _structure_manifest_cache |
 | _analysis_cache from introspection | Low risk | Optional: hold _cache_lock for strict consistency |
 | CachedBlocksDict | OK | Lock for stats when shared |
+| Shared Template reads | OK | Local/ContextVar render state; complete metadata publication; synchronized no-GIL proof |
 
 No critical violations. The codebase is structured for free-threading compliance.
