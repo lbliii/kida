@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lbliii/kida/schemas/diagnostics/v1/check.schema.json",
+  "title": "Kida check diagnostics v1",
+  "description": "Versioned machine-readable output from `kida check --format json`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "root",
+    "diagnostics",
+    "summary",
+    "partial",
+    "exit_code"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "root": { "type": "string" },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/diagnostic" }
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "partial": { "type": "boolean" },
+    "exit_code": { "type": "integer", "enum": [0, 1, 2] }
+  },
+  "$defs": {
+    "nullable_string": {
+      "oneOf": [{ "type": "string" }, { "type": "null" }]
+    },
+    "nullable_integer": {
+      "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "column"],
+      "properties": {
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "$ref": "#/$defs/nullable_integer" }
+      }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "$ref": "#/$defs/position" },
+        "end": {
+          "oneOf": [
+            { "$ref": "#/$defs/position" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "nullable_range": {
+      "oneOf": [
+        { "$ref": "#/$defs/range" },
+        { "type": "null" }
+      ]
+    },
+    "related_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "path", "range"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "path": { "$ref": "#/$defs/nullable_string" },
+        "range": { "$ref": "#/$defs/nullable_range" }
+      }
+    },
+    "safe_edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "range", "replacement", "description"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "range": { "$ref": "#/$defs/range" },
+        "replacement": { "type": "string" },
+        "description": { "$ref": "#/$defs/nullable_string" }
+      }
+    },
+    "snippet_line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "text"],
+      "properties": {
+        "line": { "type": "integer", "minimum": 1 },
+        "text": { "type": "string" }
+      }
+    },
+    "source_snippet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lines", "error_line", "column"],
+      "properties": {
+        "lines": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/snippet_line" }
+        },
+        "error_line": { "type": "integer", "minimum": 1 },
+        "column": { "$ref": "#/$defs/nullable_integer" }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "category",
+        "severity",
+        "message",
+        "path",
+        "range",
+        "title",
+        "kind",
+        "suggestion",
+        "safe_edit",
+        "related_locations",
+        "confidence",
+        "notes",
+        "documentation_url",
+        "source_snippet",
+        "metadata"
+      ],
+      "properties": {
+        "code": { "type": "string", "pattern": "^K-[A-Z0-9]+-[0-9]{3}$" },
+        "category": { "type": "string", "minLength": 1 },
+        "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+        "message": { "type": "string", "minLength": 1 },
+        "path": { "$ref": "#/$defs/nullable_string" },
+        "range": { "$ref": "#/$defs/nullable_range" },
+        "title": { "$ref": "#/$defs/nullable_string" },
+        "kind": { "$ref": "#/$defs/nullable_string" },
+        "suggestion": { "$ref": "#/$defs/nullable_string" },
+        "safe_edit": {
+          "oneOf": [
+            { "$ref": "#/$defs/safe_edit" },
+            { "type": "null" }
+          ]
+        },
+        "related_locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/related_location" }
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["proven", "conservative", "runtime-only", "unknown"]
+        },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "documentation_url": { "$ref": "#/$defs/nullable_string" },
+        "source_snippet": {
+          "oneOf": [
+            { "$ref": "#/$defs/source_snippet" },
+            { "type": "null" }
+          ]
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["errors", "warnings", "info", "total"],
+      "properties": {
+        "errors": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "info": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
