@@ -110,3 +110,30 @@ class TestLiveRenderer:
         buf = io.StringIO()
         with LiveRenderer(tpl, file=buf) as live:
             live.update()
+
+    def test_update_holds_lock_through_render(self):
+        """Context merge and render share the output critical section."""
+        import threading
+
+        lock_available_during_render: list[bool] = []
+
+        class ProbeTemplate:
+            def render(self, **context):
+                def probe_lock() -> None:
+                    acquired = live._lock.acquire(blocking=False)
+                    lock_available_during_render.append(acquired)
+                    if acquired:
+                        live._lock.release()
+
+                probe = threading.Thread(target=probe_lock)
+                probe.start()
+                probe.join(timeout=5)
+                assert not probe.is_alive()
+                return context["marker"]
+
+        buf = io.StringIO()
+        live = LiveRenderer(ProbeTemplate(), file=buf)
+        live.update(marker="atomic")
+
+        assert lock_available_during_render == [False]
+        assert buf.getvalue() == "atomic\n"

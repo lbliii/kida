@@ -829,6 +829,145 @@ class TestCoverageCollectorConcurrency:
         assert "__setattr__" not in RenderContext.__dict__
 
 
+class TestTerminalAndWorkerConcurrency:
+    """Exercise terminal state and worker decisions under free-threading."""
+
+    def test_shared_live_renderer_and_spinner_updates_are_atomic(self) -> None:
+        """Each concurrent update emits its own context and one spinner frame."""
+        import concurrent.futures
+        import io
+        import threading
+        from collections import Counter
+
+        from kida.terminal import LiveRenderer, Spinner, terminal_env
+
+        worker_count = 8
+        rounds = 24
+        phase = threading.Barrier(worker_count)
+        env = terminal_env(terminal_color="none")
+        template = env.from_string("{{ marker }}|{{ spinner() }}", name="concurrent-live")
+        output = io.StringIO()
+        spinner_frames = ("A", "B", "C", "D")
+        spinner = Spinner(frames=spinner_frames)
+
+        def update(worker_id: int, live: LiveRenderer) -> int:
+            for round_id in range(rounds):
+                phase.wait(timeout=30)
+                live.update(marker=f"{worker_id}-{round_id}", spinner=spinner)
+                phase.wait(timeout=30)
+            return worker_id
+
+        with (
+            LiveRenderer(template, file=output) as live,
+            concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor,
+        ):
+            futures = [
+                executor.submit(update, worker_id, live) for worker_id in range(worker_count)
+            ]
+            results = [future.result() for future in futures]
+
+        assert sorted(results) == list(range(worker_count))
+        lines = [line for line in output.getvalue().splitlines() if line]
+        markers: list[str] = []
+        frames: list[str] = []
+        for line in lines:
+            marker, frame = line.split("|", maxsplit=1)
+            markers.append(marker)
+            frames.append(frame)
+
+        expected_markers = {
+            f"{worker_id}-{round_id}"
+            for worker_id in range(worker_count)
+            for round_id in range(rounds)
+        }
+        assert len(markers) == worker_count * rounds
+        assert set(markers) == expected_markers
+        assert Counter(frames) == {
+            frame: worker_count * rounds // len(spinner_frames) for frame in spinner_frames
+        }
+
+    def test_worker_selection_is_stable_across_threads(self) -> None:
+        """Concurrent profile and no-GIL cache reads return deterministic decisions."""
+        import concurrent.futures
+        import os
+        import threading
+
+        from kida.utils.workers import (
+            Environment as WorkerEnvironment,
+        )
+        from kida.utils.workers import (
+            WorkloadType,
+            get_optimal_workers,
+            is_free_threading_enabled,
+            should_parallelize,
+        )
+
+        cases = tuple(
+            (100 + index, workload, environment, 1.0 + index / 10, 6000 + index)
+            for index, (workload, environment) in enumerate(
+                (workload, environment)
+                for workload in WorkloadType
+                for environment in WorkerEnvironment
+            )
+        )
+        expected = tuple(
+            (
+                get_optimal_workers(
+                    task_count,
+                    workload_type=workload,
+                    environment=environment,
+                    task_weight=weight,
+                ),
+                should_parallelize(
+                    task_count,
+                    workload_type=workload,
+                    environment=environment,
+                    total_work_estimate=work_estimate,
+                ),
+            )
+            for task_count, workload, environment, weight, work_estimate in cases
+        )
+        expected_free_threading = is_free_threading_enabled()
+        is_free_threading_enabled.cache_clear()
+        start = threading.Barrier(len(cases))
+
+        def select(index: int) -> tuple[int, list[tuple[int, bool, bool]]]:
+            task_count, workload, environment, weight, work_estimate = cases[index]
+            start.wait(timeout=30)
+            observations = [
+                (
+                    get_optimal_workers(
+                        task_count,
+                        workload_type=workload,
+                        environment=environment,
+                        task_weight=weight,
+                    ),
+                    should_parallelize(
+                        task_count,
+                        workload_type=workload,
+                        environment=environment,
+                        total_work_estimate=work_estimate,
+                    ),
+                    is_free_threading_enabled(),
+                )
+                for _ in range(100)
+            ]
+            return index, observations
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(cases)) as executor:
+            futures = [executor.submit(select, index) for index in range(len(cases))]
+            results = [future.result() for future in futures]
+
+        for index, observations in results:
+            workers, parallel = expected[index]
+            assert all(
+                observation == (workers, parallel, expected_free_threading)
+                for observation in observations
+            )
+        if os.environ.get("PYTHON_GIL") == "0":
+            assert expected_free_threading
+
+
 class TestMixedRenderConcurrency:
     """Test mixed public operations on one shared Template from different threads."""
 
