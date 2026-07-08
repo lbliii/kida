@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Registered static-analysis diagnostics in the public `ErrorCode` enum,
+  retaining existing `K-PRI-*`, `K-CTX-*`, and `K-ESC-*` values and adding
+  stable `K-A11Y-*`, `K-TYP-*`, and `K-PATH-001` mappings. Accessibility,
+  template-declaration type, and fragile-path findings expose computed `code`
+  properties without changing their constructor fields or CLI behavior.
+
 ## [0.11.0] - 2026-07-07
 
 ### Added

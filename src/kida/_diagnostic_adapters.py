@@ -26,10 +26,13 @@ from kida.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from kida.analysis.a11y import A11yIssue
     from kida.analysis.context_contracts import ContextContractIssue
     from kida.analysis.escape_audit import EscapeAuditFinding
+    from kida.analysis.fragile_paths import FragilePathIssue
     from kida.analysis.metadata import CallValidation, TypeMismatch
     from kida.analysis.privacy import PrivacyFinding
+    from kida.analysis.type_checker import TypeIssue
 
 
 def _category_for_code(code: str) -> str:
@@ -313,4 +316,71 @@ def convert_escape_audit_finding(source: EscapeAuditFinding) -> Diagnostic:
         suggestion=source.suggestion,
         confidence=DiagnosticConfidence.PROVEN,
         metadata=metadata,
+    )
+
+
+def convert_a11y_issue(
+    source: A11yIssue,
+    *,
+    template_name: str | None = None,
+) -> Diagnostic:
+    """Adapt a static accessibility heuristic with its registered code."""
+    return Diagnostic(
+        code=source.code,
+        category=ErrorCode(source.code).category,
+        severity=DiagnosticSeverity(source.severity),
+        message=source.message,
+        span=_source_span(template_name, source.lineno, source.col_offset),
+        title="Accessibility finding",
+        kind=source.rule,
+        confidence=DiagnosticConfidence.CONSERVATIVE,
+    )
+
+
+def convert_type_issue(
+    source: TypeIssue,
+    *,
+    template_name: str | None = None,
+) -> Diagnostic:
+    """Adapt a template-declaration type finding with its registered code."""
+    confidence = (
+        DiagnosticConfidence.CONSERVATIVE
+        if source.rule == "typo-suggestion"
+        else DiagnosticConfidence.PROVEN
+    )
+    return Diagnostic(
+        code=source.code,
+        category=ErrorCode(source.code).category,
+        severity=DiagnosticSeverity(source.severity),
+        message=source.message,
+        span=_source_span(template_name, source.lineno, source.col_offset),
+        title="Template declaration type finding",
+        kind=source.rule,
+        confidence=confidence,
+    )
+
+
+def convert_fragile_path_issue(
+    source: FragilePathIssue,
+    *,
+    template_name: str | None = None,
+) -> Diagnostic:
+    """Adapt a same-folder path suggestion with its registered code."""
+    return Diagnostic(
+        code=source.code,
+        category=ErrorCode(source.code).category,
+        severity=DiagnosticSeverity(source.severity),
+        message=(
+            f'{{% {source.statement} "{source.target}" %}} is in the same folder as the caller'
+        ),
+        span=_source_span(template_name, source.lineno, source.col_offset),
+        title="Fragile template path",
+        kind="fragile-template-path",
+        suggestion=f'Use "{source.suggestion}" so folder moves stay zero-edit.',
+        confidence=DiagnosticConfidence.CONSERVATIVE,
+        metadata=(
+            ("statement", source.statement),
+            ("target", source.target),
+            ("replacement", source.suggestion),
+        ),
     )

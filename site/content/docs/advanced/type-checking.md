@@ -150,6 +150,7 @@ Each finding is a `TypeIssue` dataclass:
 | `lineno` | `int` | Line number of the issue |
 | `col_offset` | `int` | Column offset of the issue |
 | `rule` | `str` | One of `"undeclared-var"`, `"unused-declared"`, `"typo-suggestion"` |
+| `code` | `str` | Stable code derived from the rule (`K-TYP-001` through `K-TYP-003`) |
 | `message` | `str` | Human-readable description |
 | `severity` | `str` | `"warning"` (default) or `"error"` |
 
