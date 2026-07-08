@@ -99,7 +99,7 @@ format-check:
 
 ty:
 	@echo "Running ty type checker (Astral, Rust-based)..."
-	uv run ty check src/kida/
+	uv run ty check src/kida/ action_support/
 
 package-smoke:
 	@echo "Building and smoke-testing package artifacts..."

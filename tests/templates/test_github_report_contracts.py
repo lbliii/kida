@@ -49,8 +49,11 @@ def test_ci_workflow_keeps_raw_output_alongside_rendered_reports():
 
     assert "uv run pytest -n auto -q --tb=short --dist worksteal" in workflow
     assert "uv run pytest -n 0 -q --tb=short --cov=kida" in workflow
-    assert "uv run ty check src/kida\n" in workflow
-    assert "uv run ty check src/kida --output-format junit > reports/ty.xml || true" in workflow
+    assert "uv run ty check src/kida action_support\n" in workflow
+    assert (
+        "uv run ty check src/kida action_support --output-format junit > reports/ty.xml || true"
+        in workflow
+    )
     assert "uv run ruff check .\n" in workflow
     assert "--output-format json > reports/ruff.json || true" in workflow
     assert "uv run ruff format --check .\n" in workflow
@@ -63,9 +66,18 @@ def test_ci_has_one_authoritative_ty_lane():
     }
 
     assert "ty.yml" not in workflows
-    assert sum("uv run ty check src/kida\n" in workflow for workflow in workflows.values()) == 1
+    assert (
+        sum(
+            "uv run ty check src/kida action_support\n" in workflow
+            for workflow in workflows.values()
+        )
+        == 1
+    )
     assert "name: Type Check (ty)" in workflows["tests.yml"]
-    assert "--output-format junit > reports/ty.xml || true" in workflows["tests.yml"]
+    assert (
+        "uv run ty check src/kida action_support --output-format junit > reports/ty.xml || true"
+        in workflows["tests.yml"]
+    )
 
 
 def test_ci_repeats_seeded_thread_stress_on_scheduled_runs():
@@ -119,6 +131,30 @@ def test_setup_uv_steps_only_use_supported_inputs():
 
     assert setup_uv_steps, "expected at least one setup-uv workflow step"
     assert all("allow-prereleases:" not in step for step in setup_uv_steps)
+
+
+def test_release_collector_is_typed_code_with_read_only_pr_integration():
+    """Release collection stays outside YAML and is exercised without publishing."""
+    action = (ROOT_DIR / "action.yml").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "tests.yml").read_text(encoding="utf-8")
+
+    assert len(action.splitlines()) < 600
+    assert "COLLECT_EOF" not in action
+    assert "action_support/release_notes.py" in action
+    assert "name: Release Collector Integration" in workflow
+    assert "data-format: github-prs" in workflow
+    assert "post-to: step-summary" in workflow
+    assert "release-tag:" not in next(
+        step for step in _action_steps(workflow) if "Collect and render release data" in step
+    )
+
+
+def test_release_event_keeps_curated_release_body_unchanged():
+    """Release-created events render summaries but do not rewrite curated bodies."""
+    workflow = (WORKFLOWS_DIR / "release-notes.yml").read_text(encoding="utf-8")
+
+    assert 'echo "markdown_post_to=step-summary"' in workflow
+    assert 'echo "markdown_post_to=release,step-summary"' in workflow
 
 
 def test_release_workflow_keeps_exact_free_threaded_python_setup():
