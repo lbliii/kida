@@ -84,6 +84,26 @@ def test_ci_repeats_seeded_thread_stress_on_scheduled_runs():
     )
 
 
+def test_ci_runs_debug_runtime_stress_only_on_periodic_workflows():
+    """The deeper runtime checks remain periodic and verify their own mode."""
+    workflow = (WORKFLOWS_DIR / "tests.yml").read_text(encoding="utf-8")
+
+    assert "name: Run free-threaded debug-runtime stress" in workflow
+    assert (
+        "if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'"
+        in workflow
+    )
+    assert 'PYTHONDEVMODE: "1"' in workflow
+    assert 'PYTHONFAULTHANDLER: "1"' in workflow
+    assert "PYTHONMALLOC: debug" in workflow
+    assert 'KIDA_REQUIRE_DEBUG_RUNTIME: "1"' in workflow
+    assert 'KIDA_STRESS_RUNS: "25"' in workflow
+    assert (
+        "uv run python -X dev -m pytest tests/test_randomized_thread_stress.py "
+        "-vv -s --tb=short --timeout=120" in workflow
+    )
+
+
 def test_setup_uv_steps_only_use_supported_inputs():
     """setup-uv steps do not pass setup-python-only inputs."""
     sources = [
