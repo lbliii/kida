@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added report-only downstream canaries for chirp-ui's HTML/component corpus
+  and Milo's terminal/CLI templates. Each job proves it imports the proposed
+  Kida checkout instead of the released wheel, records commit provenance, runs
+  on Python 3.14t with `PYTHON_GIL=0`, uses read-only permissions, and remains
+  safe for public-fork pull requests.
 - Added namespaced `Extension.diagnose()` hooks to programmatic unsaved-source
   diagnosis. Hooks receive immutable source, AST, and visible component
   metadata; Kida validates ownership, confidence, current-template locations,
