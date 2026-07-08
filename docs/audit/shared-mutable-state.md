@@ -272,6 +272,23 @@ transaction; an `RLock` preserves safe same-thread reentrancy.
 
 The stress proofs run under `PYTHON_GIL=0` and use no sleep-based assertions.
 
+### 4.5 Seeded Scheduled Stress Protocol
+
+`tests/test_randomized_thread_stress.py` assigns ten supported operations to
+workers from a seeded plan: full, streaming, and block renders; introspection;
+template and fragment cache reads; cache invalidation; live rendering; spinner
+advancement; and worker selection. Each seed randomizes roles, cache/fragment
+keys, invalidation scope, workload profiles, and thread submission order across
+40 barrier-synchronized rounds. Assertions preserve exact render markers,
+template/fragment key isolation, live-update publication, spinner frame counts,
+metadata availability, and bounded worker decisions.
+
+The required PR lane runs seed 0. Weekly and manual runs use the same no-GIL job
+with 25 consecutive seeds, for 10,000 operations per window. Test IDs and output
+name the seed, and `KIDA_STRESS_SEED` reproduces it locally. The protocol uses no
+sleeps, random timeouts, new dependency, or mutable process-environment changes
+during worker execution.
+
 ---
 
 ## 5. Summary
@@ -291,5 +308,6 @@ The stress proofs run under `PYTHON_GIL=0` and use no sleep-based assertions.
 | Coverage instrumentation | Locked global lifecycle | Context-local data; distinct collectors may overlap; one lifecycle owner per collector |
 | Live terminal state | Serialized updates | Renderer `RLock`; spinner index lock; lifecycle operations remain single-owner |
 | Worker selection | Read-only decisions | Frozen profiles, local calculations, and thread-safe cached GIL detection |
+| Scheduled stress | Seeded barriers | One required seed; 25 weekly/manual seeds; exact seed reproduction |
 
 No critical violations. The codebase is structured for free-threading compliance.

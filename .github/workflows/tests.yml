@@ -251,6 +251,15 @@ jobs:
         run: |
           uv run pytest tests/test_kida_stress_test.py tests/test_lru_cache_concurrency.py tests/test_bytecode_cache_concurrency.py -v --tb=short --timeout=120
 
+      - name: Run seeded randomized thread stress
+        env:
+          CI: true
+          PYTHON_GIL: "0"
+          KIDA_STRESS_SEED: "0"
+          KIDA_STRESS_RUNS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '25' || '1' }}
+        run: |
+          uv run pytest tests/test_randomized_thread_stress.py -vv -s --tb=short --timeout=120
+
   # Async tests
   async-tests:
     name: Async Tests
