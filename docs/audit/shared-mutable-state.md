@@ -289,6 +289,21 @@ name the seed, and `KIDA_STRESS_SEED` reproduces it locally. The protocol uses n
 sleeps, random timeouts, new dependency, or mutable process-environment changes
 during worker execution.
 
+### 4.6 Periodic Debug-Runtime Protocol
+
+Weekly and manual CI repeat the 25 seeded schedules with `PYTHON_GIL=0`, Python
+development mode, allocator debug hooks, and `faulthandler`. A focused
+configuration test asserts all four conditions before the randomized operations
+run. This catches allocator misuse, runtime warnings, fatal faults, and invariant
+violations visible to the managed free-threaded interpreter while preserving the
+same reproducible seed contract.
+
+This protocol is intentionally not described as ThreadSanitizer or a CPython
+`Py_DEBUG` build. It does not claim native data-race detection. A true sanitizer
+or combined free-threaded debug-build lane remains a future replacement if a
+maintained runner artifact becomes available; until then, the periodic protocol
+is the supported deeper-check mechanism.
+
 ---
 
 ## 5. Summary
@@ -309,5 +324,6 @@ during worker execution.
 | Live terminal state | Serialized updates | Renderer `RLock`; spinner index lock; lifecycle operations remain single-owner |
 | Worker selection | Read-only decisions | Frozen profiles, local calculations, and thread-safe cached GIL detection |
 | Scheduled stress | Seeded barriers | One required seed; 25 weekly/manual seeds; exact seed reproduction |
+| Debug-runtime stress | Periodic deeper checks | 25 seeds with no GIL, development mode, allocator hooks, and fault handling |
 
 No critical violations. The codebase is structured for free-threading compliance.

@@ -63,6 +63,29 @@ Increase `KIDA_STRESS_RUNS` to exercise consecutive seeds beginning at
 manual windows are allowed up to 100 seeds. A failure is actionable only with
 its seed, Python build, GIL status, and failing operation/assertion preserved.
 
+### Periodic debug-runtime protocol
+
+Weekly and manual workflows repeat the same 25-seed window under Python
+development mode with allocator debug hooks and `faulthandler`, while retaining
+`PYTHON_GIL=0`. The test first asserts that development mode, fault handling,
+`PYTHONMALLOC=debug`, and GIL-disabled execution are all active; a misconfigured
+lane therefore fails before claiming deeper evidence.
+
+Reproduce the protocol locally:
+
+```bash
+PYTHON_GIL=0 PYTHONDEVMODE=1 PYTHONFAULTHANDLER=1 PYTHONMALLOC=debug \
+KIDA_REQUIRE_DEBUG_RUNTIME=1 KIDA_STRESS_SEED=0 KIDA_STRESS_RUNS=25 \
+  uv run python -X dev -m pytest tests/test_randomized_thread_stress.py \
+  -vv -s --tb=short --timeout=120
+```
+
+This is a **debug-runtime protocol**, not ThreadSanitizer and not a CPython
+`Py_DEBUG` build. It exercises Python's development-mode runtime checks on the
+managed free-threaded interpreter without implying native data-race detection.
+Adopt a true sanitizer or combined free-threaded debug-build lane only when a
+maintained, reproducible runner artifact is available.
+
 ## Release Automation Gate
 
 Before running the release target, merge the release-prep PR and work from a

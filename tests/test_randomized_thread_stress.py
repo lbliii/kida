@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import concurrent.futures
+import faulthandler
 import io
 import os
 import random
+import sys
 import threading
 from collections import Counter
 
@@ -27,6 +29,18 @@ def _configured_seeds() -> tuple[object, ...]:
         pytest.param(base_seed + offset, id=f"seed-{base_seed + offset}")
         for offset in range(run_count)
     )
+
+
+def test_debug_runtime_protocol_configuration() -> None:
+    """The optional periodic lane must actually enable every claimed check."""
+    if os.environ.get("KIDA_REQUIRE_DEBUG_RUNTIME") != "1":
+        pytest.skip("debug-runtime protocol is scheduled/manual only")
+
+    assert sys.flags.dev_mode
+    assert faulthandler.is_enabled()
+    assert os.environ.get("PYTHONMALLOC") == "debug"
+    assert os.environ.get("PYTHON_GIL") == "0"
+    assert hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled()
 
 
 @pytest.mark.parametrize("seed", _configured_seeds())

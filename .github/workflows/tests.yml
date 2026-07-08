@@ -260,6 +260,20 @@ jobs:
         run: |
           uv run pytest tests/test_randomized_thread_stress.py -vv -s --tb=short --timeout=120
 
+      - name: Run free-threaded debug-runtime stress
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          CI: true
+          PYTHON_GIL: "0"
+          PYTHONDEVMODE: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONMALLOC: debug
+          KIDA_REQUIRE_DEBUG_RUNTIME: "1"
+          KIDA_STRESS_SEED: "0"
+          KIDA_STRESS_RUNS: "25"
+        run: |
+          uv run python -X dev -m pytest tests/test_randomized_thread_stress.py -vv -s --tb=short --timeout=120
+
   # Async tests
   async-tests:
     name: Async Tests
