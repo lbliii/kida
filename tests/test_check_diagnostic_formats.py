@@ -233,6 +233,55 @@ def test_sarif_coordinates_are_one_based(
     assert region["startColumn"] == 1
 
 
+def test_strict_safe_edit_has_json_sarif_and_text_parity(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (tmp_path / "page.html").write_text(
+        "{% if ok %}\n{% end %}",
+        encoding="utf-8",
+    )
+
+    text_exit = main(["check", str(tmp_path), "--strict"])
+    text = capsys.readouterr()
+    json_exit = main(["check", str(tmp_path), "--strict", "--format", "json"])
+    json_capture = capsys.readouterr()
+    sarif_exit = main(["check", str(tmp_path), "--strict", "--format", "sarif"])
+    sarif_capture = capsys.readouterr()
+
+    assert text_exit == json_exit == sarif_exit == 1
+    assert text.out == ""
+    assert "page.html:2: strict: unified {% end %} closes 'if' — prefer {% endif %}" in text.err
+    payload = json.loads(json_capture.out)
+    sarif = json.loads(sarif_capture.out)
+    diagnostic = payload["diagnostics"][0]
+    result = sarif["runs"][0]["results"][0]
+
+    assert diagnostic["code"] == result["ruleId"] == "K-PAR-007"
+    assert diagnostic["safe_edit"] == {
+        "path": "page.html",
+        "range": {
+            "start": {"line": 2, "column": 3},
+            "end": {"line": 2, "column": 6},
+        },
+        "replacement": "endif",
+        "description": "Replace the unified closer with 'endif'.",
+    }
+    assert diagnostic["source_snippet"] is not None
+    replacement = result["fixes"][0]["artifactChanges"][0]["replacements"][0]
+    assert replacement == {
+        "deletedRegion": {
+            "startLine": 2,
+            "startColumn": 4,
+            "endLine": 2,
+            "endColumn": 7,
+        },
+        "insertedContent": {"text": "endif"},
+    }
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    assert _validate_schema(payload, schema, schema) == []
+
+
 def test_deduplication_keeps_first_exact_diagnostic_event(tmp_path: Path) -> None:
     collector = _Collector(tmp_path)
     diagnostic = Diagnostic(

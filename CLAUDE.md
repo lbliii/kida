@@ -215,13 +215,14 @@ html = template.render_with_blocks({"content": inner}, title="Hello")  # Composi
 meta = template.template_metadata()                       # AST introspection
 blocks = template.block_metadata()                        # Block name → metadata
 
-from kida.diagnostics import DiagnosticOptions, diagnose_source
+from kida.diagnostics import DiagnosticOptions, apply_safe_edits, diagnose_source
 report = diagnose_source(
     source,
     name="page.html",
     environment=env,
     options=DiagnosticOptions(validate_calls=True, typed=True),
 )
+updated = apply_safe_edits(source, report.diagnostics, path="page.html")
 ```
 
 ## Dependencies

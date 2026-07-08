@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 import json
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import fields
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import get_type_hints
 
@@ -16,9 +16,15 @@ import kida.diagnostics as diagnostics
 from kida import DictLoader, Environment, TemplateSyntaxError
 from kida.cli import main
 from kida.diagnostics import (
+    Diagnostic,
     DiagnosticConfidence,
     DiagnosticOptions,
     DiagnosticSeverity,
+    DiagnosticSnippet,
+    SafeEdit,
+    SourcePosition,
+    SourceSpan,
+    apply_safe_edits,
     diagnose_directory,
     diagnose_source,
     diagnostic_from_exception,
@@ -36,6 +42,7 @@ EXPECTED_EXPORTS = [
     "SafeEdit",
     "SourcePosition",
     "SourceSpan",
+    "apply_safe_edits",
     "diagnose_directory",
     "diagnose_source",
     "diagnostic_from_exception",
@@ -60,6 +67,9 @@ def test_public_module_exports_and_signatures_are_stable() -> None:
         "options: 'DiagnosticOptions' = DiagnosticOptions(strict=False, "
         "validate_calls=False, a11y=False, typed=False, "
         "lint_fragile_paths=False)) -> 'DiagnosticReport'"
+    )
+    assert str(inspect.signature(apply_safe_edits)) == (
+        "(source: 'str', diagnostics: 'Iterable[Diagnostic]', *, path: 'str') -> 'str'"
     )
 
 
@@ -166,7 +176,108 @@ def test_source_strict_option_controls_unified_end_finding() -> None:
     )
 
     assert [item.code for item in strict.diagnostics] == ["K-PAR-007"]
-    assert strict.diagnostics[0].suggestion == "Prefer {% endif %}."
+    diagnostic = strict.diagnostics[0]
+    assert diagnostic.suggestion == "Prefer {% endif %}."
+    assert diagnostic.safe_edit == SafeEdit(
+        span=SourceSpan(
+            path="page.html",
+            start=SourcePosition(1, 17),
+            end=SourcePosition(1, 20),
+        ),
+        replacement="endif",
+        description="Replace the unified closer with 'endif'.",
+    )
+    assert apply_safe_edits(source, strict.diagnostics, path="page.html") == (
+        "{% if ok %}yes{% endif %}"
+    )
+
+
+def test_safe_edit_application_rejects_stale_and_overlapping_ranges() -> None:
+    source = "alpha beta"
+    snapshot = DiagnosticSnippet(lines=((1, source),), error_line=1, column=0)
+    first = Diagnostic(
+        code="K-TEST-001",
+        category="test",
+        severity=DiagnosticSeverity.WARNING,
+        message="first",
+        source_snippet=snapshot,
+        safe_edit=SafeEdit(
+            span=SourceSpan(
+                path="page.html",
+                start=SourcePosition(1, 0),
+                end=SourcePosition(1, 5),
+            ),
+            replacement="one",
+        ),
+    )
+    overlap = Diagnostic(
+        code="K-TEST-002",
+        category="test",
+        severity=DiagnosticSeverity.WARNING,
+        message="overlap",
+        source_snippet=snapshot,
+        safe_edit=SafeEdit(
+            span=SourceSpan(
+                path="page.html",
+                start=SourcePosition(1, 4),
+                end=SourcePosition(1, 10),
+            ),
+            replacement="two",
+        ),
+    )
+
+    with pytest.raises(ValueError, match=r"overlapping safe edits for page\.html"):
+        apply_safe_edits(source, (first, overlap), path="page.html")
+    with pytest.raises(ValueError, match=r"stale safe edit for page\.html:1"):
+        apply_safe_edits("alpha changed", (first,), path="page.html")
+    with pytest.raises(ValueError, match=r"safe edit for page\.html has no source snapshot"):
+        apply_safe_edits(source, (replace(first, source_snippet=None),), path="page.html")
+
+
+def test_safe_edit_application_handles_multiple_edits_and_ignores_other_paths() -> None:
+    source = "{% if a %}{% if b %}x{% end %}{% end %}"
+    report = diagnose_source(
+        source,
+        name="page.html",
+        options=DiagnosticOptions(strict=True),
+    )
+
+    assert len(report.diagnostics) == 2
+    updated = apply_safe_edits(source, report.diagnostics, path="page.html")
+    assert updated == "{% if a %}{% if b %}x{% endif %}{% endif %}"
+    assert (
+        diagnose_source(
+            updated,
+            name="page.html",
+            options=DiagnosticOptions(strict=True),
+        ).diagnostics
+        == ()
+    )
+    assert apply_safe_edits(source, report.diagnostics, path="other.html") == source
+
+
+def test_safe_edit_application_preserves_crlf_line_endings() -> None:
+    source = "{% if ok %}\r\n{% end %}\r\n"
+    report = diagnose_source(
+        source,
+        name="page.html",
+        options=DiagnosticOptions(strict=True),
+    )
+
+    assert apply_safe_edits(source, report.diagnostics, path="page.html") == (
+        "{% if ok %}\r\n{% endif %}\r\n"
+    )
+
+
+def test_advisory_type_suggestions_do_not_claim_safe_edits() -> None:
+    report = diagnose_source(
+        "{% template user: str %}{{ userr }}",
+        name="page.html",
+        options=DiagnosticOptions(typed=True),
+    )
+
+    assert "K-TYP-003" in {item.code for item in report.diagnostics}
+    assert all(item.safe_edit is None for item in report.diagnostics)
 
 
 def test_unsaved_source_resolves_cross_template_component_metadata() -> None:

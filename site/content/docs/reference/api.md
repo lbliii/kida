@@ -94,6 +94,29 @@ The public model includes `Diagnostic`, `DiagnosticSeverity`,
 zero-based, and range ends are exclusive. `SafeEdit` requires an exact range;
 the type's presence does not mean every finding has a provably safe edit.
 
+Apply proven edits against the exact source snapshot used for diagnosis:
+
+```python
+from kida.diagnostics import apply_safe_edits
+
+updated = apply_safe_edits(
+    unsaved_editor_text,
+    report.diagnostics,
+    path="pages/account.html",
+)
+```
+
+`apply_safe_edits()` selects edits for the requested path and ignores advisory
+findings and findings for other files. Before changing anything, it verifies
+that every touched source line still matches the diagnostic's captured snippet
+and that selected ranges do not overlap. It raises `ValueError` for stale,
+incomplete, or overlapping edits, leaving the caller's source unchanged.
+
+Kida initially emits safe edits only for `--strict` unified closers: the exact
+`end` keyword in `{% end %}` becomes `endif`, `endfor`, `enddef`, and so on.
+Type typo suggestions, fragile paths, component-call findings, and semantic
+migration advice remain advisory until their complete replacement can be proven.
+
 Framework adapters can normalize caught Kida exceptions without parsing their
 rendered text:
 

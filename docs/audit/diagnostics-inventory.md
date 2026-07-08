@@ -1,6 +1,6 @@
 # Diagnostic Contracts Inventory
 
-Status: living inventory; model, CLI surfaces, and programmatic API are implemented
+Status: living inventory; model, CLI surfaces, programmatic API, and first safe edits are implemented
 
 Scope: exceptions, compiler warnings, parser and lexer failures, static-analysis
 findings, `kida check`, renderers, framework adapters, and machine-facing output
@@ -50,8 +50,9 @@ the existing text surface, and can emit diagnostics JSON v1 or SARIF 2.1.0.
 `diagnose_directory()` exposes that collection without CLI policy;
 `diagnose_source()` handles unsaved buffers without entering template or
 bytecode caches; and `diagnostic_from_exception()` gives framework adapters a
-safe conversion path. Safe-edit generation policy and extension hooks are still
-separate contract decisions.
+safe conversion path. Strict unified closers now carry exact, snapshot-backed
+safe edits, and `apply_safe_edits()` rejects stale or overlapping edits before
+application. Extension hooks remain a separate contract decision.
 
 ## Current Topology
 
@@ -173,8 +174,9 @@ not be mistaken for a SARIF diagnostics output path.
    enabled findings as failures regardless of the record's severity value.
 4. **Rich producer context is uneven.** The canonical model can carry safe
    edits, related locations, confidence, runtime-only/unknown state, snippets,
-   and docs URLs, but many producer families do not supply those facts. No
-   current producer emits a public safe edit.
+   and docs URLs, but many producer families do not supply those facts. Strict
+   unified closers are the first public safe-edit producer; ambiguous type,
+   path, component, and migration suggestions remain advisory.
 5. **The public service covers the current check families, not every analyzer.**
    Directory and unsaved-source collection expose the CLI checks, while privacy,
    context, escape, compiler-warning, and future migration orchestration remain
@@ -240,7 +242,9 @@ This is sequencing guidance, not approval to implement the contracts.
    schema snapshots.
 5. **Complete:** separately approve a public programmatic API for editors,
    adapters, and codemods.
-6. Add extension hooks only after ownership, namespacing, and failure isolation
+6. **Complete:** emit only proven safe edits and reject stale, incomplete, or
+   overlapping applications.
+7. Add extension hooks only after ownership, namespacing, and failure isolation
    are defined.
 
 Issue #147 depends on the collection and rendering seams described here; issue
@@ -255,6 +259,7 @@ should wait for the model, range, and safe-edit contracts.
 | New `kida check` flags or output selection | Public CLI change |
 | JSON or SARIF field names and versioning | New published schema commitment |
 | Changing diagnostic types or collection functions | Public API compatibility change; the module remains intentionally absent from root `kida.__all__` |
+| Expanding safe-edit applicability | Automatic source changes require exact spans, snapshot verification, and proof that the replacement is unambiguous |
 | Extension diagnostic protocol | New extension surface and code namespace policy |
 | Framework-specific debug behavior | Public adapter behavior and possible information exposure |
 
@@ -266,7 +271,7 @@ should wait for the model, range, and safe-edit contracts.
 | CLI collection/refactor | Existing human snapshots unchanged, deterministic ordering/de-duplication, partial-load failures, and current exit status preserved | CLI docs only if visible behavior changes |
 | JSON/SARIF output | Schema snapshots, escaping/redaction tests, malformed/partial input behavior, and SARIF validator coverage | CLI reference, examples, changelog, and schema/version policy |
 | Programmatic API | **Complete:** public API snapshot, typing checks, concurrent shared-read proof, CLI parity, unsaved-source and framework-exception tests | API docs, README example, changelog; no migration note because no older general API was replaced |
-| Safe edits | Exact source-span tests, stale-source rejection, overlapping-edit behavior, and conservative applicability labels | Editor/codemod docs and safety limitations |
+| Safe edits | **Complete:** exact source-span tests, stale-source rejection, overlapping-edit behavior, multi-edit application, and advisory-only negative proof | API/CLI docs, README example, changelog; JSON v1 shape unchanged |
 
 ## Existing Proof
 
@@ -277,7 +282,8 @@ should wait for the model, range, and safe-edit contracts.
   snapshots the public `ErrorCode` values and exported API.
 - [`tests/test_public_diagnostics.py`](../../tests/test_public_diagnostics.py)
   snapshots the module API and proves unsaved-source, cross-template,
-  directory/CLI parity, exception conversion, and concurrent shared-read use.
+  directory/CLI parity, exception conversion, concurrent shared-read use, and
+  safe-edit applicability enforcement.
 - CLI tests under [`tests/`](../../tests/) assert current `kida check` messages,
   counts, and exit behavior for enabled analyzers.
 - Published error and analyzer contracts live under

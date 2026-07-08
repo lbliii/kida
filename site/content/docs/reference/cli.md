@@ -140,6 +140,11 @@ Exit status is `0` when there are no findings, `1` when any enabled check emits
 a finding, and `2` for an invalid invocation or template root. Severity labels
 do not change this existing check policy.
 
+In JSON and SARIF modes, strict unified-closer findings include a safe edit for
+the exact `end` keyword plus a source snapshot. Python tooling can apply those
+fixes with `kida.diagnostics.apply_safe_edits()`, which rejects stale or
+overlapping edits before changing source. Human text output remains unchanged.
+
 ## kida render
 
 Render a single template to stdout. Supports HTML and terminal rendering modes.
