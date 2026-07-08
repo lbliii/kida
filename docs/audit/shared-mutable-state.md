@@ -83,7 +83,7 @@ The following are **intentionally shared** between parent and child contexts (do
 - **Read:** `env_for_cache._analysis_cache.get(self._name)` — no lock.
 - **Write:** `env_for_cache._analysis_cache[self._name] = self._metadata_cache` — no lock.
 
-**Risk:** Under concurrent access, two threads could both miss the cache and perform duplicate analysis. The worst case is redundant work, not data corruption. Dict assignment in CPython is atomic for simple types; `TemplateMetadata` is a frozen dataclass. **Recommendation:** Consider holding `_cache_lock` when accessing `_analysis_cache` from introspection for strict consistency. Current behavior is acceptable for correctness.
+**Risk:** Under concurrent access, two threads could both miss the cache and perform duplicate analysis. The worst case is redundant work, not data corruption. Individual dict operations are memory-safe on the supported free-threaded CPython runtime, but the compound miss/compute/store sequence is intentionally not atomic; each stored `TemplateMetadata` is complete before publication. **Recommendation:** Consider holding `_cache_lock` when accessing `_analysis_cache` from introspection if single-computation behavior becomes a requirement. Current behavior is acceptable for correctness.
 
 ### 3.3 CachedBlocksDict
 
@@ -93,6 +93,44 @@ The following are **intentionally shared** between parent and child contexts (do
 - `_stats` — shared when `cache_stats` is passed from `RenderContext`. Protected by `_stats_lock` (threading.Lock) for hit/miss recording.
 
 **Status:** Compliant.
+
+### 3.4 Concurrent Miss, Invalidation, And Eviction Contract
+
+**Owners and mechanisms:**
+
+- The environment template cache is an `LRUCache`; `_cache_lock` also protects
+  its source hashes, mtimes, analysis results, and structure manifests.
+  `clear_template_cache()` uses the same environment lock as miss compilation
+  and publication.
+- The fragment cache and standalone `LRUCache` protect get, set, delete, clear,
+  LRU ordering, TTL metadata, and size eviction with an internal `RLock`.
+  `get_or_set()` deliberately computes the factory outside the lock, then
+  rechecks the key before publishing a complete value.
+- `BytecodeCache` writes to a unique same-directory temporary file and uses an
+  atomic replace. Source and static-context hashes select distinct cache files;
+  `clear()` is best-effort file invalidation and may race with a new atomic
+  publication.
+
+**Invalidation semantics:** Clear operations remove entries visible at the time
+they acquire/enumerate their cache. They are not generation barriers and do not
+cancel an already-running template compilation, fragment factory, LRU factory,
+or bytecode write. An in-flight reader may therefore publish a valid entry after
+clear returns. Callers that require a quiescent empty cache must first stop
+producers. Concurrent consumers may observe either a valid hit or a miss; they
+must never observe a partial value, torn bytecode file, cross-key output, or a
+size above an in-memory cache's configured maximum after an operation completes.
+
+**Proof:**
+
+- `TestSharedEnvironmentStress.test_concurrent_template_misses_clear_and_eviction`
+- `TestSharedEnvironmentStress.test_concurrent_fragment_misses_clear_and_eviction`
+- `TestLRUCacheConcurrency.test_concurrent_misses_clear_and_eviction`
+- `TestBytecodeCacheConcurrency.test_concurrent_misses_clear_and_source_hash_invalidation`
+
+All four tests use per-round barriers rather than sleeps. They run in the
+required `PYTHON_GIL=0` safety jobs and validate exact rendered/cache values,
+bounded eviction, source-hash isolation, executable bytecode hits, and absence
+of leaked temporary bytecode files.
 
 ---
 
@@ -148,6 +186,7 @@ it is not a `Template` mutation API.
 | Environment _cache_lock | OK | Protects _template_hashes, _analysis_cache, _structure_manifest_cache |
 | _analysis_cache from introspection | Low risk | Optional: hold _cache_lock for strict consistency |
 | CachedBlocksDict | OK | Lock for stats when shared |
+| Cache miss/invalidation/eviction | OK | RLock or atomic file publication; clear is not a generation barrier; synchronized no-GIL proof |
 | Shared Template reads | OK | Local/ContextVar render state; complete metadata publication; synchronized no-GIL proof |
 
 No critical violations. The codebase is structured for free-threading compliance.

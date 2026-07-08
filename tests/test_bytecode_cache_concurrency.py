@@ -15,9 +15,9 @@ if TYPE_CHECKING:
     from types import CodeType
 
 
-def _make_code(name: str) -> CodeType:
+def _make_code(name: str, value: int = 1) -> CodeType:
     """Create a minimal code object for caching."""
-    return compile(f"# {name}\nx = 1", "<test>", "exec")
+    return compile(f"# {name}\ncached_value = {value}", "<test>", "exec")
 
 
 class TestBytecodeCacheConcurrency:
@@ -120,3 +120,46 @@ class TestBytecodeCacheConcurrency:
             t.join()
 
         assert not errors, f"Unexpected errors: {errors}"
+
+    def test_concurrent_misses_clear_and_source_hash_invalidation(self, tmp_path: Path) -> None:
+        """Clear races may miss, but every bytecode hit is complete and version-correct."""
+        import concurrent.futures
+
+        worker_count = 6
+        rounds = 30
+        cache = BytecodeCache(tmp_path)
+        phase = threading.Barrier(worker_count + 1)
+
+        def writer_reader(worker: int) -> int:
+            hits = 0
+            name = f"shared-{worker}.html"
+            for iteration in range(rounds):
+                source_hash = hash_source(f"source-{worker}-{iteration}")
+                phase.wait(timeout=30)
+                assert cache.get(name, source_hash)[0] is None
+                cache.set(name, source_hash, _make_code(name, iteration))
+                loaded, _ast, _precomputed = cache.get(name, source_hash)
+                if loaded is not None:
+                    namespace: dict[str, object] = {}
+                    exec(loaded, namespace)
+                    assert namespace["cached_value"] == iteration
+                    hits += 1
+                phase.wait(timeout=30)
+            return hits
+
+        def invalidator() -> None:
+            for iteration in range(rounds):
+                phase.wait(timeout=30)
+                if iteration < rounds // 2:
+                    cache.clear()
+                phase.wait(timeout=30)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count + 1) as executor:
+            workers = [executor.submit(writer_reader, worker) for worker in range(worker_count)]
+            invalidation = executor.submit(invalidator)
+            hits = [future.result() for future in workers]
+            invalidation.result()
+
+        assert sum(hits) > 0
+        assert cache.stats()["file_count"] > 0
+        assert list(tmp_path.glob("*.tmp")) == []

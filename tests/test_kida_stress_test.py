@@ -484,6 +484,81 @@ class TestSharedEnvironmentStress:
         assert all(r == "1" for r in results)
         assert len(results) == 100
 
+    def test_concurrent_template_misses_clear_and_eviction(self) -> None:
+        """Template clears may repopulate, while every read stays valid and bounded."""
+        import concurrent.futures
+        import threading
+
+        worker_count = 8
+        rounds = 30
+        loader = DictLoader({f"t{i}.html": f"Template {i}: {{{{ value }}}}" for i in range(12)})
+        env = Environment(loader=loader, cache_size=4, auto_reload=False)
+        phase = threading.Barrier(worker_count + 1)
+
+        def reader(worker: int) -> int:
+            for iteration in range(rounds):
+                template_index = (worker + iteration) % 12
+                marker = f"{worker}-{iteration}"
+                phase.wait(timeout=30)
+                template = env.get_template(f"t{template_index}.html")
+                assert template.render(value=marker) == f"Template {template_index}: {marker}"
+                phase.wait(timeout=30)
+            return worker
+
+        def invalidator() -> None:
+            for iteration in range(rounds):
+                phase.wait(timeout=30)
+                if iteration < rounds // 2:
+                    if iteration % 2:
+                        env.clear_template_cache([f"t{iteration % 12}.html"])
+                    else:
+                        env.clear_template_cache()
+                phase.wait(timeout=30)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count + 1) as executor:
+            readers = [executor.submit(reader, worker) for worker in range(worker_count)]
+            invalidation = executor.submit(invalidator)
+            results = [future.result() for future in readers]
+            invalidation.result()
+
+        assert sorted(results) == list(range(worker_count))
+        assert env.cache_info()["template"]["size"] == 4
+
+    def test_concurrent_fragment_misses_clear_and_eviction(self) -> None:
+        """Fragment clears and eviction never expose another key's cached output."""
+        import concurrent.futures
+        import threading
+
+        worker_count = 8
+        rounds = 30
+        env = Environment(fragment_cache_size=4, fragment_ttl=300)
+        template = env.from_string("{% cache key %}{{ value }}{% endcache %}")
+        phase = threading.Barrier(worker_count + 1)
+
+        def reader(worker: int) -> int:
+            for iteration in range(rounds):
+                marker = f"{worker}-{iteration}"
+                phase.wait(timeout=30)
+                assert template.render(key=marker, value=marker) == marker
+                phase.wait(timeout=30)
+            return worker
+
+        def invalidator() -> None:
+            for iteration in range(rounds):
+                phase.wait(timeout=30)
+                if iteration < rounds // 2:
+                    env.clear_fragment_cache()
+                phase.wait(timeout=30)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count + 1) as executor:
+            readers = [executor.submit(reader, worker) for worker in range(worker_count)]
+            invalidation = executor.submit(invalidator)
+            results = [future.result() for future in readers]
+            invalidation.result()
+
+        assert sorted(results) == list(range(worker_count))
+        assert env.cache_info()["fragment"]["size"] == 4
+
 
 class TestMixedRenderConcurrency:
     """Test mixed public operations on one shared Template from different threads."""
