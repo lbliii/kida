@@ -32,6 +32,15 @@ and a pure callable conversion protocol. The first adapter consumes the existing
 `TemplateDiagnostic` returned by `UndefinedError.to_diagnostic()` without
 changing that documented payload or its renderers.
 
+The private adapter layer also accepts every inventoried producer family that
+already owns a stable code: parser and runtime exceptions, compiler
+`TemplateWarning` records, component call/type findings, privacy findings,
+context-contract issues, and escape-audit findings. Conversion is opt-in and
+does not alter producer return types or import the adapter into any parser,
+compiler, analyzer, render, or CLI path. Code-less lexer, accessibility,
+template-declaration type, and fragile-path findings remain deferred rather than
+receiving identifiers that would become accidental compatibility commitments.
+
 ## Current Topology
 
 | Producer | Current record or exception | Code/category | Severity | Location | Suggestions and context | Current consumers |
