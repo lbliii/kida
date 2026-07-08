@@ -238,6 +238,7 @@ guarantee and must be externally serialized.
 | `Environment.get_template` | Yes | Yes (LRU locked) | Cache dicts protected by `_cache_lock` |
 | `Template.render` | Yes | N/A | Per-call state via ContextVar |
 | Filter/test/global registries | Snapshot reads | Startup only | Copy-on-write APIs publish complete mappings; competing writers may lose updates |
+| `CoverageCollector` | Context-local | Distinct collectors | Global instrumentation lifecycle is locked; start/stop one instance in the same context |
 | `CachedBlocksDict` | Yes | Stats safe | Stats updates use lock when shared |
 | `Compiler.compile` | No | No | One compile at a time per Compiler instance |
 

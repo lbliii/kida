@@ -696,6 +696,139 @@ class TestSharedEnvironmentStress:
         assert env.cache_info()["fragment"]["size"] == 4
 
 
+class TestCoverageCollectorConcurrency:
+    """Exercise coverage instrumentation lifecycle under free-threading."""
+
+    def test_repeated_start_stop_while_other_threads_render(self) -> None:
+        """Collector owners toggle instrumentation while uncollected renders run."""
+        import concurrent.futures
+        import threading
+
+        from kida.coverage import CoverageCollector
+        from kida.render_context import RenderContext
+
+        collector_count = 6
+        observer_count = 4
+        worker_count = collector_count + observer_count
+        late_collector_count = collector_count // 2
+        rounds = 30
+
+        sources = {
+            f"coverage-{worker_id}.html": "{{ marker }}" for worker_id in range(collector_count)
+        }
+        sources["observer.html"] = "observer:{{ marker }}"
+        env = Environment(loader=DictLoader(sources), autoescape=False)
+        collector_templates = [
+            env.get_template(f"coverage-{worker_id}.html") for worker_id in range(collector_count)
+        ]
+        observer_template = env.get_template("observer.html")
+        collectors = [CoverageCollector() for _ in range(collector_count)]
+
+        round_start = threading.Barrier(worker_count)
+        collectors_started = threading.Barrier(worker_count)
+        collected_render_done = threading.Barrier(worker_count)
+        transition_midpoint = threading.Barrier(late_collector_count + observer_count)
+        all_stopped = threading.Barrier(worker_count)
+        cleanup_checked = threading.Barrier(worker_count)
+        barriers = (
+            round_start,
+            collectors_started,
+            collected_render_done,
+            transition_midpoint,
+            all_stopped,
+            cleanup_checked,
+        )
+
+        def abort_barriers() -> None:
+            for barrier in barriers:
+                barrier.abort()
+
+        def collect(worker_id: int) -> tuple[list[str], list[bool]]:
+            collector = collectors[worker_id]
+            template = collector_templates[worker_id]
+            outputs: list[str] = []
+            patch_observations: list[bool] = []
+            try:
+                for round_id in range(rounds):
+                    round_start.wait(timeout=30)
+                    collector.start()
+                    collectors_started.wait(timeout=30)
+                    patch_observations.append("__setattr__" in RenderContext.__dict__)
+                    marker = f"collector-{worker_id}-round-{round_id}"
+                    outputs.append(template.render(marker=marker))
+                    collected_render_done.wait(timeout=30)
+
+                    if worker_id < late_collector_count:
+                        transition_midpoint.wait(timeout=30)
+                    collector.stop()
+                    all_stopped.wait(timeout=30)
+                    cleanup_checked.wait(timeout=30)
+            except BaseException:
+                abort_barriers()
+                collector.stop()
+                raise
+            return outputs, patch_observations
+
+        def render_without_collection(observer_id: int) -> tuple[list[str], list[bool]]:
+            outputs: list[str] = []
+            cleanup_observations: list[bool] = []
+            try:
+                for round_id in range(rounds):
+                    round_start.wait(timeout=30)
+                    collectors_started.wait(timeout=30)
+                    collected_render_done.wait(timeout=30)
+
+                    first_marker = f"observer-{observer_id}-active-{round_id}"
+                    outputs.append(observer_template.render(marker=first_marker))
+                    transition_midpoint.wait(timeout=30)
+                    second_marker = f"observer-{observer_id}-removing-{round_id}"
+                    outputs.append(observer_template.render(marker=second_marker))
+
+                    all_stopped.wait(timeout=30)
+                    cleanup_observations.append("__setattr__" not in RenderContext.__dict__)
+                    cleanup_checked.wait(timeout=30)
+            except BaseException:
+                abort_barriers()
+                raise
+            return outputs, cleanup_observations
+
+        assert "__setattr__" not in RenderContext.__dict__
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
+            collector_futures = [
+                executor.submit(collect, worker_id) for worker_id in range(collector_count)
+            ]
+            observer_futures = [
+                executor.submit(render_without_collection, observer_id)
+                for observer_id in range(observer_count)
+            ]
+            collector_results = [future.result() for future in collector_futures]
+            observer_results = [future.result() for future in observer_futures]
+
+        for worker_id, ((outputs, patch_observations), collector) in enumerate(
+            zip(collector_results, collectors, strict=True)
+        ):
+            assert outputs == [
+                f"collector-{worker_id}-round-{round_id}" for round_id in range(rounds)
+            ]
+            assert all(patch_observations)
+            assert set(collector.data) == {f"coverage-{worker_id}.html"}
+            assert collector.data[f"coverage-{worker_id}.html"]
+
+        for observer_id, (outputs, cleanup_observations) in enumerate(observer_results):
+            expected: list[str] = []
+            for round_id in range(rounds):
+                expected.extend(
+                    (
+                        f"observer:observer-{observer_id}-active-{round_id}",
+                        f"observer:observer-{observer_id}-removing-{round_id}",
+                    )
+                )
+            assert outputs == expected
+            assert all(cleanup_observations)
+
+        assert "__setattr__" not in RenderContext.__dict__
+
+
 class TestMixedRenderConcurrency:
     """Test mixed public operations on one shared Template from different threads."""
 

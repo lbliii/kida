@@ -195,9 +195,15 @@ The output follows the Cobertura schema. Templates are grouped under a single `"
 
 `CoverageCollector` uses `ContextVar` for data isolation and a `threading.Lock` for the global reference count. This means:
 
-- **Concurrent renders** — each collector tracks only its own renders; parallel test runners or async handlers do not interfere with each other.
+- **Concurrent renders** — each collector tracks only renders in its context; parallel test runners or async handlers using distinct collectors do not interfere with each other.
 - **Nested collectors** — multiple `CoverageCollector` instances can be active simultaneously. The `RenderContext.__setattr__` patch stays active as long as at least one collector is running (reference-counted via `_active_count`).
 - **Cleanup** — when the last active collector stops, the `__setattr__` patch is removed entirely, restoring zero-overhead rendering.
+
+Each collector instance has one lifecycle owner. Call `start()` and the matching
+`stop()` in the same thread or async context; a `ContextVar` token cannot be reset
+from a different context. Do not concurrently start or stop the same collector
+from multiple threads. Use one collector per concurrent owner, and stop all
+rendering for a collector before reading reports or calling `clear()`.
 
 ## CI Integration Example
 
