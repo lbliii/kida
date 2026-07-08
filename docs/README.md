@@ -6,7 +6,7 @@ For user-facing documentation, see [`site/content/docs/`](../site/content/docs/)
 
 ## Contents
 
-- **audit/** — Code audits and reviews
+- **audit/** — Code audits and reviews, including the [diagnostic contracts inventory](audit/diagnostics-inventory.md)
 - **design/** — Proposals and design docs
 - **investigation/** — Research and debugging notes
 - **strategic-roadmap.md** — Project roadmap (CLOSED — Phase 1 complete, remaining work tracked in epics)
