@@ -486,7 +486,7 @@ class TestSharedEnvironmentStress:
 
 
 class TestMixedRenderConcurrency:
-    """Test mixed render() and render_stream() on same template from different threads."""
+    """Test mixed public operations on one shared Template from different threads."""
 
     def test_mixed_render_and_render_stream(self) -> None:
         """Concurrent render() and render_stream() on same template; no corruption."""
@@ -508,6 +508,61 @@ class TestMixedRenderConcurrency:
 
         assert len(results) == 100
         assert all(r == "Hello World!" for r in results), "No corruption under mixed render"
+
+    def test_shared_template_render_block_stream_and_introspection(self) -> None:
+        """All read-only Template surfaces agree under synchronized concurrency."""
+        import concurrent.futures
+        import threading
+
+        env = Environment()
+        template = env.from_string(
+            "{% def badge(label: str) %}<b>{{ label }}</b>{% end %}"
+            "{% block content %}Block {{ value }} {{ badge(label) }}{% end %}"
+            "|Full {{ value }}"
+        )
+        operation_kinds = ["render", "stream", "block", "introspection"] * 3
+        start = threading.Barrier(len(operation_kinds))
+
+        def exercise(kind: str, worker: int) -> tuple[str, int]:
+            start.wait(timeout=30)
+            for iteration in range(40):
+                marker = f"{kind}-{worker}-{iteration}"
+                context = {"value": marker, "label": marker}
+
+                if kind == "render":
+                    assert template.render(**context) == (
+                        f"Block {marker} <b>{marker}</b>|Full {marker}"
+                    )
+                elif kind == "stream":
+                    assert "".join(template.render_stream(**context)) == (
+                        f"Block {marker} <b>{marker}</b>|Full {marker}"
+                    )
+                elif kind == "block":
+                    assert template.render_block("content", **context) == (
+                        f"Block {marker} <b>{marker}</b>"
+                    )
+                else:
+                    assert template.list_blocks() == ["content"]
+                    assert template.list_defs() == ["badge"]
+                    block = template.block_metadata()["content"]
+                    definition = template.def_metadata()["badge"]
+                    metadata = template.template_metadata()
+                    assert block.name == "content"
+                    assert definition.name == "badge"
+                    assert metadata is not None
+                    assert metadata.blocks["content"] == block
+
+            return kind, worker
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(operation_kinds)) as executor:
+            futures = [
+                executor.submit(exercise, kind, worker)
+                for worker, kind in enumerate(operation_kinds)
+            ]
+            results = [future.result() for future in concurrent.futures.as_completed(futures)]
+
+        assert sorted(kind for kind, _worker in results) == sorted(operation_kinds)
+        assert sorted(worker for _kind, worker in results) == list(range(len(operation_kinds)))
 
 
 class TestConcurrentCompilation:
