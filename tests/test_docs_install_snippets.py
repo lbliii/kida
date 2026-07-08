@@ -7,6 +7,8 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DOCS_DIR = ROOT_DIR / "site" / "content" / "docs"
+README_PATH = ROOT_DIR / "README.md"
+THREAD_SAFETY_PATH = DOCS_DIR / "about" / "thread-safety.md"
 
 STALE_INSTALL_PATTERN = re.compile(r"pip install (?:[a-z0-9_-]+ )*kida(?:\[perf\])?(?:\s|$)")
 FRAMEWORK_GUIDES = {
@@ -39,3 +41,24 @@ def test_framework_guides_keep_horizontal_quickstart_contract() -> None:
         assert "{% def " in text
         assert '<form method="post"' in text
         assert "render_block(" in text
+
+
+def test_free_threading_badge_links_to_tested_support_contract() -> None:
+    """The public no-GIL badge retains its evidence and limitation contract."""
+    readme = README_PATH.read_text(encoding="utf-8")
+    thread_safety = THREAD_SAFETY_PATH.read_text(encoding="utf-8")
+
+    assert "Python%203.14t-no--GIL%20tested" in readme
+    assert "/docs/about/thread-safety/#tested-support-status" in readme
+    assert "## Tested Support Status" in thread_safety
+
+    for evidence in (
+        "PYTHON_GIL=0",
+        "every pull request",
+        "25 consecutive seeds",
+        "10,000 barrier-synchronized operations",
+        "ThreadSanitizer",
+        "`Py_DEBUG`",
+        "does not turn the sandbox or Python process into a security boundary",
+    ):
+        assert evidence in thread_safety
