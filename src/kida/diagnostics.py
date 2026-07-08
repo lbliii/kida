@@ -1,22 +1,23 @@
-"""Private, surface-neutral diagnostic facts.
+"""Public, surface-neutral diagnostics for Kida tooling.
 
-This module is deliberately not exported from :mod:`kida`.  It gives internal
-collectors one immutable representation without committing the public Python,
-CLI, JSON, SARIF, or LSP contracts that may eventually consume it.
-
-Locations use Kida's existing convention: lines are 1-based and columns are
-0-based.  End positions are exclusive when present.
+The functions in this module expose the same immutable facts used by
+``kida check`` without inheriting CLI stream or exit-code policy. Locations use
+1-based lines and 0-based columns; end positions are exclusive when present.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from os import PathLike
+from pathlib import Path
 from typing import Protocol, final
+
+from kida.environment import Environment
 
 
 class DiagnosticSeverity(StrEnum):
-    """Policy-neutral severity carried by an internal diagnostic."""
+    """Severity assigned by the diagnostic producer."""
 
     ERROR = "error"
     WARNING = "warning"
@@ -142,12 +143,7 @@ class DiagnosticSnippet:
 @final
 @dataclass(frozen=True, slots=True)
 class Diagnostic:
-    """Complete internal facts for one Kida finding.
-
-    The record carries facts only.  Ordering, de-duplication, exit policy, and
-    surface serialization belong to later layers so this type cannot silently
-    set CLI or schema policy.
-    """
+    """One immutable Kida finding, independent of its output surface."""
 
     code: str
     category: str
@@ -191,3 +187,121 @@ class DiagnosticConverter[SourceT](Protocol):
     """Pure conversion boundary from one producer record to ``Diagnostic``."""
 
     def __call__(self, source: SourceT, /) -> Diagnostic: ...
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class DiagnosticOptions:
+    """Opt-in static checks shared by source and directory diagnosis."""
+
+    strict: bool = False
+    validate_calls: bool = False
+    a11y: bool = False
+    typed: bool = False
+    lint_fragile_paths: bool = False
+
+
+_DEFAULT_OPTIONS = DiagnosticOptions()
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class DiagnosticReport:
+    """Policy-neutral result of one programmatic diagnostic request."""
+
+    diagnostics: tuple[Diagnostic, ...]
+    partial: bool = False
+
+
+def diagnose_directory(
+    root: str | PathLike[str],
+    *,
+    options: DiagnosticOptions = _DEFAULT_OPTIONS,
+) -> DiagnosticReport:
+    """Diagnose templates below *root* with the same collection as ``kida check``."""
+    from kida._check import collect_check_diagnostics
+
+    if not isinstance(root, (str, PathLike)):
+        raise TypeError("root must be a string or path-like object")
+    result = collect_check_diagnostics(
+        Path(root),
+        strict=options.strict,
+        validate_calls=options.validate_calls,
+        a11y=options.a11y,
+        typed=options.typed,
+        lint_fragile_paths=options.lint_fragile_paths,
+    )
+    return DiagnosticReport(diagnostics=result.diagnostics, partial=result.partial)
+
+
+def diagnose_source(
+    source: str,
+    *,
+    name: str = "<string>",
+    environment: Environment | None = None,
+    options: DiagnosticOptions = _DEFAULT_OPTIONS,
+) -> DiagnosticReport:
+    """Diagnose an in-memory template without adding it to environment caches.
+
+    A supplied environment contributes lexer/parser configuration, extensions,
+    autoescape selection, and loader-backed imported component metadata. Kida
+    does not mutate its registries; resolving imports may use that environment's
+    existing thread-safe template cache.
+    """
+    if not isinstance(source, str):
+        raise TypeError("source must be a string")
+    _require_text(name, "template name")
+    if environment is not None and not isinstance(environment, Environment):
+        raise TypeError("environment must be a kida.Environment")
+
+    from kida._check import collect_source_diagnostics
+
+    result = collect_source_diagnostics(
+        source,
+        name=name,
+        environment=environment,
+        strict=options.strict,
+        validate_calls=options.validate_calls,
+        a11y=options.a11y,
+        typed=options.typed,
+        lint_fragile_paths=options.lint_fragile_paths,
+    )
+    return DiagnosticReport(diagnostics=result.diagnostics, partial=result.partial)
+
+
+def diagnostic_from_exception(
+    error: Exception,
+    *,
+    path: str | None = None,
+) -> Diagnostic:
+    """Convert a Kida template or lexer exception into one public diagnostic.
+
+    ``TypeError`` is raised for unrelated Python exceptions so framework
+    adapters cannot accidentally relabel arbitrary application failures as Kida
+    diagnostics.
+    """
+    from kida._check import _exception_diagnostic
+    from kida.exceptions import TemplateError
+    from kida.lexer import LexerError
+
+    if not isinstance(error, (TemplateError, LexerError)):
+        raise TypeError(f"unsupported diagnostic exception: {type(error).__name__}")
+    return _exception_diagnostic(error, path)
+
+
+__all__ = [
+    "Diagnostic",
+    "DiagnosticConfidence",
+    "DiagnosticConverter",
+    "DiagnosticOptions",
+    "DiagnosticReport",
+    "DiagnosticSeverity",
+    "DiagnosticSnippet",
+    "RelatedLocation",
+    "SafeEdit",
+    "SourcePosition",
+    "SourceSpan",
+    "diagnose_directory",
+    "diagnose_source",
+    "diagnostic_from_exception",
+]

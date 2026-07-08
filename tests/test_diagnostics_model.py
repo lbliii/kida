@@ -1,4 +1,4 @@
-"""Focused proof for the private canonical diagnostic model."""
+"""Focused proof for the public canonical diagnostic model."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from kida._diagnostic_adapters import convert_template_diagnostic
-from kida._diagnostics import (
+from kida.diagnostics import (
     Diagnostic,
     DiagnosticConfidence,
     DiagnosticConverter,

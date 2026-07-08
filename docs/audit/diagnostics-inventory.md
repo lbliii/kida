@@ -1,6 +1,6 @@
 # Diagnostic Contracts Inventory
 
-Status: living inventory; private convergence and the first CLI contract are implemented
+Status: living inventory; model, CLI surfaces, and programmatic API are implemented
 
 Scope: exceptions, compiler warnings, parser and lexer failures, static-analysis
 findings, `kida check`, renderers, framework adapters, and machine-facing output
@@ -17,18 +17,19 @@ belong to separate producer families. This inventory records the facts each
 family already exposes, where they are consumed, and the gaps a unified
 diagnostic service must preserve or close.
 
-This document does not select a new default severity policy or make the internal
-diagnostic types public. Those remain separate stop-and-ask decisions under the
-root constitution. The approved CLI slice adds output selection and a versioned
-serialization schema without changing check enablement, severity, or exit
+This document does not select a new default severity policy. That remains a
+separate stop-and-ask decision under the root constitution. The approved CLI
+and Python slices add output selection, a versioned serialization schema, and a
+public programmatic model without changing check enablement, severity, or exit
 policy.
 
-Implementation status: the first private foundation now lives in
-[`src/kida/_diagnostics.py`](../../src/kida/_diagnostics.py), with the initial
-compatibility adapter in
+Implementation status: the canonical public model now lives in
+[`src/kida/diagnostics.py`](../../src/kida/diagnostics.py), with compatibility
+adapters in
 [`src/kida/_diagnostic_adapters.py`](../../src/kida/_diagnostic_adapters.py).
-The model is immutable, registry-free, and intentionally absent from
-`kida.__all__`. It defines severity and confidence facts, 1-based-line/
+The model is immutable, registry-free, public through `kida.diagnostics`, and
+intentionally absent from the root `kida.__all__`. It defines severity and
+confidence facts, 1-based-line/
 0-based-column half-open spans, related locations, exact safe edits, snippets,
 and a pure callable conversion protocol. The first adapter consumes the existing
 `TemplateDiagnostic` returned by `UndefinedError.to_diagnostic()` without
@@ -44,10 +45,13 @@ execution paths. `LexerError` remains the only inventoried family without an
 attached stable code; its taxonomy and hot-path integration require separate
 review.
 
-`kida check` now converts those producers at one private collection boundary,
-preserves the existing text surface, and can emit diagnostics JSON v1 or SARIF
-2.1.0. The Python model remains private; public editor/codemod APIs, safe-edit
-policy, and extension hooks are still separate contract decisions.
+`kida check` now converts those producers at one collection boundary, preserves
+the existing text surface, and can emit diagnostics JSON v1 or SARIF 2.1.0.
+`diagnose_directory()` exposes that collection without CLI policy;
+`diagnose_source()` handles unsaved buffers without entering template or
+bytecode caches; and `diagnostic_from_exception()` gives framework adapters a
+safe conversion path. Safe-edit generation policy and extension hooks are still
+separate contract decisions.
 
 ## Current Topology
 
@@ -135,20 +139,19 @@ functions.
 | Surface | Input today | Output today | Structured parity |
 |---|---|---|---|
 | Python exceptions | Exception subtype attributes | `str(exc)` and `format_compact()` | Partial; attribute names and available facts vary |
-| Framework debug pages | Propagated Kida exception | Flask, Django, and Starlette adapters do not wrap or normalize the exception | Hosts may use `UndefinedError.to_diagnostic()`; no general converter |
+| Framework debug pages | Propagated Kida exception | Flask, Django, and Starlette adapters do not wrap or normalize the exception | Hosts can call public `diagnostic_from_exception()` without parsing text |
 | HTML diagnostics | `UndefinedError.to_diagnostic()` | Escaped fragment or standalone page | Undefined errors only |
 | Markdown diagnostics | `UndefinedError.to_diagnostic()` | GitHub-flavored Markdown | Undefined errors only |
 | `kida check` | Exceptions plus analysis/component records converted at a private boundary | Compatible stderr text, diagnostics JSON v1, or SARIF 2.1.0 | Shared facts, deterministic ordering/de-duplication, exit status, and partial-scan state across all three surfaces |
 | Other CLI commands | Command-specific values | Some commands have command-specific JSON | Not a diagnostics contract |
 | SARIF utility | External SARIF report data | Template/report context dictionary | Input parser only; it does not emit Kida findings |
 | CI report templates | Parsed report contexts and render data | HTML, terminal, Markdown, or CI summaries | Separate report schema; not fed by `kida check` diagnostics |
-| Editor/LSP/codemod | None | None | No shared range, related-location, or edit contract yet |
+| Editor/LSP/codemod | Public `diagnose_source()` / `diagnose_directory()` | Immutable `DiagnosticReport` | Shared paths, ranges, related locations, confidence, suggestions, and optional exact edits; edit generation remains conservative and separate |
 
 Framework evidence is in [`src/kida/contrib/`](../../src/kida/contrib/): the
 Flask, Django, and Starlette integrations render through a Kida `Template` and
-allow Kida failures to propagate. This preserves exception identity, but hosts
-that want structured output must currently special-case the one subtype with a
-converter.
+allow Kida failures to propagate. This preserves exception identity, and hosts
+can now convert supported Kida exceptions through one public function.
 
 The external SARIF parsing path is
 [`src/kida/utils/sarif.py`](../../src/kida/utils/sarif.py). Its existence must
@@ -156,8 +159,11 @@ not be mistaken for a SARIF diagnostics output path.
 
 ## Contract Gaps
 
-1. **There is no single code registry.** Public `ErrorCode` and analysis literal
-   codes have separate ownership and documentation proof.
+1. **Lexer instances do not carry their registered taxonomy.** Public
+   `ErrorCode` owns `K-LEX-001` through `K-LEX-004`, but `LexerError` has no code
+   field and several lexical failures do not fit those four categories. The
+   programmatic boundary therefore uses generic `K-TPL-002` until a separately
+   reviewed lexer taxonomy is complete.
 2. **Location vocabulary and completeness drift.** Producers use `name`,
    `filename`, `template`, or `template_name`; records use `lineno` and
    `col_offset`; renderers use `line` and `column`. Columns are zero-based where
@@ -165,24 +171,25 @@ not be mistaken for a SARIF diagnostics output path.
 3. **Severity is not one contract.** Exceptions and `TemplateWarning` imply
    severity by type, analyzer records store strings, and `kida check` counts all
    enabled findings as failures regardless of the record's severity value.
-4. **Rich context is uneven.** Suggestions exist in several families, but only
-   the undefined path has a common snippet, hint ordering, docs URL, and related
-   frames. There is no common safe-edit, related-location, confidence,
-   runtime-only, or unknown-state field.
-5. **The private collector is not yet a public service.** CLI collection policy
-   and rendering are separated internally, but editors, framework adapters, and
-   codemods have no approved public collection API.
-6. **Ordering and de-duplication are CLI policy.** `kida check` now orders by
-   phase, path, range, code, and message and removes exact
-   `(code, path, range, message)` duplicates. Other consumers do not yet share a
-   public ordering or identity contract.
+4. **Rich producer context is uneven.** The canonical model can carry safe
+   edits, related locations, confidence, runtime-only/unknown state, snippets,
+   and docs URLs, but many producer families do not supply those facts. No
+   current producer emits a public safe edit.
+5. **The public service covers the current check families, not every analyzer.**
+   Directory and unsaved-source collection expose the CLI checks, while privacy,
+   context, escape, compiler-warning, and future migration orchestration remain
+   direct producer APIs until separately integrated.
+6. **Ordering and de-duplication are shared collection policy.** `kida check`,
+   `diagnose_directory()`, and `diagnose_source()` order by phase, path, range,
+   code, and message and remove exact `(code, path, range, message)` duplicates.
 7. **Python warnings are a separate channel.** Many filter/global/environment
    warnings are normal `warnings.warn()` emissions without stable codes or
    template locations. Compiler `TemplateWarning` records should not be assumed
    to cover them.
-8. **Machine output exists only for `kida check`.** Diagnostics JSON v1 and
-   SARIF 2.1.0 share the CLI collection, but no public Python serialization API
-   has been approved.
+8. **Serialization remains a CLI contract.** Python callers receive immutable
+   records rather than JSON/SARIF dictionaries. This keeps the programmatic API
+   policy-neutral while the versioned machine schemas remain owned by
+   `kida check`.
 
 ## Convergence Boundaries
 
@@ -231,8 +238,8 @@ This is sequencing guidance, not approval to implement the contracts.
    records without changing default policy or exit behavior.
 4. **Complete:** separately approve and add machine-readable CLI modes and
    schema snapshots.
-5. Separately approve a public programmatic API for editors, adapters, and
-   codemods.
+5. **Complete:** separately approve a public programmatic API for editors,
+   adapters, and codemods.
 6. Add extension hooks only after ownership, namespacing, and failure isolation
    are defined.
 
@@ -247,7 +254,7 @@ should wait for the model, range, and safe-edit contracts.
 | Default severities and which findings fail `kida check` | Changes CLI policy and exit behavior |
 | New `kida check` flags or output selection | Public CLI change |
 | JSON or SARIF field names and versioning | New published schema commitment |
-| Exporting diagnostic types or collection functions | Public API and `__all__` change |
+| Changing diagnostic types or collection functions | Public API compatibility change; the module remains intentionally absent from root `kida.__all__` |
 | Extension diagnostic protocol | New extension surface and code namespace policy |
 | Framework-specific debug behavior | Public adapter behavior and possible information exposure |
 
@@ -255,10 +262,10 @@ should wait for the model, range, and safe-edit contracts.
 
 | Follow-up | Required proof | Collateral |
 |---|---|---|
-| Internal model/converters | Unit tests for model invariants and each converted producer family, including missing-location cases, source ranges, immutability, and fact preservation | Update this inventory; no public docs if the model remains internal |
+| Canonical model/converters | Unit tests for model invariants and each converted producer family, including missing-location cases, source ranges, immutability, and fact preservation | Update this inventory and public API docs when the model changes |
 | CLI collection/refactor | Existing human snapshots unchanged, deterministic ordering/de-duplication, partial-load failures, and current exit status preserved | CLI docs only if visible behavior changes |
 | JSON/SARIF output | Schema snapshots, escaping/redaction tests, malformed/partial input behavior, and SARIF validator coverage | CLI reference, examples, changelog, and schema/version policy |
-| Programmatic API | Public API snapshot, typing tests, free-threaded shared-read reasoning, and framework integration proof | API docs, examples, changelog, migration note if replacing an older path |
+| Programmatic API | **Complete:** public API snapshot, typing checks, concurrent shared-read proof, CLI parity, unsaved-source and framework-exception tests | API docs, README example, changelog; no migration note because no older general API was replaced |
 | Safe edits | Exact source-span tests, stale-source rejection, overlapping-edit behavior, and conservative applicability labels | Editor/codemod docs and safety limitations |
 
 ## Existing Proof
@@ -268,12 +275,15 @@ should wait for the model, range, and safe-edit contracts.
   Markdown/HTML rendering, and compact output.
 - [`tests/test_public_api_snapshot.py`](../../tests/test_public_api_snapshot.py)
   snapshots the public `ErrorCode` values and exported API.
+- [`tests/test_public_diagnostics.py`](../../tests/test_public_diagnostics.py)
+  snapshots the module API and proves unsaved-source, cross-template,
+  directory/CLI parity, exception conversion, and concurrent shared-read use.
 - CLI tests under [`tests/`](../../tests/) assert current `kida check` messages,
   counts, and exit behavior for enabled analyzers.
 - Published error and analyzer contracts live under
   [`site/content/docs/usage/error-handling.md`](../../site/content/docs/usage/error-handling.md)
   and [`site/content/docs/advanced/`](../../site/content/docs/advanced/).
 
-No collateral: this inventory changes no runtime, CLI, schema, API, docs-site,
-example, scaffold, or template behavior. Follow-up changes must update the
-relevant collateral identified above.
+No collateral for examples, scaffolds, or templates: this API consumes source
+and existing analyzer facts without changing template syntax or generated
+output. Follow-up changes must update the relevant collateral identified above.
