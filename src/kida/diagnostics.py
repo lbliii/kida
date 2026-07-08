@@ -7,6 +7,7 @@ The functions in this module expose the same immutable facts used by
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 from os import PathLike
@@ -289,6 +290,99 @@ def diagnostic_from_exception(
     return _exception_diagnostic(error, path)
 
 
+def _source_offset(source: str, position: SourcePosition, *, path: str) -> int:
+    line_starts = [0]
+    line_starts.extend(index + 1 for index, char in enumerate(source) if char == "\n")
+    if position.line > len(line_starts):
+        raise ValueError(f"stale safe edit for {path}:{position.line}: line no longer exists")
+
+    start = line_starts[position.line - 1]
+    newline = source.find("\n", start)
+    end = len(source) if newline == -1 else newline
+    if end > start and source[end - 1] == "\r":
+        end -= 1
+    column = position.column
+    if column is None or column > end - start:
+        raise ValueError(f"stale safe edit for {path}:{position.line}: column no longer exists")
+    return start + column
+
+
+def _verify_edit_snapshot(
+    source: str,
+    diagnostic: Diagnostic,
+    edit: SafeEdit,
+    *,
+    path: str,
+) -> tuple[int, int, str]:
+    snippet = diagnostic.source_snippet
+    if snippet is None:
+        raise ValueError(f"safe edit for {path} has no source snapshot")
+    start = edit.span.start
+    end = edit.span.end
+    if start is None or end is None:  # SafeEdit validates this; retain a defensive boundary.
+        raise ValueError(f"safe edit for {path} has an inexact range")
+
+    current_lines = [line.removesuffix("\r") for line in source.split("\n")]
+    expected_lines = dict(snippet.lines)
+    for line_number in range(start.line, end.line + 1):
+        expected = expected_lines.get(line_number)
+        if expected is None:
+            raise ValueError(
+                f"safe edit for {path}:{line_number} has an incomplete source snapshot"
+            )
+        if line_number > len(current_lines) or current_lines[line_number - 1] != expected:
+            raise ValueError(f"stale safe edit for {path}:{line_number}: source changed")
+
+    start_offset = _source_offset(source, start, path=path)
+    end_offset = _source_offset(source, end, path=path)
+    return start_offset, end_offset, edit.replacement
+
+
+def apply_safe_edits(
+    source: str,
+    diagnostics: Iterable[Diagnostic],
+    *,
+    path: str,
+) -> str:
+    """Apply non-overlapping, snapshot-matched safe edits for one template.
+
+    Diagnostics for other paths and diagnostics without a safe edit are
+    ignored. A ``ValueError`` is raised before any edit is applied when the
+    current source differs from the captured source lines, a snapshot is
+    incomplete, or two selected edits overlap.
+    """
+    if not isinstance(source, str):
+        raise TypeError("source must be a string")
+    if not isinstance(path, str):
+        raise TypeError("path must be a string")
+    _require_text(path, "template path")
+    if not isinstance(diagnostics, Iterable):
+        raise TypeError("diagnostics must be iterable")
+
+    replacements: list[tuple[int, int, str]] = []
+    for diagnostic in diagnostics:
+        if not isinstance(diagnostic, Diagnostic):
+            raise TypeError("diagnostics must contain Diagnostic records")
+        edit = diagnostic.safe_edit
+        if edit is None or edit.span.path != path:
+            continue
+        replacements.append(_verify_edit_snapshot(source, diagnostic, edit, path=path))
+
+    replacements.sort(key=lambda item: (item[0], item[1]))
+    previous_end = -1
+    previous_start = -1
+    for start, end, _replacement in replacements:
+        if start < previous_end or start == previous_start:
+            raise ValueError(f"overlapping safe edits for {path}")
+        previous_start = start
+        previous_end = end
+
+    result = source
+    for start, end, replacement in reversed(replacements):
+        result = result[:start] + replacement + result[end:]
+    return result
+
+
 __all__ = [
     "Diagnostic",
     "DiagnosticConfidence",
@@ -301,6 +395,7 @@ __all__ = [
     "SafeEdit",
     "SourcePosition",
     "SourceSpan",
+    "apply_safe_edits",
     "diagnose_directory",
     "diagnose_source",
     "diagnostic_from_exception",

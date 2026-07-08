@@ -24,6 +24,7 @@ from kida.diagnostics import (
     DiagnosticConfidence,
     DiagnosticSeverity,
     DiagnosticSnippet,
+    SafeEdit,
     SourcePosition,
     SourceSpan,
 )
@@ -226,6 +227,40 @@ def _explicit_close_suggestion(block_type: str) -> str:
     return f"{{% end{block_type} %}}"
 
 
+def _strict_closing_diagnostic(
+    source: str,
+    *,
+    path: str,
+    lineno: int,
+    column: int,
+    closing: str,
+) -> Diagnostic:
+    code = ErrorCode.UNSUPPORTED_SYNTAX
+    replacement = f"end{closing}"
+    return Diagnostic(
+        code=code.value,
+        category=code.category,
+        severity=DiagnosticSeverity.WARNING,
+        message=f"unified {{% end %}} closes '{closing}'",
+        span=SourceSpan(path=path, start=SourcePosition(lineno, column)),
+        title="Strict closing tag",
+        kind="strict-closing-tag",
+        suggestion=f"Prefer {_explicit_close_suggestion(closing)}.",
+        safe_edit=SafeEdit(
+            span=SourceSpan(
+                path=path,
+                start=SourcePosition(lineno, column),
+                end=SourcePosition(lineno, column + len("end")),
+            ),
+            replacement=replacement,
+            description=f"Replace the unified closer with '{replacement}'.",
+        ),
+        confidence=DiagnosticConfidence.PROVEN,
+        documentation_url=code.docs_url,
+        source_snippet=_snippet(source, lineno, column),
+    )
+
+
 def collect_check_diagnostics(
     template_dir: Path,
     *,
@@ -285,18 +320,12 @@ def collect_check_diagnostics(
                 continue
             for lineno, col, closing in sparser._unified_end_closures:
                 want = _explicit_close_suggestion(closing)
-                code = ErrorCode.UNSUPPORTED_SYNTAX
-                diagnostic = Diagnostic(
-                    code=code.value,
-                    category=code.category,
-                    severity=DiagnosticSeverity.WARNING,
-                    message=f"unified {{% end %}} closes '{closing}'",
-                    span=SourceSpan(path=rel, start=SourcePosition(lineno, col)),
-                    title="Strict closing tag",
-                    kind="strict-closing-tag",
-                    suggestion=f"Prefer {want}.",
-                    confidence=DiagnosticConfidence.PROVEN,
-                    documentation_url=code.docs_url,
+                diagnostic = _strict_closing_diagnostic(
+                    source,
+                    path=rel,
+                    lineno=lineno,
+                    column=col,
+                    closing=closing,
                 )
                 if collector.add(
                     diagnostic,
@@ -498,20 +527,13 @@ def collect_source_diagnostics(
 
     if strict:
         for lineno, col, closing in parser._unified_end_closures:
-            want = _explicit_close_suggestion(closing)
-            code = ErrorCode.UNSUPPORTED_SYNTAX
             collector.add(
-                Diagnostic(
-                    code=code.value,
-                    category=code.category,
-                    severity=DiagnosticSeverity.WARNING,
-                    message=f"unified {{% end %}} closes '{closing}'",
-                    span=SourceSpan(path=name, start=SourcePosition(lineno, col)),
-                    title="Strict closing tag",
-                    kind="strict-closing-tag",
-                    suggestion=f"Prefer {want}.",
-                    confidence=DiagnosticConfidence.PROVEN,
-                    documentation_url=code.docs_url,
+                _strict_closing_diagnostic(
+                    source,
+                    path=name,
+                    lineno=lineno,
+                    column=col,
+                    closing=closing,
                 ),
                 phase="strict",
                 text="",

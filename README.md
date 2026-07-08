@@ -331,7 +331,7 @@ TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaTemplates", ...}]
 <summary><strong>Programmatic Diagnostics</strong></summary>
 
 ```python
-from kida.diagnostics import DiagnosticOptions, diagnose_source
+from kida.diagnostics import DiagnosticOptions, apply_safe_edits, diagnose_source
 
 report = diagnose_source(
     unsaved_source,
@@ -341,10 +341,13 @@ report = diagnose_source(
 )
 for finding in report.diagnostics:
     print(finding.code, finding.message, finding.span)
+
+updated_source = apply_safe_edits(unsaved_source, report.diagnostics, path="page.html")
 ```
 
 Source buffers are analyzed directly without entering template or bytecode
-caches. Use `diagnose_directory()` for programmatic parity with `kida check`.
+caches. Safe edits are snapshot-checked and overlap-checked before application.
+Use `diagnose_directory()` for programmatic parity with `kida check`.
 
 </details>
 
