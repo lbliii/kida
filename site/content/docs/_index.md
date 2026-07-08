@@ -37,7 +37,7 @@ rendering substrate fits your framework, templates, and deployment.
 :gap: medium
 
 :::{card} Build Typed Components
-:icon: blocks
+:icon: layers
 :link: /docs/usage/components/
 :description: Defs, slots, scoped state, and static call-site validation
 :badge: Core
@@ -50,7 +50,7 @@ rendering substrate fits your framework, templates, and deployment.
 :::{/card}
 
 :::{card} Kida vs Jinja2 Macros
-:icon: columns
+:icon: sidebar
 :link: /docs/tutorials/component-comparison/
 :description: Compare typed props, named slots, scoping, and validation
 :::{/card}
@@ -79,7 +79,7 @@ template syntax underneath them.
 :gap: medium
 
 :::{card} Components
-:icon: blocks
+:icon: layers
 :link: ./usage/components/
 :description: Typed props, named slots, scoped slots, and validation
 :::{/card}
@@ -131,7 +131,7 @@ Technical specifications, troubleshooting, and design details.
 :::{/card}
 
 :::{card} Troubleshooting
-:icon: alert-triangle
+:icon: warning
 :link: ./troubleshooting/
 :description: Common errors and how to fix them
 :::{/card}

@@ -31,7 +31,7 @@ Practical patterns for building and rendering Kida components in your applicatio
 :gap: medium
 
 :::{card} Components
-:icon: blocks
+:icon: layers
 :link: /docs/usage/components/
 :description: Typed props, named slots, scoped state, and validation
 :::{/card}
@@ -67,19 +67,19 @@ Practical patterns for building and rendering Kida components in your applicatio
 :::{/card}
 
 :::{card} Error Handling
-:icon: alert-triangle
+:icon: warning
 :link: /docs/usage/error-handling/
 :description: Template errors, debugging, stack traces
 :::{/card}
 
 :::{card} Agent Message Protocol (AMP)
-:icon: radio
+:icon: network
 :link: /docs/usage/amp/
 :description: Structured AI agent output for multi-surface rendering
 :::{/card}
 
 :::{card} Agent Templates
-:icon: layout
+:icon: sidebar
 :link: /docs/usage/agent-templates/
 :description: Built-in templates for code review, PR summary, deploy preview, and more
 :::{/card}

@@ -84,7 +84,7 @@ Rule of thumb: `?.` on Mappings behaves like Python's `dict.get(key)`. On object
 {{ user | get("nickname", "") }}    {# filter form; also works for dict-like get #}
 ```
 
-> **Changed in v0.8.0**: `?.` and `?[...]` on Mapping receivers now short-circuit missing keys to `None` (previously raised under `strict_undefined`). See the [v0.8.0 upgrade tutorial]({{< relref "tutorials/upgrade-to-v0.8.md" >}}).
+> **Changed in v0.8.0**: `?.` and `?[...]` on Mapping receivers now short-circuit missing keys to `None` (previously raised under `strict_undefined`). See the [v0.8.0 upgrade tutorial](/docs/tutorials/upgrade-to-v0.8/).
 
 ## Index Access
 

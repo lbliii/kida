@@ -2,6 +2,11 @@
 
 **Status**: CLOSED — superseded by `plan/epic-kida-milo-integration.md`
 
+> Historical direction note (2026-07-07): references to a Bengal-centered
+> ecosystem describe the stack when this roadmap was active. Current product
+> direction is Furatena-first; Bengal remains a legacy integration and the
+> current Kida documentation build tool until that build contract is replaced.
+
 ## Context
 
 Kida is architecturally excellent — AST-native compilation, immutable-everything thread safety, multi-surface rendering, modern operators. The vision (Bengal ecosystem, Milo, CI reporting) is ambitious and coherent. But the genius is locked behind three barriers: (1) the compiler doesn't yet exploit what AST-native makes possible, (2) the most differentiated feature (terminal rendering) needs its application layer (Milo) hardened, and (3) the product that's ready to ship (CI reports) has no distribution. This plan sequences work to build compounding leverage across all three.

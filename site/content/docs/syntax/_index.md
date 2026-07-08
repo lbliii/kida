@@ -47,7 +47,7 @@ composition.
 :gap: medium
 
 :::{card} Variables
-:icon: variable
+:icon: code
 :link: /docs/syntax/variables/
 :description: Output expressions and access patterns
 `{{ name }}`, `{{ user.email }}`, `{{ items[0] }}`
@@ -82,7 +82,7 @@ composition.
 :::{/card}
 
 :::{card} Includes
-:icon: file-plus
+:icon: file
 :link: /docs/syntax/includes/
 :description: Include partials and components
 `{% include %}`, context passing
@@ -96,7 +96,7 @@ composition.
 :::{/card}
 
 :::{card} Async
-:icon: refresh-cw
+:icon: arrow-clockwise
 :link: /docs/syntax/async/
 :description: Async iteration and await
 `async for`, `await`, async templates

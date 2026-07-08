@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kida-templates"
-version = "0.10.0"
+version = "0.11.0"
 description = "Server-side components for Python with typed props, named slots, and static validation — no npm or build step"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -169,6 +169,7 @@ directory = "changelog.d"
 filename = "CHANGELOG.md"
 package = "kida"
 package_dir = "src"
+start_string = "## [Unreleased]\n"
 title_format = "## [{version}] - {project_date}"
 issue_format = "`#{issue}`"
 underlines = ["", "", ""]

@@ -878,7 +878,8 @@ class ExpressionCompilationMixin:
     def _compile_optional_filter(self, node: OptionalFilter) -> ast.expr:
         """Compile expr ?| filter — skip filter if value is None.
 
-        expr ?| upper  compiles to:
+        ``expr ?| upper`` compiles to::
+
             None if (_of_N := expr) is None else _filters['upper'](_of_N)
         """
         self._block_counter += 1
@@ -941,7 +942,7 @@ class ExpressionCompilationMixin:
         Pipelines compile to nested filter calls using the _filters dict,
         exactly like regular filter chains. The difference is purely syntactic.
 
-        expr |> a |> b(x)  →  _filters['b'](_filters['a'](expr), x)
+        ``expr |> a |> b(x)`` → ``_filters['b'](_filters['a'](expr), x)``
 
         Validates filter existence at compile time (same as Filter nodes).
         """
@@ -996,7 +997,8 @@ class ExpressionCompilationMixin:
 
         None-propagating: each step checks for None before applying the filter.
 
-        expr ?|> a ?|> b(x)  compiles to:
+        ``expr ?|> a ?|> b(x)`` compiles to::
+
             _sp_2 = None if (_sp_1 := expr) is None else _filters['a'](_sp_1)
             None if _sp_2 is None else _filters['b'](_sp_2, x)
         """

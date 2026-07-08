@@ -26,14 +26,14 @@ Common errors and solutions.
 :gap: medium
 
 :::{card} Undefined Variable
-:icon: alert-circle
+:icon: warning
 :link: /docs/troubleshooting/undefined-variable/
 :description: UndefinedError debugging
 Variable not found or None handling.
 :::{/card}
 
 :::{card} Template Not Found
-:icon: file-x
+:icon: file
 :link: /docs/troubleshooting/template-not-found/
 :description: TemplateNotFoundError debugging
 Template loading and path issues.

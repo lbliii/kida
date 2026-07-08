@@ -356,7 +356,7 @@ analyzer = BlockAnalyzer(config=config)
 Kida ships with a default config (`DEFAULT_CONFIG`) that includes common SSG
 pure functions like `asset_url`, `t`, `canonical_url`, etc.
 
-## Case Study: Bengal Static Site Generator
+## Historical Case Study: Bengal Static Site Generator
 
 [Bengal](https://github.com/bengal-ssg/bengal) uses Kida's analysis API to
 implement smart incremental builds:
