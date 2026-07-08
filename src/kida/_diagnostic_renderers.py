@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from kida import __version__
-from kida._diagnostics import Diagnostic, DiagnosticSeverity, SourcePosition, SourceSpan
+from kida.diagnostics import Diagnostic, DiagnosticSeverity, SourcePosition, SourceSpan
 
 if TYPE_CHECKING:
     from kida._check import CheckResult

@@ -328,6 +328,27 @@ TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaTemplates", ...}]
 </details>
 
 <details>
+<summary><strong>Programmatic Diagnostics</strong></summary>
+
+```python
+from kida.diagnostics import DiagnosticOptions, diagnose_source
+
+report = diagnose_source(
+    unsaved_source,
+    name="page.html",
+    environment=env,
+    options=DiagnosticOptions(validate_calls=True, typed=True, a11y=True),
+)
+for finding in report.diagnostics:
+    print(finding.code, finding.message, finding.span)
+```
+
+Source buffers are analyzed directly without entering template or bytecode
+caches. Use `diagnose_directory()` for programmatic parity with `kida check`.
+
+</details>
+
+<details>
 <summary><strong>CLI</strong></summary>
 
 ```bash

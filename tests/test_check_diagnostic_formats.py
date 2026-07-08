@@ -11,8 +11,8 @@ from typing import Any
 import pytest
 
 from kida._check import _Collector
-from kida._diagnostics import Diagnostic, DiagnosticSeverity, SourcePosition, SourceSpan
 from kida.cli import main
+from kida.diagnostics import Diagnostic, DiagnosticSeverity, SourcePosition, SourceSpan
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "schemas" / "diagnostics" / "v1" / "check.schema.json"

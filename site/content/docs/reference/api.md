@@ -24,6 +24,7 @@ The framework-author surface below is treated as the documented integration
 contract:
 
 - imports exported from `kida.__all__`
+- names exported from the public `kida.diagnostics` module
 - `ErrorCode` names and values
 - `Environment(...)` constructor parameters
 - `Template` render, block-render, streaming, and metadata methods
@@ -38,6 +39,77 @@ deliberate and land with docs and changelog updates when behavior changes.
 Internals remain internal even when they are visible to Python: underscored
 attributes, generated template namespace entries, parser/compiler node shapes,
 cache implementation details, and helper functions outside `kida.__all__`.
+
+## Programmatic Diagnostics
+
+`kida.diagnostics` exposes immutable, surface-neutral findings for editors,
+framework adapters, codemods, and other Python tooling. It is a public module,
+but its names are deliberately not copied into the root `kida` namespace.
+
+```python
+from kida.diagnostics import DiagnosticOptions, diagnose_source
+
+report = diagnose_source(
+    unsaved_editor_text,
+    name="pages/account.html",
+    environment=env,
+    options=DiagnosticOptions(
+        validate_calls=True,
+        typed=True,
+        a11y=True,
+    ),
+)
+
+for finding in report.diagnostics:
+    start = finding.span.start
+    print(finding.code, finding.message, start.line if start else None)
+```
+
+`diagnose_source()` parses the supplied text directly. The unsaved buffer is
+not added to the environment's template or bytecode caches. A supplied
+`Environment` contributes lexer/parser configuration, extensions, autoescape
+selection, and loader-backed imported component metadata. Resolving imports may
+use that environment's existing thread-safe template cache; registries are not
+mutated.
+
+Use `diagnose_directory()` for the same collection and options as `kida check`:
+
+```python
+from kida.diagnostics import DiagnosticOptions, diagnose_directory
+
+report = diagnose_directory(
+    "templates",
+    options=DiagnosticOptions(strict=True, lint_fragile_paths=True),
+)
+```
+
+Both functions return a frozen `DiagnosticReport` containing an ordered tuple
+of `Diagnostic` records and a `partial` flag. `partial=True` means requested
+analysis could not finish, such as when malformed source prevents later static
+checks. Reports intentionally have no CLI exit code or stream-routing policy.
+
+The public model includes `Diagnostic`, `DiagnosticSeverity`,
+`DiagnosticConfidence`, `SourcePosition`, `SourceSpan`, `RelatedLocation`,
+`DiagnosticSnippet`, and `SafeEdit`. Lines are one-based, columns are
+zero-based, and range ends are exclusive. `SafeEdit` requires an exact range;
+the type's presence does not mean every finding has a provably safe edit.
+
+Framework adapters can normalize caught Kida exceptions without parsing their
+rendered text:
+
+```python
+from kida import TemplateError
+from kida.diagnostics import diagnostic_from_exception
+
+try:
+    template.render(user=user)
+except TemplateError as error:
+    finding = diagnostic_from_exception(error)
+```
+
+`diagnostic_from_exception()` accepts Kida template and lexer exceptions only.
+It raises `TypeError` for unrelated Python exceptions rather than relabeling
+application failures as Kida diagnostics.
 
 ## Environment
 

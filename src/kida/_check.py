@@ -18,7 +18,8 @@ from kida._diagnostic_adapters import (
     convert_type_issue,
     convert_type_mismatch,
 )
-from kida._diagnostics import (
+from kida.analysis.analyzer import BlockAnalyzer
+from kida.diagnostics import (
     Diagnostic,
     DiagnosticConfidence,
     DiagnosticSeverity,
@@ -26,7 +27,6 @@ from kida._diagnostics import (
     SourcePosition,
     SourceSpan,
 )
-from kida.analysis.analyzer import BlockAnalyzer
 from kida.exceptions import ErrorCode, TemplateError, TemplateSyntaxError, build_source_snippet
 from kida.lexer import Lexer, LexerError
 from kida.parser import Parser
@@ -163,9 +163,10 @@ def _snippet(source: str, line: int, column: int | None) -> DiagnosticSnippet:
     )
 
 
-def _exception_diagnostic(exc: Exception, path: str) -> Diagnostic:
+def _exception_diagnostic(exc: Exception, path: str | None) -> Diagnostic:
     if isinstance(exc, TemplateError):
-        return _with_path(convert_template_error(exc), path)
+        diagnostic = convert_template_error(exc)
+        return _with_path(diagnostic, path) if path is not None else diagnostic
     if isinstance(exc, LexerError):
         code = ErrorCode.SYNTAX_ERROR
         return Diagnostic(
@@ -450,3 +451,111 @@ def collect_check_diagnostics(
     if total:
         collector.summary(phase="final", text=f"kida check: {total} problem(s)")
     return collector.build(exit_code=1 if total else 0)
+
+
+def collect_source_diagnostics(
+    source: str,
+    *,
+    name: str,
+    environment: Environment | None,
+    strict: bool,
+    validate_calls: bool,
+    a11y: bool,
+    typed: bool,
+    lint_fragile_paths: bool,
+) -> CheckResult:
+    """Collect canonical diagnostics for one unsaved source buffer.
+
+    The source is parsed directly rather than compiled through
+    :meth:`Environment.from_string`, so it never enters template or bytecode
+    caches. A caller-supplied environment is consulted only for parser settings,
+    extensions, autoescape selection, and imported definition metadata.
+    """
+    from pathlib import Path
+
+    env = environment or Environment(validate_calls=False, bytecode_cache=False)
+    collector = _Collector(Path(name))
+    try:
+        lexer = Lexer(source, env._lexer_config)
+        tokens = list(lexer.tokenize())
+        parser = Parser(
+            tokens,
+            name=name,
+            filename=None,
+            source=source,
+            autoescape=env.select_autoescape(name),
+            extension_tags=env._extension_tags or None,
+        )
+        ast = parser.parse()
+    except (TemplateError, LexerError) as exc:
+        collector.add(
+            _exception_diagnostic(exc, name),
+            phase="load",
+            text=f"{name}: {exc}",
+        )
+        collector.partial = True
+        return collector.build(exit_code=1)
+
+    if strict:
+        for lineno, col, closing in parser._unified_end_closures:
+            want = _explicit_close_suggestion(closing)
+            code = ErrorCode.UNSUPPORTED_SYNTAX
+            collector.add(
+                Diagnostic(
+                    code=code.value,
+                    category=code.category,
+                    severity=DiagnosticSeverity.WARNING,
+                    message=f"unified {{% end %}} closes '{closing}'",
+                    span=SourceSpan(path=name, start=SourcePosition(lineno, col)),
+                    title="Strict closing tag",
+                    kind="strict-closing-tag",
+                    suggestion=f"Prefer {want}.",
+                    confidence=DiagnosticConfidence.PROVEN,
+                    documentation_url=code.docs_url,
+                ),
+                phase="strict",
+                text="",
+            )
+
+    analyzer = BlockAnalyzer()
+    if validate_calls:
+        imported_defs = env._collect_imported_def_metadata(ast, name)
+        converted_calls = [
+            convert_call_validation(issue, template_name=name)
+            for issue in analyzer.validate_calls_with_external_defs(ast, imported_defs)
+        ]
+        for diagnostic in sorted(converted_calls, key=_diagnostic_key):
+            collector.add(diagnostic, phase="component-call", text="")
+
+        converted_types = [
+            convert_type_mismatch(item, template_name=name)
+            for item in analyzer.validate_call_types_with_external_defs(ast, imported_defs)
+        ]
+        for diagnostic in sorted(converted_types, key=_diagnostic_key):
+            collector.add(diagnostic, phase="component-type", text="")
+
+    if typed:
+        from kida.analysis.type_checker import check_types
+
+        converted = [convert_type_issue(issue, template_name=name) for issue in check_types(ast)]
+        for diagnostic in sorted(converted, key=_diagnostic_key):
+            collector.add(diagnostic, phase="type", text="")
+
+    if lint_fragile_paths:
+        from kida.analysis.fragile_paths import check_fragile_paths
+
+        converted = [
+            convert_fragile_path_issue(issue, template_name=name)
+            for issue in check_fragile_paths(ast, name)
+        ]
+        for diagnostic in sorted(converted, key=_diagnostic_key):
+            collector.add(diagnostic, phase="fragile-path", text="")
+
+    if a11y:
+        from kida.analysis.a11y import check_a11y
+
+        converted = [convert_a11y_issue(issue, template_name=name) for issue in check_a11y(ast)]
+        for diagnostic in sorted(converted, key=_diagnostic_key):
+            collector.add(diagnostic, phase="accessibility", text="")
+
+    return collector.build(exit_code=1 if collector.keys else 0)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from kida._diagnostics import (
+from kida.diagnostics import (
     Diagnostic,
     DiagnosticConfidence,
     DiagnosticSeverity,
@@ -83,7 +83,7 @@ def _related_locations(
 
 
 def convert_template_diagnostic(source: TemplateDiagnostic) -> Diagnostic:
-    """Losslessly adapt the existing exception payload to the private model.
+    """Losslessly adapt the existing exception payload to the canonical model.
 
     ``TemplateDiagnostic`` predates the canonical model and is documented via
     ``UndefinedError.to_diagnostic()``.  This adapter leaves that payload and

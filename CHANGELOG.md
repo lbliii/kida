@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the public `kida.diagnostics` API with immutable diagnostic facts,
+  policy-neutral reports, direct diagnosis of unsaved source buffers,
+  directory collection matching `kida check`, and safe conversion of Kida
+  exceptions for framework adapters. The module does not expand the root
+  `kida.__all__`, mutate environment registries, or add a runtime dependency.
 - Added `kida check --format {text,json,sarif}` with a versioned diagnostics
   JSON v1 schema and SARIF 2.1.0 output. All three surfaces share one
   deterministic, deduplicated collection; machine output records partial scans

@@ -16,12 +16,6 @@ from kida._diagnostic_adapters import (
     convert_type_issue,
     convert_type_mismatch,
 )
-from kida._diagnostics import (
-    DiagnosticConfidence,
-    DiagnosticSeverity,
-    SourcePosition,
-    SourceSpan,
-)
 from kida._types import Token, TokenType
 from kida.analysis.a11y import A11yIssue
 from kida.analysis.context_contracts import ContextContractIssue
@@ -30,6 +24,12 @@ from kida.analysis.fragile_paths import FragilePathIssue
 from kida.analysis.metadata import CallValidation, TypeMismatch
 from kida.analysis.privacy import PrivacyFinding
 from kida.analysis.type_checker import TypeIssue
+from kida.diagnostics import (
+    DiagnosticConfidence,
+    DiagnosticSeverity,
+    SourcePosition,
+    SourceSpan,
+)
 from kida.exceptions import (
     ErrorCode,
     SourceSnippet,

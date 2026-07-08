@@ -44,6 +44,22 @@ from kida import (
 )
 ```
 
+For editor, CI, or framework integration, use the public programmatic
+diagnostics API instead of parsing exception strings:
+
+```python
+from kida.diagnostics import diagnostic_from_exception
+
+try:
+    template.render()
+except TemplateError as error:
+    finding = diagnostic_from_exception(error)
+    print(finding.code, finding.span, finding.suggestion)
+```
+
+See [Programmatic Diagnostics](/docs/reference/api/#programmatic-diagnostics)
+for in-memory source and directory-wide collection.
+
 ## Syntax Errors
 
 ```python
