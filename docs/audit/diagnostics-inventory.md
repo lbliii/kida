@@ -21,6 +21,17 @@ This document does not select a default severity policy, add CLI flags, define a
 serialization schema, or make the internal diagnostic types public. Each of
 those is a separate stop-and-ask decision under the root constitution.
 
+Implementation status: the first private foundation now lives in
+[`src/kida/_diagnostics.py`](../../src/kida/_diagnostics.py), with the initial
+compatibility adapter in
+[`src/kida/_diagnostic_adapters.py`](../../src/kida/_diagnostic_adapters.py).
+The model is immutable, registry-free, and intentionally absent from
+`kida.__all__`. It defines severity and confidence facts, 1-based-line/
+0-based-column half-open spans, related locations, exact safe edits, snippets,
+and a pure callable conversion protocol. The first adapter consumes the existing
+`TemplateDiagnostic` returned by `UndefinedError.to_diagnostic()` without
+changing that documented payload or its renderers.
+
 ## Current Topology
 
 | Producer | Current record or exception | Code/category | Severity | Location | Suggestions and context | Current consumers |
@@ -227,7 +238,7 @@ should wait for the model, range, and safe-edit contracts.
 
 | Follow-up | Required proof | Collateral |
 |---|---|---|
-| Internal model/converters | Unit tests for every producer family, missing-location cases, source ranges, immutability, and fact-preserving conversion | Update this inventory; no public docs if the model remains internal |
+| Internal model/converters | Unit tests for model invariants and each converted producer family, including missing-location cases, source ranges, immutability, and fact preservation | Update this inventory; no public docs if the model remains internal |
 | CLI collection/refactor | Existing human snapshots unchanged, deterministic ordering/de-duplication, partial-load failures, and current exit status preserved | CLI docs only if visible behavior changes |
 | JSON/SARIF output | Schema snapshots, escaping/redaction tests, malformed/partial input behavior, and SARIF validator coverage | CLI reference, examples, changelog, and schema/version policy |
 | Programmatic API | Public API snapshot, typing tests, free-threaded shared-read reasoning, and framework integration proof | API docs, examples, changelog, migration note if replacing an older path |
