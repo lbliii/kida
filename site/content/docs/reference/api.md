@@ -25,6 +25,7 @@ contract:
 
 - imports exported from `kida.__all__`
 - names exported from the public `kida.diagnostics` module
+- `Extension` and `ExtensionDiagnosticContext` from `kida.extensions`
 - `ErrorCode` names and values
 - `Environment(...)` constructor parameters
 - `Template` render, block-render, streaming, and metadata methods
@@ -133,6 +134,13 @@ except TemplateError as error:
 `diagnostic_from_exception()` accepts Kida template and lexer exceptions only.
 It raises `TypeError` for unrelated Python exceptions rather than relabeling
 application failures as Kida diagnostics.
+
+A supplied environment also invokes extension diagnostic hooks registered with
+that environment. Extensions receive immutable source/AST context and visible
+component signatures, while Kida validates namespace ownership, category,
+confidence, location, and safe-edit snapshots. See
+[Extensions](/docs/extending/extensions/#static-diagnostics) for the complete
+protocol. Directory diagnosis and the CLI do not discover or run these hooks.
 
 ## Environment
 

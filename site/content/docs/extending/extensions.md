@@ -69,6 +69,61 @@ On initialization, the environment:
 4. Maps each name in `node_types` to the extension instance (compiler dispatch)
 5. Merges `end_keywords` into the parser's end-keyword set
 
+## Static Diagnostics
+
+Extensions can participate in unsaved-source analysis without adding a render
+hook. Declare a unique uppercase namespace and implement `diagnose()`:
+
+```python
+from kida.diagnostics import (
+    Diagnostic,
+    DiagnosticConfidence,
+    DiagnosticSeverity,
+    SourcePosition,
+    SourceSpan,
+)
+from kida.extensions import Extension, ExtensionDiagnosticContext
+
+
+class DesignSystemExtension(Extension):
+    diagnostic_namespace = "DESIGN"
+
+    def diagnose(self, context: ExtensionDiagnosticContext):
+        if "legacy-button" not in context.source:
+            return ()
+        return (
+            Diagnostic(
+                code="K-DESIGN-001",
+                category="extension",
+                severity=DiagnosticSeverity.WARNING,
+                message="Use the button component instead of legacy-button.",
+                span=SourceSpan(start=SourcePosition(1, 0)),
+                suggestion="Replace the legacy markup with a component call.",
+                confidence=DiagnosticConfidence.CONSERVATIVE,
+            ),
+        )
+```
+
+The hook runs only through `diagnose_source(..., environment=env)`. Its frozen
+`ExtensionDiagnosticContext` contains the current template name, exact source,
+parsed AST, and a read-only mapping of visible local and imported
+`DefMetadata`. It does not run during rendering, `kida check`, or
+`diagnose_directory()`, and Kida does not discover diagnostic extensions from
+the CLI.
+
+Namespaces use 2-12 uppercase ASCII letters or digits, start with a letter,
+and must not collide with Kida namespaces such as `PAR`, `RUN`, or `A11Y`.
+Finding codes must use `K-{NAMESPACE}-{NNN}`, category `extension`, and an
+explicit confidence. Kida supplies the current template path and source snippet
+when omitted. Safe edits must target an exact range in the current template and
+are snapshot-verified before they are exposed.
+
+Extension findings use the same deterministic ordering and de-duplication as
+built-in diagnostics. A hook exception or invalid finding becomes a partial
+`K-RUN-007` report and does not stop later extensions from running. Extensions
+return public `Diagnostic` records; serialization and CLI exit policy remain
+owned by Kida.
+
 ## Custom Node Types
 
 Define your AST node as a frozen dataclass inheriting from `Node`:

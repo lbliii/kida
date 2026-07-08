@@ -225,6 +225,12 @@ report = diagnose_source(
 updated = apply_safe_edits(source, report.diagnostics, path="page.html")
 ```
 
+Extensions can add static findings to `diagnose_source(..., environment=env)`
+by declaring an uppercase `diagnostic_namespace` and implementing
+`diagnose(context)`. The context is immutable and includes source, AST, and
+visible `DefMetadata`; hooks do not run during rendering or directory/CLI
+diagnosis.
+
 ## Dependencies
 
 - **Runtime**: None (pure Python, zero dependencies)

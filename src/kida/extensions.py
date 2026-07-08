@@ -37,13 +37,32 @@ Usage::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, ClassVar, final
 
 if TYPE_CHECKING:
     import ast
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable, Mapping
 
+    from kida.analysis.metadata import DefMetadata
+    from kida.diagnostics import Diagnostic
+    from kida.nodes import Template as TemplateNode
     from kida.nodes.base import Node
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class ExtensionDiagnosticContext:
+    """Read-only facts supplied to an extension diagnostic hook."""
+
+    template_name: str
+    source: str
+    ast: TemplateNode
+    definitions: Mapping[str, DefMetadata]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "definitions", MappingProxyType(dict(self.definitions)))
 
 
 class Extension:
@@ -57,11 +76,14 @@ class Extension:
             this extension's ``parse()`` method.
         end_keywords: Set of end keywords for tags with bodies.
             E.g., ``{"enddebug"}`` for a ``{% debug %}...{% enddebug %}`` tag.
+        diagnostic_namespace: Optional 2-12 character uppercase namespace for
+            findings returned by :meth:`diagnose`, such as ``"ACME"``.
     """
 
     tags: ClassVar[set[str]] = set()
     end_keywords: ClassVar[set[str]] = set()
     node_types: ClassVar[set[str]] = set()  # Node class names this extension compiles
+    diagnostic_namespace: ClassVar[str | None] = None
 
     def __init__(self, environment: Any) -> None:
         self.environment = environment
@@ -77,6 +99,15 @@ class Extension:
     def get_globals(self) -> dict[str, Any]:
         """Return global variables provided by this extension."""
         return {}
+
+    def diagnose(self, context: ExtensionDiagnosticContext) -> Iterable[Diagnostic]:
+        """Return static findings for one parsed, unsaved template source.
+
+        The default is intentionally empty so existing extensions remain
+        compatible. Subclasses that return findings must declare a unique
+        :attr:`diagnostic_namespace`.
+        """
+        return ()
 
     def parse(self, parser: Any, tag_name: str) -> Node:
         """Parse a tag handled by this extension.
@@ -109,3 +140,6 @@ class Extension:
             List of Python AST statements.
         """
         raise NotImplementedError(f"Extension {type(self).__name__} does not implement compile()")
+
+
+__all__ = ["Extension", "ExtensionDiagnosticContext"]

@@ -479,13 +479,42 @@ class Environment:
     def _init_extensions(self) -> None:
         """Initialize registered extensions."""
 
+        import re
+
+        from kida.exceptions import ErrorCode
+
         tag_map: dict[str, Extension] = {}
         compiler_map: dict[str, Extension] = {}
         end_kw: set[str] = set()
+        diagnostic_namespaces: dict[str, str] = {}
+        reserved_namespaces = {code.value.split("-")[1] for code in ErrorCode}
 
         for ext_cls in self.extensions:
             ext = ext_cls(self)
             self._extension_instances.append(ext)
+
+            namespace = ext.diagnostic_namespace
+            if namespace is not None:
+                if (
+                    not isinstance(namespace, str)
+                    or re.fullmatch(r"[A-Z][A-Z0-9]{1,11}", namespace) is None
+                ):
+                    raise ValueError(
+                        f"Extension {type(ext).__name__} diagnostic_namespace must be "
+                        "2-12 uppercase ASCII letters or digits, starting with a letter"
+                    )
+                if namespace in reserved_namespaces:
+                    raise ValueError(
+                        f"Extension {type(ext).__name__} diagnostic namespace "
+                        f"{namespace!r} is reserved by Kida"
+                    )
+                owner = diagnostic_namespaces.get(namespace)
+                if owner is not None:
+                    raise ValueError(
+                        f"Extension diagnostic namespace {namespace!r} is already owned by "
+                        f"{owner}; {type(ext).__name__} must choose a unique namespace"
+                    )
+                diagnostic_namespaces[namespace] = type(ext).__name__
 
             # Register filters, tests, globals
             for name, func in ext.get_filters().items():

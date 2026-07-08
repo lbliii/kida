@@ -347,7 +347,9 @@ updated_source = apply_safe_edits(unsaved_source, report.diagnostics, path="page
 
 Source buffers are analyzed directly without entering template or bytecode
 caches. Safe edits are snapshot-checked and overlap-checked before application.
-Use `diagnose_directory()` for programmatic parity with `kida check`.
+Use `diagnose_directory()` for programmatic parity with `kida check`. A supplied
+environment can also run namespaced `Extension.diagnose()` hooks with immutable
+source, AST, and visible component-signature context.
 
 </details>
 
