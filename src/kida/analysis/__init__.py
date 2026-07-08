@@ -28,8 +28,11 @@ Example:
     ...     print(f"Nav can be cached site-wide, depends on: {nav.depends_on}")
 
 Thread-Safety:
-All analysis classes are stateless or use immutable results.
-Safe for concurrent use across threads.
+``BlockAnalyzer``, ``DependencyWalker``, ``PurityAnalyzer``, and
+``LandmarkDetector`` are safe to share across concurrent analysis calls.
+Traversal state is local to each call. Frozen metadata records are safe for
+concurrent read access; mapping-valued fields remain caller-visible and must
+not be mutated while shared.
 
 """
 

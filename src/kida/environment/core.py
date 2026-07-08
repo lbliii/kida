@@ -156,11 +156,12 @@ class Environment:
         globals: Variables available in all templates (includes Python builtins)
 
     Thread-Safety:
-        All operations are safe for concurrent use:
-        - Configuration is immutable after `__post_init__`
-        - `add_filter()`, `add_test()`, `add_global()` use copy-on-write
-        - `get_template()` uses lock-free LRU cache with atomic operations
-        - `render()` uses only local state (StringBuilder pattern)
+        Read and render operations are safe for concurrent use after startup:
+        - Treat public configuration attributes as startup-only state
+        - `add_filter()`, `add_test()`, `add_global()` publish copy-on-write
+          snapshots for readers; applications must serialize competing writers
+        - `get_template()` and related cache state use internal RLocks
+        - `render()` uses per-call local and ContextVar state
 
     Strict Mode:
         Undefined variables raise `UndefinedError` instead of returning empty

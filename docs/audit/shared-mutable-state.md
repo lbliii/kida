@@ -304,6 +304,26 @@ or combined free-threaded debug-build lane remains a future replacement if a
 maintained runner artifact becomes available; until then, the periodic protocol
 is the supported deeper-check mechanism.
 
+### 4.7 Public Analyzer And Loader Shareability
+
+`DependencyWalker` previously reset three mutable instance fields at the start
+of every analysis. Two calls sharing one walker could therefore write into the
+same dependency set and return cross-contaminated results. `PurityAnalyzer`
+similarly kept its circular-include set on the shared instance. Both traversal
+states now live in per-call `ContextVar` values. `BlockAnalyzer` composes those
+helpers, while `LandmarkDetector` already uses only local state.
+
+Built-in loaders hold stable configuration and perform read-only source lookup.
+Their contract does not cover concurrent mutation of caller-owned mappings or
+loader lists, child loaders, user callables, filesystem files, or installed
+package resources.
+
+**Proof:** `TestPublicShareabilityContracts` deterministically synchronizes the
+previous dependency and include-cycle race windows, verifies shared block and
+landmark analyzers, and repeatedly shares each of the six built-in loader types
+across eight readers. These tests are part of the required `PYTHON_GIL=0`
+thread-safety job and use barriers rather than sleeps.
+
 ---
 
 ## 5. Summary
@@ -323,6 +343,8 @@ is the supported deeper-check mechanism.
 | Coverage instrumentation | Locked global lifecycle | Context-local data; distinct collectors may overlap; one lifecycle owner per collector |
 | Live terminal state | Serialized updates | Renderer `RLock`; spinner index lock; lifecycle operations remain single-owner |
 | Worker selection | Read-only decisions | Frozen profiles, local calculations, and thread-safe cached GIL detection |
+| Static analyzers | Context-local traversal | Shared dependency, purity, block, and landmark analysis has focused synchronized proof |
+| Built-in loaders | Concurrent stable reads | Caller-owned mappings/lists, child loaders, callables, and backing resources must remain stable |
 | Scheduled stress | Seeded barriers | One required seed; 25 weekly/manual seeds; exact seed reproduction |
 | Debug-runtime stress | Periodic deeper checks | 25 seeds with no GIL, development mode, allocator hooks, and fault handling |
 

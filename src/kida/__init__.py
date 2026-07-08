@@ -34,7 +34,7 @@ Rendering and template lookup APIs are thread-safe by design:
 - Template compilation is idempotent (same input → same output)
 - Rendering uses only local state (StringBuilder pattern, no shared buffers)
 - Configure filters/tests/globals at startup; readers use copy-on-write state
-- LRU caches use atomic operations (no locks required)
+- LRU caches use internal RLocks; compound environment cache state shares a lock
 
 Free-Threading (PEP 703):
 Declares GIL-independence via `_Py_mod_gil = 0` attribute.

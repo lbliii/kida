@@ -35,17 +35,21 @@ This signals that Kida is safe for true parallel execution in Python 3.14t+.
 
 ## Thread-Safe Design
 
-### Immutable Configuration
+### Startup-Only Configuration
 
-Environment configuration is frozen after construction:
+Create and configure an environment before sharing it with render workers:
 
 ```python
 env = Environment(
     loader=FileSystemLoader("templates/"),
     autoescape=True,
 )
-# Configuration is now immutable
+# Treat configuration attributes as startup-only after this point
 ```
+
+`Environment` is not a frozen Python object. Direct assignment to public
+configuration attributes while other threads are loading or rendering is not
+supported.
 
 ### Copy-on-Write Registry Updates
 
@@ -133,6 +137,25 @@ flowchart TB
 - **Template**: Immutable after construction; safe to share across threads.
 - **RenderContext**: Isolated per render via ContextVar; no cross-thread leakage.
 - **Cache**: Protected by internal RLock; concurrent get/set is safe.
+
+### Shared Static Analysis
+
+`BlockAnalyzer`, `DependencyWalker`, and `PurityAnalyzer` keep mutable traversal
+state in `ContextVar`, and `LandmarkDetector` uses only call-local state. One
+instance of each may therefore be shared across concurrent analysis calls.
+
+Analysis metadata dataclasses are frozen, but some records expose mapping-valued
+fields such as `TemplateMetadata.blocks`. Treat those mappings as read-only
+while results are shared.
+
+### Shared Loaders
+
+Built-in loaders support concurrent reads when their configured sources remain
+stable. Do not mutate mappings passed to `DictLoader` or `PrefixLoader`, or the
+loader list passed to `ChoiceLoader`, while workers are reading. Composite
+loaders inherit their child loaders' guarantees, and `FunctionLoader` inherits
+the guarantee of its callable. Concurrent filesystem or installed-package
+updates are outside this contract.
 
 ## When to Use Locks
 
@@ -225,6 +248,8 @@ async def render_many(env):
 | `add_test()` | Startup/configuration only |
 | `add_global()` | Startup/configuration only |
 | `clear_cache()` | ✅ Yes |
+| Built-in loader `get_source()` | ✅ Yes, for stable configured sources |
+| Shared static analyzer `analyze()` | ✅ Yes |
 
 Concurrent `render()` and `render_stream()` on the same template from different
 threads is safe. Registry readers may observe the complete state before or after
@@ -237,6 +262,8 @@ guarantee and must be externally serialized.
 |-----------|------------------|------------------|-------|
 | `Environment.get_template` | Yes | Yes (LRU locked) | Cache dicts protected by `_cache_lock` |
 | `Template.render` | Yes | N/A | Per-call state via ContextVar |
+| Built-in loaders | Yes | No | Stable sources only; composite/user-function guarantees are inherited |
+| `BlockAnalyzer` / traversal analyzers | Yes | N/A | Per-call or ContextVar traversal state; shared metadata mappings are read-only |
 | Filter/test/global registries | Snapshot reads | Startup only | Copy-on-write APIs publish complete mappings; competing writers may lose updates |
 | `CoverageCollector` | Context-local | Distinct collectors | Global instrumentation lifecycle is locked; start/stop one instance in the same context |
 | `LiveRenderer` | Yes | Serialized updates | Context merge, render, and output share one lock; lifecycle has one owner |
