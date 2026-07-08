@@ -54,10 +54,10 @@ _KIDA_DOCS_BASE = "https://lbliii.github.io/kida/docs/errors"
 
 
 class ErrorCode(Enum):
-    """Searchable error codes for Kida template errors.
+    """Searchable error codes for Kida diagnostics.
 
-    Format: K-{CATEGORY}-{NUMBER}
-    Categories: LEX (lexer), PAR (parser), RUN (runtime), TPL (template loading)
+    Format: K-{CATEGORY}-{NUMBER}. Categories cover lexer/parser/runtime
+    failures plus component, warning, safety, and static-analysis findings.
 
     Each code maps to a documentation URL for quick lookup:
         https://lbliii.github.io/kida/docs/errors/#k-run-001
@@ -126,6 +126,28 @@ class ErrorCode(Enum):
     FILTER_PRECEDENCE = "K-WARN-001"
     JINJA2_SET_SCOPING = "K-WARN-002"
 
+    # Static analysis findings (K-{DOMAIN}-xxx)
+    PRIVACY_SENSITIVE_CONTEXT = "K-PRI-001"
+    PRIVACY_SECRET_LITERAL = "K-PRI-002"
+    PRIVACY_SAFE_SENSITIVE_VALUE = "K-PRI-003"
+    PRIVACY_BROAD_CONTEXT_OUTPUT = "K-PRI-004"
+    PRIVACY_DYNAMIC_TEMPLATE_NAME = "K-PRI-005"
+    CONTEXT_MISSING = "K-CTX-001"
+    CONTEXT_UNUSED = "K-CTX-002"
+    ESCAPE_ESCAPED_OUTPUT = "K-ESC-001"
+    ESCAPE_TRUSTED_MARKUP = "K-ESC-002"
+    ESCAPE_UNESCAPED_OUTPUT = "K-ESC-003"
+    ESCAPE_TRUSTED_JSON = "K-ESC-004"
+    ESCAPE_TRUSTED_XMLATTR = "K-ESC-005"
+    A11Y_IMG_ALT = "K-A11Y-001"
+    A11Y_HEADING_ORDER = "K-A11Y-002"
+    A11Y_HTML_LANG = "K-A11Y-003"
+    A11Y_INPUT_LABEL = "K-A11Y-004"
+    TYPE_UNDECLARED_VARIABLE = "K-TYP-001"
+    TYPE_UNUSED_DECLARATION = "K-TYP-002"
+    TYPE_TYPO_SUGGESTION = "K-TYP-003"
+    FRAGILE_TEMPLATE_PATH = "K-PATH-001"
+
     @property
     def docs_url(self) -> str:
         """Documentation URL for this error code."""
@@ -144,6 +166,12 @@ class ErrorCode(Enum):
             "SEC": "security",
             "CMP": "component",
             "WARN": "warning",
+            "PRI": "privacy",
+            "CTX": "context",
+            "ESC": "escape",
+            "A11Y": "accessibility",
+            "TYP": "type",
+            "PATH": "path",
         }.get(prefix, "unknown")
 
 

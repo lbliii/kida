@@ -19,9 +19,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Literal, final
 
 from kida.analysis.node_visitor import NodeVisitor
+from kida.exceptions import ErrorCode
 
 if TYPE_CHECKING:
     from kida.nodes import Data, Output, Template
@@ -34,9 +35,23 @@ class A11yIssue:
 
     lineno: int
     col_offset: int
-    rule: str  # e.g. "img-alt", "heading-order"
+    rule: Literal["img-alt", "heading-order", "html-lang", "input-label"]
     message: str
     severity: str = "warning"  # "warning" | "error"
+
+    @property
+    def code(self) -> str:
+        """Stable analysis code for this accessibility rule."""
+        match self.rule:
+            case "img-alt":
+                return ErrorCode.A11Y_IMG_ALT.value
+            case "heading-order":
+                return ErrorCode.A11Y_HEADING_ORDER.value
+            case "html-lang":
+                return ErrorCode.A11Y_HTML_LANG.value
+            case "input-label":
+                return ErrorCode.A11Y_INPUT_LABEL.value
+        raise ValueError(f"Unsupported accessibility rule: {self.rule}")
 
 
 # Regex patterns for HTML tag detection in Data nodes

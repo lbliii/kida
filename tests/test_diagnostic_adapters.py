@@ -5,12 +5,15 @@ from __future__ import annotations
 import pytest
 
 from kida._diagnostic_adapters import (
+    convert_a11y_issue,
     convert_call_validation,
     convert_context_contract_issue,
     convert_escape_audit_finding,
+    convert_fragile_path_issue,
     convert_privacy_finding,
     convert_template_error,
     convert_template_warning,
+    convert_type_issue,
     convert_type_mismatch,
 )
 from kida._diagnostics import (
@@ -20,10 +23,13 @@ from kida._diagnostics import (
     SourceSpan,
 )
 from kida._types import Token, TokenType
+from kida.analysis.a11y import A11yIssue
 from kida.analysis.context_contracts import ContextContractIssue
 from kida.analysis.escape_audit import EscapeAuditFinding
+from kida.analysis.fragile_paths import FragilePathIssue
 from kida.analysis.metadata import CallValidation, TypeMismatch
 from kida.analysis.privacy import PrivacyFinding
+from kida.analysis.type_checker import TypeIssue
 from kida.exceptions import (
     ErrorCode,
     SourceSnippet,
@@ -266,3 +272,65 @@ def test_escape_conversion_preserves_expression_and_source_position() -> None:
         start=SourcePosition(4, 2),
     )
     assert diagnostic.metadata == (("expression", "user.bio"),)
+
+
+def test_accessibility_conversion_uses_registered_code_and_conservative_confidence() -> None:
+    source = A11yIssue(
+        lineno=4,
+        col_offset=2,
+        rule="img-alt",
+        message="<img> missing alt attribute",
+        severity="error",
+    )
+
+    diagnostic = convert_a11y_issue(source, template_name="page.html")
+
+    assert diagnostic.code == "K-A11Y-001"
+    assert diagnostic.category == "accessibility"
+    assert diagnostic.confidence is DiagnosticConfidence.CONSERVATIVE
+    assert diagnostic.span == SourceSpan(
+        path="page.html",
+        start=SourcePosition(4, 2),
+    )
+
+
+def test_type_issue_conversion_uses_registered_code_and_rule_confidence() -> None:
+    proven = convert_type_issue(
+        TypeIssue(3, 1, "undeclared-var", "Variable is not declared"),
+        template_name="page.html",
+    )
+    suggested = convert_type_issue(
+        TypeIssue(5, 2, "typo-suggestion", "Variable may be misspelled"),
+        template_name="page.html",
+    )
+
+    assert proven.code == "K-TYP-001"
+    assert proven.category == "type"
+    assert proven.confidence is DiagnosticConfidence.PROVEN
+    assert suggested.code == "K-TYP-003"
+    assert suggested.confidence is DiagnosticConfidence.CONSERVATIVE
+
+
+def test_fragile_path_conversion_keeps_target_and_replacement_as_facts() -> None:
+    source = FragilePathIssue(
+        lineno=8,
+        col_offset=12,
+        statement="include",
+        target="pages/card.html",
+        suggestion="./card.html",
+    )
+
+    diagnostic = convert_fragile_path_issue(source, template_name="pages/about.html")
+
+    assert diagnostic.code == "K-PATH-001"
+    assert diagnostic.category == "path"
+    assert diagnostic.confidence is DiagnosticConfidence.CONSERVATIVE
+    assert diagnostic.span == SourceSpan(
+        path="pages/about.html",
+        start=SourcePosition(8, 12),
+    )
+    assert diagnostic.metadata == (
+        ("statement", "include"),
+        ("target", "pages/card.html"),
+        ("replacement", "./card.html"),
+    )

@@ -20,7 +20,11 @@ icon: alert-triangle
 
 # Error Codes
 
-Every Kida exception carries an `ErrorCode` that categorizes the error and links to this page. Use `exc.code.value` to get the code string (e.g. `"K-RUN-001"`). For full error handling guidance, see [[docs/usage/error-handling|Error Handling]].
+Kida exceptions and static-analysis findings use the public `ErrorCode` registry
+to categorize diagnostics and link to this page. Exception codes are enum
+members (`exc.code.value`); analysis records expose the corresponding stable
+string through `finding.code`. For full error handling guidance, see
+[[docs/usage/error-handling|Error Handling]].
 
 ## Lexer Errors (K-LEX-xxx)
 
@@ -328,6 +332,124 @@ Example:
 ```
 
 Pass `5` or change the parameter type if string counts are intentional.
+
+## Privacy Findings (K-PRI-xxx)
+
+Static privacy lint findings are conservative review signals; they never echo
+secret-like literal values.
+
+### k-pri-001
+
+**Sensitive context path** — A template reads a context path whose name looks
+sensitive. Fix: Confirm the value is intended for rendered output.
+
+### k-pri-002
+
+**Secret-like literal** — Template source contains a literal that resembles a
+secret. Fix: Move secrets out of templates and redact fixtures.
+
+### k-pri-003
+
+**Sensitive value marked safe** — A sensitive-looking value bypasses escaping.
+Fix: Remove `| safe` or document and enforce the sanitizer/trust boundary.
+
+### k-pri-004
+
+**Broad context output** — A template appears to render a broad request,
+session, debug, or context object. Fix: Render only the required fields.
+
+### k-pri-005
+
+**Dynamic template name** — A dynamic include/import target cannot be checked
+against a static privacy allowlist. Fix: Prefer literal template names when the
+policy requires static proof.
+
+## Context Contract Findings (K-CTX-xxx)
+
+### k-ctx-001
+
+**Missing context path** — A template dependency is absent from the provided
+route/framework contract. Fix: Provide the path or explicitly mark it optional.
+
+### k-ctx-002
+
+**Unused context path** — Strict extra-data checking found a provided path the
+template does not read. Fix: Remove it or disable extra-data checking for broad
+framework contexts.
+
+## Escape Audit Findings (K-ESC-xxx)
+
+### k-esc-001
+
+**Escaped output** — An output expression is protected by the active render
+surface. This is an informational static observation.
+
+### k-esc-002
+
+**Trusted markup boundary** — `| safe` or an equivalent node bypasses escaping.
+Fix: Document why the value is trusted and sanitized.
+
+### k-esc-003
+
+**Unescaped output** — Autoescape is disabled for an output or template block.
+Fix: Enable escaping or make the trust boundary explicit.
+
+### k-esc-004
+
+**Trusted JSON markup** — `tojson` intentionally returns trusted JSON markup.
+Use `tojson(attr=true)` inside HTML attributes.
+
+### k-esc-005
+
+**Trusted attribute markup** — `xmlattr` intentionally returns trusted HTML
+attribute markup. Ensure its input keys and values are appropriate for output.
+
+## Accessibility Findings (K-A11Y-xxx)
+
+### k-a11y-001
+
+**Image missing alternative text** — A non-decorative `<img>` has no `alt`
+attribute. Fix: Add meaningful `alt` text or an explicit decorative role.
+
+### k-a11y-002
+
+**Heading order skipped** — Heading levels jump by more than one. Fix: Use a
+sequential document outline.
+
+### k-a11y-003
+
+**Document language missing** — `<html>` has no `lang` attribute. Fix: Declare
+the document language.
+
+### k-a11y-004
+
+**Form control missing label** — A form control has no associated `<label>`,
+`aria-label`, or `aria-labelledby`. Fix: Add an accessible name.
+
+## Template Declaration Type Findings (K-TYP-xxx)
+
+### k-typ-001
+
+**Undeclared variable** — A template uses a variable absent from its
+`{% template %}` declaration. Fix: Declare it or correct the reference.
+
+### k-typ-002
+
+**Unused declaration** — A declared template variable is never read. Fix:
+Remove the declaration or use the intended value.
+
+### k-typ-003
+
+**Likely variable typo** — An undeclared variable closely resembles a declared
+name. Fix: Review and apply the suggestion only when semantically correct.
+
+## Template Path Findings (K-PATH-xxx)
+
+### k-path-001
+
+**Fragile same-folder template path** — A same-folder include, extends, embed,
+or import uses a root-relative path. Fix: Use the suggested `./` path so moving
+the folder does not require editing its internal references.
 
 ## Warnings (K-WARN-xxx)
 

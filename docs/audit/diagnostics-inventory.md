@@ -32,14 +32,15 @@ and a pure callable conversion protocol. The first adapter consumes the existing
 `TemplateDiagnostic` returned by `UndefinedError.to_diagnostic()` without
 changing that documented payload or its renderers.
 
-The private adapter layer also accepts every inventoried producer family that
-already owns a stable code: parser and runtime exceptions, compiler
-`TemplateWarning` records, component call/type findings, privacy findings,
-context-contract issues, and escape-audit findings. Conversion is opt-in and
-does not alter producer return types or import the adapter into any parser,
-compiler, analyzer, render, or CLI path. Code-less lexer, accessibility,
-template-declaration type, and fragile-path findings remain deferred rather than
-receiving identifiers that would become accidental compatibility commitments.
+The private adapter layer accepts every inventoried producer family that owns a
+stable code: parser and runtime exceptions, compiler `TemplateWarning` records,
+component call/type findings, privacy findings, context-contract issues,
+escape-audit findings, accessibility issues, template-declaration type issues,
+and fragile-path issues. Conversion is opt-in and does not alter producer return
+types or import the adapter into parser, compiler, analyzer, render, or CLI
+execution paths. `LexerError` remains the only inventoried family without an
+attached stable code; its taxonomy and hot-path integration require separate
+review.
 
 ## Current Topology
 
@@ -53,12 +54,12 @@ receiving identifiers that would become accidental compatibility commitments.
 | Python warnings | `KidaWarning` subclasses and direct `warnings.warn()` calls | Warning class or plain `UserWarning`; generally no stable code | Python warning category | Python call site via `stacklevel`; not a template range | Message only in most cases | Python warnings filters and host logging |
 | Component call validation | `CallValidation` | CLI assigns `K-CMP-001` | Treated as a failing problem | line and zero-based column on the record; CLI prints line only | Unknown, missing, and duplicate parameter tuples | `kida check --validate-calls`, programmatic `BlockAnalyzer` callers |
 | Component literal types | `TypeMismatch` | CLI assigns `K-CMP-002` | Treated as a failing problem | line and zero-based column on the record; CLI prints line only | Definition, parameter, expected type, actual type/value | `kida check --validate-calls`, programmatic `BlockAnalyzer` callers |
-| Accessibility | `A11yIssue` | Free-form `rule` such as `img-alt` | String `warning` or `error` | line and zero-based column; template path supplied by caller | Message only | `kida check --a11y`, direct analyzer callers |
-| Template declaration types | `TypeIssue` | Free-form `rule` such as `undeclared-var` | String `warning` or `error` | line and zero-based column; template path supplied by caller | Message may contain a correction | `kida check --typed`, direct analyzer callers |
-| Fragile paths | `FragilePathIssue` | CLI uses `lint/fragile-path` text | String, currently `warning` | line and zero-based column; caller name supplied separately | Statement, target, concrete replacement path | `kida check --lint-fragile-paths`, direct analyzer callers |
-| Privacy | `PrivacyFinding` | Literal `K-PRI-001` through `K-PRI-005`, outside `ErrorCode` | Literal `error` or `warning` | optional template, line, zero-based column, and data path | Kind and optional suggestion | `kida.analysis` programmatic API and published analysis docs |
-| Context contracts | `ContextContractIssue` | Literal `K-CTX-001` or `K-CTX-002`, outside `ErrorCode` | Literal `error` or `warning` | optional template, line, zero-based column, and context path | Optional suggestion | `kida.analysis` programmatic API and published analysis docs |
-| Escaping audit | `EscapeAuditFinding` | Literal `K-ESC-001` through `K-ESC-005`, outside `ErrorCode` | Literal `info` or `warning` | optional template, line, and zero-based column | Kind, expression, optional suggestion | `kida.analysis` programmatic API and published analysis docs |
+| Accessibility | `A11yIssue` | Computed `K-A11Y-001` through `K-A11Y-004` from its literal rule | String `warning` or `error` | line and zero-based column; template path supplied by caller | Message only | `kida check --a11y`, direct analyzer callers |
+| Template declaration types | `TypeIssue` | Computed `K-TYP-001` through `K-TYP-003` from its literal rule | String `warning` or `error` | line and zero-based column; template path supplied by caller | Message may contain a correction | `kida check --typed`, direct analyzer callers |
+| Fragile paths | `FragilePathIssue` | Computed `K-PATH-001`; CLI retains `lint/fragile-path` text | String, currently `warning` | line and zero-based column; caller name supplied separately | Statement, target, concrete replacement path | `kida check --lint-fragile-paths`, direct analyzer callers |
+| Privacy | `PrivacyFinding` | Registered `K-PRI-001` through `K-PRI-005` string field | Literal `error` or `warning` | optional template, line, zero-based column, and data path | Kind and optional suggestion | `kida.analysis` programmatic API and published analysis docs |
+| Context contracts | `ContextContractIssue` | Registered `K-CTX-001` or `K-CTX-002` string field | Literal `error` or `warning` | optional template, line, zero-based column, and context path | Optional suggestion | `kida.analysis` programmatic API and published analysis docs |
+| Escaping audit | `EscapeAuditFinding` | Registered `K-ESC-001` through `K-ESC-005` string field | Literal `info` or `warning` | optional template, line, and zero-based column | Kind, expression, optional suggestion | `kida.analysis` programmatic API and published analysis docs |
 
 Primary evidence:
 
@@ -82,11 +83,11 @@ Primary evidence:
 each value is required to have a published errors-document anchor. The enum also
 derives a category and documentation URL.
 
-The analysis-only `K-PRI`, `K-CTX`, and `K-ESC` families are stable-looking
-literal values in public analysis records, but they are not members of
-`ErrorCode` and do not participate in its documentation-anchor test. A future
-registry decision must account for both groups; renumbering either group would
-be a compatibility change.
+The existing `K-PRI`, `K-CTX`, and `K-ESC` values are now registered in
+`ErrorCode` without renumbering. Accessibility, template-declaration type, and
+fragile-path records expose computed `K-A11Y`, `K-TYP`, and `K-PATH` codes while
+preserving their constructor fields. Every registered value participates in the
+same public API snapshot and documentation-anchor test.
 
 ### Immutable structured exception data
 

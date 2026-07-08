@@ -591,6 +591,12 @@ Classify block metadata into framework roles: `"fragment"`, `"page_root"`, or `N
 
 Base class for all template errors. All Kida exceptions carry an `ErrorCode` accessible via `exc.code`.
 
+The same public `ErrorCode` registry includes static-analysis families for
+privacy (`K-PRI-*`), context contracts (`K-CTX-*`), escaping (`K-ESC-*`),
+accessibility (`K-A11Y-*`), template declaration types (`K-TYP-*`), and fragile
+paths (`K-PATH-001`). Analysis records expose stable string codes so existing
+serialization and comparisons do not need enum-specific handling.
+
 ### TemplateSyntaxError
 
 Invalid template syntax.

@@ -176,7 +176,8 @@ These are standard Python warnings — filter them with `warnings.filterwarnings
 
 ## Error Codes
 
-Every Kida exception carries an `ErrorCode` that categorizes the error and links to documentation:
+Kida exceptions and registered static-analysis findings use `ErrorCode` values
+that categorize the diagnostic and link to documentation:
 
 | Code | Category | Description |
 |------|----------|-------------|
@@ -221,6 +222,12 @@ Every Kida exception carries an `ErrorCode` that categorizes the error and links
 | `K-CMP-002` | Component | Component literal type mismatch |
 | `K-WARN-001` | Warning | Filter precedence warning |
 | `K-WARN-002` | Warning | Jinja2 `set` scoping difference |
+| `K-PRI-001`–`005` | Privacy | Sensitive paths, secret literals, trust boundaries, broad output, dynamic templates |
+| `K-CTX-001`–`002` | Context | Missing or unused context-contract paths |
+| `K-ESC-001`–`005` | Escape | Escaped output and trusted/unescaped markup boundaries |
+| `K-A11Y-001`–`004` | Accessibility | Alternative text, heading order, document language, form labels |
+| `K-TYP-001`–`003` | Type | Undeclared, unused, or likely misspelled template variables |
+| `K-PATH-001` | Path | Fragile same-folder template reference |
 
 Access the code programmatically:
 

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, final
 
 from kida.analysis.node_visitor import NodeVisitor
+from kida.exceptions import ErrorCode
 
 if TYPE_CHECKING:
     from kida.nodes import Embed, Extends, FromImport, Import, Include, Template
@@ -35,6 +36,11 @@ class FragilePathIssue:
     target: str
     suggestion: str
     severity: str = "warning"
+
+    @property
+    def code(self) -> str:
+        """Stable analysis code for a fragile same-folder template path."""
+        return ErrorCode.FRAGILE_TEMPLATE_PATH.value
 
 
 class _FragilePathVisitor(NodeVisitor):

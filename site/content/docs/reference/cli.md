@@ -63,7 +63,7 @@ kida check <template_dir> [flags]
 | `--validate-calls` | Validate macro call sites against `{% def %}` signatures. Reports unknown parameters and missing required parameters. Duplicate keyword arguments are rejected earlier as parser errors. |
 | `--a11y` | Check templates for accessibility issues (missing `alt` attributes, heading order, etc.). |
 | `--typed` | Type-check templates against `{% template %}` declarations. |
-| `--lint-fragile-paths` | Suggest `./` relative paths for same-folder include, extends, embed, and import statements so folder moves stay zero-edit. |
+| `--lint-fragile-paths` | Suggest `./` relative paths for same-folder include, extends, embed, and import statements so folder moves stay zero-edit. Programmatic `FragilePathIssue` records expose `K-PATH-001`; CLI text remains unchanged. |
 
 ### Examples
 
