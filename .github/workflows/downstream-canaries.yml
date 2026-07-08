@@ -1,0 +1,88 @@
+name: Downstream canaries
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: downstream-canaries-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  downstream:
+    name: ${{ matrix.name }} (report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: chirp-ui
+            repository: lbliii/chirp-ui
+          - name: milo-cli
+            repository: lbliii/milo-cli
+
+    steps:
+      - name: Check out Kida
+        uses: actions/checkout@v7
+        with:
+          path: kida
+          persist-credentials: false
+
+      - name: Check out downstream
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ matrix.repository }}
+          path: downstream
+          persist-credentials: false
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.14t"
+
+      - name: Install downstream development dependencies
+        working-directory: downstream
+        run: uv sync --group dev
+
+      - name: Override released Kida with this checkout
+        run: |
+          uv pip install --python downstream/.venv/bin/python --no-deps --editable ./kida
+          downstream/.venv/bin/python kida/scripts/verify_downstream_override.py \
+            --checkout "$GITHUB_WORKSPACE/kida"
+
+      - name: Run chirp-ui unit contracts
+        if: matrix.name == 'chirp-ui'
+        working-directory: downstream
+        env:
+          CI: "true"
+          PYTHON_GIL: "0"
+        run: uv run --no-sync pytest tests/ -x -q
+
+      - name: Run Milo unit contracts
+        if: matrix.name == 'milo-cli'
+        working-directory: downstream
+        env:
+          CI: "true"
+          PYTHON_GIL: "0"
+        run: uv run --no-sync pytest -q
+
+      - name: Record canary provenance
+        if: always()
+        working-directory: downstream
+        run: |
+          echo "## ${{ matrix.name }} downstream canary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Kida: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Downstream: \`$(git rev-parse HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Python: 3.14t with \`PYTHON_GIL=0\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Policy: report only; failures must be investigated before high-risk compiler merges" >> "$GITHUB_STEP_SUMMARY"
