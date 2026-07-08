@@ -20,6 +20,29 @@ icon: shield
 
 Kida is designed for concurrent rendering in free-threaded Python.
 
+## Tested Support Status
+
+Kida's free-threading claim is an enforced test contract, not an
+import-compatibility label. The required [CI workflow](https://github.com/lbliii/kida/blob/main/.github/workflows/tests.yml)
+runs on free-threaded Python 3.14t with `PYTHON_GIL=0` for every pull request:
+
+- the full pytest and coverage suite;
+- focused thread-safety and async suites; and
+- the core benchmark regression gate.
+
+Weekly and manual runs expand the randomized shared-runtime test from one seed
+to 25 consecutive seeds: 10,000 barrier-synchronized operations across render,
+streaming, introspection, cache, terminal, and worker-selection paths. The same
+window is repeated with Python development mode, allocator debug hooks, and
+`faulthandler`. The test records its seed so failures are reproducible.
+
+This evidence supports only the sharing and mutation matrix on this page.
+Applications still own synchronization for mutable values passed into renders,
+custom filters/globals/loaders, concurrent source changes, process-environment
+mutation, and APIs documented with a single lifecycle owner. The debug-runtime
+protocol is not ThreadSanitizer or a CPython `Py_DEBUG` build, and free-threading
+does not turn the sandbox or Python process into a security boundary.
+
 ## Free-Threading Support
 
 Kida declares GIL-independence via PEP 703:
