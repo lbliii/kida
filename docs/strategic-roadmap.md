@@ -35,7 +35,7 @@ Implemented in `partial_eval.py` (lines 1637–1745). `_try_inline_call()` inlin
 
 All deliverables shipped:
 - `benchmarks/test_benchmark_concurrent.py` — multi-worker rendering under `PYTHON_GIL=0`
-- `kida render --explain` flag implemented in `cli.py` (lines 330–395, 552–622)
+- `kida render --explain` is owned by the lazy-loaded `_cli/render.py` command module
 - `_Py_mod_gil = 0` declared in `__init__.py` (PEP 703)
 - Headline numbers in README
 

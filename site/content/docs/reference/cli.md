@@ -42,6 +42,12 @@ Output text can become clearer, but machine-readable JSON shapes for
 should only change deliberately with docs and changelog updates when behavior
 changes.
 
+The stable Python entry point is `kida.cli:main`. Command implementations are
+loaded lazily after argparse selects a subcommand, so importing the entry point
+does not load diagnostic, formatting, extraction, README, manifest, or render
+command machinery. The private `kida._cli` package is an implementation detail,
+not an additional programmatic API.
+
 ## kida check
 
 Parse all `.html` templates under a directory. Reports syntax errors, loader resolution failures, and optional lint checks.
