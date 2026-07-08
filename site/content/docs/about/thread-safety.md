@@ -47,9 +47,9 @@ env = Environment(
 # Configuration is now immutable
 ```
 
-### Copy-on-Write Updates
+### Copy-on-Write Registry Updates
 
-Adding filters/tests creates new dictionaries:
+The filter, test, and global registration APIs publish new dictionaries:
 
 ```python
 def add_filter(self, name, func):
@@ -58,6 +58,18 @@ def add_filter(self, name, func):
     new_filters[name] = func
     self._filters = new_filters
 ```
+
+A concurrent reader sees either the complete previous dictionary or the
+complete replacement. This protects readers; it does not make registration a
+multi-writer transaction. If two threads register against the same prior
+snapshot, the later publication can overwrite the other thread's addition.
+Registration across filters, tests, and globals is not atomic either.
+
+Configure registries before serving traffic. If runtime registration is
+unavoidable, serialize writers in the application. Use `add_global()` for
+copy-on-write global publication; direct `env.globals[...]` mutation is not safe
+alongside concurrent readers. Custom callables and global values must protect
+any mutable state they own.
 
 ### RenderContext Isolation
 
@@ -214,7 +226,10 @@ async def render_many(env):
 | `add_global()` | Startup/configuration only |
 | `clear_cache()` | ✅ Yes |
 
-Concurrent `render()` and `render_stream()` on the same template from different threads is safe. Configure filters, tests, and globals before serving traffic; those registries use copy-on-write for reader safety, but concurrent writer ordering is not a public contract.
+Concurrent `render()` and `render_stream()` on the same template from different
+threads is safe. Registry readers may observe the complete state before or after
+a copy-on-write registration. Concurrent writers have no ordering or merge
+guarantee and must be externally serialized.
 
 ## Component Concurrency Matrix
 
@@ -222,6 +237,7 @@ Concurrent `render()` and `render_stream()` on the same template from different 
 |-----------|------------------|------------------|-------|
 | `Environment.get_template` | Yes | Yes (LRU locked) | Cache dicts protected by `_cache_lock` |
 | `Template.render` | Yes | N/A | Per-call state via ContextVar |
+| Filter/test/global registries | Snapshot reads | Startup only | Copy-on-write APIs publish complete mappings; competing writers may lose updates |
 | `CachedBlocksDict` | Yes | Stats safe | Stats updates use lock when shared |
 | `Compiler.compile` | No | No | One compile at a time per Compiler instance |
 

@@ -426,7 +426,7 @@ class TestExtremeCases:
 
 
 class TestSharedEnvironmentStress:
-    """Test concurrent get_template + add_filter on same Environment."""
+    """Test supported concurrent operations on one shared Environment."""
 
     def test_concurrent_get_template_while_add_filter(self) -> None:
         """N threads get_template() while 1 thread add_filter(); no partial mutation."""
@@ -465,6 +465,142 @@ class TestSharedEnvironmentStress:
         assert not errors, f"Unexpected errors: {errors}"
         assert all(r == "ok" for r in results), "Corrupt filter dict observed"
         assert len(results) == 4 * 200
+
+    def test_concurrent_registry_registration_publishes_complete_snapshots(self) -> None:
+        """Readers see complete registry snapshots while competing writers publish."""
+        import concurrent.futures
+        import threading
+
+        env = Environment(autoescape=False)
+
+        def stable_filter(value: object) -> str:
+            return f"<{value}>"
+
+        def stable_test(value: object) -> bool:
+            return value == "ok"
+
+        env.add_filter("stable_filter", stable_filter)
+        env.add_test("stable_test", stable_test)
+        env.add_global("stable_global", "registry-stable")
+
+        source = (
+            "{{ value | stable_filter }}|"
+            "{% if value is stable_test %}yes{% else %}no{% endif %}|"
+            "{{ stable_global }}"
+        )
+        rounds = 40
+        writer_specs = tuple(
+            (registry, writer_id)
+            for registry in ("filter", "test", "global")
+            for writer_id in range(2)
+        )
+        reader_count = 4
+        worker_count = len(writer_specs) + reader_count
+        start = threading.Barrier(worker_count)
+        round_start = threading.Barrier(worker_count)
+        round_end = threading.Barrier(worker_count)
+
+        def abort_barriers() -> None:
+            round_start.abort()
+            round_end.abort()
+
+        def register(registry: str, writer_id: int) -> None:
+            try:
+                start.wait()
+                for round_id in range(rounds):
+                    round_start.wait()
+                    key = f"race_{registry}_{writer_id}_{round_id}"
+                    if registry == "filter":
+                        env.add_filter(key, lambda _value, marker=key: marker)
+                    elif registry == "test":
+                        env.add_test(key, lambda value, marker=key: value == marker)
+                    else:
+                        env.add_global(key, key)
+                    round_end.wait()
+            except BaseException:
+                abort_barriers()
+                raise
+
+        def read_registries() -> list[tuple[bool, bool, bool, bool, str]]:
+            observations: list[tuple[bool, bool, bool, bool, str]] = []
+            try:
+                start.wait()
+                for _ in range(rounds):
+                    round_start.wait()
+                    filters = env.filters.copy()
+                    tests = env.tests.copy()
+                    globals_snapshot = env.globals.copy()
+                    rendered = env.from_string(source).render(value="ok")
+
+                    stable = (
+                        filters.get("stable_filter") is stable_filter
+                        and tests.get("stable_test") is stable_test
+                        and globals_snapshot.get("stable_global") == "registry-stable"
+                    )
+                    filters_complete = all(
+                        value(None) == key
+                        for key, value in filters.items()
+                        if key.startswith("race_filter_")
+                    )
+                    tests_complete = all(
+                        value(key) for key, value in tests.items() if key.startswith("race_test_")
+                    )
+                    globals_complete = all(
+                        value == key
+                        for key, value in globals_snapshot.items()
+                        if key.startswith("race_global_")
+                    )
+                    observations.append(
+                        (
+                            stable,
+                            filters_complete,
+                            tests_complete,
+                            globals_complete,
+                            rendered,
+                        )
+                    )
+                    round_end.wait()
+            except BaseException:
+                abort_barriers()
+                raise
+            return observations
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
+            writers = [
+                executor.submit(register, registry, writer_id)
+                for registry, writer_id in writer_specs
+            ]
+            readers = [executor.submit(read_registries) for _ in range(reader_count)]
+            for future in writers:
+                future.result()
+            observations = [item for future in readers for item in future.result()]
+
+        assert len(observations) == reader_count * rounds
+        assert all(
+            stable and filters_ok and tests_ok and globals_ok
+            for stable, filters_ok, tests_ok, globals_ok, _rendered in observations
+        )
+        assert all(
+            rendered == "<ok>|yes|registry-stable" for *_snapshot_checks, rendered in observations
+        )
+
+        final_filters = {
+            key: value for key, value in env.filters.items() if key.startswith("race_filter_")
+        }
+        final_tests = {
+            key: value for key, value in env.tests.items() if key.startswith("race_test_")
+        }
+        final_globals = {
+            key: value for key, value in env.globals.items() if key.startswith("race_global_")
+        }
+        for registry in (final_filters, final_tests, final_globals):
+            # Each round retains at least one publication. When both writers copy
+            # the same prior generation, either one's addition may be overwritten.
+            assert rounds <= len(registry) <= rounds * 2
+
+        assert all(value(None) == key for key, value in final_filters.items())
+        assert all(value(key) for key, value in final_tests.items())
+        assert all(value == key for key, value in final_globals.items())
 
     def test_concurrent_get_template_same_key(self) -> None:
         """Multiple threads get_template(same_name) - thundering herd on cache."""

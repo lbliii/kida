@@ -173,6 +173,38 @@ AST fields, or metadata cache attributes while reads are in flight. Registry or
 loader mutation follows the separate `Environment` copy-on-write/cache contract;
 it is not a `Template` mutation API.
 
+### 4.2 Environment Registry Publication
+
+**Owner:** The `Environment` owns its filter, test, and global registries.
+`add_filter()`, `add_test()`, `add_global()`, and the public filter/test registry
+mutation methods use copy-on-write publication.
+
+**Reader contract:** Each supported registration operation builds a complete
+replacement dictionary before assigning it. A concurrent reader can observe the
+complete mapping immediately before or after that assignment, but never a
+partially updated dictionary. Filter/test registry views retain the dictionary
+generation from which they were created. Compilers and renders may therefore use
+an adjacent valid generation while registration is in flight.
+
+**Writer limitation:** A registration operation is not a multi-writer
+transaction. Two writers can copy the same generation and publish independently;
+the later assignment can discard the other writer's new entry. There is no
+ordering, merge, or cross-registry atomicity guarantee. Applications that cannot
+finish configuration before serving traffic must serialize writers externally.
+Direct mutation of the plain `Environment.globals` dictionary is also outside
+the concurrent-reader contract; use `add_global()` for copy-on-write publication.
+Registered callables and global values remain responsible for their own internal
+thread safety.
+
+**Proof:**
+`TestSharedEnvironmentStress.test_concurrent_registry_registration_publishes_complete_snapshots`
+starts two writers for each registry together with four readers on per-round
+barriers. Readers copy and validate all three registries, then compile and render
+against stable registrations. The test permits missing racing entries, matching
+the documented writer limitation, but rejects torn key/value publication,
+baseline loss, render drift, and exceptions. It runs in the required
+`PYTHON_GIL=0` thread-safety job without sleep-based assertions.
+
 ---
 
 ## 5. Summary
@@ -188,5 +220,6 @@ it is not a `Template` mutation API.
 | CachedBlocksDict | OK | Lock for stats when shared |
 | Cache miss/invalidation/eviction | OK | RLock or atomic file publication; clear is not a generation barrier; synchronized no-GIL proof |
 | Shared Template reads | OK | Local/ContextVar render state; complete metadata publication; synchronized no-GIL proof |
+| Environment registries | Reader-safe publication | Copy-on-write through supported registration APIs; competing writers require external serialization |
 
 No critical violations. The codebase is structured for free-threading compliance.
