@@ -67,7 +67,12 @@ LiveRenderer(
 - TTY: in-place re-rendering via ANSI cursor movement
 - Non-TTY: appends each render separated by blank line (log-safe)
 - Handles terminal resize
-- Thread-safe context updates via internal lock
+- Concurrent `update()` calls are linearized: context merge, terminal-width
+  refresh, render, and output complete as one operation under an internal lock
+- Auto-refresh uses the same serialized update path and may run alongside
+  explicit `update()` calls
+- Context-manager entry/exit and `start_auto()`/`stop_auto()` are lifecycle
+  operations owned by one controlling thread
 
 ---
 
@@ -177,8 +182,9 @@ Detection order:
 All terminal APIs are safe for Python 3.14t free-threading (`PYTHON_GIL=0`):
 
 - `terminal_env()` returns an immutable-after-construction Environment
-- `LiveRenderer.update()` uses an internal lock for safe concurrent updates
+- `LiveRenderer.update()` serializes its complete context/render/output transaction
 - `Spinner()` uses an internal lock for frame advancement
+- Worker-selection helpers use read-only profiles and thread-safe cached GIL detection
 - All filters are pure functions returning new `Styled` instances
 - Template globals (`columns`, `rows`, etc.) are read-only after construction
 

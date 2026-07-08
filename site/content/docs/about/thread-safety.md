@@ -239,6 +239,9 @@ guarantee and must be externally serialized.
 | `Template.render` | Yes | N/A | Per-call state via ContextVar |
 | Filter/test/global registries | Snapshot reads | Startup only | Copy-on-write APIs publish complete mappings; competing writers may lose updates |
 | `CoverageCollector` | Context-local | Distinct collectors | Global instrumentation lifecycle is locked; start/stop one instance in the same context |
+| `LiveRenderer` | Yes | Serialized updates | Context merge, render, and output share one lock; lifecycle has one owner |
+| `Spinner` | Yes | Yes | Frame advancement and reset use an internal lock |
+| Worker selection | Yes | N/A | Read-only profiles and thread-safe cached GIL detection |
 | `CachedBlocksDict` | Yes | Stats safe | Stats updates use lock when shared |
 | `Compiler.compile` | No | No | One compile at a time per Compiler instance |
 

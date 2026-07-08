@@ -234,6 +234,44 @@ markers, the patch remains present while collectors are active, and every round
 confirms complete patch removal before another start. Barrier aborts surface
 worker failures without sleeps or deadlocks. The test runs under `PYTHON_GIL=0`.
 
+### 4.4 Live Terminal And Worker Decisions
+
+**Owners and mechanisms:**
+
+- A `LiveRenderer` owns its accumulated context, previous-line count, output
+  stream, injected spinner, and optional auto-refresh thread. Its `RLock`
+  serializes context merge, terminal-width refresh, template render, cursor
+  rewrite, and output as one update. Auto-refresh calls the same `update()` path,
+  so it is safe alongside explicit updates. Context-manager and auto-thread
+  start/stop remain single-owner lifecycle operations.
+- A `Spinner` owns its frame index and protects call/reset operations with a
+  lock. Concurrent calls each consume exactly one position in the frame cycle;
+  caller completion order is intentionally unspecified.
+- Worker profiles are frozen values in a private mapping initialized once.
+  Selection functions use local state, and `is_free_threading_enabled()` uses
+  the standard thread-safe `lru_cache`. Environment auto-detection reads process
+  environment state; callers mutating `os.environ` concurrently must instead
+  pass an explicit `environment` value.
+
+**Defect and fix:** `LiveRenderer.update()` previously mutated `_context` and
+expanded it for rendering before acquiring the output lock. Concurrent calls
+could therefore both render the later caller's context, violating the documented
+thread-safe update contract. The existing lock now covers the complete update
+transaction; an `RLock` preserves safe same-thread reentrancy.
+
+**Proof:**
+
+- `TestLiveRenderer.test_update_holds_lock_through_render` verifies another
+  thread cannot acquire the renderer lock during template rendering.
+- `TestTerminalAndWorkerConcurrency.test_shared_live_renderer_and_spinner_updates_are_atomic`
+  uses per-round barriers around eight shared-renderer callers, validates every
+  unique context marker exactly once, and validates exact spinner frame counts.
+- `TestTerminalAndWorkerConcurrency.test_worker_selection_is_stable_across_threads`
+  starts all workload/environment combinations together, repeatedly verifies
+  worker and parallelization decisions, and cold-starts the free-threading cache.
+
+The stress proofs run under `PYTHON_GIL=0` and use no sleep-based assertions.
+
 ---
 
 ## 5. Summary
@@ -251,5 +289,7 @@ worker failures without sleeps or deadlocks. The test runs under `PYTHON_GIL=0`.
 | Shared Template reads | OK | Local/ContextVar render state; complete metadata publication; synchronized no-GIL proof |
 | Environment registries | Reader-safe publication | Copy-on-write through supported registration APIs; competing writers require external serialization |
 | Coverage instrumentation | Locked global lifecycle | Context-local data; distinct collectors may overlap; one lifecycle owner per collector |
+| Live terminal state | Serialized updates | Renderer `RLock`; spinner index lock; lifecycle operations remain single-owner |
+| Worker selection | Read-only decisions | Frozen profiles, local calculations, and thread-safe cached GIL detection |
 
 No critical violations. The codebase is structured for free-threading compliance.

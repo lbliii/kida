@@ -118,6 +118,19 @@ if is_free_threading_enabled():
 
 On free-threaded Python, render workloads get a 1.5x multiplier on the CPU-based worker count.
 
+## Thread Safety
+
+Worker-selection helpers are safe to call concurrently. Workload profiles are
+read-only after module initialization, calculations use call-local state, and
+the free-threading detection cache is thread-safe. Repeated concurrent calls with
+the same explicit inputs return the same decision.
+
+Automatic environment detection reads process-wide environment variables. Do
+not mutate `KIDA_ENV`, `CI`, or related variables while other threads are making
+worker decisions. If environment state can change, resolve it first and pass an
+explicit `Environment` value to `get_optimal_workers()` and
+`should_parallelize()`.
+
 ## Template Scheduling
 
 For optimal throughput, schedule heavy templates first to avoid the "straggler effect" where one slow render delays overall completion.

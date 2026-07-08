@@ -225,7 +225,13 @@ with LiveRenderer(tpl) as live:
     live.update(status="Complete", progress=100, result=result)
 ```
 
-`LiveRenderer` is thread-safe. Each call to `update()` atomically swaps the render context, so background threads can push updates without locks. The renderer freezes the context snapshot before each render pass to avoid tearing.
+`LiveRenderer` is thread-safe. Each call to `update()` serializes the accumulated
+context merge, terminal-size refresh, render, and output, so background threads
+can push updates without external locks or torn context snapshots. Auto-refresh
+uses that same update path and can run alongside explicit updates. Keep
+context-manager entry/exit and `start_auto()`/`stop_auto()` under one controlling
+thread; those operations own the renderer lifecycle rather than an individual
+render update.
 
 ## Optimize with static_context
 

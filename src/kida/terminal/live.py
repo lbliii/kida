@@ -198,7 +198,7 @@ class LiveRenderer:
 
         self._is_live = hasattr(self._file, "isatty") and self._file.isatty()
         self._prev_line_count = 0
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._context: dict[str, Any] = {}
         self._spinner = Spinner()
         self._original_sigint: Any = None
@@ -248,20 +248,22 @@ class LiveRenderer:
 
         Merges *context* into the accumulated context from previous
         ``update()`` calls, then renders and replaces the on-screen output.
+        The merge, render, and write are one serialized operation so each
+        concurrent caller observes its own update plus earlier completed ones.
         """
-        self._context.update(context)
-
-        # Always provide spinner
-        self._context.setdefault("spinner", self._spinner)
-
-        # Update terminal width on each render (handles resize)
-        if self._is_live:
-            with contextlib.suppress(OSError, ValueError):
-                self._context["columns"] = os.get_terminal_size(self._file.fileno()).columns
-
-        output = self._template.render(**self._context)
-
         with self._lock:
+            self._context.update(context)
+
+            # Always provide spinner
+            self._context.setdefault("spinner", self._spinner)
+
+            # Update terminal width on each render (handles resize)
+            if self._is_live:
+                with contextlib.suppress(OSError, ValueError):
+                    self._context["columns"] = os.get_terminal_size(self._file.fileno()).columns
+
+            output = self._template.render(**self._context)
+
             if self._is_live:
                 self._clear_previous()
                 self._write_output(output)
@@ -282,7 +284,8 @@ class LiveRenderer:
         if self._auto_thread is not None:
             return
 
-        self._context.update(context)
+        with self._lock:
+            self._context.update(context)
         self._auto_stop.clear()
 
         def _loop() -> None:
