@@ -32,7 +32,8 @@ src/kida/
   analysis/             # Static analysis (dependencies, purity, a11y, coverage)
   sandbox.py            # Sandboxed execution
   formatter.py          # Template source formatter
-  cli.py                # CLI: kida check, kida format
+  cli.py                # Stable CLI entrypoint facade
+  _cli/                 # Lazy command dispatch, parser, and command-owned modules
   markdown/             # Markdown render surface
   terminal/             # Terminal render surface (ANSI colors)
   tstring.py            # T-string / k(t"...") inline templates

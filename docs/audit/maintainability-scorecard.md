@@ -86,7 +86,14 @@ thresholds. The scorecard's 11 outliers are intentionally narrower: functions
 whose documented decision count is above 25. These numbers answer different
 questions and should not be compared as if they were the same metric.
 
-The current outlier families are CLI orchestration (`_cmd_check`, `_cmd_diff`),
+Issue #147 removed CLI orchestration from both outlier families: command-owned
+modules, pure comparison/presentation seams, and a small lazy dispatcher reduced
+the repository baseline from 12 to 11 functions over 200 lines and from 11 to
+10 functions above decision complexity 25. See
+[`cli-modularization.md`](cli-modularization.md) for parity, coverage, and
+cold-start evidence.
+
+The remaining outlier families are
 compiler/partial-evaluation traversal and dispatch, region code generation,
 test-expression dispatch, lexer state-machine handling, and diagnostic
 enhancement. They remain visible in the JSON report. The count target is a cap,

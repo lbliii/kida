@@ -44,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split the CLI monolith into private command-owned modules behind the unchanged
+  `kida.cli:main` entry point. Argument parsing, lazy dispatch, execution, and
+  structured presentation now have direct test seams; all eight commands keep
+  their flags, help, streams, serialized shapes, and exit statuses. Focused CLI
+  line/branch coverage rose from 53.7% to 94.7%, cold-start medians did not
+  regress, and no dependency was added.
 - Hardened GitHub release automation so releases fail before publishing when the
   worktree, main commit, tag, or curated release notes do not match. (`#134`)
 - Consolidated duplicate ty checks into the report-producing `Type Check (ty)`

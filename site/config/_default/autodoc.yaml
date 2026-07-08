@@ -39,6 +39,8 @@ autodoc:
       - "*/venv/*"
       # Hidden directories
       - "*/.*"
+      # Private implementation packages
+      - "*/_cli/*"
 
     # Member visibility
     include_private: false  # Skip _private methods
