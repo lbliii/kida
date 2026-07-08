@@ -14,8 +14,7 @@ if TYPE_CHECKING:
     from kida.analysis.i18n import ExtractedMessage
 
 from kida import Environment, FileSystemLoader
-from kida.analysis.analyzer import BlockAnalyzer
-from kida.exceptions import ErrorCode, TemplateSyntaxError
+from kida.exceptions import TemplateSyntaxError
 from kida.lexer import Lexer
 from kida.parser import Parser
 
@@ -51,12 +50,6 @@ def _iter_templates(root: Path) -> list[Path]:
     return sorted(seen)
 
 
-def _explicit_close_suggestion(block_type: str) -> str:
-    if block_type == "block":
-        return "{% endblock %}"
-    return f"{{% end{block_type} %}}"
-
-
 def _cmd_check(
     template_dir: Path,
     *,
@@ -65,218 +58,36 @@ def _cmd_check(
     a11y: bool,
     typed: bool,
     lint_fragile_paths: bool,
+    output_format: str,
 ) -> int:
-    """Parse every template under *template_dir*; exit non-zero on failure."""
-    root = template_dir.resolve()
-    if not root.is_dir():
-        print(f"kida check: not a directory: {root}", file=sys.stderr)
-        return 2
+    """Collect check diagnostics once and render the requested surface."""
+    from kida._check import collect_check_diagnostics
+    from kida._diagnostic_renderers import (
+        render_check_json,
+        render_check_sarif,
+        render_check_text,
+    )
 
-    env = Environment(loader=FileSystemLoader(str(root)), validate_calls=False)
-    errors = 0
-    strict_warnings = 0
-    call_issues = 0
-    failed_loads: set[str] = set()
-
-    for path in _iter_templates(root):
-        rel = path.relative_to(root).as_posix()
-        try:
-            tpl = env.get_template(rel)
-        except Exception as e:
-            print(f"{rel}: {e}", file=sys.stderr)
-            errors += 1
-            failed_loads.add(rel)
-            continue
-
-        if strict:
-            try:
-                source = path.read_text(encoding="utf-8")
-                lexer = Lexer(source, env._lexer_config)
-                tokens = list(lexer.tokenize())
-                should_escape = env.select_autoescape(rel)
-                sparser = Parser(
-                    tokens,
-                    name=rel,
-                    filename=str(path),
-                    source=source,
-                    autoescape=should_escape,
-                )
-                sparser.parse()
-            except OSError as e:
-                print(f"{rel}: {e}", file=sys.stderr)
-                errors += 1
-                continue
-            except TemplateSyntaxError as e:
-                print(f"{rel}: {e}", file=sys.stderr)
-                errors += 1
-                continue
-            for lineno, _col, closing in sparser._unified_end_closures:
-                want = _explicit_close_suggestion(closing)
-                print(
-                    f"{rel}:{lineno}: strict: unified {{% end %}} closes "
-                    f"'{closing}' — prefer {want}",
-                    file=sys.stderr,
-                )
-                strict_warnings += 1
-
-        if validate_calls and tpl._optimized_ast is not None:
-            imported_defs = env._collect_imported_def_metadata(tpl._optimized_ast, rel)
-            for issue in BlockAnalyzer().validate_calls_with_external_defs(
-                tpl._optimized_ast,
-                imported_defs,
-            ):
-                parts: list[str] = []
-                if issue.unknown_params:
-                    parts.append(f"unknown params: {', '.join(issue.unknown_params)}")
-                if issue.missing_required:
-                    parts.append(f"missing required: {', '.join(issue.missing_required)}")
-                if issue.duplicate_params:
-                    parts.append(f"duplicate params: {', '.join(issue.duplicate_params)}")
-                loc = f"{rel}:{issue.lineno}"
-                msg = (
-                    f"{loc}: {ErrorCode.COMPONENT_CALL_SIGNATURE.value}: "
-                    f"Call to '{issue.def_name}' — {'; '.join(parts)}"
-                )
-                print(msg, file=sys.stderr)
-                call_issues += 1
-
-    if strict and strict_warnings:
-        print(
-            f"kida check: strict: {strict_warnings} unified {{% end %}} tag(s)",
-            file=sys.stderr,
-        )
-        errors += strict_warnings
-
-    if validate_calls and call_issues:
-        print(f"kida check: {call_issues} call-site issue(s)", file=sys.stderr)
-        errors += call_issues
-
-    type_mismatches = 0
-    if validate_calls:
-        for path in sorted(root.rglob("*.html")):
-            rel = path.relative_to(root).as_posix()
-            if rel in failed_loads:
-                continue
-            try:
-                tpl = env.get_template(rel)
-            except Exception as e:
-                print(f"{rel}: {e}", file=sys.stderr)
-                errors += 1
-                failed_loads.add(rel)
-                continue
-            if tpl._optimized_ast is not None:
-                imported_defs = env._collect_imported_def_metadata(tpl._optimized_ast, rel)
-                for mm in BlockAnalyzer().validate_call_types_with_external_defs(
-                    tpl._optimized_ast,
-                    imported_defs,
-                ):
-                    print(
-                        f"{rel}:{mm.lineno}: {ErrorCode.COMPONENT_TYPE_MISMATCH.value}: "
-                        f"type: {mm.def_name}() param '{mm.param_name}' "
-                        f"expects {mm.expected}, got {mm.actual_type} ({mm.actual_value!r})",
-                        file=sys.stderr,
-                    )
-                    type_mismatches += 1
-        if type_mismatches:
-            print(
-                f"kida check: {type_mismatches} type mismatch(es) in call sites",
-                file=sys.stderr,
-            )
-            errors += type_mismatches
-
-    type_issues = 0
-    if typed:
-        from kida.analysis.type_checker import check_types
-
-        for path in _iter_templates(root):
-            rel = path.relative_to(root).as_posix()
-            if rel in failed_loads:
-                continue
-            try:
-                tpl = env.get_template(rel)
-            except Exception as e:
-                print(f"{rel}: {e}", file=sys.stderr)
-                errors += 1
-                failed_loads.add(rel)
-                continue
-            if tpl._optimized_ast is not None:
-                issues = check_types(tpl._optimized_ast)
-                for issue in issues:
-                    sev = issue.severity.upper()
-                    print(
-                        f"{rel}:{issue.lineno}: type/{issue.rule} [{sev}]: {issue.message}",
-                        file=sys.stderr,
-                    )
-                    type_issues += 1
-        if type_issues:
-            print(f"kida check: {type_issues} type issue(s)", file=sys.stderr)
-            errors += type_issues
-
-    fragile_path_issues = 0
-    if lint_fragile_paths:
-        from kida.analysis.fragile_paths import check_fragile_paths
-
-        for path in _iter_templates(root):
-            rel = path.relative_to(root).as_posix()
-            if rel in failed_loads:
-                continue
-            try:
-                tpl = env.get_template(rel)
-            except Exception as e:
-                print(f"{rel}: {e}", file=sys.stderr)
-                errors += 1
-                failed_loads.add(rel)
-                continue
-            if tpl._optimized_ast is not None:
-                issues = check_fragile_paths(tpl._optimized_ast, rel)
-                for issue in issues:
-                    print(
-                        f"{rel}:{issue.lineno}: lint/fragile-path [WARNING]: "
-                        f'{{% {issue.statement} "{issue.target}" %}} '
-                        f"is in the same folder as the caller — "
-                        f'prefer "{issue.suggestion}" so folder moves stay zero-edit',
-                        file=sys.stderr,
-                    )
-                    fragile_path_issues += 1
-        if fragile_path_issues:
-            print(
-                f"kida check: {fragile_path_issues} fragile-path suggestion(s)",
-                file=sys.stderr,
-            )
-            errors += fragile_path_issues
-
-    a11y_issues = 0
-    if a11y:
-        from kida.analysis.a11y import check_a11y
-
-        for path in _iter_templates(root):
-            rel = path.relative_to(root).as_posix()
-            if rel in failed_loads:
-                continue
-            try:
-                tpl = env.get_template(rel)
-            except Exception as e:
-                print(f"{rel}: {e}", file=sys.stderr)
-                errors += 1
-                failed_loads.add(rel)
-                continue
-            if tpl._optimized_ast is not None:
-                issues = check_a11y(tpl._optimized_ast)
-                for issue in issues:
-                    sev = issue.severity.upper()
-                    print(
-                        f"{rel}:{issue.lineno}: a11y/{issue.rule} [{sev}]: {issue.message}",
-                        file=sys.stderr,
-                    )
-                    a11y_issues += 1
-        if a11y_issues:
-            print(f"kida check: {a11y_issues} accessibility issue(s)", file=sys.stderr)
-            errors += a11y_issues
-
-    if errors:
-        print(f"kida check: {errors} problem(s)", file=sys.stderr)
-        return 1
-    return 0
+    result = collect_check_diagnostics(
+        template_dir,
+        strict=strict,
+        validate_calls=validate_calls,
+        a11y=a11y,
+        typed=typed,
+        lint_fragile_paths=lint_fragile_paths,
+    )
+    match output_format:
+        case "text":
+            rendered = render_check_text(result)
+            if rendered:
+                print(rendered, end="", file=sys.stderr)
+        case "json":
+            print(render_check_json(result), end="")
+        case "sarif":
+            print(render_check_sarif(result), end="")
+        case _:  # argparse owns validation for public callers.
+            raise ValueError(f"unsupported check format: {output_format}")
+    return result.exit_code
 
 
 def _format_pot(messages: list[ExtractedMessage], *, template_dir: Path | None = None) -> str:
@@ -998,6 +809,13 @@ def main(argv: list[str] | None = None) -> int:
             "so folder moves stay zero-edit"
         ),
     )
+    p_check.add_argument(
+        "--format",
+        choices=["text", "json", "sarif"],
+        default="text",
+        dest="output_format",
+        help="Diagnostic output format (default: text)",
+    )
 
     p_render = sub.add_parser(
         "render",
@@ -1250,6 +1068,7 @@ def main(argv: list[str] | None = None) -> int:
             a11y=args.a11y,
             typed=args.typed,
             lint_fragile_paths=args.lint_fragile_paths,
+            output_format=args.output_format,
         )
     if args.command == "render":
         return _cmd_render(

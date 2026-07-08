@@ -38,8 +38,9 @@ kida <command> [options]
 
 The public CLI contract is the set of subcommands and flags documented here.
 Output text can become clearer, but machine-readable JSON shapes for
-`components --json`, `readme --json`, and `manifest` should only change
-deliberately with docs and changelog updates when behavior changes.
+`check --format json`, `components --json`, `readme --json`, and `manifest`
+should only change deliberately with docs and changelog updates when behavior
+changes.
 
 ## kida check
 
@@ -64,6 +65,7 @@ kida check <template_dir> [flags]
 | `--a11y` | Check templates for accessibility issues (missing `alt` attributes, heading order, etc.). |
 | `--typed` | Type-check templates against `{% template %}` declarations. |
 | `--lint-fragile-paths` | Suggest `./` relative paths for same-folder include, extends, embed, and import statements so folder moves stay zero-edit. Programmatic `FragilePathIssue` records expose `K-PATH-001`; CLI text remains unchanged. |
+| `--format {text,json,sarif}` | Select human text, Kida diagnostics JSON v1, or SARIF 2.1.0 output. Defaults to `text`. |
 
 ### Examples
 
@@ -101,6 +103,42 @@ components/card.html:8: a11y/img-alt [WARNING]: <img> missing alt attribute
 components/page.html:12: K-CMP-001: Call to 'card' — missing required: title
 components/page.html:18: K-CMP-002: type: card() param 'count' expects int, got str ('many')
 ```
+
+Text output goes to stderr. JSON and SARIF go to stdout, so either machine
+format can be redirected without mixing in human progress text:
+
+```bash
+kida check templates/ --typed --a11y --format json > diagnostics.json
+kida check templates/ --strict --format sarif > diagnostics.sarif
+```
+
+The JSON envelope is versioned by `schema_version` and includes the resolved
+`root`, ordered `diagnostics`, severity `summary`, `partial` collection status,
+and `exit_code`. Its published schema is
+[`schemas/diagnostics/v1/check.schema.json`](https://github.com/lbliii/kida/blob/main/schemas/diagnostics/v1/check.schema.json).
+Each diagnostic always includes its stable code, category, severity, message,
+path/range, optional suggestion and safe edit, related locations, confidence,
+notes, documentation URL, source snippet, and metadata. Kida source columns are
+zero-based in JSON; SARIF columns are converted to SARIF's one-based convention.
+
+Machine-readable findings are deterministically ordered by validation phase,
+path, range, code, and message. Exact duplicates with the same code, path,
+range, and message are emitted once. A failed template does not stop the rest
+of the directory scan; `partial: true` records that at least one requested
+analysis could not be completed.
+
+Diagnostic confidence describes the kind of evidence behind a finding:
+
+- `proven` means parsing or static analysis established the finding.
+- `conservative` means static analysis intentionally chose the safe warning
+  when it could not rule a problem out.
+- `runtime-only` means the fact came from execution and cannot be claimed as a
+  compile-time proof.
+- `unknown` means the producer has not classified its evidence yet.
+
+Exit status is `0` when there are no findings, `1` when any enabled check emits
+a finding, and `2` for an invalid invocation or template root. Severity labels
+do not change this existing check policy.
 
 ## kida render
 

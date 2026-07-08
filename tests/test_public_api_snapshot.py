@@ -250,6 +250,7 @@ EXPECTED_CLI_CONTRACT = {
     "flags": {
         "check": [
             "--a11y",
+            "--format",
             "--help",
             "--lint-fragile-paths",
             "--strict",

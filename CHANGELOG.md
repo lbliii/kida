@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `kida check --format {text,json,sarif}` with a versioned diagnostics
+  JSON v1 schema and SARIF 2.1.0 output. All three surfaces share one
+  deterministic, deduplicated collection; machine output records partial scans
+  and preserves the existing `0`/`1`/`2` exit policy while default text output
+  and stderr routing remain compatible.
 - Registered static-analysis diagnostics in the public `ErrorCode` enum,
   retaining existing `K-PRI-*`, `K-CTX-*`, and `K-ESC-*` values and adding
   stable `K-A11Y-*`, `K-TYP-*`, and `K-PATH-001` mappings. Accessibility,

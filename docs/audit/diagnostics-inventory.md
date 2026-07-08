@@ -1,6 +1,6 @@
 # Diagnostic Contracts Inventory
 
-Status: evidence-backed inventory; no behavior or public contract change
+Status: living inventory; private convergence and the first CLI contract are implemented
 
 Scope: exceptions, compiler warnings, parser and lexer failures, static-analysis
 findings, `kida check`, renderers, framework adapters, and machine-facing output
@@ -17,9 +17,11 @@ belong to separate producer families. This inventory records the facts each
 family already exposes, where they are consumed, and the gaps a unified
 diagnostic service must preserve or close.
 
-This document does not select a default severity policy, add CLI flags, define a
-serialization schema, or make the internal diagnostic types public. Each of
-those is a separate stop-and-ask decision under the root constitution.
+This document does not select a new default severity policy or make the internal
+diagnostic types public. Those remain separate stop-and-ask decisions under the
+root constitution. The approved CLI slice adds output selection and a versioned
+serialization schema without changing check enablement, severity, or exit
+policy.
 
 Implementation status: the first private foundation now lives in
 [`src/kida/_diagnostics.py`](../../src/kida/_diagnostics.py), with the initial
@@ -41,6 +43,11 @@ types or import the adapter into parser, compiler, analyzer, render, or CLI
 execution paths. `LexerError` remains the only inventoried family without an
 attached stable code; its taxonomy and hot-path integration require separate
 review.
+
+`kida check` now converts those producers at one private collection boundary,
+preserves the existing text surface, and can emit diagnostics JSON v1 or SARIF
+2.1.0. The Python model remains private; public editor/codemod APIs, safe-edit
+policy, and extension hooks are still separate contract decisions.
 
 ## Current Topology
 
@@ -131,7 +138,7 @@ functions.
 | Framework debug pages | Propagated Kida exception | Flask, Django, and Starlette adapters do not wrap or normalize the exception | Hosts may use `UndefinedError.to_diagnostic()`; no general converter |
 | HTML diagnostics | `UndefinedError.to_diagnostic()` | Escaped fragment or standalone page | Undefined errors only |
 | Markdown diagnostics | `UndefinedError.to_diagnostic()` | GitHub-flavored Markdown | Undefined errors only |
-| `kida check` | Exceptions plus four analysis/component record families | Hand-built stderr lines and summaries | Human text only; no common record, JSON, or SARIF emitter |
+| `kida check` | Exceptions plus analysis/component records converted at a private boundary | Compatible stderr text, diagnostics JSON v1, or SARIF 2.1.0 | Shared facts, deterministic ordering/de-duplication, exit status, and partial-scan state across all three surfaces |
 | Other CLI commands | Command-specific values | Some commands have command-specific JSON | Not a diagnostics contract |
 | SARIF utility | External SARIF report data | Template/report context dictionary | Input parser only; it does not emit Kida findings |
 | CI report templates | Parsed report contexts and render data | HTML, terminal, Markdown, or CI summaries | Separate report schema; not fed by `kida check` diagnostics |
@@ -162,21 +169,20 @@ not be mistaken for a SARIF diagnostics output path.
    the undefined path has a common snippet, hint ordering, docs URL, and related
    frames. There is no common safe-edit, related-location, confidence,
    runtime-only, or unknown-state field.
-5. **The CLI owns diagnostic policy and presentation together.** `_cmd_check()`
-   catches broad exceptions, formats each family inline, counts enabled findings,
-   prints summaries, and determines exit status in one function. The resulting
-   strings are tested, but the underlying facts are not available to another
-   renderer.
-6. **Ordering and de-duplication are local.** Template paths are sorted, and
-   individual analyzers often sort their findings, but there is no cross-family
-   ordering or identity rule. Repeated template loads can also report failures
-   in more than one validation pass.
+5. **The private collector is not yet a public service.** CLI collection policy
+   and rendering are separated internally, but editors, framework adapters, and
+   codemods have no approved public collection API.
+6. **Ordering and de-duplication are CLI policy.** `kida check` now orders by
+   phase, path, range, code, and message and removes exact
+   `(code, path, range, message)` duplicates. Other consumers do not yet share a
+   public ordering or identity contract.
 7. **Python warnings are a separate channel.** Many filter/global/environment
    warnings are normal `warnings.warn()` emissions without stable codes or
    template locations. Compiler `TemplateWarning` records should not be assumed
    to cover them.
-8. **Machine consumers cannot share the human path.** `kida check` has no JSON or
-   SARIF mode, and the current internal diagnostic has no serialization contract.
+8. **Machine output exists only for `kida check`.** Diagnostics JSON v1 and
+   SARIF 2.1.0 share the CLI collection, but no public Python serialization API
+   has been approved.
 
 ## Convergence Boundaries
 
@@ -217,13 +223,14 @@ would blur findings with evidence or execution telemetry.
 
 This is sequencing guidance, not approval to implement the contracts.
 
-1. Define an internal immutable diagnostic, span, related-location, and optional
-   safe-edit model by extending or superseding the current internal seed.
-2. Add lossless converters for existing exceptions and analysis records, then
-   prove deterministic cross-family ordering and de-duplication.
-3. Make the current human `kida check` output consume the normalized records
-   without changing default policy or exit behavior.
-4. Separately approve and add machine-readable CLI modes and schema snapshots.
+1. **Complete:** define an internal immutable diagnostic, span,
+   related-location, and optional safe-edit model.
+2. **Complete:** add lossless converters for existing exceptions and analysis
+   records, then prove deterministic cross-family ordering and de-duplication.
+3. **Complete:** make the current human `kida check` output consume normalized
+   records without changing default policy or exit behavior.
+4. **Complete:** separately approve and add machine-readable CLI modes and
+   schema snapshots.
 5. Separately approve a public programmatic API for editors, adapters, and
    codemods.
 6. Add extension hooks only after ownership, namespacing, and failure isolation
