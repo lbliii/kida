@@ -20,6 +20,8 @@ from kida.nodes import (
     Capture,
     Const,
     Data,
+    Def,
+    DefParam,
     Filter,
     FilterBlock,
     Node,
@@ -339,6 +341,28 @@ def test_slot_callback_body_failure_restores_async_mode_and_cleanup() -> None:
     assert compiler._cached_vars == {"cached"}
     assert compiler._outer_caller_expr is None
     assert compiler._def_caller_stack == [outer_caller]
+
+
+def test_def_body_failure_restores_lowering_mode_and_bound_locals() -> None:
+    compiler = _FailingChildCompiler(Environment())
+    compiler._streaming = True
+    compiler._async_mode = True
+    compiler._locals = {"existing"}
+    node = Def(
+        lineno=1,
+        col_offset=0,
+        name="card",
+        params=(DefParam(lineno=1, col_offset=0, name="title"),),
+        body=(Data(lineno=1, col_offset=0, value="body"),),
+    )
+
+    with pytest.raises(RuntimeError, match="stop on Data"):
+        compiler._compile_def(node)
+
+    assert compiler._streaming is True
+    assert compiler._async_mode is True
+    assert compiler._locals == {"existing"}
+    assert compiler._def_caller_stack == []
 
 
 def _generated_ast_hash(
