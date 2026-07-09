@@ -1033,21 +1033,12 @@ class FunctionCompilationMixin:
 
         self._locals.update(plan.bound_names)
 
-        saved_async = getattr(self, "_async_mode", False)
-        saved_streaming = getattr(self, "_streaming", False)
-        if saved_async:
-            self._async_mode = False
-        if saved_streaming:
-            self._streaming = False
         try:
-            for child in node.body:
-                func_body.extend(self._compile_node(child))
+            with self._lowering_mode(streaming=False, async_mode=False):
+                for child in node.body:
+                    func_body.extend(self._compile_node(child))
         finally:
             self._locals.difference_update(plan.bound_names)
-            if saved_async:
-                self._async_mode = True
-            if saved_streaming:
-                self._streaming = saved_streaming
 
         func_body.append(
             ast.Return(

@@ -26,6 +26,7 @@ from kida.nodes import (
     FilterBlock,
     Node,
     Push,
+    Region,
     Spaceless,
     Try,
 )
@@ -363,6 +364,27 @@ def test_def_body_failure_restores_lowering_mode_and_bound_locals() -> None:
     assert compiler._async_mode is True
     assert compiler._locals == {"existing"}
     assert compiler._def_caller_stack == []
+
+
+def test_region_body_failure_restores_lowering_mode_and_bound_locals() -> None:
+    compiler = _FailingChildCompiler(Environment())
+    compiler._streaming = True
+    compiler._async_mode = True
+    compiler._locals = {"existing"}
+    node = Region(
+        lineno=1,
+        col_offset=0,
+        name="panel",
+        params=(DefParam(lineno=1, col_offset=0, name="title"),),
+        body=(Data(lineno=1, col_offset=0, value="body"),),
+    )
+
+    with pytest.raises(RuntimeError, match="stop on Data"):
+        compiler._make_region_function("panel", node)
+
+    assert compiler._streaming is True
+    assert compiler._async_mode is True
+    assert compiler._locals == {"existing"}
 
 
 def _generated_ast_hash(
