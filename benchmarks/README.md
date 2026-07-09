@@ -129,6 +129,10 @@ pytest benchmarks/test_benchmark_scaling_depth.py -v --benchmark-only
 # Cold-start (subprocess, Kida vs Jinja2)
 pytest benchmarks/test_benchmark_cold_start.py -v --benchmark-only
 
+# Complete Kida cold-start phase contract (raw JSON; Linux 3.14t evidence)
+PYTHON_GIL=0 uv run python benchmarks/benchmark_cold_start_phases.py \
+  --require-linux-3-14t --output /tmp/kida-cold-start-linux.json
+
 # Optional: Mako comparison (requires pip install mako)
 pytest benchmarks/test_benchmark_mako.py -v --benchmark-only
 
