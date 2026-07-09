@@ -14,6 +14,8 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
+
     from kida.nodes import Cache, FilterBlock, Node
 
 
@@ -41,6 +43,12 @@ class CachingMixin:
         # From Compiler core
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
+        def _lowering_mode(
+            self,
+            *,
+            streaming: bool | None = None,
+            async_mode: bool | None = None,
+        ) -> AbstractContextManager[None]: ...
 
     def _compile_cache(self, node: Cache) -> list[ast.stmt]:
         """Compile {% cache key %}...{% endcache %.
@@ -99,10 +107,9 @@ class CachingMixin:
                     value=ast.Name(id="_cache_append", ctx=ast.Load()),
                 )
             )
-            self._streaming = False
-            for child in node.body:
-                else_body.extend(self._compile_node(child))
-            self._streaming = True
+            with self._lowering_mode(streaming=False):
+                for child in node.body:
+                    else_body.extend(self._compile_node(child))
         else:
             else_body.append(
                 ast.Assign(
@@ -214,10 +221,9 @@ class CachingMixin:
                     value=ast.Name(id=append_name, ctx=ast.Load()),
                 )
             )
-            self._streaming = False
-            for child in node.body:
-                stmts.extend(self._compile_node(child))
-            self._streaming = True
+            with self._lowering_mode(streaming=False):
+                for child in node.body:
+                    stmts.extend(self._compile_node(child))
         else:
             save_name = f"_save_append_{suffix}"
             stmts.append(

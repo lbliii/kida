@@ -14,6 +14,7 @@ from kida.compiler.stream_transform import (
     plan_block_render_modes,
 )
 from kida.lexer import Lexer
+from kida.nodes import Cache, Const, Data, Filter, FilterBlock, Node
 from kida.parser import Parser
 
 AST_CASES = (
@@ -60,7 +61,24 @@ AST_CASES = (
         "35bdaefc06ab71da",
         "8259eda1b126565e",
     ),
+    (
+        "cache_filter",
+        {
+            "cache_filter": (
+                '{% block cached %}{% cache "key" %}Hello {{ name }}{% end %}{% end %}'
+                "{% block filtered %}{% filter upper %}Hi {{ name }}{% end %}{% end %}"
+            )
+        },
+        "cache_filter",
+        "256cfb522ef48654",
+        "6d675c5428a45ae7",
+    ),
 )
+
+
+class _FailingChildCompiler(Compiler):
+    def _compile_node(self, node: Node) -> list[ast.stmt]:
+        raise RuntimeError(f"stop on {type(node).__name__}")
 
 
 @pytest.mark.parametrize("is_region", [False, True])
@@ -137,6 +155,49 @@ def test_lowering_mode_state_is_per_compiler_instance() -> None:
         assert first._async_mode is True
         assert second._streaming is False
         assert second._async_mode is False
+
+
+@pytest.mark.parametrize(
+    ("method_name", "node"),
+    [
+        (
+            "_compile_cache",
+            Cache(
+                lineno=1,
+                col_offset=0,
+                key=Const(lineno=1, col_offset=0, value="key"),
+                body=(Data(lineno=1, col_offset=0, value="body"),),
+            ),
+        ),
+        (
+            "_compile_filter_block",
+            FilterBlock(
+                lineno=1,
+                col_offset=0,
+                filter=Filter(
+                    lineno=1,
+                    col_offset=0,
+                    value=Const(lineno=1, col_offset=0, value=""),
+                    name="upper",
+                ),
+                body=(Data(lineno=1, col_offset=0, value="body"),),
+            ),
+        ),
+    ],
+)
+def test_caching_body_failure_restores_streaming_mode(
+    method_name: str,
+    node: Cache | FilterBlock,
+) -> None:
+    compiler = _FailingChildCompiler(Environment())
+    compiler._streaming = True
+    compiler._async_mode = True
+
+    with pytest.raises(RuntimeError, match="stop on Data"):
+        getattr(compiler, method_name)(node)
+
+    assert compiler._streaming is True
+    assert compiler._async_mode is True
 
 
 def _generated_ast_hash(
