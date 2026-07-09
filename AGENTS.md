@@ -141,6 +141,7 @@ For multi-surface work, include a parity matrix like:
 ## Done Criteria
 - `make lint` and `make ty` clean; no new `# type: ignore`, `noqa: S110/S112`, or per-file ignore growth.
 - Focused tests cover the interesting path, including malformed source for parser changes, failure paths for sandbox/diagnostics, both sides of flags, and parity corpus updates for render surfaces.
+- Accepted refactors name benchmark applicability, concurrency reasoning, and docs/examples collateral; record `not applicable: <reason>` for any dimension that does not apply.
 - Hot-path or compiler changes include benchmark evidence or a clear reason benchmarks were not applicable.
 - Free-threaded changes explain shared-state, cache, lock, and `ContextVar` reasoning.
 - Public API changes include docs under `site/content/docs/`, changelog fragment or release note, and migration notes when breaking.
