@@ -13,6 +13,8 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
+
     from kida.nodes import CallBlock, Def, Node, Region, Slot
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,12 @@ class FunctionCompilationMixin:
 
         # From Compiler core
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
+        def _lowering_mode(
+            self,
+            *,
+            streaming: bool | None = None,
+            async_mode: bool | None = None,
+        ) -> AbstractContextManager[None]: ...
 
     @staticmethod
     def _parse_annotation(raw: str) -> ast.expr | None:
@@ -509,9 +517,6 @@ class FunctionCompilationMixin:
             # statements in try/finally for cleanup.
             _scope_push_idx = len(caller_body)
 
-            saved_async_cb = getattr(self, "_async_mode", False)
-            if saved_async_cb:
-                self._async_mode = False
             outer = self._def_caller_stack[-1] if self._def_caller_stack else None
             # Use _outer_caller param to avoid shadowing by inner _caller wrapper
             if outer is not None:
@@ -545,14 +550,13 @@ class FunctionCompilationMixin:
             saved_cached_vars = self._cached_vars
             self._cached_vars = set()
             try:
-                for child in slot_body:
-                    caller_body.extend(self._compile_node(child))
+                with self._lowering_mode(async_mode=False):
+                    for child in slot_body:
+                        caller_body.extend(self._compile_node(child))
             finally:
                 self._cached_vars = saved_cached_vars
                 if outer is not None:
                     self._outer_caller_expr = None
-            if saved_async_cb:
-                self._async_mode = saved_async_cb
 
             return_stmt = ast.Return(
                 value=ast.Call(
