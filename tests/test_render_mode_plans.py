@@ -24,6 +24,7 @@ from kida.nodes import (
     Node,
     Push,
     Spaceless,
+    Try,
 )
 from kida.parser import Parser
 
@@ -98,6 +99,17 @@ AST_CASES = (
         "special_blocks",
         "e1899843c72d64e1",
         "84cdb059d42b8e65",
+    ),
+    (
+        "error_boundary",
+        {
+            "error_boundary": (
+                "{% try %}Hello {{ name }}{% fallback err %}Fallback {{ err.type }}{% end %}"
+            )
+        },
+        "error_boundary",
+        "125b59591760bb0b",
+        "0cd6802a6dfbfabb",
     ),
 )
 
@@ -267,6 +279,24 @@ def test_special_block_body_failure_restores_streaming_mode(
 
     with pytest.raises(RuntimeError, match="stop on Data"):
         getattr(compiler, method_name)(node)
+
+    assert compiler._streaming is True
+    assert compiler._async_mode is True
+
+
+def test_error_boundary_body_failure_restores_streaming_mode() -> None:
+    compiler = _FailingChildCompiler(Environment())
+    compiler._streaming = True
+    compiler._async_mode = True
+    node = Try(
+        lineno=1,
+        col_offset=0,
+        body=(Data(lineno=1, col_offset=0, value="body"),),
+        fallback=(Data(lineno=1, col_offset=0, value="fallback"),),
+    )
+
+    with pytest.raises(RuntimeError, match="stop on Data"):
+        compiler._compile_try(node)
 
     assert compiler._streaming is True
     assert compiler._async_mode is True

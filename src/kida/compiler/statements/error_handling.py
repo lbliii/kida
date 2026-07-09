@@ -13,6 +13,8 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
+
     from kida.nodes import Node
     from kida.nodes.control_flow import Try
 
@@ -29,6 +31,12 @@ class ErrorHandlingMixin:
         _block_counter: int
 
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
+        def _lowering_mode(
+            self,
+            *,
+            streaming: bool | None = None,
+            async_mode: bool | None = None,
+        ) -> AbstractContextManager[None]: ...
 
     def _compile_try(self, node: Try) -> list[ast.stmt]:
         """Compile {% try %}...{% fallback %}...{% end %} error boundary.
@@ -120,13 +128,14 @@ class ErrorHandlingMixin:
 
         # --- Try body ---
         # In streaming mode, compile body in non-streaming mode so it uses _append
-        if is_streaming:
-            self._streaming = False
         try_body: list[ast.stmt] = []
-        for child in node.body:
-            try_body.extend(self._compile_node(child))
         if is_streaming:
-            self._streaming = True
+            with self._lowering_mode(streaming=False):
+                for child in node.body:
+                    try_body.extend(self._compile_node(child))
+        else:
+            for child in node.body:
+                try_body.extend(self._compile_node(child))
 
         if not is_streaming:
             # Restore _append before flush

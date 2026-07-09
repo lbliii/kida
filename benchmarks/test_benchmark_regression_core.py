@@ -82,6 +82,10 @@ SPECIAL_BLOCK_COMPILE_TEMPLATE = """\
 {% end %}
 """
 
+ERROR_BOUNDARY_COMPILE_TEMPLATE = """\
+{% try %}Hello {{ name }}{% fallback err %}Fallback {{ err.type }}{% end %}
+"""
+
 
 class AttrObject:
     __slots__ = ("name",)
@@ -202,6 +206,15 @@ def _compile_special_block_batch(iterations: int) -> int:
     compiled = 0
     for i in range(iterations):
         template = env.from_string(SPECIAL_BLOCK_COMPILE_TEMPLATE, name=f"special-block-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_error_boundary_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(ERROR_BOUNDARY_COMPILE_TEMPLATE, name=f"error-boundary-{i}")
         compiled += template.name is not None
     return compiled
 
@@ -360,4 +373,18 @@ def test_compile_special_block_template_batch(benchmark: BenchmarkFixture) -> No
     assert "".join(template.render_stream(name="Ada")) == rendered
 
     total = benchmark(_compile_special_block_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_error_boundary_template_batch(benchmark: BenchmarkFixture) -> None:
+    template = Environment(auto_reload=False).from_string(ERROR_BOUNDARY_COMPILE_TEMPLATE)
+    rendered = template.render(name="Ada")
+    fallback = template.render()
+    assert rendered.strip() == "Hello Ada"
+    assert fallback.strip() == "Fallback UndefinedError"
+    assert "".join(template.render_stream(name="Ada")) == rendered
+    assert "".join(template.render_stream()) == fallback
+
+    total = benchmark(_compile_error_boundary_batch, COMPILE_CALLS_PER_ROUND)
     assert total == COMPILE_CALLS_PER_ROUND
