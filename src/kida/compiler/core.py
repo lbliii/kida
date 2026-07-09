@@ -37,7 +37,6 @@ Templates with `{% extends %}` generate:
 from __future__ import annotations
 
 import ast
-import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -52,28 +51,15 @@ from kida.compiler.utils import (
     make_template_warning,
 )
 from kida.nodes import (
-    AsyncFor,
     Block,
     CallBlock,
-    Capture,
     Def,
-    Export,
     Extends,
-    For,
     FromImport,
-    If,
     Import,
     Let,
-    ListComp,
-    Match,
-    Name,
     Region,
-    Set,
-    While,
 )
-from kida.nodes.structure import With, WithConditional
-
-_BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 if TYPE_CHECKING:
     import types
@@ -371,8 +357,6 @@ class Compiler(
         """
         from kida.exceptions import ErrorCode, TemplateSyntaxError
         from kida.nodes import (
-            CallBlock,
-            Def,
             Embed,
             Region,
             SlotBlock,
@@ -454,125 +438,14 @@ class Compiler(
                 self._check_definition_nesting(cast("Sequence[Node]", body), parent_chain)
 
     def _collect_blocks(self, nodes: Sequence[Node]) -> None:
-        """Recursively collect all Block nodes from the AST.
+        """Populate blocks through the template-structure analysis phase."""
+        from kida.compiler.analysis_phases import collect_template_blocks
 
-        This ensures nested blocks (blocks inside blocks, blocks inside
-        conditionals, etc.) are all registered for compilation.
-        """
-        from kida.exceptions import ErrorCode, TemplateSyntaxError
-        from kida.nodes import Block, CallBlock, Def, Region, Slot, SlotBlock
-
-        for node in nodes:
-            if isinstance(node, Block):
-                if not _BLOCK_NAME_RE.match(node.name):
-                    err = TemplateSyntaxError(
-                        f"Invalid block name '{node.name}': must be identifier-like "
-                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
-                        lineno=node.lineno,
-                        name=self._name,
-                        filename=self._filename,
-                    )
-                    err.code = ErrorCode.INVALID_IDENTIFIER
-                    raise err
-                if node.name in self._blocks and isinstance(self._blocks[node.name], Region):
-                    err = TemplateSyntaxError(
-                        f"Duplicate block/region name '{node.name}'",
-                        lineno=node.lineno,
-                        name=self._name,
-                        filename=self._filename,
-                    )
-                    err.code = ErrorCode.INVALID_IDENTIFIER
-                    raise err
-                self._blocks[node.name] = node
-                # Recurse into block body to find nested blocks
-                self._collect_blocks(node.body)
-            elif isinstance(node, Def):
-                if not _BLOCK_NAME_RE.match(node.name):
-                    err = TemplateSyntaxError(
-                        f"Invalid def name '{node.name}': must be identifier-like "
-                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
-                        lineno=node.lineno,
-                        name=self._name,
-                        filename=self._filename,
-                    )
-                    err.code = ErrorCode.INVALID_IDENTIFIER
-                    raise err
-                self._collect_blocks(node.body)
-            elif isinstance(node, Region):
-                if not _BLOCK_NAME_RE.match(node.name):
-                    err = TemplateSyntaxError(
-                        f"Invalid region name '{node.name}': must be identifier-like "
-                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
-                        lineno=node.lineno,
-                        name=self._name,
-                        filename=self._filename,
-                    )
-                    err.code = ErrorCode.INVALID_IDENTIFIER
-                    raise err
-                if node.name in self._blocks:
-                    err = TemplateSyntaxError(
-                        f"Duplicate block/region name '{node.name}'",
-                        lineno=node.lineno,
-                        name=self._name,
-                        filename=self._filename,
-                    )
-                    err.code = ErrorCode.INVALID_IDENTIFIER
-                    raise err
-                self._blocks[node.name] = node  # Region stored as block for registration
-                self._collect_blocks(node.body)
-            elif isinstance(node, CallBlock):
-                for slot_name in node.slots:
-                    if slot_name != "default" and not _BLOCK_NAME_RE.match(slot_name):
-                        err = TemplateSyntaxError(
-                            f"Invalid slot name '{slot_name}': must be identifier-like "
-                            "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
-                            lineno=node.lineno,
-                            name=self._name,
-                            filename=self._filename,
-                        )
-                        err.code = ErrorCode.INVALID_IDENTIFIER
-                        raise err
-                for slot_body in node.slots.values():
-                    self._collect_blocks(slot_body)
-            elif isinstance(node, SlotBlock):
-                if node.name != "default" and not _BLOCK_NAME_RE.match(node.name):
-                    err = TemplateSyntaxError(
-                        f"Invalid slot name '{node.name}': must be identifier-like "
-                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
-                        lineno=node.lineno,
-                        name=self._name,
-                        filename=self._filename,
-                    )
-                    err.code = ErrorCode.INVALID_IDENTIFIER
-                    raise err
-                self._collect_blocks(node.body)
-            elif isinstance(node, Slot):
-                if node.name != "default" and not _BLOCK_NAME_RE.match(node.name):
-                    err = TemplateSyntaxError(
-                        f"Invalid slot name '{node.name}': must be identifier-like "
-                        "(e.g. [a-zA-Z_][a-zA-Z0-9_]*)",
-                        lineno=node.lineno,
-                        name=self._name,
-                        filename=self._filename,
-                    )
-                    err.code = ErrorCode.INVALID_IDENTIFIER
-                    raise err
-            elif hasattr(node, "body"):
-                # Node has a body (If, For, With, Def, etc.)
-                body = node.body
-                if isinstance(body, Sequence):
-                    self._collect_blocks(cast("Sequence[Node]", body))
-                # Check for else/elif bodies
-                else_ = getattr(node, "else_", None)
-                if isinstance(else_, Sequence):
-                    self._collect_blocks(cast("Sequence[Node]", else_))
-                empty = getattr(node, "empty", None)
-                if isinstance(empty, Sequence):
-                    self._collect_blocks(cast("Sequence[Node]", empty))
-                elif_ = getattr(node, "elif_", None)
-                if elif_:
-                    for _, elif_body in elif_:
-                        self._collect_blocks(elif_body)
+        self._blocks = collect_template_blocks(
+            nodes,
+            template_name=self._name,
+            filename=self._filename,
+        )
 
     def compile(
         self,
@@ -824,7 +697,7 @@ class Compiler(
         into the block's context. Returns None if neither globals nor top-level
         imports exist.
         """
-        from kida.nodes import Def, FromImport, Globals, Import, Imports, Let
+        from kida.nodes import Globals, Imports
 
         # Single-pass classification instead of 5 separate list comprehensions
         setup_nodes: list[Any] = []
@@ -1149,34 +1022,10 @@ class Compiler(
 
     @staticmethod
     def _has_unconditional_exprs(body: Sequence) -> bool:
-        """Fast check: does the body have any nodes that produce unconditional Name refs?
+        """Delegate the fast CSE guard to its named analysis owner."""
+        from kida.compiler.analysis_phases import has_unconditional_expressions
 
-        Returns False when every top-level node is a control-flow node or Data
-        (raw text), meaning CSE analysis would find no unconditional refs and
-        can be skipped entirely.
-        """
-        from kida.nodes import Data
-
-        # Node types that never produce unconditional Name refs at their level
-        skip = (
-            For,
-            AsyncFor,
-            If,
-            While,
-            Match,
-            Set,
-            Let,
-            Export,
-            Capture,
-            With,
-            WithConditional,
-            Import,
-            FromImport,
-            Def,
-            Block,
-            Data,
-        )
-        return any(not isinstance(n, skip) for n in body)
+        return has_unconditional_expressions(body)
 
     def _analyze_for_cse(self, body_nodes: Sequence) -> set[str]:
         """Combined CSE analysis: returns cacheable variable names.
@@ -1185,190 +1034,16 @@ class Compiler(
         the full variable reference collection in a single call, deduplicating
         the pattern used across _make_block_function and _make_render_direct_body.
         """
-        if not self._has_unconditional_exprs(body_nodes):
-            return set()
-        ref_counts, mutated = self._collect_var_refs(body_nodes)
-        return {
-            n
-            for n, count in ref_counts.items()
-            if count >= 2 and n not in mutated and n not in self._locals
-        }
+        from kida.compiler.analysis_phases import analyze_cacheable_names
+
+        return analyze_cacheable_names(body_nodes, local_names=self._locals)
 
     @staticmethod
     def _collect_var_refs(nodes: Any) -> tuple[dict[str, int], set[str]]:
-        """Collect variable reference counts and mutated names from Kida AST nodes.
+        """Delegate variable traversal to its named analysis owner."""
+        from kida.compiler.analysis_phases import collect_variable_references
 
-        Walks the AST recursively, collecting mutations from ALL code but only
-        counting Name references in unconditional (non-branching) code paths.
-        This ensures eager cache assignments at function entry won't raise
-        UndefinedError for variables only referenced inside conditional branches.
-
-        Does NOT recurse into Block or Def bodies (separate compilation scopes).
-
-        Returns:
-            (ref_counts, mutated) where ref_counts maps var name to usage count
-            in unconditional code, and mutated is the set of names assigned
-            anywhere in the body.
-        """
-        ref_counts: dict[str, int] = {}
-        mutated: set[str] = set()
-
-        def _collect_target_names(target: Any) -> None:
-            """Collect all variable names from a For loop target (simple or tuple)."""
-            if isinstance(target, Name):
-                mutated.add(target.name)
-            elif hasattr(target, "items"):  # KidaTuple
-                for item in target.items:
-                    _collect_target_names(item)
-
-        def _walk(node: Any, *, count_refs: bool = True) -> None:
-            if node is None:
-                return
-            if isinstance(node, (list, tuple)):
-                for item in node:
-                    _walk(item, count_refs=count_refs)
-                return
-            if isinstance(node, dict):
-                for v in node.values():
-                    _walk(v, count_refs=count_refs)
-                return
-
-            # Count Name references only in unconditional code
-            if isinstance(node, Name) and node.ctx == "load":
-                if count_refs:
-                    ref_counts[node.name] = ref_counts.get(node.name, 0) + 1
-                return
-
-            # Track mutations: Set/Let/Export/Capture targets (always, regardless of branch)
-            if isinstance(node, Set):
-                if isinstance(node.target, Name):
-                    mutated.add(node.target.name)
-                _walk(node.value, count_refs=count_refs)
-                return
-            if isinstance(node, Let):
-                if isinstance(node.name, Name):
-                    mutated.add(node.name.name)
-                _walk(node.value, count_refs=count_refs)
-                return
-            if isinstance(node, Export):
-                if isinstance(node.name, Name):
-                    mutated.add(node.name.name)
-                _walk(node.value, count_refs=count_refs)
-                return
-            if isinstance(node, Capture):
-                mutated.add(node.name)
-                _walk(node.body, count_refs=False)
-                return
-
-            # ListComp: target is a local within the comprehension scope;
-            # elt/ifs reference that local, so they must not be counted for caching.
-            # iter is evaluated in the enclosing scope (unconditional).
-            if isinstance(node, ListComp):
-                _collect_target_names(node.target)
-                _walk(node.iter, count_refs=count_refs)
-                _walk(node.elt, count_refs=False)
-                for if_expr in node.ifs:
-                    _walk(if_expr, count_refs=False)
-                return
-
-            # Track For/AsyncFor loop targets — loop vars become Python locals
-            # at runtime and must not be cached at function entry.
-            # Also exclude 'loop' (LoopContext) which is only available inside the body.
-            # For iter expression is unconditional; body/empty are conditional.
-            if isinstance(node, (For, AsyncFor)):
-                _collect_target_names(node.target)
-                mutated.add("loop")
-                _walk(node.iter, count_refs=count_refs)
-                _walk(node.body, count_refs=False)
-                _walk(node.empty, count_refs=False)
-                return
-
-            # With/WithConditional introduce locally-scoped variables
-            if isinstance(node, With):
-                for target_name, expr in node.targets:
-                    mutated.add(target_name)
-                    _walk(expr, count_refs=count_refs)
-                _walk(node.body, count_refs=False)
-                return
-            if isinstance(node, WithConditional):
-                if isinstance(node.target, Name):
-                    mutated.add(node.target.name)
-                _walk(node.expr, count_refs=count_refs)
-                _walk(node.body, count_refs=False)
-                if node.empty:
-                    _walk(node.empty, count_refs=False)
-                return
-
-            # Import/FromImport introduce names into ctx mid-function
-            if isinstance(node, Import):
-                mutated.add(node.target)
-                _walk(node.template, count_refs=count_refs)
-                return
-            if isinstance(node, FromImport):
-                for name, alias in node.names:
-                    mutated.add(alias or name)
-                _walk(node.template, count_refs=count_refs)
-                return
-
-            # If/While: test expression is unconditional, bodies are conditional.
-            if isinstance(node, If):
-                _walk(node.test, count_refs=count_refs)
-                _walk(node.body, count_refs=False)
-                for elif_test, elif_body in node.elif_:
-                    _walk(elif_test, count_refs=False)
-                    _walk(elif_body, count_refs=False)
-                if node.else_:
-                    _walk(node.else_, count_refs=False)
-                return
-            if isinstance(node, While):
-                _walk(node.test, count_refs=count_refs)
-                _walk(node.body, count_refs=False)
-                return
-
-            # Match: subject is unconditional, case bodies are conditional.
-            # Case patterns may bind variables.
-            if isinstance(node, Match):
-                if node.subject is not None:
-                    _walk(node.subject, count_refs=count_refs)
-                for pattern, guard, case_body in node.cases:
-                    _collect_target_names(pattern)
-                    if guard is not None:
-                        _walk(guard, count_refs=False)
-                    _walk(case_body, count_refs=False)
-                return
-
-            # CallBlock slot bodies execute with scoped bindings pushed onto
-            # _scope_stack at runtime.  Variables provided via let: params are
-            # not available at function entry, so references inside slot bodies
-            # must NOT be counted as unconditional — otherwise the CSE cache
-            # assignment (_cv_x = _ls(...)) fires before the binding exists.
-            # The call expression itself IS unconditional.
-            if isinstance(node, CallBlock):
-                _walk(node.call, count_refs=count_refs)
-                for slot_body in node.slots.values():
-                    _walk(slot_body, count_refs=False)
-                return
-
-            # Don't recurse into separate compilation scopes.
-            # Def names are locally defined mid-function — exclude from caching.
-            if isinstance(node, Def):
-                mutated.add(node.name)
-                return
-            if isinstance(node, Block):
-                return
-
-            # Skip non-dataclass types
-            if not hasattr(node, "__dataclass_fields__"):
-                return
-
-            # Recurse into all dataclass fields
-            for field_name in node.__dataclass_fields__:
-                child = getattr(node, field_name, None)
-                if child is not None:
-                    _walk(child, count_refs=count_refs)
-
-        _walk(nodes)
-        return ref_counts, mutated
+        return collect_variable_references(nodes)
 
     def _emit_cache_assignments(self, names: set[str]) -> list[ast.stmt]:
         """Emit _cv_name = _ls(ctx, _scope_stack, 'name') for each cached variable."""
