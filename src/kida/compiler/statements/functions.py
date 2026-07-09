@@ -275,12 +275,6 @@ class FunctionCompilationMixin:
         # does not turn the component body into a generator.
         # Lexical caller scoping: capture _caller to _def_caller so slot functions
         # can reference it without shadowing by the inner _caller wrapper.
-        saved_async = getattr(self, "_async_mode", False)
-        saved_streaming = getattr(self, "_streaming", False)
-        if saved_async:
-            self._async_mode = False
-        if saved_streaming:
-            self._streaming = False
         func_body.append(
             ast.Assign(
                 targets=[ast.Name(id="_def_caller", ctx=ast.Store())],
@@ -359,17 +353,12 @@ class FunctionCompilationMixin:
         inner_body: list[ast.stmt] = []
         self._def_caller_stack.append(ast.Name(id="_def_caller", ctx=ast.Load()))
         try:
-            for child in node.body:
-                inner_body.extend(self._compile_node(child))
+            with self._lowering_mode(streaming=False, async_mode=False):
+                for child in node.body:
+                    inner_body.extend(self._compile_node(child))
         finally:
             self._def_caller_stack.pop()
-            if saved_async:
-                self._async_mode = saved_async
-            if saved_streaming:
-                self._streaming = saved_streaming
-
-        # Remove args from locals
-        self._locals.difference_update(plan.bound_names)
+            self._locals.difference_update(plan.bound_names)
 
         # return _Markup(''.join(buf))
         inner_body.append(
