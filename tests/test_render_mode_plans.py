@@ -16,6 +16,7 @@ from kida.compiler.stream_transform import (
 from kida.lexer import Lexer
 from kida.nodes import (
     Cache,
+    CallBlock,
     Capture,
     Const,
     Data,
@@ -314,6 +315,30 @@ def test_error_boundary_body_failure_restores_streaming_mode() -> None:
 
     assert compiler._streaming is True
     assert compiler._async_mode is True
+
+
+def test_slot_callback_body_failure_restores_async_mode_and_cleanup() -> None:
+    compiler = _FailingChildCompiler(Environment())
+    compiler._streaming = True
+    compiler._async_mode = True
+    compiler._cached_vars = {"cached"}
+    outer_caller = ast.Name(id="_outer", ctx=ast.Load())
+    compiler._def_caller_stack.append(outer_caller)
+    node = CallBlock(
+        lineno=1,
+        col_offset=0,
+        call=Const(lineno=1, col_offset=0, value=None),
+        slots={"default": (Data(lineno=1, col_offset=0, value="body"),)},
+    )
+
+    with pytest.raises(RuntimeError, match="stop on Data"):
+        compiler._compile_call_block(node)
+
+    assert compiler._streaming is True
+    assert compiler._async_mode is True
+    assert compiler._cached_vars == {"cached"}
+    assert compiler._outer_caller_expr is None
+    assert compiler._def_caller_stack == [outer_caller]
 
 
 def _generated_ast_hash(
