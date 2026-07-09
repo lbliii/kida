@@ -13,4 +13,5 @@ For user-facing documentation, see [`site/content/docs/`](../site/content/docs/)
 - **kida-render-product.md** — CI reporting product spec
 - **milo-vision.md** — Milo CLI framework vision
 - **terminal-api-contract.md** — Terminal rendering API stability contract (v0.3.0+)
+- **downstream-pilot-policy.md** — Change-specific consumer pilot classification and evidence policy
 - **marketplace-listing.md** — GitHub Actions marketplace listing guide

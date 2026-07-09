@@ -172,3 +172,17 @@ Include benchmark evidence in the PR when it matters:
 - benchmark command
 - compare summary
 - any baseline updates and why they are safe
+
+## Downstream Pilot Evidence
+
+Changes that add or alter downstream-observable component or runtime contracts
+also classify whether they need a change-specific consumer pilot. Follow the
+[downstream pilot evidence policy](downstream-pilot-policy.md) for the consumer
+matrix, minimum fixture and provenance proof, failure protocol, coordinated
+changes, and allowed `No downstream pilot` reasons.
+
+The standing [downstream canaries](audit/downstream-canaries.md) provide broad
+regression coverage. A green canary counts as pilot evidence only when its
+identified fixture actually exercises the changed contract and the run records
+the candidate and consumer provenance. This policy adds no workflow or
+required-check gate.
