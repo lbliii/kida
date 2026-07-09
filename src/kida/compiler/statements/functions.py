@@ -12,21 +12,10 @@ import ast
 import logging
 from typing import TYPE_CHECKING
 
-from kida.nodes.output import Data
-
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from kida.nodes import CallBlock, Def, Node, Region, Slot
 
 logger = logging.getLogger(__name__)
-
-
-def _slot_body_is_empty(slot_body: Sequence[object]) -> bool:
-    """Treat whitespace-only Data nodes the same as an empty slot body."""
-    return not slot_body or all(
-        isinstance(child, Data) and not child.value.strip() for child in slot_body
-    )
 
 
 class FunctionCompilationMixin:
@@ -480,14 +469,16 @@ class FunctionCompilationMixin:
         bindings and push them onto the scope stack so let: params are available
         as local variables in the slot body.
         """
+        from kida.compiler.callable_plans import plan_call_block
+
+        plan = plan_call_block(node)
         stmts: list[ast.stmt] = []
-        slots = node.slots
 
         # Build one function per slot
-        slot_fns: dict[str, str] = {}
-        for slot_name, slot_body in slots.items():
-            safe_name = slot_name.replace("-", "_")
-            fn_name = f"_caller_{safe_name}"
+        for slot in plan.slots:
+            slot_name = slot.name
+            slot_body = slot.body
+            fn_name = slot.function_name
 
             caller_body: list[ast.stmt] = self._make_callable_preamble()
 
@@ -526,7 +517,7 @@ class FunctionCompilationMixin:
             if outer is not None:
                 self._outer_caller_expr = ast.Name(id="_outer_caller", ctx=ast.Load())
                 # Delegate to outer caller when slot body is empty (fixes nested macro slot passthrough)
-                if _slot_body_is_empty(slot_body):
+                if slot.delegates_when_nested:
                     caller_body.append(
                         ast.If(
                             test=ast.Compare(
@@ -612,7 +603,6 @@ class FunctionCompilationMixin:
                 )
             ]
 
-            slot_fns[slot_name] = fn_name
             # _scope_stack required for _lookup_scope; _outer_caller for def nesting
             # **_slot_kwargs accepts scoped slot bindings from the def-side
             slot_args: list[ast.arg] = [ast.arg(arg="_scope_stack")]
@@ -787,8 +777,11 @@ class FunctionCompilationMixin:
             ast.Assign(
                 targets=[ast.Name(id="_caller_slots", ctx=ast.Store())],
                 value=ast.Dict(
-                    keys=[ast.Constant(value=k) for k in slot_fns],
-                    values=[ast.Name(id=v, ctx=ast.Load()) for v in slot_fns.values()],
+                    keys=[ast.Constant(value=name) for name, _ in plan.slot_function_items],
+                    values=[
+                        ast.Name(id=function_name, ctx=ast.Load())
+                        for _, function_name in plan.slot_function_items
+                    ],
                 ),
             )
         )
@@ -864,7 +857,7 @@ class FunctionCompilationMixin:
         # Suppress macro instrumentation so we get a raw ast.Call back
         saved_skip = getattr(self, "_skip_macro_instrumentation", False)
         self._skip_macro_instrumentation = True
-        call_expr = self._compile_expr(node.call)
+        call_expr = self._compile_expr(plan.call)
         self._skip_macro_instrumentation = saved_skip
 
         # If it's a function call, add _caller keyword (lambda binds _scope_stack)
@@ -1128,31 +1121,33 @@ class FunctionCompilationMixin:
 
         With body (default content): renders body when no caller is present.
         """
-        slot_name = node.name
+        from kida.compiler.callable_plans import plan_slot_render
+
+        plan = plan_slot_render(node)
+        slot_name = plan.name
 
         # Build caller() call with optional scoped binding kwargs
-        caller_call_keywords: list[ast.keyword] = []
-        for binding_name, binding_expr in node.bindings:
-            caller_call_keywords.append(
-                ast.keyword(
-                    arg=binding_name,
-                    value=self._compile_expr(binding_expr),
-                )
+        caller_call_keywords = [
+            ast.keyword(
+                arg=binding.name,
+                value=self._compile_expr(binding.expression),
             )
+            for binding in plan.bindings
+        ]
 
         # Compile default body content (orelse branch)
         # When bindings exist, push them onto scope_stack so the default body
         # can reference binding names, then pop in a finally block.
         orelse: list[ast.stmt] = []
-        if node.body:
+        if plan.body:
             body_stmts: list[ast.stmt] = []
-            for child in node.body:
+            for child in plan.body:
                 body_stmts.extend(self._compile_node(child))
-            if node.bindings and body_stmts:
+            if plan.bindings and body_stmts:
                 # Push binding values onto scope, wrap body in try/finally pop
                 binding_dict = ast.Dict(
-                    keys=[ast.Constant(value=name) for name, _ in node.bindings],
-                    values=[self._compile_expr(expr) for _, expr in node.bindings],
+                    keys=[ast.Constant(value=name) for name in plan.binding_names],
+                    values=[self._compile_expr(binding.expression) for binding in plan.bindings],
                 )
                 orelse.append(
                     ast.Expr(

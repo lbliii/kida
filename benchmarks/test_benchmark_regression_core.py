@@ -39,12 +39,19 @@ COMPILE_TEMPLATE = """\
 
 CALLABLE_COMPILE_TEMPLATE = """\
 {% def card(title: str, count: int = 2, *items, **attrs) %}
-  <article data-count="{{ count }}">{{ title }}{{ items | length }}{{ attrs | length }}</article>
+  <article data-count="{{ count }}">
+    <header>{% slot header %}</header>
+    {% slot body let:title=title %}{{ title }}{{ items | length }}{{ attrs | length }}{% end %}
+  </article>
 {% end %}
 {% region panel(title: str, count: int = 2, *items, **attrs) %}
   <section data-count="{{ count }}">{{ title }}{{ items | length }}{{ attrs | length }}</section>
 {% end %}
-{{ card("Card") }}{{ panel("Panel") }}
+{% call card("Card") %}
+  {% slot header %}<strong>Card</strong>{% end %}
+  {% slot body let:title %}<p>{{ title }}</p>{% end %}
+{% end %}
+{{ panel("Panel") }}
 """
 
 
@@ -256,5 +263,10 @@ def test_compile_small_template_batch(benchmark: BenchmarkFixture) -> None:
 
 @pytest.mark.benchmark(group="regression-core:compile")
 def test_compile_callable_template_batch(benchmark: BenchmarkFixture) -> None:
+    rendered = Environment(auto_reload=False).from_string(CALLABLE_COMPILE_TEMPLATE).render()
+    assert "<strong>Card</strong>" in rendered
+    assert "<p>Card</p>" in rendered
+    assert "Panel" in rendered
+
     total = benchmark(_compile_callable_batch, COMPILE_CALLS_PER_ROUND)
     assert total == COMPILE_CALLS_PER_ROUND
