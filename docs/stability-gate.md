@@ -18,6 +18,13 @@ with `--cov-fail-under=83`, focused render/sandbox/concurrency safety tests
 under `PYTHON_GIL=0`, and a wheel/sdist build plus clean-venv package smoke
 test.
 
+The 83% value is the active local combined coverage floor with branch
+measurement enabled; it is not a claim of 90% branch coverage. The current
+measured branch baseline, exact test-node ownership, and unresolved
+high-consequence paths are recorded in the versioned
+[critical-contract assurance inventory](audit/critical-contract-assurance-v1.md).
+Changing the threshold or CI enforcement remains a separate policy decision.
+
 Ruff lint and format checks are repository-wide (`ruff check .` and
 `ruff format --check .`) in both Makefile targets and CI. This currently covers
 all tracked Python under `src/kida/`, `tests/`, `examples/`, `benchmarks/`, and

@@ -1,11 +1,21 @@
 # RFC: Test Coverage Hardening
 
-**Status**: ✅ Implemented  
+**Status**: Historical — partially implemented; the 90% branch acceptance target was not met
 **Created**: 2026-01-09  
-**Updated**: 2026-02-08  
+**Updated**: 2026-07-09
 **Author**: Bengal Contributors  
 
 ---
+
+> [!NOTE]
+> This RFC records the January 2026 coverage-hardening plan and is not the
+> current coverage contract. A 2026-07-09 full-suite rebaseline measured 90.1%
+> statement coverage, 80.2% branch coverage, and 87.34% combined coverage. The
+> active local stability gate remains `--cov-fail-under=83`; CI coverage
+> reporting is non-blocking. See the versioned
+> [critical-contract assurance inventory](../docs/audit/critical-contract-assurance-v1.md)
+> for current test-node mappings, critical-domain branch data, and real gaps.
+> Raising thresholds or adding workflows/tools requires separate approval.
 
 ## Executive Summary
 
