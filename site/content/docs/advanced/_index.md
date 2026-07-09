@@ -74,6 +74,13 @@ Track block timings, macro calls, includes, and filter usage.
 Cache site-scoped blocks for 40-60% faster builds.
 :::{/card}
 
+:::{card} Render Capture and Manifests
+:icon: database
+:link: /docs/advanced/render-capture/
+:description: Record rendered block facts for build tooling
+Compare builds, inspect freeze-cache candidates, and derive search indexes.
+:::{/card}
+
 :::{card} Scoped Slots
 :icon: layers
 :link: /docs/advanced/scoped-slots/

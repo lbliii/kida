@@ -123,15 +123,14 @@ The classification checkbox is complete, but it intentionally does not claim
 that the separate "document and test every retained public export" checkbox is
 complete.
 
-- The scorecard currently finds 14 names absent from the README, published
-  docs, and checked examples: `ComponentWarning`, `FreezeCache`,
-  `FreezeCacheStats`, `KidaWarning`, `ManifestDiff`, `RenderCapture`,
-  `RenderManifest`, `SearchEntry`, `SearchManifestBuilder`, `WorkerEnvironment`,
-  `captured_render`, `default_field_extractor`, `get_capture`, and
-  `strip_colors`.
-- Exact-name presence is only a coarse signal. The capture/manifest family and
-  `Fragment` need a cohesive published workflow, while warning categories need
-  explicit filtering guidance.
+- Issue #249 adds a cohesive published and checked workflow for `Fragment`,
+  `FreezeCache`, `FreezeCacheStats`, `ManifestDiff`, `RenderCapture`,
+  `RenderManifest`, `SearchEntry`, `SearchManifestBuilder`, `captured_render`,
+  `default_field_extractor`, and `get_capture` without changing their contracts.
+- The scorecard now finds four names absent from the README, published docs, and
+  checked examples: `ComponentWarning`, `KidaWarning`, `WorkerEnvironment`, and
+  `strip_colors`. Exact-name presence remains a coarse signal; the warning
+  categories still need explicit filtering guidance.
 - `Token`, `WorkerEnvironment`, and `strip_colors` need public-contract review
   before 1.0. Any removal or relocation requires a separately approved
   deprecation path because all three remain in today's `kida.__all__` snapshot.
@@ -145,8 +144,9 @@ the literal root export list. It rejects missing, extra, duplicate, or unknown
 classifications, closing the drift gap left by the count-only maintainability
 scorecard and the export-only public API snapshot.
 
-No collateral for runtime code, `kida.__all__`, published API docs, examples,
-schemas, templates, CLI behavior, or changelog: this change records the current
-contract without changing behavior or a preferred user pattern. Benchmark and
-free-threading evidence are not applicable because no executable code or shared
-state changes.
+Issue #249 adds published API documentation, a checked runnable example, and
+direct root-export coverage for the capture/manifest family. No collateral for
+runtime code, `kida.__all__`, schemas, templates, CLI behavior, or changelog:
+the workflow documents existing behavior without changing it. Benchmark and
+free-threading evidence are not applicable because no hot path or shared-state
+implementation changes.

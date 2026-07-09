@@ -31,6 +31,8 @@ contract:
 - `Template` render, block-render, streaming, and metadata methods
 - metadata dataclass fields for `BlockMetadata`, `DefParamInfo`,
   `DefMetadata`, `TemplateMetadata`, and `TemplateStructureManifest`
+- render-capture records, manifests, diffs, freeze-cache analysis, and search
+  manifest helpers exported from `kida`
 - loader constructor behavior documented on this page
 - sandbox, render context, capture, and manifest objects exported from `kida`
 
@@ -145,6 +147,22 @@ confidence, location, and safe-edit snapshots. See
 [Extensions](/docs/extending/extensions/#static-diagnostics) for the complete
 protocol. Directory diagnosis and the CLI do not discover or run these hooks.
 
+## Render Capture and Manifests
+
+Build and framework tooling can opt in to compiler-injected capture hooks with
+`Environment(enable_capture=True)`, then use `captured_render()` to collect a
+`RenderCapture` for one render. Completed captures can be accumulated in a
+`RenderManifest`, compared as a `ManifestDiff`, inspected through `Fragment`
+records and `FreezeCache`/`FreezeCacheStats`, or adapted into search output with
+`SearchManifestBuilder`, `SearchEntry`, and `default_field_extractor`.
+
+`get_capture()` exposes the active render-local capture to integration helpers.
+The active value is ContextVar-scoped, while captures, manifests, freeze caches,
+and builders remain mutable caller-owned objects. See
+[[docs/advanced/render-capture|Render Capture and Manifests]] for the preferred
+lifecycle, thread-safety rules, runnable workflow, and context-capture privacy
+boundary.
+
 ## Environment
 
 Central configuration and template management hub.
@@ -165,6 +183,7 @@ env = Environment(
 | `loader` | `Loader` | `None` | Template source provider |
 | `autoescape` | `bool \| "html" \| "terminal" \| "markdown" \| Callable` | `True` | Output escaping mode |
 | `auto_reload` | `bool` | `True` | Check for source changes |
+| `preserve_ast` | `bool` | `True` | Preserve analysis metadata used by introspection and enriched render capture |
 | `cache_size` | `int` | `400` | Max cached templates |
 | `fragment_cache_size` | `int` | `1000` | Max cached fragments |
 | `fragment_ttl` | `float` | `300.0` | Fragment TTL (seconds) |
@@ -172,6 +191,7 @@ env = Environment(
 | `strict_undefined` | `bool` | `True` | Raise `UndefinedError` on missing variable or attribute access (set to `False` for lenient empty-string fallback) |
 | `jinja2_compat_warnings` | `bool` | `True` | Warn when `{% set %}` in an `if` branch shadows a `{% let %}`/`{% export %}` name |
 | `validate_calls` | `bool` | `False` | Validate `{% def %}` call sites at compile time |
+| `enable_capture` | `bool` | `False` | Compile opt-in render-capture hooks; activate them per render with `captured_render()` |
 
 > **Constructor contract note**: the generated dataclass constructor is part of
 > the snapshot gate. Parameters not documented here are compatibility details
