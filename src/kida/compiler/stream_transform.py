@@ -44,6 +44,16 @@ class BlockRenderModePlan:
     async_stream: BlockLoweringStrategy
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class BlockFunctionVariants:
+    """The sync, stream, and async-stream functions lowered for one block."""
+
+    sync: ast.FunctionDef
+    stream: ast.FunctionDef
+    async_stream: ast.AsyncFunctionDef
+
+
 def plan_block_render_modes(
     *,
     is_region: bool,

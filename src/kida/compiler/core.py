@@ -78,6 +78,7 @@ _BLOCK_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 if TYPE_CHECKING:
     import types
 
+    from kida.compiler.stream_transform import BlockFunctionVariants
     from kida.environment import Environment
     from kida.exceptions import ErrorCode, TemplateWarning
     from kida.nodes import Node
@@ -701,75 +702,20 @@ class Compiler(
         if globals_setup is not None:
             module_body.append(globals_setup)
 
-        # Generate all three block function variants (sync, stream, async stream).
-        # Regular blocks compile the Kida body once (sync), then derive stream
-        # variants via Python AST transformation (_append → yield), eliminating
-        # 2 redundant Kida AST compilations per block.
-        # Region blocks use their own delegation path and are unaffected.
-        from kida.compiler.stream_transform import (
-            BlockLoweringStrategy,
-            build_async_stream_block_function,
-            build_stream_block_function,
-            plan_block_render_modes,
-        )
-
         sync_blocks: list[ast.stmt] = []
         stream_blocks: list[ast.stmt] = []
         async_stream_blocks: list[ast.stmt] = []
         has_regions = any(isinstance(block_node, Region) for block_node in saved_blocks.values())
 
         for block_name, block_node in saved_blocks.items():
-            # Reset per-block flag before sync compilation
-            self._block_has_append_rebind = False
-            sync_blocks.append(self._make_block_function(block_name, block_node))
-            mode_plan = plan_block_render_modes(
-                is_region=isinstance(block_node, Region),
-                rebinds_append=self._block_has_append_rebind,
+            variants = self._lower_block_function_variants(
+                block_name,
+                block_node,
                 template_has_regions=has_regions,
-                template_has_async=self._has_async,
             )
-
-            if mode_plan.stream is BlockLoweringStrategy.COMPILE_DIRECT:
-                # Region, capture/cache, and region-bearing block variants need
-                # dedicated streaming compilation rather than AST transformation.
-                # A direct stream plan always implies direct async-stream lowering.
-                with self._lowering_mode(streaming=True):
-                    stream_blocks.append(self._make_block_function_stream(block_name, block_node))
-                    with self._lowering_mode(async_mode=True):
-                        async_stream_blocks.append(
-                            self._make_block_function_stream_async(block_name, block_node)
-                        )
-            else:
-                # Reuse sync body compilation saved by _make_block_function.
-                compiled_stmts = self._last_block_compiled_stmts or []
-                stream_blocks.append(
-                    build_stream_block_function(
-                        block_name,
-                        preamble=self._make_block_preamble(streaming=True),
-                        cache_assignments=self._emit_cache_assignments(
-                            self._last_block_cacheable_vars
-                        ),
-                        compiled_stmts=compiled_stmts,
-                    )
-                )
-
-                if mode_plan.async_stream is BlockLoweringStrategy.COMPILE_DIRECT:
-                    # Async syntax must be lowered while async mode is active.
-                    with self._lowering_mode(streaming=True, async_mode=True):
-                        async_stream_blocks.append(
-                            self._make_block_function_stream_async(block_name, block_node)
-                        )
-                else:
-                    async_stream_blocks.append(
-                        build_async_stream_block_function(
-                            block_name,
-                            preamble=self._make_block_preamble(streaming=True),
-                            cache_assignments=self._emit_cache_assignments(
-                                self._last_block_cacheable_vars
-                            ),
-                            compiled_stmts=compiled_stmts,
-                        )
-                    )
+            sync_blocks.append(variants.sync)
+            stream_blocks.append(variants.stream)
+            async_stream_blocks.append(variants.async_stream)
 
         module_body.extend(sync_blocks)
         module_body.append(render_func)
@@ -804,6 +750,67 @@ class Compiler(
         return ast.Module(
             body=module_body,
             type_ignores=[],
+        )
+
+    def _lower_block_function_variants(
+        self,
+        name: str,
+        block_node: Block | Region,
+        *,
+        template_has_regions: bool,
+    ) -> BlockFunctionVariants:
+        """Lower one block into its sync, stream, and async-stream functions."""
+        from kida.compiler.stream_transform import (
+            BlockFunctionVariants,
+            BlockLoweringStrategy,
+            build_async_stream_block_function,
+            build_stream_block_function,
+            plan_block_render_modes,
+        )
+
+        self._block_has_append_rebind = False
+        sync_block = self._make_block_function(name, block_node)
+        mode_plan = plan_block_render_modes(
+            is_region=isinstance(block_node, Region),
+            rebinds_append=self._block_has_append_rebind,
+            template_has_regions=template_has_regions,
+            template_has_async=self._has_async,
+        )
+
+        if mode_plan.stream is BlockLoweringStrategy.COMPILE_DIRECT:
+            # Region, capture/cache, and region-bearing block variants need
+            # dedicated streaming compilation rather than AST transformation.
+            # A direct stream plan always implies direct async-stream lowering.
+            with self._lowering_mode(streaming=True):
+                stream_block = self._make_block_function_stream(name, block_node)
+                with self._lowering_mode(async_mode=True):
+                    async_stream_block = self._make_block_function_stream_async(name, block_node)
+        else:
+            # Reuse sync body compilation saved by _make_block_function.
+            compiled_stmts = self._last_block_compiled_stmts or []
+            stream_block = build_stream_block_function(
+                name,
+                preamble=self._make_block_preamble(streaming=True),
+                cache_assignments=self._emit_cache_assignments(self._last_block_cacheable_vars),
+                compiled_stmts=compiled_stmts,
+            )
+
+            if mode_plan.async_stream is BlockLoweringStrategy.COMPILE_DIRECT:
+                # Async syntax must be lowered while async mode is active.
+                with self._lowering_mode(streaming=True, async_mode=True):
+                    async_stream_block = self._make_block_function_stream_async(name, block_node)
+            else:
+                async_stream_block = build_async_stream_block_function(
+                    name,
+                    preamble=self._make_block_preamble(streaming=True),
+                    cache_assignments=self._emit_cache_assignments(self._last_block_cacheable_vars),
+                    compiled_stmts=compiled_stmts,
+                )
+
+        return BlockFunctionVariants(
+            sync=sync_block,
+            stream=stream_block,
+            async_stream=async_stream_block,
         )
 
     def _make_globals_setup(self, node: TemplateNode) -> ast.FunctionDef | None:
