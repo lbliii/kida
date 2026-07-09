@@ -29,6 +29,7 @@ class ErrorHandlingMixin:
     if TYPE_CHECKING:
         _streaming: bool
         _block_counter: int
+        _block_has_append_rebind: bool
 
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
         def _lowering_mode(
@@ -68,6 +69,7 @@ class ErrorHandlingMixin:
             except (...) as _err_N:
                 # fallback body compiled in streaming mode (yields)
         """
+        self._block_has_append_rebind = True
         self._block_counter += 1
         counter = self._block_counter
         buf_name = f"_try_buf_{counter}"

@@ -111,6 +111,20 @@ AST_CASES = (
         "125b59591760bb0b",
         "0cd6802a6dfbfabb",
     ),
+    (
+        "error_boundary_block",
+        {
+            "error_boundary_block": (
+                "{% block content %}"
+                "{% try %}Hello {{ name }}"
+                "{% fallback err %}Fallback {{ err.type }}{% end %}"
+                "{% end %}"
+            )
+        },
+        "error_boundary_block",
+        "717132f4a7b8ef44",
+        "1829553a9001cc13",
+    ),
 )
 
 
