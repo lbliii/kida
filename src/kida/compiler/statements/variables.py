@@ -45,7 +45,7 @@ class VariableAssignmentMixin:
         # Host attributes (from Compiler.__init__)
         _block_counter: int
         _env: Any
-        _scope_depth: int
+        _jinja_scope_stack: list[str]
         _template_scope_names: set[str]
 
         # From ExpressionCompilationMixin
@@ -76,12 +76,15 @@ class VariableAssignmentMixin:
         With ??=, assigns only if the variable is undefined or None:
             {% set x ??= "default" %}
         """
-        if self._scope_depth > 0 and self._env.jinja2_compat_warnings:
-            # Narrow to the actual Jinja2 trap: a nested {% set %} that
-            # shadows a name already bound template-wide via {% let %} or
-            # {% export %}. Fresh names used for genuine block-scoped
-            # purposes don't trigger — the two engines behave identically
-            # there, so there's nothing to warn about.
+        if (
+            self._env.jinja2_compat_warnings
+            and self._jinja_scope_stack
+            and all(scope == "if" for scope in self._jinja_scope_stack)
+        ):
+            # Narrow to the actual Jinja2 trap: a {% set %} in a non-scoping
+            # {% if %} branch that shadows a name already bound template-wide
+            # via {% let %} or {% export %}. Fresh names and assignments inside
+            # Jinja-local loops do not trigger.
             shadowed = [
                 n for n in _collect_target_names(node.target) if n in self._template_scope_names
             ]
@@ -94,7 +97,8 @@ class VariableAssignmentMixin:
                     f"{{% set %}} assigns to '{name}' which is already bound "
                     f"by {{% let %}} or {{% export %}}. In Kida, this creates "
                     f"a block-scoped shadow that does not leak to outer scope. "
-                    f"In Jinja2, {{% set %}} would modify the outer variable.",
+                    f"In a Jinja2 {{% if %}} branch, {{% set %}} would modify "
+                    f"the outer variable because {{% if %}} does not create a scope.",
                     lineno=node.lineno,
                     suggestion=f"Use {{% export {name} = ... %}} to write to outer scope.",
                 )

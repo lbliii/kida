@@ -68,6 +68,9 @@ Fix: Check syntax around the reported line. Common causes: misplaced `{% end %}`
 
 When you type a Jinja2-ism that Kida does not accept, the parser error suggestion points at the Kida equivalent. Common traps:
 
+Matching explicit closers such as `{% endif %}`, `{% endfor %}`, and
+`{% endblock %}` are accepted and do not trigger these migration errors.
+
 | Jinja2 | Kida | Hint surfaced by parser |
 |--------|------|------------------------|
 | `{% macro name(...) %}` | `{% def name(...) %}` | "Kida uses `{% def %}` for macros" |
@@ -80,9 +83,10 @@ See [Migrating from Jinja2]({{< ref "docs/tutorials/migrate-from-jinja2" >}}) fo
 
 ### k-par-002
 
-**Unclosed block** — A block tag (e.g. `{% if %}`, `{% for %}`) was not closed with `{% end %}`.
+**Unclosed block** — A block tag (e.g. `{% if %}`, `{% for %}`) was not closed.
 
-Fix: Add `{% end %}` for every opening block tag.
+Fix: Add canonical `{% end %}` or the matching explicit closer, such as
+`{% endif %}` or `{% endfor %}`, for every opening block tag.
 
 ### k-par-003
 
@@ -463,11 +467,15 @@ Fix: Add parentheses to clarify intent: `(x ?? []) | length`.
 
 ### k-warn-002
 
-**Jinja2 `set` scoping difference** — A nested `{% set x = ... %}` targets a name already bound template-wide via `{% let x %}` or `{% export x %}`. In Kida this creates a block-scoped shadow that does not leak to outer scope; in Jinja2 it would modify the outer variable.
+**Jinja2 `set` scoping difference** — An `{% if %}` branch contains `{% set x = ... %}` targeting a name already bound template-wide via `{% let x %}` or `{% export x %}`. In Kida this creates a branch-scoped shadow that does not leak to outer scope; in Jinja2 an `if` does not create a scope, so the assignment modifies the outer variable.
 
 Fix: Use `{% export x = ... %}` to write to outer scope, or rename the target to avoid the shadow.
 
-Enabled by default. Suppress with `warnings.filterwarnings("ignore", category=MigrationWarning)` or `Environment(jinja2_compat_warnings=False)`. The warning is narrowed to the actual trap pattern — fresh names used for genuine block-scoped work do not trigger.
+Enabled by default. Suppress with `warnings.filterwarnings("ignore", category=MigrationWarning)` or `Environment(jinja2_compat_warnings=False)`. The warning is narrowed to the actual trap pattern: fresh names and assignments inside Jinja-local `for` scopes do not trigger.
+
+The warning is also available through `kida check`, `diagnose_source()`, and
+`diagnose_directory()` with its template path, line, suggestion, and proven
+confidence. It is advisory and has no automatic edit.
 
 ## See Also
 

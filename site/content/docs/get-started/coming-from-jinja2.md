@@ -28,10 +28,10 @@ Most Jinja2 syntax works in Kida unchanged:
 {{ variable }}
 {{ user.name }}
 {{ items | join(", ") }}
-{% if condition %}...{% end %}
-{% for item in items %}...{% end %}
+{% if condition %}...{% endif %}
+{% for item in items %}...{% endfor %}
 {% extends "base.html" %}
-{% block content %}...{% end %}
+{% block content %}...{% endblock %}
 {% include "partial.html" %}
 {# comments #}
 ```
@@ -40,15 +40,17 @@ Most Jinja2 syntax works in Kida unchanged:
 
 ### Block Endings
 
-Jinja2 uses tag-specific endings. Kida uses a unified `{% end %}`:
+Kida's canonical style uses a unified `{% end %}`, but matching explicit
+closers for supported blocks are accepted unchanged. Keeping `{% endif %}`,
+`{% endfor %}`, or `{% endblock %}` is a migration no-op:
 
 ```html
-{# Jinja2 #}
+{# Valid unchanged in Jinja2 and Kida #}
 {% if user %}...{% endif %}
 {% for x in items %}...{% endfor %}
 {% block nav %}...{% endblock %}
 
-{# Kida #}
+{# Canonical Kida style (optional cleanup) #}
 {% if user %}...{% end %}
 {% for x in items %}...{% end %}
 {% block nav %}...{% end %}

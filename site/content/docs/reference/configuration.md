@@ -328,11 +328,11 @@ To keep the lenient behavior on a specific `Environment` (useful when migrating 
 
 ### jinja2_compat_warnings
 
-Emit `MigrationWarning` when a nested `{% set %}` shadows a name already bound template-wide via `{% let %}` or `{% export %}` — the Jinja2 scoping trap.
+Emit `MigrationWarning` when an `{% if %}`-local `{% set %}` shadows a name already bound template-wide via `{% let %}` or `{% export %}` — the Jinja2 scoping trap.
 
 | Type | Default | Description |
 |------|---------|-------------|
-| `bool` | `True` | Warn on nested `{% set %}` that shadows a template-scope binding |
+| `bool` | `True` | Warn on `{% set %}` in an `if` branch that shadows a template-scope binding |
 
 ```python
 # Default — catches the Jinja2 trap
@@ -347,7 +347,7 @@ jinja2_compat_warnings=False
 
 When enabled, a template like `{% let x = 1 %}{% if cond %}{% set x = 2 %}{% end %}` emits a `MigrationWarning` (K-WARN-002) — in Jinja2 the author would expect `x == 2` after the block, but Kida's block-scoped `{% set %}` leaves `x == 1`. The warning names the shadowed variable and suggests `{% export %}` as the fix.
 
-The warning is **narrowly scoped** to the actual trap pattern: fresh names used for genuine block-scoped purposes (e.g., a loop-local counter) do not trigger — Kida and Jinja2 behave identically there.
+The warning is **narrowly scoped** to the actual trap pattern: fresh names and assignments inside `for` loops do not trigger. Jinja2 loop assignments are already local, so Kida and Jinja2 agree there.
 
 ### fstring_coalescing
 

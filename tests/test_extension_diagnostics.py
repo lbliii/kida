@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import ast
 import inspect
 import operator
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import FrozenInstanceError, fields, replace
+from dataclasses import FrozenInstanceError, dataclass, fields, replace
+from threading import Lock
+from typing import ClassVar
 
 import pytest
 
@@ -25,6 +28,8 @@ from kida.diagnostics import (
     diagnose_source,
 )
 from kida.extensions import Extension, ExtensionDiagnosticContext
+from kida.lexer import TokenType
+from kida.nodes import Node
 
 
 def _finding(
@@ -75,6 +80,49 @@ def test_extension_diagnostic_public_contract_and_legacy_default() -> None:
         operator.setitem(context.definitions, "card", object())
     with pytest.raises(FrozenInstanceError):
         context.__setattr__("source", "changed")
+
+
+def test_unsaved_diagnosis_accepts_noncopyable_extension_node_payload() -> None:
+    @dataclass(frozen=True, slots=True)
+    class LockedNode(Node):
+        lock: object
+
+    class LockedExtension(Extension):
+        tags: ClassVar[set[str]] = {"locked"}
+        node_types: ClassVar[set[str]] = {"LockedNode"}
+
+        def parse(self, parser, tag_name):
+            token = parser._advance()
+            parser._expect(TokenType.BLOCK_END)
+            return LockedNode(
+                lineno=token.lineno,
+                col_offset=token.col_offset,
+                lock=Lock(),
+            )
+
+        def compile(self, compiler, node):
+            return [compiler._emit_output(ast.Constant(value="LOCKED"))]
+
+    source = '{% locked %}{% template user: str %}{{ usre }}<img src="avatar.png">'
+    env = Environment(extensions=[LockedExtension])
+
+    assert env.from_string(source, name="page.html").render(usre="") == (
+        'LOCKED<img src="avatar.png">'
+    )
+
+    report = diagnose_source(
+        source,
+        name="page.html",
+        environment=env,
+        options=DiagnosticOptions(typed=True, a11y=True),
+    )
+
+    assert report.partial is False
+    assert [item.code for item in report.diagnostics] == [
+        "K-TYP-001",
+        "K-TYP-002",
+        "K-A11Y-001",
+    ]
 
 
 @pytest.mark.parametrize(

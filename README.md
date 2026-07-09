@@ -44,6 +44,10 @@ template = env.get_template("page.html")
 html = template.render(title="Hello")
 ```
 
+Kida's canonical block ending is `{% end %}`. Matching explicit closers such as
+`{% endif %}`, `{% endfor %}`, and `{% endblock %}` are also accepted, so an
+otherwise compatible Jinja template does not need closer-only edits.
+
 ## Static Validation
 
 Kida catches component mistakes before a user sees a page, report, or terminal
@@ -345,8 +349,9 @@ for finding in report.diagnostics:
 updated_source = apply_safe_edits(unsaved_source, report.diagnostics, path="page.html")
 ```
 
-Source buffers are analyzed directly without entering template or bytecode
-caches. Safe edits are snapshot-checked and overlap-checked before application.
+Source buffers are parsed and compiled directly without entering template or
+bytecode caches, so compiler warnings and analysis findings share one report.
+Safe edits are snapshot-checked and overlap-checked before application.
 Use `diagnose_directory()` for programmatic parity with `kida check`. A supplied
 environment can also run namespaced `Extension.diagnose()` hooks with immutable
 source, AST, and visible component-signature context.

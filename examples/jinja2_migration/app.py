@@ -1,7 +1,7 @@
 """Jinja2 migration -- side-by-side comparison of equivalent templates.
 
 Same page logic in Kida and Jinja2. Highlights syntax differences:
-- {% end %} vs {% endif %}/{% endfor %}
+- Matching Jinja closers are accepted unchanged; {% end %} is canonical Kida style
 - {% match %} vs {% if %}/{% elif %}/{% else %}
 - ?? vs | default()
 - ?. vs | default() for optional chaining
@@ -13,6 +13,17 @@ Run:
 from jinja2 import Environment as Jinja2Environment
 
 from kida import Environment as KidaEnvironment
+
+# This source is valid in both engines without rewriting endif/endfor/endblock.
+SHARED_EXPLICIT_CLOSERS = """\
+{% block content %}
+<ul>
+{% for item in items %}
+{% if item.visible %}<li>{{ item.name }}</li>{% endif %}
+{% endfor %}
+</ul>
+{% endblock %}
+"""
 
 # Equivalent templates: status badge with optional user
 KIDA_TEMPLATE = """\
@@ -70,6 +81,8 @@ jinja2_env = Jinja2Environment(autoescape=True)
 
 kida_tmpl = kida_env.from_string(KIDA_TEMPLATE)
 jinja2_tmpl = jinja2_env.from_string(JINJA2_TEMPLATE_SIMPLE)
+shared_kida_tmpl = kida_env.from_string(SHARED_EXPLICIT_CLOSERS)
+shared_jinja2_tmpl = jinja2_env.from_string(SHARED_EXPLICIT_CLOSERS)
 
 # Context: active user with bio
 context_full = {
@@ -97,6 +110,15 @@ jinja2_output_minimal = jinja2_tmpl.render(**context_minimal)
 
 kida_output_empty = kida_tmpl.render(**context_empty)
 jinja2_output_empty = jinja2_tmpl.render(**context_empty)
+
+shared_context = {
+    "items": [
+        {"name": "Visible", "visible": True},
+        {"name": "Hidden", "visible": False},
+    ]
+}
+shared_kida_output = shared_kida_tmpl.render(**shared_context)
+shared_jinja2_output = shared_jinja2_tmpl.render(**shared_context)
 
 
 def _normalize(html: str) -> str:

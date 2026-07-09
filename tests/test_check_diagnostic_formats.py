@@ -282,6 +282,67 @@ def test_strict_safe_edit_has_json_sarif_and_text_parity(
     assert _validate_schema(payload, schema, schema) == []
 
 
+def test_compiler_warning_has_text_json_and_sarif_parity(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (tmp_path / "page.html").write_text(
+        "{% let value = 1 %}\n{% if true %}\n{% set value = 2 %}\n{% end %}",
+        encoding="utf-8",
+    )
+
+    text_exit = main(["check", str(tmp_path)])
+    text = capsys.readouterr()
+    json_exit = main(["check", str(tmp_path), "--format", "json"])
+    json_capture = capsys.readouterr()
+    sarif_exit = main(["check", str(tmp_path), "--format", "sarif"])
+    sarif_capture = capsys.readouterr()
+
+    assert text_exit == json_exit == sarif_exit == 1
+    assert text.out == ""
+    assert text.err.count("K-WARN-002") == 1
+    assert "page.html:3: K-WARN-002:" in text.err
+    assert "Hint: Use {% export value = ... %} to write to outer scope." in text.err
+    assert json_capture.err == sarif_capture.err == ""
+
+    payload = json.loads(json_capture.out)
+    sarif = json.loads(sarif_capture.out)
+    assert payload["summary"] == {
+        "errors": 0,
+        "warnings": 1,
+        "info": 0,
+        "total": 1,
+    }
+    diagnostic = payload["diagnostics"][0]
+    result = sarif["runs"][0]["results"][0]
+
+    assert diagnostic["code"] == result["ruleId"] == "K-WARN-002"
+    assert diagnostic["message"] == result["message"]["text"]
+    assert diagnostic["message"] in text.err
+    assert (
+        diagnostic["path"]
+        == (result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"])
+        == "page.html"
+    )
+    assert diagnostic["severity"] == result["level"] == "warning"
+    assert diagnostic["range"] == {
+        "start": {"line": 3, "column": None},
+        "end": None,
+    }
+    assert result["locations"][0]["physicalLocation"]["region"] == {"startLine": 3}
+    assert (
+        diagnostic["suggestion"]
+        == result["properties"]["suggestion"]
+        == ("Use {% export value = ... %} to write to outer scope.")
+    )
+    assert diagnostic["confidence"] == result["properties"]["confidence"] == "proven"
+    assert diagnostic["safe_edit"] is None
+    assert "fixes" not in result
+
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    assert _validate_schema(payload, schema, schema) == []
+
+
 def test_deduplication_keeps_first_exact_diagnostic_event(tmp_path: Path) -> None:
     collector = _Collector(tmp_path)
     diagnostic = Diagnostic(

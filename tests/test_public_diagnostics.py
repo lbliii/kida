@@ -152,6 +152,96 @@ def test_unsaved_source_uses_supplied_text_without_loader_or_cache() -> None:
     assert report.diagnostics[-1].confidence is DiagnosticConfidence.CONSERVATIVE
 
 
+def test_unsaved_source_includes_compiler_warning_without_edit_or_loader() -> None:
+    env = Environment(loader=_FailIfLoaded())
+    report = diagnose_source(
+        "{% let value = 1 %}\n{% if true %}\n{% set value = 2 %}\n{% end %}",
+        name="page.html",
+        environment=env,
+    )
+
+    assert len(report.diagnostics) == 1
+    diagnostic = report.diagnostics[0]
+    assert diagnostic.code == "K-WARN-002"
+    assert diagnostic.category == "warning"
+    assert diagnostic.severity is DiagnosticSeverity.WARNING
+    assert diagnostic.span == SourceSpan(
+        path="page.html",
+        start=SourcePosition(3),
+    )
+    assert diagnostic.suggestion == ("Use {% export value = ... %} to write to outer scope.")
+    assert diagnostic.confidence is DiagnosticConfidence.PROVEN
+    assert diagnostic.safe_edit is None
+
+
+def test_unsaved_source_preserves_disabled_migration_warning_policy() -> None:
+    env = Environment(jinja2_compat_warnings=False)
+
+    report = diagnose_source(
+        "{% let value = 1 %}{% if true %}{% set value = 2 %}{% end %}",
+        name="page.html",
+        environment=env,
+    )
+
+    assert report.diagnostics == ()
+
+
+def test_unsaved_warning_probe_matches_directory_dead_code_elimination(
+    tmp_path: Path,
+) -> None:
+    source = "{% let value = 1 %}{% if false %}{% set value = 2 %}{% end %}"
+    (tmp_path / "page.html").write_text(source, encoding="utf-8")
+
+    assert diagnose_source(source, name="page.html").diagnostics == ()
+    assert diagnose_directory(tmp_path).diagnostics == ()
+
+
+def test_unsaved_compiler_probe_preserves_ast_for_later_analyzers() -> None:
+    from copy import deepcopy
+
+    from kida.compiler import Compiler
+    from kida.compiler.partial_eval import eliminate_dead_code
+    from kida.lexer import Lexer
+    from kida.parser import Parser
+
+    source = (
+        "{% template user: str %}\n"
+        "{% let value = 1 %}\n"
+        "{% if true %}\n"
+        "{% set value = 2 %}\n"
+        "{% end %}\n"
+        "{{ usre }}\n"
+        '<img src="x">'
+    )
+    env = Environment()
+    ast = Parser(
+        list(Lexer(source, env._lexer_config).tokenize()),
+        name="page.html",
+        filename=None,
+        source=source,
+        autoescape=env.select_autoescape("page.html"),
+    ).parse()
+    snapshot = deepcopy(ast)
+
+    optimized = eliminate_dead_code(ast)
+    assert ast == snapshot
+    Compiler(env).compile(optimized, "page.html", None)
+
+    assert ast == snapshot
+    report = diagnose_source(
+        source,
+        name="page.html",
+        environment=env,
+        options=DiagnosticOptions(typed=True, a11y=True),
+    )
+    assert [item.code for item in report.diagnostics] == [
+        "K-WARN-002",
+        "K-TYP-001",
+        "K-TYP-002",
+        "K-A11Y-001",
+    ]
+
+
 def test_source_reports_malformed_input_as_partial_with_location() -> None:
     report = diagnose_source("{% if broken %}", name="broken.html")
 
@@ -163,6 +253,27 @@ def test_source_reports_malformed_input_as_partial_with_location() -> None:
     assert diagnostic.span.path == "broken.html"
     assert diagnostic.span.start is not None
     assert diagnostic.span.start.line == 1
+
+
+def test_source_compiler_failure_matches_directory_load_short_circuit(
+    tmp_path: Path,
+) -> None:
+    source = '{% if true %}{% def nested() %}x{% end %}{% end %}<img src="x">'
+    (tmp_path / "page.html").write_text(source, encoding="utf-8")
+    options = DiagnosticOptions(a11y=True)
+
+    source_report = diagnose_source(source, name="page.html", options=options)
+    directory_report = diagnose_directory(tmp_path, options=options)
+
+    assert source_report.partial is directory_report.partial is True
+    assert [item.code for item in source_report.diagnostics] == ["K-TPL-004"]
+    assert [item.code for item in directory_report.diagnostics] == ["K-TPL-004"]
+    assert source_report.diagnostics[0].message == directory_report.diagnostics[0].message
+    assert (
+        source_report.diagnostics[0].span.path
+        == (directory_report.diagnostics[0].span.path)
+        == "page.html"
+    )
 
 
 def test_source_strict_option_controls_unified_end_finding() -> None:
@@ -327,6 +438,34 @@ def test_directory_report_matches_cli_json_facts(
     assert [(item.code, item.span.path, item.message) for item in report.diagnostics] == [
         (item["code"], item["path"], item["message"]) for item in payload["diagnostics"]
     ]
+
+
+def test_directory_compiler_warning_is_deduplicated_and_phase_ordered(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "page.html").write_text(
+        "{% let value = 1 %}\n"
+        "{% if true %}\n"
+        "{% set value = 2 %}\n"
+        "{% end %}\n"
+        '<img src="avatar.png">',
+        encoding="utf-8",
+    )
+    options = DiagnosticOptions(strict=True, a11y=True)
+
+    first = diagnose_directory(tmp_path, options=options)
+    second = diagnose_directory(tmp_path, options=options)
+
+    assert first == second
+    assert [item.code for item in first.diagnostics] == [
+        "K-WARN-002",
+        "K-PAR-007",
+        "K-A11Y-001",
+    ]
+    assert sum(item.code == "K-WARN-002" for item in first.diagnostics) == 1
+    warning = first.diagnostics[0]
+    assert warning.span == SourceSpan(path="page.html", start=SourcePosition(3))
+    assert warning.safe_edit is None
 
 
 def test_missing_directory_is_a_partial_report_not_an_exception(tmp_path: Path) -> None:
