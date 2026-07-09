@@ -38,7 +38,8 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from kida.compiler.coalescing import FStringCoalescingMixin
@@ -641,6 +642,26 @@ class Compiler(
             ),
         )
 
+    @contextmanager
+    def _lowering_mode(
+        self,
+        *,
+        streaming: bool | None = None,
+        async_mode: bool | None = None,
+    ) -> Iterator[None]:
+        """Temporarily select compiler lowering flags and always restore them."""
+        saved_streaming = self._streaming
+        saved_async_mode = self._async_mode
+        if streaming is not None:
+            self._streaming = streaming
+        if async_mode is not None:
+            self._async_mode = async_mode
+        try:
+            yield
+        finally:
+            self._streaming = saved_streaming
+            self._async_mode = saved_async_mode
+
     def _compile_template(self, node: TemplateNode) -> ast.Module:
         """Generate Python module from template.
 
@@ -712,14 +733,12 @@ class Compiler(
                 # Region, capture/cache, and region-bearing block variants need
                 # dedicated streaming compilation rather than AST transformation.
                 # A direct stream plan always implies direct async-stream lowering.
-                self._streaming = True
-                stream_blocks.append(self._make_block_function_stream(block_name, block_node))
-                self._async_mode = True
-                async_stream_blocks.append(
-                    self._make_block_function_stream_async(block_name, block_node)
-                )
-                self._async_mode = False
-                self._streaming = False
+                with self._lowering_mode(streaming=True):
+                    stream_blocks.append(self._make_block_function_stream(block_name, block_node))
+                    with self._lowering_mode(async_mode=True):
+                        async_stream_blocks.append(
+                            self._make_block_function_stream_async(block_name, block_node)
+                        )
             else:
                 # Reuse sync body compilation saved by _make_block_function.
                 compiled_stmts = self._last_block_compiled_stmts or []
@@ -736,13 +755,10 @@ class Compiler(
 
                 if mode_plan.async_stream is BlockLoweringStrategy.COMPILE_DIRECT:
                     # Async syntax must be lowered while async mode is active.
-                    self._streaming = True
-                    self._async_mode = True
-                    async_stream_blocks.append(
-                        self._make_block_function_stream_async(block_name, block_node)
-                    )
-                    self._async_mode = False
-                    self._streaming = False
+                    with self._lowering_mode(streaming=True, async_mode=True):
+                        async_stream_blocks.append(
+                            self._make_block_function_stream_async(block_name, block_node)
+                        )
                 else:
                     async_stream_blocks.append(
                         build_async_stream_block_function(
@@ -759,10 +775,9 @@ class Compiler(
         module_body.append(render_func)
 
         # Streaming render function
-        self._streaming = True
-        module_body.extend(stream_blocks)
-        module_body.append(self._make_render_function_stream(node, saved_blocks))
-        self._streaming = False
+        with self._lowering_mode(streaming=True):
+            module_body.extend(stream_blocks)
+            module_body.append(self._make_render_function_stream(node, saved_blocks))
 
         # Always generate async streaming variants so async blocks from child
         # templates can be dispatched through sync parent templates.
@@ -782,12 +797,9 @@ class Compiler(
         # participants so async child blocks can flow through sync parents.
         needs_async_stream = self._has_async or bool(saved_blocks) or extends_target is not None
         if needs_async_stream:
-            self._streaming = True
-            self._async_mode = True
-            module_body.extend(async_stream_blocks)
-            module_body.append(self._make_render_function_stream_async(node, saved_blocks))
-            self._async_mode = False
-            self._streaming = False
+            with self._lowering_mode(streaming=True, async_mode=True):
+                module_body.extend(async_stream_blocks)
+                module_body.append(self._make_render_function_stream_async(node, saved_blocks))
 
         return ast.Module(
             body=module_body,

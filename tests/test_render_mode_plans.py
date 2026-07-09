@@ -98,6 +98,47 @@ def test_block_render_mode_plan_is_frozen() -> None:
     assert type(plan).__dataclass_params__.frozen is True
 
 
+def test_lowering_mode_restores_nested_state() -> None:
+    compiler = Compiler(Environment())
+
+    with compiler._lowering_mode(streaming=True):
+        assert compiler._streaming is True
+        assert compiler._async_mode is False
+        with compiler._lowering_mode(streaming=False, async_mode=True):
+            assert compiler._streaming is False
+            assert compiler._async_mode is True
+        assert compiler._streaming is True
+        assert compiler._async_mode is False
+
+    assert compiler._streaming is False
+    assert compiler._async_mode is False
+
+
+def test_lowering_mode_restores_state_after_exception() -> None:
+    compiler = Compiler(Environment())
+    compiler._streaming = True
+
+    with (
+        pytest.raises(RuntimeError, match="stop"),
+        compiler._lowering_mode(streaming=False, async_mode=True),
+    ):
+        raise RuntimeError("stop")
+
+    assert compiler._streaming is True
+    assert compiler._async_mode is False
+
+
+def test_lowering_mode_state_is_per_compiler_instance() -> None:
+    first = Compiler(Environment())
+    second = Compiler(Environment())
+
+    with first._lowering_mode(streaming=True, async_mode=True):
+        assert first._streaming is True
+        assert first._async_mode is True
+        assert second._streaming is False
+        assert second._async_mode is False
+
+
 def _generated_ast_hash(
     templates: dict[str, str],
     entry: str,
