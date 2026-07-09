@@ -10,11 +10,13 @@ import pytest
 from kida import DictLoader, Environment
 from kida.compiler import Compiler
 from kida.compiler.stream_transform import (
+    BlockFunctionVariants,
     BlockLoweringStrategy,
     plan_block_render_modes,
 )
 from kida.lexer import Lexer
 from kida.nodes import (
+    Block,
     Cache,
     CallBlock,
     Capture,
@@ -170,6 +172,37 @@ def test_block_render_mode_plan_is_frozen() -> None:
     )
 
     assert type(plan).__dataclass_params__.frozen is True
+
+
+def test_block_function_variants_have_typed_frozen_contract() -> None:
+    compiler = Compiler(Environment())
+    block = Block(
+        lineno=1,
+        col_offset=0,
+        name="content",
+        body=(
+            Capture(
+                lineno=1,
+                col_offset=0,
+                name="message",
+                body=(Data(lineno=1, col_offset=0, value="body"),),
+            ),
+        ),
+    )
+
+    variants = compiler._lower_block_function_variants(
+        "content",
+        block,
+        template_has_regions=False,
+    )
+
+    assert isinstance(variants, BlockFunctionVariants)
+    assert type(variants).__dataclass_params__.frozen is True
+    assert variants.sync.name == "_block_content"
+    assert variants.stream.name == "_block_content_stream"
+    assert variants.async_stream.name == "_block_content_stream_async"
+    assert compiler._streaming is False
+    assert compiler._async_mode is False
 
 
 def test_lowering_mode_restores_nested_state() -> None:
