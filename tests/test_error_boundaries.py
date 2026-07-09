@@ -133,3 +133,42 @@ class TestTryStreaming:
         # "before" should not appear — body was buffered and discarded
         assert "before" not in result
         assert "fallback" in result
+
+    def test_named_block_stream_matches_buffered_success_and_fallback(self) -> None:
+        """Error boundaries inside named blocks use valid direct stream lowering."""
+        template = Environment().from_string(
+            "{% block content %}"
+            "{% try %}Hello {{ name }}"
+            "{% fallback err %}Fallback {{ err.type }}{% end %}"
+            "{% end %}"
+        )
+
+        for context, expected in (
+            ({"name": "Ada"}, "Hello Ada"),
+            ({}, "Fallback UndefinedError"),
+        ):
+            assert template.render(**context) == expected
+            assert template.render_with_blocks({}, **context) == expected
+            assert "".join(template.render_stream(**context)) == expected
+
+    async def test_named_block_async_stream_matches_buffered_block_render(self) -> None:
+        """Async full/block streaming preserves success and fallback output."""
+        template = Environment().from_string(
+            "{% block content %}"
+            "{% try %}Hello {{ name }}"
+            "{% fallback err %}Fallback {{ err.type }}{% end %}"
+            "{% end %}"
+        )
+
+        for context, expected in (
+            ({"name": "Ada"}, "Hello Ada"),
+            ({}, "Fallback UndefinedError"),
+        ):
+            full_stream = "".join(
+                [chunk async for chunk in template.render_stream_async(**context)]
+            )
+            block_stream = "".join(
+                [chunk async for chunk in template.render_block_stream_async("content", **context)]
+            )
+            assert template.render_block("content", **context) == expected
+            assert full_stream == block_stream == expected
