@@ -33,6 +33,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, Any
 
+from kida.compiler.utils import make_line_marker
 from kida.utils.constants import PURE_FILTERS_COALESCEABLE
 
 if TYPE_CHECKING:
@@ -70,8 +71,6 @@ class FStringCoalescingMixin:
 
         # From Compiler core
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
-
-        def _make_line_marker(self, lineno: int) -> ast.stmt: ...
 
         # From BasicStatementMixin
         @staticmethod
@@ -319,7 +318,7 @@ class FStringCoalescingMixin:
                     None,
                 )
                 if first_output is not None:
-                    stmts.append(self._make_line_marker(first_output.lineno))
+                    stmts.append(make_line_marker(first_output.lineno))
                 stmts.append(self._compile_coalesced_output(coalesceable))
             elif coalesceable:
                 # Single node - use normal compilation

@@ -44,6 +44,12 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from kida.compiler.coalescing import FStringCoalescingMixin
 from kida.compiler.expressions import ExpressionCompilationMixin
 from kida.compiler.statements import StatementCompilationMixin
+from kida.compiler.utils import (
+    LINE_TRACKED_NODE_TYPES,
+    fix_missing_locations_fast,
+    make_line_marker,
+    make_template_warning,
+)
 from kida.nodes import (
     AsyncFor,
     Block,
@@ -72,59 +78,13 @@ if TYPE_CHECKING:
     import types
 
     from kida.environment import Environment
+    from kida.exceptions import ErrorCode, TemplateWarning
     from kida.nodes import Node
     from kida.nodes import Template as TemplateNode
 
 _TOP_LEVEL_STATEMENTS = frozenset(
     {"FromImport", "Import", "Set", "Let", "Export", "Def", "Do", "Region"}
 )
-
-
-def _fix_missing_locations_fast(node: ast.AST) -> ast.AST:
-    """Fill missing Python AST locations without recursive iter_fields overhead.
-
-    Mirrors :func:`ast.fix_missing_locations`: each child inherits the current
-    parent location unless it already carries its own value. Kida emits large
-    generated ASTs during compile, so avoiding ``ast.iter_child_nodes()`` saves
-    measurable compile time while preserving traceback line semantics.
-    """
-    stack: list[tuple[ast.AST, int, int, int, int]] = [(node, 1, 0, 1, 0)]
-    while stack:
-        current, lineno, col_offset, end_lineno, end_col_offset = stack.pop()
-        current_any = cast("Any", current)
-        attrs = current._attributes
-        if "lineno" in attrs:
-            if not hasattr(current, "lineno"):
-                current_any.lineno = lineno
-            else:
-                lineno = cast("int", current_any.lineno)
-        if "end_lineno" in attrs:
-            if getattr(current, "end_lineno", None) is None:
-                current_any.end_lineno = end_lineno
-            else:
-                end_lineno = cast("int", current_any.end_lineno)
-        if "col_offset" in attrs:
-            if not hasattr(current, "col_offset"):
-                current_any.col_offset = col_offset
-            else:
-                col_offset = cast("int", current_any.col_offset)
-        if "end_col_offset" in attrs:
-            if getattr(current, "end_col_offset", None) is None:
-                current_any.end_col_offset = end_col_offset
-            else:
-                end_col_offset = cast("int", current_any.end_col_offset)
-
-        for field_name in reversed(current._fields):
-            field = getattr(current, field_name, None)
-            if isinstance(field, ast.AST):
-                stack.append((field, lineno, col_offset, end_lineno, end_col_offset))
-            elif isinstance(field, list):
-                stack.extend(
-                    (item, lineno, col_offset, end_lineno, end_col_offset)
-                    for item in reversed(field)
-                    if isinstance(item, ast.AST)
-                )
-    return node
 
 
 class Compiler(
@@ -278,7 +238,7 @@ class Compiler(
         self._last_block_compiled_stmts: list[ast.stmt] | None = None
         self._name: str | None = None
         self._filename: str | None = None
-        self._warnings: list = []  # TemplateWarning instances
+        self._warnings: list[TemplateWarning] = []
         self._scope_depth: int = 0  # Track nesting depth inside scoping blocks (if/for/while)
         # Track local variables (loop variables, etc.) for O(1) direct access
         self._locals: set[str] = set()
@@ -335,20 +295,23 @@ class Compiler(
         self._node_dispatch: dict[str, Callable] = type(self)._ensure_dispatch()
 
     @property
-    def warnings(self) -> list:
+    def warnings(self) -> list[TemplateWarning]:
         """Compile-time warnings accumulated during compilation."""
         return self._warnings
 
     def _emit_warning(
-        self, code, message: str, *, lineno: int | None = None, suggestion: str | None = None
+        self,
+        code: ErrorCode,
+        message: str,
+        *,
+        lineno: int | None = None,
+        suggestion: str | None = None,
     ) -> None:
         """Record a compile-time warning."""
-        from kida.exceptions import TemplateWarning
-
         self._warnings.append(
-            TemplateWarning(
-                code=code,
-                message=message,
+            make_template_warning(
+                code,
+                message,
                 template_name=self._name,
                 lineno=lineno,
                 suggestion=suggestion,
@@ -648,7 +611,7 @@ class Compiler(
         module = self._compile_template(node)
 
         # Fix missing locations for Python 3.8+
-        _fix_missing_locations_fast(module)
+        fix_missing_locations_fast(module)
 
         # Compile to code object
         return compile(
@@ -1989,47 +1952,6 @@ class Compiler(
             returns=None,
         )
 
-    # Node types that can cause runtime errors and should track line numbers
-    _LINE_TRACKED_NODES = frozenset(
-        {
-            "Output",  # Expression evaluation
-            "For",  # Iterator access, filter application
-            "AsyncFor",  # Async iterator access (RFC: rfc-async-rendering)
-            "If",  # Boolean coercion, attribute access
-            "Match",  # Pattern matching
-            "Set",  # Expression evaluation
-            "Let",  # Expression evaluation
-            "CallBlock",  # Function calls
-            "Do",  # Side-effect expressions
-            "WithConditional",  # Conditional with block (expression evaluation)
-            "Include",  # Template inclusion (errors in included templates)
-            "FromImport",  # Template import (macro/function access)
-            "Import",  # Template import
-            "Embed",  # Template embedding
-        }
-    )
-
-    def _make_line_marker(self, lineno: int) -> ast.stmt:
-        """Generate RenderContext line update for error tracking.
-
-        Generates: _rc.line = lineno
-
-        Uses the cached _rc local (set in preamble) instead of calling
-        _get_render_ctx() per node, avoiding repeated ContextVar.get() calls.
-
-        RFC: kida-contextvar-patterns
-        """
-        return ast.Assign(
-            targets=[
-                ast.Attribute(
-                    value=ast.Name(id="_rc", ctx=ast.Load()),
-                    attr="line",
-                    ctx=ast.Store(),
-                )
-            ],
-            value=ast.Constant(value=lineno),
-        )
-
     @staticmethod
     def _compile_template_context(_node: Node) -> list[ast.stmt]:
         """No-op: TemplateContext is a declaration, not code."""
@@ -2048,8 +1970,8 @@ class Compiler(
 
         # Inject line marker for risky nodes
         stmts: list[ast.stmt] = []
-        if node_type in self._LINE_TRACKED_NODES:
-            stmts.append(self._make_line_marker(node.lineno))
+        if node_type in LINE_TRACKED_NODE_TYPES:
+            stmts.append(make_line_marker(node.lineno))
 
         # Dispatch table — O(1) lookup, unbound functions called with self
         handler = self._node_dispatch.get(node_type)
