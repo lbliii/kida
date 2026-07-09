@@ -139,6 +139,11 @@ class _FailingChildCompiler(Compiler):
         raise RuntimeError(f"stop on {type(node).__name__}")
 
 
+class _FailingExpressionCompiler(Compiler):
+    def _compile_expr(self, node: Node, store: bool = False) -> ast.expr:
+        raise RuntimeError(f"stop on {type(node).__name__}")
+
+
 @pytest.mark.parametrize("is_region", [False, True])
 @pytest.mark.parametrize("rebinds_append", [False, True])
 @pytest.mark.parametrize("template_has_regions", [False, True])
@@ -375,6 +380,22 @@ def test_slot_callback_body_failure_restores_async_mode_and_cleanup() -> None:
     assert compiler._cached_vars == {"cached"}
     assert compiler._outer_caller_expr is None
     assert compiler._def_caller_stack == [outer_caller]
+
+
+def test_call_expression_failure_restores_macro_instrumentation_mode() -> None:
+    compiler = _FailingExpressionCompiler(Environment())
+    compiler._skip_macro_instrumentation = False
+    node = CallBlock(
+        lineno=1,
+        col_offset=0,
+        call=Const(lineno=1, col_offset=0, value=None),
+        slots={},
+    )
+
+    with pytest.raises(RuntimeError, match="stop on Const"):
+        compiler._compile_call_block(node)
+
+    assert compiler._skip_macro_instrumentation is False
 
 
 def test_def_body_failure_restores_lowering_mode_and_bound_locals() -> None:
