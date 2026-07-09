@@ -54,6 +54,16 @@ CALLABLE_COMPILE_TEMPLATE = """\
 {{ panel("Panel") }}
 """
 
+RENDER_MODE_COMPILE_TEMPLATE = """\
+{% block content %}
+  <main>Hello {{ name }}</main>
+{% end %}
+{% block captured %}
+  {% capture message %}<strong>{{ name }}</strong>{% end %}
+  {{ message }}
+{% end %}
+"""
+
 
 class AttrObject:
     __slots__ = ("name",)
@@ -147,6 +157,15 @@ def _compile_callable_batch(iterations: int) -> int:
     compiled = 0
     for i in range(iterations):
         template = env.from_string(CALLABLE_COMPILE_TEMPLATE, name=f"callable-core-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_render_mode_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(RENDER_MODE_COMPILE_TEMPLATE, name=f"render-mode-{i}")
         compiled += template.name is not None
     return compiled
 
@@ -269,4 +288,16 @@ def test_compile_callable_template_batch(benchmark: BenchmarkFixture) -> None:
     assert "Panel" in rendered
 
     total = benchmark(_compile_callable_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_render_mode_template_batch(benchmark: BenchmarkFixture) -> None:
+    template = Environment(auto_reload=False).from_string(RENDER_MODE_COMPILE_TEMPLATE)
+    rendered = template.render(name="Ada")
+    assert "<main>Hello Ada</main>" in rendered
+    assert "&lt;strong&gt;Ada&lt;/strong&gt;" in rendered
+    assert "".join(template.render_stream(name="Ada")) == rendered
+
+    total = benchmark(_compile_render_mode_batch, COMPILE_CALLS_PER_ROUND)
     assert total == COMPILE_CALLS_PER_ROUND

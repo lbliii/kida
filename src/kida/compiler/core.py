@@ -685,7 +685,11 @@ class Compiler(
         # variants via Python AST transformation (_append → yield), eliminating
         # 2 redundant Kida AST compilations per block.
         # Region blocks use their own delegation path and are unaffected.
-        from kida.compiler.stream_transform import sync_body_to_stream
+        from kida.compiler.stream_transform import (
+            BlockLoweringStrategy,
+            plan_block_render_modes,
+            sync_body_to_stream,
+        )
 
         sync_blocks: list[ast.stmt] = []
         stream_blocks: list[ast.stmt] = []
@@ -696,9 +700,17 @@ class Compiler(
             # Reset per-block flag before sync compilation
             self._block_has_append_rebind = False
             sync_blocks.append(self._make_block_function(block_name, block_node))
+            mode_plan = plan_block_render_modes(
+                is_region=isinstance(block_node, Region),
+                rebinds_append=self._block_has_append_rebind,
+                template_has_regions=has_regions,
+                template_has_async=self._has_async,
+            )
 
-            if isinstance(block_node, Region):
-                # Region blocks: compile separately (they delegate, not compile body)
+            if mode_plan.stream is BlockLoweringStrategy.COMPILE_DIRECT:
+                # Region, capture/cache, and region-bearing block variants need
+                # dedicated streaming compilation rather than AST transformation.
+                # A direct stream plan always implies direct async-stream lowering.
                 self._streaming = True
                 stream_blocks.append(self._make_block_function_stream(block_name, block_node))
                 self._async_mode = True
@@ -708,20 +720,38 @@ class Compiler(
                 self._async_mode = False
                 self._streaming = False
             else:
-                # Regular blocks: reuse sync body compilation saved by
-                # _make_block_function, transform for streaming.
+                # Reuse sync body compilation saved by _make_block_function.
                 compiled_stmts = self._last_block_compiled_stmts or []
 
-                if self._block_has_append_rebind or has_regions:
-                    # Block rebinds _append (capture/cache/spaceless/push) —
-                    # fall back to dedicated stream compilation so that the
-                    # _append → yield transform does not leak captured content.
-                    # Region-bearing templates also need direct stream
-                    # compilation: region calls are string-returning
-                    # expressions and must receive sync block functions even
-                    # when the surrounding block is streamed.
+                stream_stmts = sync_body_to_stream(compiled_stmts)
+
+                # Build stream block function
+                stream_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
+                stream_body.extend(self._emit_cache_assignments(self._last_block_cacheable_vars))
+                stream_body.extend(stream_stmts)
+                stream_body.append(ast.Return(value=None))
+                stream_body.append(ast.Expr(value=ast.Yield(value=None)))
+                stream_blocks.append(
+                    ast.FunctionDef(
+                        name=f"_block_{block_name}_stream",
+                        args=ast.arguments(
+                            posonlyargs=[],
+                            args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+                            vararg=None,
+                            kwonlyargs=[],
+                            kw_defaults=[],
+                            kwarg=None,
+                            defaults=[],
+                        ),
+                        body=stream_body,
+                        decorator_list=[],
+                        returns=None,
+                    )
+                )
+
+                if mode_plan.async_stream is BlockLoweringStrategy.COMPILE_DIRECT:
+                    # Async syntax must be lowered while async mode is active.
                     self._streaming = True
-                    stream_blocks.append(self._make_block_function_stream(block_name, block_node))
                     self._async_mode = True
                     async_stream_blocks.append(
                         self._make_block_function_stream_async(block_name, block_node)
@@ -729,19 +759,15 @@ class Compiler(
                     self._async_mode = False
                     self._streaming = False
                 else:
-                    stream_stmts = sync_body_to_stream(compiled_stmts)
-
-                    # Build stream block function
-                    stream_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
-                    stream_body.extend(
-                        self._emit_cache_assignments(self._last_block_cacheable_vars)
-                    )
-                    stream_body.extend(stream_stmts)
-                    stream_body.append(ast.Return(value=None))
-                    stream_body.append(ast.Expr(value=ast.Yield(value=None)))
-                    stream_blocks.append(
-                        ast.FunctionDef(
-                            name=f"_block_{block_name}_stream",
+                    async_stmts = sync_body_to_stream(compiled_stmts)
+                    async_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
+                    async_body.extend(self._emit_cache_assignments(self._last_block_cacheable_vars))
+                    async_body.extend(async_stmts)
+                    async_body.append(ast.Return(value=None))
+                    async_body.append(ast.Expr(value=ast.Yield(value=None)))
+                    async_stream_blocks.append(
+                        ast.AsyncFunctionDef(
+                            name=f"_block_{block_name}_stream_async",
                             args=ast.arguments(
                                 posonlyargs=[],
                                 args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
@@ -751,49 +777,11 @@ class Compiler(
                                 kwarg=None,
                                 defaults=[],
                             ),
-                            body=stream_body,
+                            body=async_body,
                             decorator_list=[],
                             returns=None,
                         )
                     )
-
-                    # Async stream: if template has async constructs, must compile
-                    # separately (AsyncFor → ast.AsyncFor requires _async_mode=True).
-                    # Otherwise, derive from sync body transform.
-                    if self._has_async:
-                        self._streaming = True
-                        self._async_mode = True
-                        async_stream_blocks.append(
-                            self._make_block_function_stream_async(block_name, block_node)
-                        )
-                        self._async_mode = False
-                        self._streaming = False
-                    else:
-                        async_stmts = sync_body_to_stream(compiled_stmts)
-                        async_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
-                        async_body.extend(
-                            self._emit_cache_assignments(self._last_block_cacheable_vars)
-                        )
-                        async_body.extend(async_stmts)
-                        async_body.append(ast.Return(value=None))
-                        async_body.append(ast.Expr(value=ast.Yield(value=None)))
-                        async_stream_blocks.append(
-                            ast.AsyncFunctionDef(
-                                name=f"_block_{block_name}_stream_async",
-                                args=ast.arguments(
-                                    posonlyargs=[],
-                                    args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
-                                    vararg=None,
-                                    kwonlyargs=[],
-                                    kw_defaults=[],
-                                    kwarg=None,
-                                    defaults=[],
-                                ),
-                                body=async_body,
-                                decorator_list=[],
-                                returns=None,
-                            )
-                        )
 
         module_body.extend(sync_blocks)
         module_body.append(render_func)
