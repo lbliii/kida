@@ -9,7 +9,8 @@ streaming variant. The transform replaces:
     _append(expr)  →  yield expr
     return ''.join(buf)  →  (removed)
 
-The preamble and return/sentinel are handled by the caller, not this transform.
+The transformed block builders preserve preamble/cache ordering and append the
+return/generator sentinel required by the runtime dispatch contract.
 
 Uses copy-on-write: only nodes on the path to ``_append`` call sites are
 copied.  Unchanged subtrees are shared with the original AST, making this
@@ -87,6 +88,77 @@ def sync_body_to_stream(stmts: list[ast.stmt]) -> list[ast.stmt]:
         if new_stmt is not None:
             result.append(new_stmt)
     return result
+
+
+def _build_transformed_block_body(
+    *,
+    preamble: list[ast.stmt],
+    cache_assignments: list[ast.stmt],
+    compiled_stmts: list[ast.stmt],
+) -> list[ast.stmt]:
+    """Assemble one transformed block body in runtime contract order."""
+    return [
+        *preamble,
+        *cache_assignments,
+        *sync_body_to_stream(compiled_stmts),
+        ast.Return(value=None),
+        ast.Expr(value=ast.Yield(value=None)),
+    ]
+
+
+def _block_arguments() -> ast.arguments:
+    """Build the shared ``(ctx, _blocks)`` block function signature."""
+    return ast.arguments(
+        posonlyargs=[],
+        args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
+        vararg=None,
+        kwonlyargs=[],
+        kw_defaults=[],
+        kwarg=None,
+        defaults=[],
+    )
+
+
+def build_stream_block_function(
+    name: str,
+    *,
+    preamble: list[ast.stmt],
+    cache_assignments: list[ast.stmt],
+    compiled_stmts: list[ast.stmt],
+) -> ast.FunctionDef:
+    """Build a sync generator block from compiled StringBuilder statements."""
+    return ast.FunctionDef(
+        name=f"_block_{name}_stream",
+        args=_block_arguments(),
+        body=_build_transformed_block_body(
+            preamble=preamble,
+            cache_assignments=cache_assignments,
+            compiled_stmts=compiled_stmts,
+        ),
+        decorator_list=[],
+        returns=None,
+    )
+
+
+def build_async_stream_block_function(
+    name: str,
+    *,
+    preamble: list[ast.stmt],
+    cache_assignments: list[ast.stmt],
+    compiled_stmts: list[ast.stmt],
+) -> ast.AsyncFunctionDef:
+    """Build an async generator block from compiled StringBuilder statements."""
+    return ast.AsyncFunctionDef(
+        name=f"_block_{name}_stream_async",
+        args=_block_arguments(),
+        body=_build_transformed_block_body(
+            preamble=preamble,
+            cache_assignments=cache_assignments,
+            compiled_stmts=compiled_stmts,
+        ),
+        decorator_list=[],
+        returns=None,
+    )
 
 
 class _AppendToYield(ast.NodeTransformer):

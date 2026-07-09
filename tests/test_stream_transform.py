@@ -13,7 +13,11 @@ from __future__ import annotations
 
 import ast
 
-from kida.compiler.stream_transform import sync_body_to_stream
+from kida.compiler.stream_transform import (
+    build_async_stream_block_function,
+    build_stream_block_function,
+    sync_body_to_stream,
+)
 
 
 def _parse_body(source: str) -> list[ast.stmt]:
@@ -131,6 +135,52 @@ log("done")
         assert result[0] is body[0]  # assignment unchanged (identity)
         assert _is_yield_of(result[1], "x")
         assert result[2] is body[2]  # log() call unchanged (identity)
+
+
+class TestTransformedBlockBuilders:
+    def test_sync_stream_builder_preserves_contract_order(self) -> None:
+        preamble = _parse_body("setup = 1")
+        cache_assignments = _parse_body("cached = 2")
+        compiled_stmts = _parse_body("_append(value)")
+
+        function = build_stream_block_function(
+            "content",
+            preamble=preamble,
+            cache_assignments=cache_assignments,
+            compiled_stmts=compiled_stmts,
+        )
+
+        assert function.name == "_block_content_stream"
+        assert tuple(argument.arg for argument in function.args.args) == ("ctx", "_blocks")
+        assert function.body[0] is preamble[0]
+        assert function.body[1] is cache_assignments[0]
+        assert _is_yield_of(function.body[2], "value")
+        assert isinstance(function.body[-2], ast.Return)
+        assert isinstance(function.body[-1], ast.Expr)
+        assert isinstance(function.body[-1].value, ast.Yield)
+        assert function.body[-1].value.value is None
+
+    def test_async_stream_builder_preserves_contract_order(self) -> None:
+        preamble = _parse_body("setup = 1")
+        cache_assignments = _parse_body("cached = 2")
+        compiled_stmts = _parse_body("_append(value)")
+
+        function = build_async_stream_block_function(
+            "content",
+            preamble=preamble,
+            cache_assignments=cache_assignments,
+            compiled_stmts=compiled_stmts,
+        )
+
+        assert function.name == "_block_content_stream_async"
+        assert tuple(argument.arg for argument in function.args.args) == ("ctx", "_blocks")
+        assert function.body[0] is preamble[0]
+        assert function.body[1] is cache_assignments[0]
+        assert _is_yield_of(function.body[2], "value")
+        assert isinstance(function.body[-2], ast.Return)
+        assert isinstance(function.body[-1], ast.Expr)
+        assert isinstance(function.body[-1].value, ast.Yield)
+        assert function.body[-1].value.value is None
 
 
 class TestCopyOnWrite:
