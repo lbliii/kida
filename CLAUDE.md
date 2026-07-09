@@ -32,7 +32,8 @@ src/kida/
   analysis/             # Static analysis (dependencies, purity, a11y, coverage)
   sandbox.py            # Sandboxed execution
   formatter.py          # Template source formatter
-  cli.py                # CLI: kida check, kida format
+  cli.py                # Stable CLI entrypoint facade
+  _cli/                 # Lazy command dispatch, parser, and command-owned modules
   markdown/             # Markdown render surface
   terminal/             # Terminal render surface (ANSI colors)
   tstring.py            # T-string / k(t"...") inline templates
@@ -214,7 +215,22 @@ html = template.render_block("content", title="Hello")    # Single block
 html = template.render_with_blocks({"content": inner}, title="Hello")  # Composition
 meta = template.template_metadata()                       # AST introspection
 blocks = template.block_metadata()                        # Block name → metadata
+
+from kida.diagnostics import DiagnosticOptions, apply_safe_edits, diagnose_source
+report = diagnose_source(
+    source,
+    name="page.html",
+    environment=env,
+    options=DiagnosticOptions(validate_calls=True, typed=True),
+)
+updated = apply_safe_edits(source, report.diagnostics, path="page.html")
 ```
+
+Extensions can add static findings to `diagnose_source(..., environment=env)`
+by declaring an uppercase `diagnostic_namespace` and implementing
+`diagnose(context)`. The context is immutable and includes source, AST, and
+visible `DefMetadata`; hooks do not run during rendering or directory/CLI
+diagnosis.
 
 ## Dependencies
 

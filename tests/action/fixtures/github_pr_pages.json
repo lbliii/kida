@@ -1,0 +1,74 @@
+[
+  {
+    "data": {
+      "repository": {
+        "pullRequests": {
+          "pageInfo": {
+            "hasNextPage": true,
+            "endCursor": "cursor-2"
+          },
+          "nodes": [
+            {
+              "number": 10,
+              "title": "Add visible feature",
+              "mergedAt": "2026-07-05T12:00:00Z",
+              "body": "<!-- release-note: Added the visible feature. -->\n\nUser-facing feature details.\n\nImplementation notes.",
+              "author": {"login": "alice"},
+              "labels": {"nodes": [{"name": "feature"}]},
+              "closingIssuesReferences": {
+                "nodes": [{"number": 100, "title": "Visible feature"}]
+              },
+              "mergeCommit": {"oid": "merge-10"}
+            },
+            {
+              "number": 11,
+              "title": "Bump urllib3 from 1.0 to 2.0",
+              "mergedAt": "2026-07-06T12:00:00Z",
+              "body": "Fixes #101",
+              "author": {"login": "dependabot[bot]"},
+              "labels": {"nodes": [{"name": "dependencies"}]},
+              "closingIssuesReferences": {"nodes": []},
+              "mergeCommit": {"oid": "merge-11"}
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "data": {
+      "repository": {
+        "pullRequests": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "number": 12,
+              "title": "Document direct commits",
+              "mergedAt": "2026-07-07T12:00:00Z",
+              "body": "Closes #102 and resolves #103",
+              "author": {"login": "bob"},
+              "labels": {"nodes": []},
+              "closingIssuesReferences": {
+                "nodes": [{"number": 102, "title": "Document commits"}]
+              },
+              "mergeCommit": {"oid": "merge-12"}
+            },
+            {
+              "number": 5,
+              "title": "Earlier work",
+              "mergedAt": "2026-06-20T12:00:00Z",
+              "body": "Earlier release work.",
+              "author": {"login": "alice"},
+              "labels": {"nodes": []},
+              "closingIssuesReferences": {"nodes": []},
+              "mergeCommit": {"oid": "merge-5"}
+            }
+          ]
+        }
+      }
+    }
+  }
+]

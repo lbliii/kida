@@ -13,6 +13,8 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
+
     from kida.nodes import Node
     from kida.nodes.control_flow import Try
 
@@ -27,8 +29,15 @@ class ErrorHandlingMixin:
     if TYPE_CHECKING:
         _streaming: bool
         _block_counter: int
+        _block_has_append_rebind: bool
 
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
+        def _lowering_mode(
+            self,
+            *,
+            streaming: bool | None = None,
+            async_mode: bool | None = None,
+        ) -> AbstractContextManager[None]: ...
 
     def _compile_try(self, node: Try) -> list[ast.stmt]:
         """Compile {% try %}...{% fallback %}...{% end %} error boundary.
@@ -60,6 +69,7 @@ class ErrorHandlingMixin:
             except (...) as _err_N:
                 # fallback body compiled in streaming mode (yields)
         """
+        self._block_has_append_rebind = True
         self._block_counter += 1
         counter = self._block_counter
         buf_name = f"_try_buf_{counter}"
@@ -120,13 +130,14 @@ class ErrorHandlingMixin:
 
         # --- Try body ---
         # In streaming mode, compile body in non-streaming mode so it uses _append
-        if is_streaming:
-            self._streaming = False
         try_body: list[ast.stmt] = []
-        for child in node.body:
-            try_body.extend(self._compile_node(child))
         if is_streaming:
-            self._streaming = True
+            with self._lowering_mode(streaming=False):
+                for child in node.body:
+                    try_body.extend(self._compile_node(child))
+        else:
+            for child in node.body:
+                try_body.extend(self._compile_node(child))
 
         if not is_streaming:
             # Restore _append before flush

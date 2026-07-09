@@ -40,6 +40,52 @@ The package smoke test verifies:
 - component metadata
 - sandbox denial for blocked reflection attributes
 
+## Scheduled Free-Threading Stress
+
+The required `Thread Safety` CI job runs one deterministic randomized seed on
+every pull request. Weekly and manual CI runs expand the same test to 25 seeds.
+Each seed assigns ten supported shared-runtime operations to different workers
+for 40 barrier-synchronized rounds, covering 400 operations without sleep-based
+correctness assertions. The weekly window therefore covers 10,000 operations
+across distinct role, key, invalidation, and submission schedules.
+
+Pytest includes the seed in each test ID and the test prints it before execution.
+Reproduce a reported seed locally with the GIL disabled:
+
+```bash
+PYTHON_GIL=0 KIDA_STRESS_SEED=17 KIDA_STRESS_RUNS=1 \
+  uv run pytest tests/test_randomized_thread_stress.py \
+  -vv -s --tb=short --timeout=120
+```
+
+Increase `KIDA_STRESS_RUNS` to exercise consecutive seeds beginning at
+`KIDA_STRESS_SEED`. The accepted weekly window is 25 consecutive seeds; larger
+manual windows are allowed up to 100 seeds. A failure is actionable only with
+its seed, Python build, GIL status, and failing operation/assertion preserved.
+
+### Periodic debug-runtime protocol
+
+Weekly and manual workflows repeat the same 25-seed window under Python
+development mode with allocator debug hooks and `faulthandler`, while retaining
+`PYTHON_GIL=0`. The test first asserts that development mode, fault handling,
+`PYTHONMALLOC=debug`, and GIL-disabled execution are all active; a misconfigured
+lane therefore fails before claiming deeper evidence.
+
+Reproduce the protocol locally:
+
+```bash
+PYTHON_GIL=0 PYTHONDEVMODE=1 PYTHONFAULTHANDLER=1 PYTHONMALLOC=debug \
+KIDA_REQUIRE_DEBUG_RUNTIME=1 KIDA_STRESS_SEED=0 KIDA_STRESS_RUNS=25 \
+  uv run python -X dev -m pytest tests/test_randomized_thread_stress.py \
+  -vv -s --tb=short --timeout=120
+```
+
+This is a **debug-runtime protocol**, not ThreadSanitizer and not a CPython
+`Py_DEBUG` build. It exercises Python's development-mode runtime checks on the
+managed free-threaded interpreter without implying native data-race detection.
+Adopt a true sanitizer or combined free-threaded debug-build lane only when a
+maintained, reproducible runner artifact is available.
+
 ## Release Automation Gate
 
 Before running the release target, merge the release-prep PR and work from a

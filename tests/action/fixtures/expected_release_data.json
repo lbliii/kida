@@ -1,0 +1,57 @@
+{
+  "version": "1.1.0",
+  "previous_version": "1.0.0",
+  "release_date": "2026-07-08",
+  "repository": "owner/repo",
+  "pull_requests": [
+    {
+      "number": 10,
+      "title": "Add visible feature",
+      "author": "alice",
+      "labels": ["feature"],
+      "body": "<!-- release-note: Added the visible feature. -->\n\nUser-facing feature details.\n\nImplementation notes.",
+      "body_excerpt": "User-facing feature details.",
+      "release_note": "Added the visible feature.",
+      "linked_issues": [{"number": 100, "title": "Visible feature"}],
+      "dependency_updates": []
+    },
+    {
+      "number": 11,
+      "title": "Bump urllib3 from 1.0 to 2.0",
+      "author": "dependabot[bot]",
+      "labels": ["dependencies"],
+      "body": "Fixes #101",
+      "body_excerpt": "Fixes #101",
+      "release_note": "",
+      "linked_issues": [{"number": 101, "title": ""}],
+      "dependency_updates": [{"name": "urllib3", "from": "1.0", "to": "2.0"}]
+    },
+    {
+      "number": 12,
+      "title": "Document direct commits",
+      "author": "bob",
+      "labels": [],
+      "body": "Closes #102 and resolves #103",
+      "body_excerpt": "Closes #102 and resolves #103",
+      "release_note": "",
+      "linked_issues": [
+        {"number": 102, "title": "Document commits"},
+        {"number": 103, "title": ""}
+      ],
+      "dependency_updates": []
+    }
+  ],
+  "contributors": ["alice", "bob", "dependabot[bot]"],
+  "new_contributors": ["bob", "dependabot[bot]"],
+  "compare_url": "https://github.com/owner/repo/compare/v1.0.0...v1.1.0",
+  "diff_stats": {
+    "files_changed": 4,
+    "insertions": 20,
+    "deletions": 3,
+    "new_files": ["docs/new.md"]
+  },
+  "direct_commits": [
+    {"sha": "direct-1", "message": "docs: direct note", "author": "Dana"}
+  ],
+  "benchmarks": {"deltas": []}
+}

@@ -87,6 +87,7 @@ PR comments are updated by a stable HTML marker derived from `comment-header`. U
 | --- | --- |
 | `report` | Rendered markdown content |
 | `comment-id` | PR comment ID (when posting to PR) |
+| `data-file` | Collected JSON path when `data-format: github-prs` |
 
 ## Examples
 
@@ -213,6 +214,52 @@ Point `template` at any `.md` file in your repo. Data is unpacked as template va
     install: 'false'
     kida-command: uv run kida
 ```
+
+### Release notes from merged pull requests
+
+Use a full-history checkout so tag discovery, comparison dates, direct commits,
+and diff statistics are available:
+
+```yaml
+- uses: actions/checkout@v7
+  with:
+    fetch-depth: 0
+
+- uses: lbliii/kida@v0
+  id: release-notes
+  with:
+    template: release-notes
+    data: auto
+    data-format: github-prs
+    head-ref: v0.12.0
+    post-to: step-summary
+```
+
+The collector follows every page of merged pull requests, validates GitHub's
+response and the report data contract, and fails with an explicit Action error
+for malformed responses, missing refs, or a base ref that is not an ancestor of
+the head. Network access is limited to the collector boundary; report rendering
+uses the resulting JSON file.
+
+To reproduce collection locally from a full clone with authenticated `gh`:
+
+```bash
+GH_TOKEN="$(gh auth token)" \
+python action_support/release_notes.py \
+  --repository owner/repo \
+  --base-ref v0.11.0 \
+  --head-ref v0.12.0 \
+  --repository-root . \
+  --output /tmp/kida-release-data.json
+
+uv run kida render templates/release-notes-report.md \
+  --data /tmp/kida-release-data.json \
+  --data-format json
+```
+
+Release-created workflow events preserve curated GitHub release bodies and post
+the generated report only to the step summary. The manual release-notes workflow
+may publish generated notes when explicitly invoked.
 
 ## Agent templates (AMP)
 

@@ -13,6 +13,8 @@ import ast
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
+
     from kida.nodes import Capture, Embed, Flush, Node, Provide, Push, Raw, Spaceless, Stack
 
 
@@ -38,6 +40,12 @@ class SpecialBlockMixin:
         # From Compiler core
         def _compile_node(self, node: Node) -> list[ast.stmt]: ...
         def _emit_output(self, value_expr: ast.expr) -> ast.stmt: ...
+        def _lowering_mode(
+            self,
+            *,
+            streaming: bool | None = None,
+            async_mode: bool | None = None,
+        ) -> AbstractContextManager[None]: ...
 
     def _compile_flush(self, node: Flush) -> list[ast.stmt]:
         """Compile {% flush %} — streaming flush boundary.
@@ -95,10 +103,9 @@ class SpecialBlockMixin:
             )
 
             # Compile body in StringBuilder mode so it uses _append
-            self._streaming = False
-            for child in node.body:
-                stmts.extend(self._compile_node(child))
-            self._streaming = True
+            with self._lowering_mode(streaming=False):
+                for child in node.body:
+                    stmts.extend(self._compile_node(child))
         else:
             # Save/restore outer _append
             stmts.append(
@@ -200,10 +207,9 @@ class SpecialBlockMixin:
                     value=ast.Name(id=append_name, ctx=ast.Load()),
                 )
             )
-            self._streaming = False
-            for child in node.body:
-                stmts.extend(self._compile_node(child))
-            self._streaming = True
+            with self._lowering_mode(streaming=False):
+                for child in node.body:
+                    stmts.extend(self._compile_node(child))
             # yield _spaceless(''.join(buf))
             stmts.append(self._emit_output(result_expr))
         else:
@@ -275,10 +281,9 @@ class SpecialBlockMixin:
                     value=ast.Name(id=append_name, ctx=ast.Load()),
                 )
             )
-            self._streaming = False
-            for child in node.body:
-                stmts.extend(self._compile_node(child))
-            self._streaming = True
+            with self._lowering_mode(streaming=False):
+                for child in node.body:
+                    stmts.extend(self._compile_node(child))
         else:
             save_name = f"_save_append_{suffix}"
             stmts.append(

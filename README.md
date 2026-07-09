@@ -3,6 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/kida-templates.svg)](https://pypi.org/project/kida-templates/)
 [![Build Status](https://github.com/lbliii/kida/actions/workflows/tests.yml/badge.svg)](https://github.com/lbliii/kida/actions/workflows/tests.yml)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://pypi.org/project/kida-templates/)
+[![Python 3.14t no-GIL tested](https://img.shields.io/badge/Python%203.14t-no--GIL%20tested-2ea44f.svg)](https://lbliii.github.io/kida/docs/about/thread-safety/#tested-support-status)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 **Server-side components for Python — no npm, no build step.**
@@ -200,6 +201,15 @@ Python code, render state lives in `ContextVar`, and environment mutation uses
 copy-on-write patterns. Public APIs are safe under `PYTHON_GIL=0` on
 free-threaded Python 3.14t.
 
+The no-GIL badge is backed by a required Python 3.14t pull-request lane covering
+the full suite, focused thread-safety and async tests, and benchmark regression.
+Weekly and manual runs add 25 seeded schedules (10,000 shared-runtime operations)
+plus Python development mode, allocator debug hooks, and `faulthandler`.
+
+The claim covers Kida's [documented sharing contract](https://lbliii.github.io/kida/docs/about/thread-safety/#whats-safe),
+not unsynchronized application state, custom callables, external source mutation,
+ThreadSanitizer, or a CPython `Py_DEBUG` build.
+
 ## Why Kida?
 
 | | Traditional templates | Kida |
@@ -314,6 +324,32 @@ templates = KidaTemplates(directory="templates")
 # Django
 TEMPLATES = [{"BACKEND": "kida.contrib.django.KidaTemplates", ...}]
 ```
+
+</details>
+
+<details>
+<summary><strong>Programmatic Diagnostics</strong></summary>
+
+```python
+from kida.diagnostics import DiagnosticOptions, apply_safe_edits, diagnose_source
+
+report = diagnose_source(
+    unsaved_source,
+    name="page.html",
+    environment=env,
+    options=DiagnosticOptions(validate_calls=True, typed=True, a11y=True),
+)
+for finding in report.diagnostics:
+    print(finding.code, finding.message, finding.span)
+
+updated_source = apply_safe_edits(unsaved_source, report.diagnostics, path="page.html")
+```
+
+Source buffers are analyzed directly without entering template or bytecode
+caches. Safe edits are snapshot-checked and overlap-checked before application.
+Use `diagnose_directory()` for programmatic parity with `kida check`. A supplied
+environment can also run namespaced `Extension.diagnose()` hooks with immutable
+source, AST, and visible component-signature context.
 
 </details>
 

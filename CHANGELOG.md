@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added report-only downstream canaries for chirp-ui's HTML/component corpus
+  and Milo's terminal/CLI templates. Each job proves it imports the proposed
+  Kida checkout instead of the released wheel, records commit provenance, runs
+  on Python 3.14t with `PYTHON_GIL=0`, uses read-only permissions, and remains
+  safe for public-fork pull requests.
+- Added namespaced `Extension.diagnose()` hooks to programmatic unsaved-source
+  diagnosis. Hooks receive immutable source, AST, and visible component
+  metadata; Kida validates ownership, confidence, current-template locations,
+  and safe-edit snapshots, and isolates failures as partial `K-RUN-007`
+  reports. Rendering, directory diagnosis, and CLI discovery are unchanged.
+- Added snapshot-verified safe edits for strict unified closers. JSON, SARIF,
+  and the public diagnostic model identify the exact `end` keyword replacement,
+  while `kida.diagnostics.apply_safe_edits()` rejects stale, incomplete, or
+  overlapping edits before applying anything. Advisory type, path, component,
+  and migration suggestions remain non-fixing.
+- Added the public `kida.diagnostics` API with immutable diagnostic facts,
+  policy-neutral reports, direct diagnosis of unsaved source buffers,
+  directory collection matching `kida check`, and safe conversion of Kida
+  exceptions for framework adapters. The module does not expand the root
+  `kida.__all__`, mutate environment registries, or add a runtime dependency.
+- Added `kida check --format {text,json,sarif}` with a versioned diagnostics
+  JSON v1 schema and SARIF 2.1.0 output. All three surfaces share one
+  deterministic, deduplicated collection; machine output records partial scans
+  and preserves the existing `0`/`1`/`2` exit policy while default text output
+  and stderr routing remain compatible.
+- Registered static-analysis diagnostics in the public `ErrorCode` enum,
+  retaining existing `K-PRI-*`, `K-CTX-*`, and `K-ESC-*` values and adding
+  stable `K-A11Y-*`, `K-TYP-*`, and `K-PATH-001` mappings. Accessibility,
+  template-declaration type, and fragile-path findings expose computed `code`
+  properties without changing their constructor fields or CLI behavior.
+
 ## [0.11.0] - 2026-07-07
 
 ### Added
@@ -16,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split the CLI monolith into private command-owned modules behind the unchanged
+  `kida.cli:main` entry point. Argument parsing, lazy dispatch, execution, and
+  structured presentation now have direct test seams; all eight commands keep
+  their flags, help, streams, serialized shapes, and exit statuses. Focused CLI
+  line/branch coverage rose from 53.7% to 94.7%, cold-start medians did not
+  regress, and no dependency was added.
 - Hardened GitHub release automation so releases fail before publishing when the
   worktree, main commit, tag, or curated release notes do not match. (`#134`)
 - Consolidated duplicate ty checks into the report-producing `Type Check (ty)`

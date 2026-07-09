@@ -83,7 +83,7 @@ The following are **intentionally shared** between parent and child contexts (do
 - **Read:** `env_for_cache._analysis_cache.get(self._name)` — no lock.
 - **Write:** `env_for_cache._analysis_cache[self._name] = self._metadata_cache` — no lock.
 
-**Risk:** Under concurrent access, two threads could both miss the cache and perform duplicate analysis. The worst case is redundant work, not data corruption. Dict assignment in CPython is atomic for simple types; `TemplateMetadata` is a frozen dataclass. **Recommendation:** Consider holding `_cache_lock` when accessing `_analysis_cache` from introspection for strict consistency. Current behavior is acceptable for correctness.
+**Risk:** Under concurrent access, two threads could both miss the cache and perform duplicate analysis. The worst case is redundant work, not data corruption. Individual dict operations are memory-safe on the supported free-threaded CPython runtime, but the compound miss/compute/store sequence is intentionally not atomic; each stored `TemplateMetadata` is complete before publication. **Recommendation:** Consider holding `_cache_lock` when accessing `_analysis_cache` from introspection if single-computation behavior becomes a requirement. Current behavior is acceptable for correctness.
 
 ### 3.3 CachedBlocksDict
 
@@ -94,6 +94,44 @@ The following are **intentionally shared** between parent and child contexts (do
 
 **Status:** Compliant.
 
+### 3.4 Concurrent Miss, Invalidation, And Eviction Contract
+
+**Owners and mechanisms:**
+
+- The environment template cache is an `LRUCache`; `_cache_lock` also protects
+  its source hashes, mtimes, analysis results, and structure manifests.
+  `clear_template_cache()` uses the same environment lock as miss compilation
+  and publication.
+- The fragment cache and standalone `LRUCache` protect get, set, delete, clear,
+  LRU ordering, TTL metadata, and size eviction with an internal `RLock`.
+  `get_or_set()` deliberately computes the factory outside the lock, then
+  rechecks the key before publishing a complete value.
+- `BytecodeCache` writes to a unique same-directory temporary file and uses an
+  atomic replace. Source and static-context hashes select distinct cache files;
+  `clear()` is best-effort file invalidation and may race with a new atomic
+  publication.
+
+**Invalidation semantics:** Clear operations remove entries visible at the time
+they acquire/enumerate their cache. They are not generation barriers and do not
+cancel an already-running template compilation, fragment factory, LRU factory,
+or bytecode write. An in-flight reader may therefore publish a valid entry after
+clear returns. Callers that require a quiescent empty cache must first stop
+producers. Concurrent consumers may observe either a valid hit or a miss; they
+must never observe a partial value, torn bytecode file, cross-key output, or a
+size above an in-memory cache's configured maximum after an operation completes.
+
+**Proof:**
+
+- `TestSharedEnvironmentStress.test_concurrent_template_misses_clear_and_eviction`
+- `TestSharedEnvironmentStress.test_concurrent_fragment_misses_clear_and_eviction`
+- `TestLRUCacheConcurrency.test_concurrent_misses_clear_and_eviction`
+- `TestBytecodeCacheConcurrency.test_concurrent_misses_clear_and_source_hash_invalidation`
+
+All four tests use per-round barriers rather than sleeps. They run in the
+required `PYTHON_GIL=0` safety jobs and validate exact rendered/cache values,
+bounded eviction, source-hash isolation, executable bytecode hits, and absence
+of leaked temporary bytecode files.
+
 ---
 
 ## 4. Hot Paths — No Shared Mutable State
@@ -101,6 +139,190 @@ The following are **intentionally shared** between parent and child contexts (do
 - **Template.render():** Uses local `buf` list, `RenderContext` from ContextVar. No global or shared mutable state.
 - **Generated code:** Calls `lookup`, `lookup_scope`, `_safe_getattr` — all pure or use ContextVar.
 - **Include/extends:** Each child gets its own `RenderContext` with copied `import_stack` and `template_stack`.
+
+### 4.1 Shared `Template` Read Contract
+
+**Owner:** The `Environment`/loader creates the compiled `Template`; callers may
+share that object across threads for read-only rendering and introspection.
+
+**State and mutation protocol:**
+
+- Generated render functions, the optimized AST, block functions, and template
+  identity are read-only after compilation.
+- Full, block, and streaming renders allocate their output buffers and
+  `RenderContext` per invocation. The current context is isolated by
+  `ContextVar`; it is not stored on the shared `Template`.
+- `_metadata_cache` and `_def_metadata_cache` are lazy publication caches. Two
+  readers may compute the same value concurrently, but each publishes a
+  complete metadata result. Metadata records are frozen, and their contained
+  mappings are treated as read-only by contract. Duplicate computation is
+  allowed; partial metadata is never exposed.
+- The related `Environment._analysis_cache` behavior and its redundant-work
+  limitation remain documented in section 3.2.
+
+**Proof:**
+`TestMixedRenderConcurrency.test_shared_template_render_block_stream_and_introspection`
+uses a barrier to start 12 workers together and repeatedly mixes `render`,
+`render_stream`, `render_block`, and first-use metadata/list operations on one
+compiled template. Every render uses a unique context marker to detect leakage.
+The test uses futures and synchronization rather than sleeps and runs in the
+required `PYTHON_GIL=0` thread-safety job.
+
+**Unsupported mutation:** Callers must not mutate private compiled functions,
+AST fields, or metadata cache attributes while reads are in flight. Registry or
+loader mutation follows the separate `Environment` copy-on-write/cache contract;
+it is not a `Template` mutation API.
+
+### 4.2 Environment Registry Publication
+
+**Owner:** The `Environment` owns its filter, test, and global registries.
+`add_filter()`, `add_test()`, `add_global()`, and the public filter/test registry
+mutation methods use copy-on-write publication.
+
+**Reader contract:** Each supported registration operation builds a complete
+replacement dictionary before assigning it. A concurrent reader can observe the
+complete mapping immediately before or after that assignment, but never a
+partially updated dictionary. Filter/test registry views retain the dictionary
+generation from which they were created. Compilers and renders may therefore use
+an adjacent valid generation while registration is in flight.
+
+**Writer limitation:** A registration operation is not a multi-writer
+transaction. Two writers can copy the same generation and publish independently;
+the later assignment can discard the other writer's new entry. There is no
+ordering, merge, or cross-registry atomicity guarantee. Applications that cannot
+finish configuration before serving traffic must serialize writers externally.
+Direct mutation of the plain `Environment.globals` dictionary is also outside
+the concurrent-reader contract; use `add_global()` for copy-on-write publication.
+Registered callables and global values remain responsible for their own internal
+thread safety.
+
+**Proof:**
+`TestSharedEnvironmentStress.test_concurrent_registry_registration_publishes_complete_snapshots`
+starts two writers for each registry together with four readers on per-round
+barriers. Readers copy and validate all three registries, then compile and render
+against stable registrations. The test permits missing racing entries, matching
+the documented writer limitation, but rejects torn key/value publication,
+baseline loss, render drift, and exceptions. It runs in the required
+`PYTHON_GIL=0` thread-safety job without sleep-based assertions.
+
+### 4.3 Coverage Instrumentation Lifecycle
+
+**Owner:** `CoverageCollector` owns per-collector hit data and the
+`ContextVar` token created by `start()`. The coverage module owns the process-wide
+`RenderContext.__setattr__` instrumentation patch.
+
+**State and mutation protocol:** `_patch_lock` serializes the global active
+collector count and class patch installation/removal. The first active collector
+installs `_coverage_setattr`; the last stopping collector removes it. Coverage
+data selection is context-local through `_coverage_data`, so a patched assignment
+in an unrelated rendering thread records nothing. The patch may remain installed
+briefly in a context with no active collector, but that path is a safe no-op.
+
+**Lifecycle limitation:** A collector instance stores one `ContextVar` token.
+Its `start()` and matching `stop()` must run in the same thread or async context,
+and one instance must not have concurrent lifecycle owners. Distinct collectors
+may start, collect, and stop concurrently. Callers should stop collection before
+reading reports, clearing data, or transferring ownership.
+
+**Proof:**
+`TestCoverageCollectorConcurrency.test_repeated_start_stop_while_other_threads_render`
+uses per-phase barriers for 30 rounds with six collector owners and four
+uncollected renderers. Half the collectors stop while observers render; the
+remaining collectors then stop while observers render again. Each collector
+records only its uniquely named template, all renders retain exact context
+markers, the patch remains present while collectors are active, and every round
+confirms complete patch removal before another start. Barrier aborts surface
+worker failures without sleeps or deadlocks. The test runs under `PYTHON_GIL=0`.
+
+### 4.4 Live Terminal And Worker Decisions
+
+**Owners and mechanisms:**
+
+- A `LiveRenderer` owns its accumulated context, previous-line count, output
+  stream, injected spinner, and optional auto-refresh thread. Its `RLock`
+  serializes context merge, terminal-width refresh, template render, cursor
+  rewrite, and output as one update. Auto-refresh calls the same `update()` path,
+  so it is safe alongside explicit updates. Context-manager and auto-thread
+  start/stop remain single-owner lifecycle operations.
+- A `Spinner` owns its frame index and protects call/reset operations with a
+  lock. Concurrent calls each consume exactly one position in the frame cycle;
+  caller completion order is intentionally unspecified.
+- Worker profiles are frozen values in a private mapping initialized once.
+  Selection functions use local state, and `is_free_threading_enabled()` uses
+  the standard thread-safe `lru_cache`. Environment auto-detection reads process
+  environment state; callers mutating `os.environ` concurrently must instead
+  pass an explicit `environment` value.
+
+**Defect and fix:** `LiveRenderer.update()` previously mutated `_context` and
+expanded it for rendering before acquiring the output lock. Concurrent calls
+could therefore both render the later caller's context, violating the documented
+thread-safe update contract. The existing lock now covers the complete update
+transaction; an `RLock` preserves safe same-thread reentrancy.
+
+**Proof:**
+
+- `TestLiveRenderer.test_update_holds_lock_through_render` verifies another
+  thread cannot acquire the renderer lock during template rendering.
+- `TestTerminalAndWorkerConcurrency.test_shared_live_renderer_and_spinner_updates_are_atomic`
+  uses per-round barriers around eight shared-renderer callers, validates every
+  unique context marker exactly once, and validates exact spinner frame counts.
+- `TestTerminalAndWorkerConcurrency.test_worker_selection_is_stable_across_threads`
+  starts all workload/environment combinations together, repeatedly verifies
+  worker and parallelization decisions, and cold-starts the free-threading cache.
+
+The stress proofs run under `PYTHON_GIL=0` and use no sleep-based assertions.
+
+### 4.5 Seeded Scheduled Stress Protocol
+
+`tests/test_randomized_thread_stress.py` assigns ten supported operations to
+workers from a seeded plan: full, streaming, and block renders; introspection;
+template and fragment cache reads; cache invalidation; live rendering; spinner
+advancement; and worker selection. Each seed randomizes roles, cache/fragment
+keys, invalidation scope, workload profiles, and thread submission order across
+40 barrier-synchronized rounds. Assertions preserve exact render markers,
+template/fragment key isolation, live-update publication, spinner frame counts,
+metadata availability, and bounded worker decisions.
+
+The required PR lane runs seed 0. Weekly and manual runs use the same no-GIL job
+with 25 consecutive seeds, for 10,000 operations per window. Test IDs and output
+name the seed, and `KIDA_STRESS_SEED` reproduces it locally. The protocol uses no
+sleeps, random timeouts, new dependency, or mutable process-environment changes
+during worker execution.
+
+### 4.6 Periodic Debug-Runtime Protocol
+
+Weekly and manual CI repeat the 25 seeded schedules with `PYTHON_GIL=0`, Python
+development mode, allocator debug hooks, and `faulthandler`. A focused
+configuration test asserts all four conditions before the randomized operations
+run. This catches allocator misuse, runtime warnings, fatal faults, and invariant
+violations visible to the managed free-threaded interpreter while preserving the
+same reproducible seed contract.
+
+This protocol is intentionally not described as ThreadSanitizer or a CPython
+`Py_DEBUG` build. It does not claim native data-race detection. A true sanitizer
+or combined free-threaded debug-build lane remains a future replacement if a
+maintained runner artifact becomes available; until then, the periodic protocol
+is the supported deeper-check mechanism.
+
+### 4.7 Public Analyzer And Loader Shareability
+
+`DependencyWalker` previously reset three mutable instance fields at the start
+of every analysis. Two calls sharing one walker could therefore write into the
+same dependency set and return cross-contaminated results. `PurityAnalyzer`
+similarly kept its circular-include set on the shared instance. Both traversal
+states now live in per-call `ContextVar` values. `BlockAnalyzer` composes those
+helpers, while `LandmarkDetector` already uses only local state.
+
+Built-in loaders hold stable configuration and perform read-only source lookup.
+Their contract does not cover concurrent mutation of caller-owned mappings or
+loader lists, child loaders, user callables, filesystem files, or installed
+package resources.
+
+**Proof:** `TestPublicShareabilityContracts` deterministically synchronizes the
+previous dependency and include-cycle race windows, verifies shared block and
+landmark analyzers, and repeatedly shares each of the six built-in loader types
+across eight readers. These tests are part of the required `PYTHON_GIL=0`
+thread-safety job and use barriers rather than sleeps.
 
 ---
 
@@ -115,5 +337,15 @@ The following are **intentionally shared** between parent and child contexts (do
 | Environment _cache_lock | OK | Protects _template_hashes, _analysis_cache, _structure_manifest_cache |
 | _analysis_cache from introspection | Low risk | Optional: hold _cache_lock for strict consistency |
 | CachedBlocksDict | OK | Lock for stats when shared |
+| Cache miss/invalidation/eviction | OK | RLock or atomic file publication; clear is not a generation barrier; synchronized no-GIL proof |
+| Shared Template reads | OK | Local/ContextVar render state; complete metadata publication; synchronized no-GIL proof |
+| Environment registries | Reader-safe publication | Copy-on-write through supported registration APIs; competing writers require external serialization |
+| Coverage instrumentation | Locked global lifecycle | Context-local data; distinct collectors may overlap; one lifecycle owner per collector |
+| Live terminal state | Serialized updates | Renderer `RLock`; spinner index lock; lifecycle operations remain single-owner |
+| Worker selection | Read-only decisions | Frozen profiles, local calculations, and thread-safe cached GIL detection |
+| Static analyzers | Context-local traversal | Shared dependency, purity, block, and landmark analysis has focused synchronized proof |
+| Built-in loaders | Concurrent stable reads | Caller-owned mappings/lists, child loaders, callables, and backing resources must remain stable |
+| Scheduled stress | Seeded barriers | One required seed; 25 weekly/manual seeds; exact seed reproduction |
+| Debug-runtime stress | Periodic deeper checks | 25 seeds with no GIL, development mode, allocator hooks, and fault handling |
 
 No critical violations. The codebase is structured for free-threading compliance.

@@ -26,7 +26,7 @@ repos:
         pass_filenames: false
       - id: ty
         name: ty type checker
-        entry: uv run ty check src/kida/
+        entry: uv run ty check src/kida/ action_support/
         language: system
         types: [python]
         pass_filenames: false

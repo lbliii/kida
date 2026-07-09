@@ -92,6 +92,7 @@ Each finding is returned as an `A11yIssue` dataclass:
 | `lineno` | `int` | Line number in the template source |
 | `col_offset` | `int` | Column offset |
 | `rule` | `str` | Rule identifier (`img-alt`, `heading-order`, `html-lang`, `input-label`) |
+| `code` | `str` | Stable code derived from the rule (`K-A11Y-001` through `K-A11Y-004`) |
 | `message` | `str` | Human-readable description of the issue |
 | `severity` | `str` | `"error"` or `"warning"` (default: `"warning"`) |
 

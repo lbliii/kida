@@ -37,6 +37,61 @@ COMPILE_TEMPLATE = """\
 {% end %}
 """
 
+CALLABLE_COMPILE_TEMPLATE = """\
+{% def card(title: str, count: int = 2, *items, **attrs) %}
+  <article data-count="{{ count }}">
+    <header>{% slot header %}</header>
+    {% slot body let:title=title %}{{ title }}{{ items | length }}{{ attrs | length }}{% end %}
+  </article>
+{% end %}
+{% region panel(title: str, count: int = 2, *items, **attrs) %}
+  <section data-count="{{ count }}">{{ title }}{{ items | length }}{{ attrs | length }}</section>
+{% end %}
+{% call card("Card") %}
+  {% slot header %}<strong>Card</strong>{% end %}
+  {% slot body let:title %}<p>{{ title }}</p>{% end %}
+{% end %}
+{{ panel("Panel") }}
+"""
+
+RENDER_MODE_COMPILE_TEMPLATE = """\
+{% block content %}
+  <main>Hello {{ name }}</main>
+{% end %}
+{% block captured %}
+  {% capture message %}<strong>{{ name }}</strong>{% end %}
+  {{ message }}
+{% end %}
+"""
+
+CACHE_FILTER_COMPILE_TEMPLATE = """\
+{% block cached %}
+  {% cache "benchmark-key" %}Hello {{ name }}{% end %}
+{% end %}
+{% block filtered %}
+  {% filter upper %}Hi {{ name }}{% end %}
+{% end %}
+"""
+
+SPECIAL_BLOCK_COMPILE_TEMPLATE = """\
+{% block content %}
+  {% capture message %}Hi {{ name }}{% end %}
+  {% spaceless %}<div> <span>{{ message }}</span> </div>{% end %}
+  {% push "scripts" %}<script>{{ name }}</script>{% end %}
+  {% stack "scripts" %}
+{% end %}
+"""
+
+ERROR_BOUNDARY_COMPILE_TEMPLATE = """\
+{% try %}Hello {{ name }}{% fallback err %}Fallback {{ err.type }}{% end %}
+"""
+
+ERROR_BOUNDARY_BLOCK_COMPILE_TEMPLATE = """\
+{% block content %}
+  {% try %}Hello {{ name }}{% fallback err %}Fallback {{ err.type }}{% end %}
+{% end %}
+"""
+
 
 class AttrObject:
     __slots__ = ("name",)
@@ -121,6 +176,63 @@ def _compile_small_batch(iterations: int) -> int:
     compiled = 0
     for i in range(iterations):
         template = env.from_string(COMPILE_TEMPLATE, name=f"regression-core-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_callable_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(CALLABLE_COMPILE_TEMPLATE, name=f"callable-core-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_render_mode_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(RENDER_MODE_COMPILE_TEMPLATE, name=f"render-mode-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_cache_filter_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(CACHE_FILTER_COMPILE_TEMPLATE, name=f"cache-filter-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_special_block_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(SPECIAL_BLOCK_COMPILE_TEMPLATE, name=f"special-block-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_error_boundary_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(ERROR_BOUNDARY_COMPILE_TEMPLATE, name=f"error-boundary-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_error_boundary_block_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(
+            ERROR_BOUNDARY_BLOCK_COMPILE_TEMPLATE,
+            name=f"error-boundary-block-{i}",
+        )
         compiled += template.name is not None
     return compiled
 
@@ -232,4 +344,79 @@ def test_html_escape_markup_batch(benchmark: BenchmarkFixture) -> None:
 @pytest.mark.benchmark(group="regression-core:compile")
 def test_compile_small_template_batch(benchmark: BenchmarkFixture) -> None:
     total = benchmark(_compile_small_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_callable_template_batch(benchmark: BenchmarkFixture) -> None:
+    rendered = Environment(auto_reload=False).from_string(CALLABLE_COMPILE_TEMPLATE).render()
+    assert "<strong>Card</strong>" in rendered
+    assert "<p>Card</p>" in rendered
+    assert "Panel" in rendered
+
+    total = benchmark(_compile_callable_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_render_mode_template_batch(benchmark: BenchmarkFixture) -> None:
+    template = Environment(auto_reload=False).from_string(RENDER_MODE_COMPILE_TEMPLATE)
+    rendered = template.render(name="Ada")
+    assert "<main>Hello Ada</main>" in rendered
+    assert "&lt;strong&gt;Ada&lt;/strong&gt;" in rendered
+    assert "".join(template.render_stream(name="Ada")) == rendered
+
+    total = benchmark(_compile_render_mode_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_cache_filter_template_batch(benchmark: BenchmarkFixture) -> None:
+    template = Environment(auto_reload=False).from_string(CACHE_FILTER_COMPILE_TEMPLATE)
+    rendered = template.render(name="Ada")
+    assert "Hello Ada" in rendered
+    assert "HI ADA" in rendered
+    assert "".join(template.render_stream(name="Ada")) == rendered
+
+    total = benchmark(_compile_cache_filter_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_special_block_template_batch(benchmark: BenchmarkFixture) -> None:
+    template = Environment(auto_reload=False).from_string(SPECIAL_BLOCK_COMPILE_TEMPLATE)
+    rendered = template.render(name="Ada")
+    assert "<div><span>Hi Ada</span></div>" in rendered
+    assert "<script>Ada</script>" in rendered
+    assert "".join(template.render_stream(name="Ada")) == rendered
+
+    total = benchmark(_compile_special_block_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_error_boundary_template_batch(benchmark: BenchmarkFixture) -> None:
+    template = Environment(auto_reload=False).from_string(ERROR_BOUNDARY_COMPILE_TEMPLATE)
+    rendered = template.render(name="Ada")
+    fallback = template.render()
+    assert rendered.strip() == "Hello Ada"
+    assert fallback.strip() == "Fallback UndefinedError"
+    assert "".join(template.render_stream(name="Ada")) == rendered
+    assert "".join(template.render_stream()) == fallback
+
+    total = benchmark(_compile_error_boundary_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_error_boundary_block_template_batch(benchmark: BenchmarkFixture) -> None:
+    template = Environment(auto_reload=False).from_string(ERROR_BOUNDARY_BLOCK_COMPILE_TEMPLATE)
+    rendered = template.render(name="Ada")
+    fallback = template.render()
+    assert rendered.strip() == "Hello Ada"
+    assert fallback.strip() == "Fallback UndefinedError"
+    assert "".join(template.render_stream(name="Ada")) == rendered
+    assert "".join(template.render_stream()) == fallback
+
+    total = benchmark(_compile_error_boundary_block_batch, COMPILE_CALLS_PER_ROUND)
     assert total == COMPILE_CALLS_PER_ROUND

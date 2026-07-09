@@ -142,13 +142,13 @@ jobs:
 
       - name: Run ty
         run: |
-          uv run ty check src/kida
+          uv run ty check src/kida action_support
 
       - name: Run ty (report)
         if: always()
         run: |
           mkdir -p reports
-          uv run ty check src/kida --output-format junit > reports/ty.xml || true
+          uv run ty check src/kida action_support --output-format junit > reports/ty.xml || true
 
       - name: Render ty report
         if: always()
@@ -221,6 +221,37 @@ jobs:
         run: |
           uv run ruff format --check .
 
+  release-collector:
+    name: Release Collector Integration
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.14t"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Collect and render release data
+        uses: ./
+        with:
+          template: release-notes
+          data: auto
+          data-format: github-prs
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          head-ref: ${{ github.sha }}
+          post-to: step-summary
+          token: ${{ github.token }}
+          python-version: skip
+          install: 'false'
+          kida-command: uv run kida
+
   # Thread safety tests
   thread-safety:
     name: Thread Safety
@@ -250,6 +281,29 @@ jobs:
           PYTHON_GIL: "0"
         run: |
           uv run pytest tests/test_kida_stress_test.py tests/test_lru_cache_concurrency.py tests/test_bytecode_cache_concurrency.py -v --tb=short --timeout=120
+
+      - name: Run seeded randomized thread stress
+        env:
+          CI: true
+          PYTHON_GIL: "0"
+          KIDA_STRESS_SEED: "0"
+          KIDA_STRESS_RUNS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '25' || '1' }}
+        run: |
+          uv run pytest tests/test_randomized_thread_stress.py -vv -s --tb=short --timeout=120
+
+      - name: Run free-threaded debug-runtime stress
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          CI: true
+          PYTHON_GIL: "0"
+          PYTHONDEVMODE: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONMALLOC: debug
+          KIDA_REQUIRE_DEBUG_RUNTIME: "1"
+          KIDA_STRESS_SEED: "0"
+          KIDA_STRESS_RUNS: "25"
+        run: |
+          uv run python -X dev -m pytest tests/test_randomized_thread_stress.py -vv -s --tb=short --timeout=120
 
   # Async tests
   async-tests:

@@ -59,7 +59,10 @@ test-cov:
 
 test-thread:
 	@echo "Running thread safety stress tests..."
-	PYTHON_GIL=0 uv run python -m pytest tests/test_kida_stress_test.py -v --tb=short
+	PYTHON_GIL=0 uv run python -m pytest \
+		tests/test_kida_stress_test.py \
+		tests/test_randomized_thread_stress.py \
+		-v --tb=short
 
 test-async:
 	@echo "Running async feature tests..."
@@ -73,6 +76,7 @@ test-safety:
 		tests/test_bytecode_cache_concurrency.py \
 		tests/test_lru_cache_concurrency.py \
 		tests/test_kida_stress_test.py \
+		tests/test_randomized_thread_stress.py \
 		-q --tb=short
 
 test-rc-safety: test-safety
@@ -95,7 +99,7 @@ format-check:
 
 ty:
 	@echo "Running ty type checker (Astral, Rust-based)..."
-	uv run ty check src/kida/
+	uv run ty check src/kida/ action_support/
 
 package-smoke:
 	@echo "Building and smoke-testing package artifacts..."

@@ -14,9 +14,11 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from kida import UndefinedError
 from kida.contrib.django import KidaTemplates as DjangoKidaTemplates
 from kida.contrib.flask import init_kida
 from kida.contrib.starlette import KidaTemplates as StarletteKidaTemplates
+from kida.diagnostics import diagnostic_from_exception
 from kida.render_context import get_render_context_required
 
 if TYPE_CHECKING:
@@ -91,6 +93,27 @@ def test_flask_render_template_uses_current_app(
     monkeypatch.setitem(sys.modules, "flask", flask_module)
 
     assert render_template("hello.html", name="Flask") == "Hello Flask"
+
+
+def test_flask_adapter_preserves_public_kida_diagnostic(tmp_path: Path) -> None:
+    template_dir = tmp_path / "templates"
+    template_dir.mkdir()
+    (template_dir / "broken.html").write_text("{{ missing }}", encoding="utf-8")
+    app = SimpleNamespace(
+        root_path=str(tmp_path),
+        template_folder="templates",
+        extensions={},
+    )
+    init_kida(app)
+
+    with pytest.raises(UndefinedError) as exc_info:
+        app.kida_render("broken.html")
+
+    finding = diagnostic_from_exception(exc_info.value)
+    assert finding.code == "K-RUN-001"
+    assert finding.span.path == "broken.html"
+    assert finding.span.start is not None
+    assert finding.span.start.line == 1
 
 
 def test_flask_adapter_with_current_flask(tmp_path: Path) -> None:

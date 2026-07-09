@@ -205,6 +205,10 @@ contract shape, and Kida reports only whether template dependency paths are
 covered. Enable `check_extra=True` when a narrow contract should also warn about
 provided paths the template does not read.
 
+`K-CTX-001` and `K-CTX-002` are registered in the public `ErrorCode` enum;
+`ContextContractIssue.code` remains the same string-valued field for backward
+compatibility.
+
 ## Literal Attribute Extraction
 
 Framework adapters and CI reports can inspect literal HTML attributes without
@@ -243,7 +247,9 @@ for finding in audit_escaping(template):
 Findings are static diagnostics only. They do not change rendering and do not
 prove user input was sanitized. `| safe` findings include the optional
 `reason=` text when present; missing reasons get a suggestion so code review and
-CI reports can point at explicit trust boundaries.
+CI reports can point at explicit trust boundaries. Codes `K-ESC-001` through
+`K-ESC-005` are registered in the public `ErrorCode` enum without changing the
+existing string-valued `EscapeAuditFinding.code` field.
 
 ## Privacy Lint
 
@@ -260,7 +266,9 @@ for finding in lint_privacy(template):
 The first version is intentionally narrow. It reports sensitive-looking context
 paths, secret-like string literals without echoing their values, `| safe` on
 sensitive-looking values, broad debug context output, and dynamic template names
-that a framework policy cannot statically allowlist.
+that a framework policy cannot statically allowlist. Codes `K-PRI-001` through
+`K-PRI-005` are registered in the public `ErrorCode` enum; findings retain their
+existing string-valued `code` field.
 
 ## Call-Site Validation
 

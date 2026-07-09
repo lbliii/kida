@@ -20,9 +20,10 @@ CLI::
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, Literal, final
 
 from kida.analysis.node_visitor import NodeVisitor
+from kida.exceptions import ErrorCode
 
 if TYPE_CHECKING:
     from kida.nodes import (
@@ -48,9 +49,21 @@ class TypeIssue:
 
     lineno: int
     col_offset: int
-    rule: str  # "undeclared-var", "unused-declared", "typo-suggestion"
+    rule: Literal["undeclared-var", "unused-declared", "typo-suggestion"]
     message: str
     severity: str = "warning"  # "warning" | "error"
+
+    @property
+    def code(self) -> str:
+        """Stable analysis code for this template-declaration rule."""
+        match self.rule:
+            case "undeclared-var":
+                return ErrorCode.TYPE_UNDECLARED_VARIABLE.value
+            case "unused-declared":
+                return ErrorCode.TYPE_UNUSED_DECLARATION.value
+            case "typo-suggestion":
+                return ErrorCode.TYPE_TYPO_SUGGESTION.value
+        raise ValueError(f"Unsupported type-checking rule: {self.rule}")
 
 
 # Built-in names that don't need declaration

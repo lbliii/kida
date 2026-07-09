@@ -6,6 +6,7 @@ Pure blocks produce the same output for the same inputs.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from kida.exceptions import TemplateNotFoundError, TemplateRuntimeError, TemplateSyntaxError
@@ -96,6 +97,9 @@ class PurityAnalyzer:
 
     Conservative: defaults to "unknown" when uncertain.
 
+    Thread-safe: ``analyze()`` isolates circular-include tracking in a
+    ``ContextVar``, so one analyzer may be shared across concurrent calls.
+
     Example:
             >>> analyzer = PurityAnalyzer()
             >>> purity = analyzer.analyze(block_node)
@@ -134,7 +138,10 @@ class PurityAnalyzer:
             self._impure_filters = self._impure_filters | extra_impure_filters
 
         self._template_resolver = template_resolver
-        self._visited_templates: set[str] = set()  # Track circular includes
+        self._visited_templates: ContextVar[set[str] | None] = ContextVar(
+            f"kida_purity_visited_templates_{id(self)}",
+            default=None,
+        )
 
     def analyze(self, node: Node) -> PurityLevel:
         """Analyze a node and return its purity level.
@@ -145,7 +152,19 @@ class PurityAnalyzer:
         Returns:
             "pure", "impure", or "unknown"
         """
-        return self._visit(node)
+        token = self._visited_templates.set(set())
+        try:
+            return self._visit(node)
+        finally:
+            self._visited_templates.reset(token)
+
+    def _visited_for_call(self) -> set[str]:
+        """Return circular-include state for this analysis context."""
+        visited = self._visited_templates.get()
+        if visited is None:
+            visited = set()
+            self._visited_templates.set(visited)
+        return visited
 
     def _visit(self, node: Node | None) -> PurityLevel:
         """Visit a node and determine purity."""
@@ -508,7 +527,8 @@ class PurityAnalyzer:
             return "unknown"
 
         # Check for circular includes
-        if template_name in self._visited_templates:
+        visited_templates = self._visited_for_call()
+        if template_name in visited_templates:
             # Circular include detected - return unknown to avoid infinite recursion
             return "unknown"
 
@@ -528,14 +548,14 @@ class PurityAnalyzer:
             included_ast = included_template._optimized_ast
 
             # Analyze included template's body
-            self._visited_templates.add(template_name)
+            visited_templates.add(template_name)
             try:
                 result: PurityLevel = "pure"
                 for child in included_ast.body:
                     result = _combine_purity(result, self._visit(child))
                 return result
             finally:
-                self._visited_templates.remove(template_name)
+                visited_templates.remove(template_name)
 
         except TemplateNotFoundError, TemplateSyntaxError, TemplateRuntimeError:
             # Template missing, unparseable, or no loader → conservatively unknown

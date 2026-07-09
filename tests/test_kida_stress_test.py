@@ -426,7 +426,7 @@ class TestExtremeCases:
 
 
 class TestSharedEnvironmentStress:
-    """Test concurrent get_template + add_filter on same Environment."""
+    """Test supported concurrent operations on one shared Environment."""
 
     def test_concurrent_get_template_while_add_filter(self) -> None:
         """N threads get_template() while 1 thread add_filter(); no partial mutation."""
@@ -466,6 +466,142 @@ class TestSharedEnvironmentStress:
         assert all(r == "ok" for r in results), "Corrupt filter dict observed"
         assert len(results) == 4 * 200
 
+    def test_concurrent_registry_registration_publishes_complete_snapshots(self) -> None:
+        """Readers see complete registry snapshots while competing writers publish."""
+        import concurrent.futures
+        import threading
+
+        env = Environment(autoescape=False)
+
+        def stable_filter(value: object) -> str:
+            return f"<{value}>"
+
+        def stable_test(value: object) -> bool:
+            return value == "ok"
+
+        env.add_filter("stable_filter", stable_filter)
+        env.add_test("stable_test", stable_test)
+        env.add_global("stable_global", "registry-stable")
+
+        source = (
+            "{{ value | stable_filter }}|"
+            "{% if value is stable_test %}yes{% else %}no{% endif %}|"
+            "{{ stable_global }}"
+        )
+        rounds = 40
+        writer_specs = tuple(
+            (registry, writer_id)
+            for registry in ("filter", "test", "global")
+            for writer_id in range(2)
+        )
+        reader_count = 4
+        worker_count = len(writer_specs) + reader_count
+        start = threading.Barrier(worker_count)
+        round_start = threading.Barrier(worker_count)
+        round_end = threading.Barrier(worker_count)
+
+        def abort_barriers() -> None:
+            round_start.abort()
+            round_end.abort()
+
+        def register(registry: str, writer_id: int) -> None:
+            try:
+                start.wait()
+                for round_id in range(rounds):
+                    round_start.wait()
+                    key = f"race_{registry}_{writer_id}_{round_id}"
+                    if registry == "filter":
+                        env.add_filter(key, lambda _value, marker=key: marker)
+                    elif registry == "test":
+                        env.add_test(key, lambda value, marker=key: value == marker)
+                    else:
+                        env.add_global(key, key)
+                    round_end.wait()
+            except BaseException:
+                abort_barriers()
+                raise
+
+        def read_registries() -> list[tuple[bool, bool, bool, bool, str]]:
+            observations: list[tuple[bool, bool, bool, bool, str]] = []
+            try:
+                start.wait()
+                for _ in range(rounds):
+                    round_start.wait()
+                    filters = env.filters.copy()
+                    tests = env.tests.copy()
+                    globals_snapshot = env.globals.copy()
+                    rendered = env.from_string(source).render(value="ok")
+
+                    stable = (
+                        filters.get("stable_filter") is stable_filter
+                        and tests.get("stable_test") is stable_test
+                        and globals_snapshot.get("stable_global") == "registry-stable"
+                    )
+                    filters_complete = all(
+                        value(None) == key
+                        for key, value in filters.items()
+                        if key.startswith("race_filter_")
+                    )
+                    tests_complete = all(
+                        value(key) for key, value in tests.items() if key.startswith("race_test_")
+                    )
+                    globals_complete = all(
+                        value == key
+                        for key, value in globals_snapshot.items()
+                        if key.startswith("race_global_")
+                    )
+                    observations.append(
+                        (
+                            stable,
+                            filters_complete,
+                            tests_complete,
+                            globals_complete,
+                            rendered,
+                        )
+                    )
+                    round_end.wait()
+            except BaseException:
+                abort_barriers()
+                raise
+            return observations
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
+            writers = [
+                executor.submit(register, registry, writer_id)
+                for registry, writer_id in writer_specs
+            ]
+            readers = [executor.submit(read_registries) for _ in range(reader_count)]
+            for future in writers:
+                future.result()
+            observations = [item for future in readers for item in future.result()]
+
+        assert len(observations) == reader_count * rounds
+        assert all(
+            stable and filters_ok and tests_ok and globals_ok
+            for stable, filters_ok, tests_ok, globals_ok, _rendered in observations
+        )
+        assert all(
+            rendered == "<ok>|yes|registry-stable" for *_snapshot_checks, rendered in observations
+        )
+
+        final_filters = {
+            key: value for key, value in env.filters.items() if key.startswith("race_filter_")
+        }
+        final_tests = {
+            key: value for key, value in env.tests.items() if key.startswith("race_test_")
+        }
+        final_globals = {
+            key: value for key, value in env.globals.items() if key.startswith("race_global_")
+        }
+        for registry in (final_filters, final_tests, final_globals):
+            # Each round retains at least one publication. When both writers copy
+            # the same prior generation, either one's addition may be overwritten.
+            assert rounds <= len(registry) <= rounds * 2
+
+        assert all(value(None) == key for key, value in final_filters.items())
+        assert all(value(key) for key, value in final_tests.items())
+        assert all(value == key for key, value in final_globals.items())
+
     def test_concurrent_get_template_same_key(self) -> None:
         """Multiple threads get_template(same_name) - thundering herd on cache."""
         import concurrent.futures
@@ -484,9 +620,356 @@ class TestSharedEnvironmentStress:
         assert all(r == "1" for r in results)
         assert len(results) == 100
 
+    def test_concurrent_template_misses_clear_and_eviction(self) -> None:
+        """Template clears may repopulate, while every read stays valid and bounded."""
+        import concurrent.futures
+        import threading
+
+        worker_count = 8
+        rounds = 30
+        loader = DictLoader({f"t{i}.html": f"Template {i}: {{{{ value }}}}" for i in range(12)})
+        env = Environment(loader=loader, cache_size=4, auto_reload=False)
+        phase = threading.Barrier(worker_count + 1)
+
+        def reader(worker: int) -> int:
+            for iteration in range(rounds):
+                template_index = (worker + iteration) % 12
+                marker = f"{worker}-{iteration}"
+                phase.wait(timeout=30)
+                template = env.get_template(f"t{template_index}.html")
+                assert template.render(value=marker) == f"Template {template_index}: {marker}"
+                phase.wait(timeout=30)
+            return worker
+
+        def invalidator() -> None:
+            for iteration in range(rounds):
+                phase.wait(timeout=30)
+                if iteration < rounds // 2:
+                    if iteration % 2:
+                        env.clear_template_cache([f"t{iteration % 12}.html"])
+                    else:
+                        env.clear_template_cache()
+                phase.wait(timeout=30)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count + 1) as executor:
+            readers = [executor.submit(reader, worker) for worker in range(worker_count)]
+            invalidation = executor.submit(invalidator)
+            results = [future.result() for future in readers]
+            invalidation.result()
+
+        assert sorted(results) == list(range(worker_count))
+        assert env.cache_info()["template"]["size"] == 4
+
+    def test_concurrent_fragment_misses_clear_and_eviction(self) -> None:
+        """Fragment clears and eviction never expose another key's cached output."""
+        import concurrent.futures
+        import threading
+
+        worker_count = 8
+        rounds = 30
+        env = Environment(fragment_cache_size=4, fragment_ttl=300)
+        template = env.from_string("{% cache key %}{{ value }}{% endcache %}")
+        phase = threading.Barrier(worker_count + 1)
+
+        def reader(worker: int) -> int:
+            for iteration in range(rounds):
+                marker = f"{worker}-{iteration}"
+                phase.wait(timeout=30)
+                assert template.render(key=marker, value=marker) == marker
+                phase.wait(timeout=30)
+            return worker
+
+        def invalidator() -> None:
+            for iteration in range(rounds):
+                phase.wait(timeout=30)
+                if iteration < rounds // 2:
+                    env.clear_fragment_cache()
+                phase.wait(timeout=30)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count + 1) as executor:
+            readers = [executor.submit(reader, worker) for worker in range(worker_count)]
+            invalidation = executor.submit(invalidator)
+            results = [future.result() for future in readers]
+            invalidation.result()
+
+        assert sorted(results) == list(range(worker_count))
+        assert env.cache_info()["fragment"]["size"] == 4
+
+
+class TestCoverageCollectorConcurrency:
+    """Exercise coverage instrumentation lifecycle under free-threading."""
+
+    def test_repeated_start_stop_while_other_threads_render(self) -> None:
+        """Collector owners toggle instrumentation while uncollected renders run."""
+        import concurrent.futures
+        import threading
+
+        from kida.coverage import CoverageCollector
+        from kida.render_context import RenderContext
+
+        collector_count = 6
+        observer_count = 4
+        worker_count = collector_count + observer_count
+        late_collector_count = collector_count // 2
+        rounds = 30
+
+        sources = {
+            f"coverage-{worker_id}.html": "{{ marker }}" for worker_id in range(collector_count)
+        }
+        sources["observer.html"] = "observer:{{ marker }}"
+        env = Environment(loader=DictLoader(sources), autoescape=False)
+        collector_templates = [
+            env.get_template(f"coverage-{worker_id}.html") for worker_id in range(collector_count)
+        ]
+        observer_template = env.get_template("observer.html")
+        collectors = [CoverageCollector() for _ in range(collector_count)]
+
+        round_start = threading.Barrier(worker_count)
+        collectors_started = threading.Barrier(worker_count)
+        collected_render_done = threading.Barrier(worker_count)
+        transition_midpoint = threading.Barrier(late_collector_count + observer_count)
+        all_stopped = threading.Barrier(worker_count)
+        cleanup_checked = threading.Barrier(worker_count)
+        barriers = (
+            round_start,
+            collectors_started,
+            collected_render_done,
+            transition_midpoint,
+            all_stopped,
+            cleanup_checked,
+        )
+
+        def abort_barriers() -> None:
+            for barrier in barriers:
+                barrier.abort()
+
+        def collect(worker_id: int) -> tuple[list[str], list[bool]]:
+            collector = collectors[worker_id]
+            template = collector_templates[worker_id]
+            outputs: list[str] = []
+            patch_observations: list[bool] = []
+            try:
+                for round_id in range(rounds):
+                    round_start.wait(timeout=30)
+                    collector.start()
+                    collectors_started.wait(timeout=30)
+                    patch_observations.append("__setattr__" in RenderContext.__dict__)
+                    marker = f"collector-{worker_id}-round-{round_id}"
+                    outputs.append(template.render(marker=marker))
+                    collected_render_done.wait(timeout=30)
+
+                    if worker_id < late_collector_count:
+                        transition_midpoint.wait(timeout=30)
+                    collector.stop()
+                    all_stopped.wait(timeout=30)
+                    cleanup_checked.wait(timeout=30)
+            except BaseException:
+                abort_barriers()
+                collector.stop()
+                raise
+            return outputs, patch_observations
+
+        def render_without_collection(observer_id: int) -> tuple[list[str], list[bool]]:
+            outputs: list[str] = []
+            cleanup_observations: list[bool] = []
+            try:
+                for round_id in range(rounds):
+                    round_start.wait(timeout=30)
+                    collectors_started.wait(timeout=30)
+                    collected_render_done.wait(timeout=30)
+
+                    first_marker = f"observer-{observer_id}-active-{round_id}"
+                    outputs.append(observer_template.render(marker=first_marker))
+                    transition_midpoint.wait(timeout=30)
+                    second_marker = f"observer-{observer_id}-removing-{round_id}"
+                    outputs.append(observer_template.render(marker=second_marker))
+
+                    all_stopped.wait(timeout=30)
+                    cleanup_observations.append("__setattr__" not in RenderContext.__dict__)
+                    cleanup_checked.wait(timeout=30)
+            except BaseException:
+                abort_barriers()
+                raise
+            return outputs, cleanup_observations
+
+        assert "__setattr__" not in RenderContext.__dict__
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
+            collector_futures = [
+                executor.submit(collect, worker_id) for worker_id in range(collector_count)
+            ]
+            observer_futures = [
+                executor.submit(render_without_collection, observer_id)
+                for observer_id in range(observer_count)
+            ]
+            collector_results = [future.result() for future in collector_futures]
+            observer_results = [future.result() for future in observer_futures]
+
+        for worker_id, ((outputs, patch_observations), collector) in enumerate(
+            zip(collector_results, collectors, strict=True)
+        ):
+            assert outputs == [
+                f"collector-{worker_id}-round-{round_id}" for round_id in range(rounds)
+            ]
+            assert all(patch_observations)
+            assert set(collector.data) == {f"coverage-{worker_id}.html"}
+            assert collector.data[f"coverage-{worker_id}.html"]
+
+        for observer_id, (outputs, cleanup_observations) in enumerate(observer_results):
+            expected: list[str] = []
+            for round_id in range(rounds):
+                expected.extend(
+                    (
+                        f"observer:observer-{observer_id}-active-{round_id}",
+                        f"observer:observer-{observer_id}-removing-{round_id}",
+                    )
+                )
+            assert outputs == expected
+            assert all(cleanup_observations)
+
+        assert "__setattr__" not in RenderContext.__dict__
+
+
+class TestTerminalAndWorkerConcurrency:
+    """Exercise terminal state and worker decisions under free-threading."""
+
+    def test_shared_live_renderer_and_spinner_updates_are_atomic(self) -> None:
+        """Each concurrent update emits its own context and one spinner frame."""
+        import concurrent.futures
+        import io
+        import threading
+        from collections import Counter
+
+        from kida.terminal import LiveRenderer, Spinner, terminal_env
+
+        worker_count = 8
+        rounds = 24
+        phase = threading.Barrier(worker_count)
+        env = terminal_env(terminal_color="none")
+        template = env.from_string("{{ marker }}|{{ spinner() }}", name="concurrent-live")
+        output = io.StringIO()
+        spinner_frames = ("A", "B", "C", "D")
+        spinner = Spinner(frames=spinner_frames)
+
+        def update(worker_id: int, live: LiveRenderer) -> int:
+            for round_id in range(rounds):
+                phase.wait(timeout=30)
+                live.update(marker=f"{worker_id}-{round_id}", spinner=spinner)
+                phase.wait(timeout=30)
+            return worker_id
+
+        with (
+            LiveRenderer(template, file=output) as live,
+            concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor,
+        ):
+            futures = [
+                executor.submit(update, worker_id, live) for worker_id in range(worker_count)
+            ]
+            results = [future.result() for future in futures]
+
+        assert sorted(results) == list(range(worker_count))
+        lines = [line for line in output.getvalue().splitlines() if line]
+        markers: list[str] = []
+        frames: list[str] = []
+        for line in lines:
+            marker, frame = line.split("|", maxsplit=1)
+            markers.append(marker)
+            frames.append(frame)
+
+        expected_markers = {
+            f"{worker_id}-{round_id}"
+            for worker_id in range(worker_count)
+            for round_id in range(rounds)
+        }
+        assert len(markers) == worker_count * rounds
+        assert set(markers) == expected_markers
+        assert Counter(frames) == {
+            frame: worker_count * rounds // len(spinner_frames) for frame in spinner_frames
+        }
+
+    def test_worker_selection_is_stable_across_threads(self) -> None:
+        """Concurrent profile and no-GIL cache reads return deterministic decisions."""
+        import concurrent.futures
+        import os
+        import threading
+
+        from kida.utils.workers import (
+            Environment as WorkerEnvironment,
+        )
+        from kida.utils.workers import (
+            WorkloadType,
+            get_optimal_workers,
+            is_free_threading_enabled,
+            should_parallelize,
+        )
+
+        cases = tuple(
+            (100 + index, workload, environment, 1.0 + index / 10, 6000 + index)
+            for index, (workload, environment) in enumerate(
+                (workload, environment)
+                for workload in WorkloadType
+                for environment in WorkerEnvironment
+            )
+        )
+        expected = tuple(
+            (
+                get_optimal_workers(
+                    task_count,
+                    workload_type=workload,
+                    environment=environment,
+                    task_weight=weight,
+                ),
+                should_parallelize(
+                    task_count,
+                    workload_type=workload,
+                    environment=environment,
+                    total_work_estimate=work_estimate,
+                ),
+            )
+            for task_count, workload, environment, weight, work_estimate in cases
+        )
+        expected_free_threading = is_free_threading_enabled()
+        is_free_threading_enabled.cache_clear()
+        start = threading.Barrier(len(cases))
+
+        def select(index: int) -> tuple[int, list[tuple[int, bool, bool]]]:
+            task_count, workload, environment, weight, work_estimate = cases[index]
+            start.wait(timeout=30)
+            observations = [
+                (
+                    get_optimal_workers(
+                        task_count,
+                        workload_type=workload,
+                        environment=environment,
+                        task_weight=weight,
+                    ),
+                    should_parallelize(
+                        task_count,
+                        workload_type=workload,
+                        environment=environment,
+                        total_work_estimate=work_estimate,
+                    ),
+                    is_free_threading_enabled(),
+                )
+                for _ in range(100)
+            ]
+            return index, observations
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(cases)) as executor:
+            futures = [executor.submit(select, index) for index in range(len(cases))]
+            results = [future.result() for future in futures]
+
+        for index, observations in results:
+            workers, parallel = expected[index]
+            assert all(
+                observation == (workers, parallel, expected_free_threading)
+                for observation in observations
+            )
+        if os.environ.get("PYTHON_GIL") == "0":
+            assert expected_free_threading
+
 
 class TestMixedRenderConcurrency:
-    """Test mixed render() and render_stream() on same template from different threads."""
+    """Test mixed public operations on one shared Template from different threads."""
 
     def test_mixed_render_and_render_stream(self) -> None:
         """Concurrent render() and render_stream() on same template; no corruption."""
@@ -508,6 +991,226 @@ class TestMixedRenderConcurrency:
 
         assert len(results) == 100
         assert all(r == "Hello World!" for r in results), "No corruption under mixed render"
+
+    def test_shared_template_render_block_stream_and_introspection(self) -> None:
+        """All read-only Template surfaces agree under synchronized concurrency."""
+        import concurrent.futures
+        import threading
+
+        env = Environment()
+        template = env.from_string(
+            "{% def badge(label: str) %}<b>{{ label }}</b>{% end %}"
+            "{% block content %}Block {{ value }} {{ badge(label) }}{% end %}"
+            "|Full {{ value }}"
+        )
+        operation_kinds = ["render", "stream", "block", "introspection"] * 3
+        start = threading.Barrier(len(operation_kinds))
+
+        def exercise(kind: str, worker: int) -> tuple[str, int]:
+            start.wait(timeout=30)
+            for iteration in range(40):
+                marker = f"{kind}-{worker}-{iteration}"
+                context = {"value": marker, "label": marker}
+
+                if kind == "render":
+                    assert template.render(**context) == (
+                        f"Block {marker} <b>{marker}</b>|Full {marker}"
+                    )
+                elif kind == "stream":
+                    assert "".join(template.render_stream(**context)) == (
+                        f"Block {marker} <b>{marker}</b>|Full {marker}"
+                    )
+                elif kind == "block":
+                    assert template.render_block("content", **context) == (
+                        f"Block {marker} <b>{marker}</b>"
+                    )
+                else:
+                    assert template.list_blocks() == ["content"]
+                    assert template.list_defs() == ["badge"]
+                    block = template.block_metadata()["content"]
+                    definition = template.def_metadata()["badge"]
+                    metadata = template.template_metadata()
+                    assert block.name == "content"
+                    assert definition.name == "badge"
+                    assert metadata is not None
+                    assert metadata.blocks["content"] == block
+
+            return kind, worker
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(operation_kinds)) as executor:
+            futures = [
+                executor.submit(exercise, kind, worker)
+                for worker, kind in enumerate(operation_kinds)
+            ]
+            results = [future.result() for future in concurrent.futures.as_completed(futures)]
+
+        assert sorted(kind for kind, _worker in results) == sorted(operation_kinds)
+        assert sorted(worker for _kind, worker in results) == list(range(len(operation_kinds)))
+
+
+class TestPublicShareabilityContracts:
+    """Prove public objects whose docs permit shared concurrent reads."""
+
+    def test_shared_dependency_walker_keeps_results_isolated(self, monkeypatch) -> None:
+        """Two synchronized calls on one walker never share dependency state."""
+        import concurrent.futures
+        import threading
+
+        from kida.analysis import DependencyWalker
+        from kida.nodes import Name
+
+        walker = DependencyWalker()
+        visit_barrier = threading.Barrier(2)
+        original_visit = walker.visit
+
+        def coordinated_visit(node):
+            if isinstance(node, Name) and node.name in {"alpha", "beta"}:
+                visit_barrier.wait(timeout=30)
+                result = original_visit(node)
+                visit_barrier.wait(timeout=30)
+                return result
+            return original_visit(node)
+
+        monkeypatch.setattr(walker, "visit", coordinated_visit)
+        nodes = [Name(1, 0, "alpha"), Name(1, 0, "beta")]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(walker.analyze, nodes))
+
+        assert results == [frozenset({"alpha"}), frozenset({"beta"})]
+
+    def test_shared_block_analyzer_keeps_template_results_isolated(self, monkeypatch) -> None:
+        """BlockAnalyzer composes its shared traversal helpers without leakage."""
+        import concurrent.futures
+        import threading
+
+        from kida.analysis import BlockAnalyzer
+        from kida.nodes import Name
+
+        env = Environment()
+        templates = [env.from_string("{{ alpha }}"), env.from_string("{{ beta }}")]
+        asts = [template._optimized_ast for template in templates]
+        assert all(ast is not None for ast in asts)
+
+        analyzer = BlockAnalyzer()
+        visit_barrier = threading.Barrier(2)
+        original_visit = analyzer._dep_walker.visit
+
+        def coordinated_visit(node):
+            if isinstance(node, Name) and node.name in {"alpha", "beta"}:
+                visit_barrier.wait(timeout=30)
+                result = original_visit(node)
+                visit_barrier.wait(timeout=30)
+                return result
+            return original_visit(node)
+
+        monkeypatch.setattr(analyzer._dep_walker, "visit", coordinated_visit)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(analyzer.analyze, asts))
+
+        assert [result.top_level_depends_on for result in results] == [
+            frozenset({"alpha"}),
+            frozenset({"beta"}),
+        ]
+
+    def test_shared_purity_analyzer_isolates_include_cycles(self) -> None:
+        """Concurrent include analysis cannot share circular-include tracking."""
+        import concurrent.futures
+        import threading
+
+        from kida.analysis import PurityAnalyzer
+
+        env = Environment(loader=DictLoader({"shared.html": "{{ value }}"}))
+        included = env.get_template("shared.html")
+        root = env.from_string('{% include "shared.html" %}')
+        assert root._optimized_ast is not None
+        visit_barrier = threading.Barrier(2)
+
+        class CoordinatedPurityAnalyzer(PurityAnalyzer):
+            def _visit_name(self, node):
+                visit_barrier.wait(timeout=30)
+                return super()._visit_name(node)
+
+        analyzer = CoordinatedPurityAnalyzer(
+            template_resolver=lambda _name: included,
+        )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(analyzer.analyze, root._optimized_ast) for _ in range(2)]
+            results = [future.result() for future in futures]
+
+        assert results == ["pure", "pure"]
+
+    def test_shared_landmark_detector_uses_call_local_state(self) -> None:
+        """One detector returns exact landmarks across synchronized calls."""
+        import concurrent.futures
+        import threading
+
+        from kida.analysis import LandmarkDetector
+
+        env = Environment()
+        asts = [
+            env.from_string("<nav>One</nav>")._optimized_ast,
+            env.from_string("<main>Two</main>")._optimized_ast,
+        ]
+        assert all(ast is not None for ast in asts)
+        detector = LandmarkDetector()
+        start = threading.Barrier(2)
+
+        def detect(index: int) -> frozenset[str]:
+            start.wait(timeout=30)
+            result = frozenset()
+            for _ in range(100):
+                result = detector.detect(asts[index])
+            return result
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(detect, range(2)))
+
+        assert results == [frozenset({"nav"}), frozenset({"main"})]
+
+    def test_all_builtin_loaders_support_shared_stable_reads(self, tmp_path) -> None:
+        """Every built-in loader returns stable sources when shared by readers."""
+        import concurrent.futures
+        import threading
+
+        from kida import (
+            ChoiceLoader,
+            FileSystemLoader,
+            FunctionLoader,
+            PackageLoader,
+            PrefixLoader,
+        )
+
+        file_source = "filesystem {{ value }}"
+        (tmp_path / "page.html").write_text(file_source, encoding="utf-8")
+        cases = [
+            (FileSystemLoader(tmp_path), "page.html"),
+            (DictLoader({"page.html": "dictionary"}), "page.html"),
+            (ChoiceLoader([DictLoader({"page.html": "choice"})]), "page.html"),
+            (PrefixLoader({"app": DictLoader({"page.html": "prefix"})}), "app/page.html"),
+            (PackageLoader("kida", "analysis"), "__init__.py"),
+            (FunctionLoader(lambda name: f"function:{name}"), "page.html"),
+        ]
+
+        def read_source(
+            loader: Any,
+            name: str,
+            start: threading.Barrier,
+        ) -> list[tuple[str, str | None]]:
+            start.wait(timeout=30)
+            return [loader.get_source(name) for _ in range(20)]
+
+        for loader, name in cases:
+            expected = loader.get_source(name)
+            start = threading.Barrier(8)
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                futures = [executor.submit(read_source, loader, name, start) for _ in range(8)]
+                results = [result for future in futures for result in future.result()]
+
+            assert results == [expected] * 160
 
 
 class TestConcurrentCompilation:

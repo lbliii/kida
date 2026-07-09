@@ -20,6 +20,29 @@ icon: shield
 
 Kida is designed for concurrent rendering in free-threaded Python.
 
+## Tested Support Status
+
+Kida's free-threading claim is an enforced test contract, not an
+import-compatibility label. The required [CI workflow](https://github.com/lbliii/kida/blob/main/.github/workflows/tests.yml)
+runs on free-threaded Python 3.14t with `PYTHON_GIL=0` for every pull request:
+
+- the full pytest and coverage suite;
+- focused thread-safety and async suites; and
+- the core benchmark regression gate.
+
+Weekly and manual runs expand the randomized shared-runtime test from one seed
+to 25 consecutive seeds: 10,000 barrier-synchronized operations across render,
+streaming, introspection, cache, terminal, and worker-selection paths. The same
+window is repeated with Python development mode, allocator debug hooks, and
+`faulthandler`. The test records its seed so failures are reproducible.
+
+This evidence supports only the sharing and mutation matrix on this page.
+Applications still own synchronization for mutable values passed into renders,
+custom filters/globals/loaders, concurrent source changes, process-environment
+mutation, and APIs documented with a single lifecycle owner. The debug-runtime
+protocol is not ThreadSanitizer or a CPython `Py_DEBUG` build, and free-threading
+does not turn the sandbox or Python process into a security boundary.
+
 ## Free-Threading Support
 
 Kida declares GIL-independence via PEP 703:
@@ -35,21 +58,25 @@ This signals that Kida is safe for true parallel execution in Python 3.14t+.
 
 ## Thread-Safe Design
 
-### Immutable Configuration
+### Startup-Only Configuration
 
-Environment configuration is frozen after construction:
+Create and configure an environment before sharing it with render workers:
 
 ```python
 env = Environment(
     loader=FileSystemLoader("templates/"),
     autoescape=True,
 )
-# Configuration is now immutable
+# Treat configuration attributes as startup-only after this point
 ```
 
-### Copy-on-Write Updates
+`Environment` is not a frozen Python object. Direct assignment to public
+configuration attributes while other threads are loading or rendering is not
+supported.
 
-Adding filters/tests creates new dictionaries:
+### Copy-on-Write Registry Updates
+
+The filter, test, and global registration APIs publish new dictionaries:
 
 ```python
 def add_filter(self, name, func):
@@ -58,6 +85,18 @@ def add_filter(self, name, func):
     new_filters[name] = func
     self._filters = new_filters
 ```
+
+A concurrent reader sees either the complete previous dictionary or the
+complete replacement. This protects readers; it does not make registration a
+multi-writer transaction. If two threads register against the same prior
+snapshot, the later publication can overwrite the other thread's addition.
+Registration across filters, tests, and globals is not atomic either.
+
+Configure registries before serving traffic. If runtime registration is
+unavoidable, serialize writers in the application. Use `add_global()` for
+copy-on-write global publication; direct `env.globals[...]` mutation is not safe
+alongside concurrent readers. Custom callables and global values must protect
+any mutable state they own.
 
 ### RenderContext Isolation
 
@@ -121,6 +160,25 @@ flowchart TB
 - **Template**: Immutable after construction; safe to share across threads.
 - **RenderContext**: Isolated per render via ContextVar; no cross-thread leakage.
 - **Cache**: Protected by internal RLock; concurrent get/set is safe.
+
+### Shared Static Analysis
+
+`BlockAnalyzer`, `DependencyWalker`, and `PurityAnalyzer` keep mutable traversal
+state in `ContextVar`, and `LandmarkDetector` uses only call-local state. One
+instance of each may therefore be shared across concurrent analysis calls.
+
+Analysis metadata dataclasses are frozen, but some records expose mapping-valued
+fields such as `TemplateMetadata.blocks`. Treat those mappings as read-only
+while results are shared.
+
+### Shared Loaders
+
+Built-in loaders support concurrent reads when their configured sources remain
+stable. Do not mutate mappings passed to `DictLoader` or `PrefixLoader`, or the
+loader list passed to `ChoiceLoader`, while workers are reading. Composite
+loaders inherit their child loaders' guarantees, and `FunctionLoader` inherits
+the guarantee of its callable. Concurrent filesystem or installed-package
+updates are outside this contract.
 
 ## When to Use Locks
 
@@ -213,8 +271,13 @@ async def render_many(env):
 | `add_test()` | Startup/configuration only |
 | `add_global()` | Startup/configuration only |
 | `clear_cache()` | ✅ Yes |
+| Built-in loader `get_source()` | ✅ Yes, for stable configured sources |
+| Shared static analyzer `analyze()` | ✅ Yes |
 
-Concurrent `render()` and `render_stream()` on the same template from different threads is safe. Configure filters, tests, and globals before serving traffic; those registries use copy-on-write for reader safety, but concurrent writer ordering is not a public contract.
+Concurrent `render()` and `render_stream()` on the same template from different
+threads is safe. Registry readers may observe the complete state before or after
+a copy-on-write registration. Concurrent writers have no ordering or merge
+guarantee and must be externally serialized.
 
 ## Component Concurrency Matrix
 
@@ -222,6 +285,13 @@ Concurrent `render()` and `render_stream()` on the same template from different 
 |-----------|------------------|------------------|-------|
 | `Environment.get_template` | Yes | Yes (LRU locked) | Cache dicts protected by `_cache_lock` |
 | `Template.render` | Yes | N/A | Per-call state via ContextVar |
+| Built-in loaders | Yes | No | Stable sources only; composite/user-function guarantees are inherited |
+| `BlockAnalyzer` / traversal analyzers | Yes | N/A | Per-call or ContextVar traversal state; shared metadata mappings are read-only |
+| Filter/test/global registries | Snapshot reads | Startup only | Copy-on-write APIs publish complete mappings; competing writers may lose updates |
+| `CoverageCollector` | Context-local | Distinct collectors | Global instrumentation lifecycle is locked; start/stop one instance in the same context |
+| `LiveRenderer` | Yes | Serialized updates | Context merge, render, and output share one lock; lifecycle has one owner |
+| `Spinner` | Yes | Yes | Frame advancement and reset use an internal lock |
+| Worker selection | Yes | N/A | Read-only profiles and thread-safe cached GIL detection |
 | `CachedBlocksDict` | Yes | Stats safe | Stats updates use lock when shared |
 | `Compiler.compile` | No | No | One compile at a time per Compiler instance |
 

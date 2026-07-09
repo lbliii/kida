@@ -96,3 +96,44 @@ class TestLRUCacheConcurrency:
             t.start()
         for t in threads:
             t.join()
+
+    def test_concurrent_misses_clear_and_eviction(self) -> None:
+        """Miss factories and invalidation preserve the bounded LRU invariant."""
+        import concurrent.futures
+
+        worker_count = 8
+        rounds = 32
+        cache: LRUCache[tuple[int, int], tuple[int, int]] = LRUCache(maxsize=8)
+        phase = threading.Barrier(worker_count + 1)
+
+        def reader(worker: int) -> int:
+            for iteration in range(rounds):
+                phase.wait(timeout=30)
+                key = (worker, iteration)
+                value = cache.get_or_set(key, lambda key=key: key)
+                assert value == key
+                phase.wait(timeout=30)
+            return worker
+
+        def invalidator() -> None:
+            for iteration in range(rounds):
+                phase.wait(timeout=30)
+                if iteration < rounds // 2:
+                    cache.clear()
+                else:
+                    sentinel = (-1, iteration)
+                    cache.set(sentinel, sentinel)
+                phase.wait(timeout=30)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count + 1) as executor:
+            readers = [executor.submit(reader, worker) for worker in range(worker_count)]
+            invalidation = executor.submit(invalidator)
+            results = [future.result() for future in readers]
+            invalidation.result()
+
+        assert sorted(results) == list(range(worker_count))
+        assert len(cache) == cache.maxsize == 8
+        assert cache.stats()["size"] == 8
+        cached_keys = cache.keys()
+        for key in cached_keys:
+            assert cache.get(key) == key
