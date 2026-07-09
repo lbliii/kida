@@ -1,0 +1,236 @@
+{
+  "catalog_identity": {
+    "reason": "catalog-namespace-not-provided",
+    "state": "unknown"
+  },
+  "completeness": {
+    "reason": "legacy-collector-skips-invalid-templates",
+    "state": "unknown"
+  },
+  "components": [
+    {
+      "component_id": "button.html#button",
+      "consumes": {
+        "reason": "provide-consume-facts-not-exposed",
+        "state": "unknown"
+      },
+      "context_dependencies": {
+        "evidence": "component-row.depends_on",
+        "state": "known",
+        "value": []
+      },
+      "documentation": {
+        "description": {
+          "reason": "documentation-provider-not-configured",
+          "state": "unknown"
+        },
+        "examples": {
+          "reason": "documentation-provider-not-configured",
+          "state": "unknown"
+        }
+      },
+      "extensions": {},
+      "imports": {
+        "reason": "component-import-edges-not-exposed",
+        "state": "unknown"
+      },
+      "name": "button",
+      "props": [
+        {
+          "declared_type": {
+            "evidence": "component-row.params.annotation",
+            "state": "known",
+            "value": "str"
+          },
+          "default": {
+            "evidence": "component-row.params.has_default",
+            "state": "absent"
+          },
+          "inferred_type": {
+            "reason": "type-inference-not-available",
+            "state": "unknown"
+          },
+          "name": "label",
+          "position": 0,
+          "required": true
+        },
+        {
+          "declared_type": {
+            "evidence": "component-row.params.annotation",
+            "reason": "type-not-declared",
+            "state": "unknown"
+          },
+          "default": {
+            "evidence": "component-row.params.has_default",
+            "reason": "default-expression-not-exposed",
+            "state": "unknown"
+          },
+          "inferred_type": {
+            "reason": "type-inference-not-available",
+            "state": "unknown"
+          },
+          "name": "disabled",
+          "position": 1,
+          "required": false
+        }
+      ],
+      "provides": {
+        "reason": "provide-consume-facts-not-exposed",
+        "state": "unknown"
+      },
+      "slots": [],
+      "source": {
+        "column": {
+          "reason": "source-column-not-exposed",
+          "state": "unknown"
+        },
+        "line": 1,
+        "path": "button.html"
+      },
+      "variadic": {
+        "args": {
+          "evidence": "component-row.vararg",
+          "state": "known",
+          "value": null
+        },
+        "kwargs": {
+          "evidence": "component-row.kwarg",
+          "state": "known",
+          "value": null
+        }
+      }
+    },
+    {
+      "component_id": "card.html#card",
+      "consumes": {
+        "reason": "provide-consume-facts-not-exposed",
+        "state": "unknown"
+      },
+      "context_dependencies": {
+        "evidence": "component-row.depends_on",
+        "state": "known",
+        "value": [
+          "site.title"
+        ]
+      },
+      "documentation": {
+        "description": {
+          "reason": "documentation-provider-not-configured",
+          "state": "unknown"
+        },
+        "examples": {
+          "reason": "documentation-provider-not-configured",
+          "state": "unknown"
+        }
+      },
+      "extensions": {},
+      "imports": {
+        "reason": "component-import-edges-not-exposed",
+        "state": "unknown"
+      },
+      "name": "card",
+      "props": [
+        {
+          "declared_type": {
+            "evidence": "component-row.params.annotation",
+            "state": "known",
+            "value": "str"
+          },
+          "default": {
+            "evidence": "component-row.params.has_default",
+            "state": "absent"
+          },
+          "inferred_type": {
+            "reason": "type-inference-not-available",
+            "state": "unknown"
+          },
+          "name": "title",
+          "position": 0,
+          "required": true
+        },
+        {
+          "declared_type": {
+            "evidence": "component-row.params.annotation",
+            "reason": "type-not-declared",
+            "state": "unknown"
+          },
+          "default": {
+            "evidence": "component-row.params.has_default",
+            "reason": "default-expression-not-exposed",
+            "state": "unknown"
+          },
+          "inferred_type": {
+            "reason": "type-inference-not-available",
+            "state": "unknown"
+          },
+          "name": "subtitle",
+          "position": 1,
+          "required": false
+        }
+      ],
+      "provides": {
+        "reason": "provide-consume-facts-not-exposed",
+        "state": "unknown"
+      },
+      "slots": [
+        {
+          "fallback": {
+            "reason": "slot-fallback-not-exposed",
+            "state": "unknown"
+          },
+          "kind": "default",
+          "name": "default",
+          "origin": {
+            "reason": "slot-versus-yield-origin-not-distinguished",
+            "state": "unknown"
+          },
+          "required": false,
+          "scoped_params": {
+            "reason": "scoped-slot-params-not-exposed",
+            "state": "unknown"
+          }
+        },
+        {
+          "fallback": {
+            "reason": "slot-fallback-not-exposed",
+            "state": "unknown"
+          },
+          "kind": "named",
+          "name": "header",
+          "origin": {
+            "reason": "slot-versus-yield-origin-not-distinguished",
+            "state": "unknown"
+          },
+          "required": false,
+          "scoped_params": {
+            "reason": "scoped-slot-params-not-exposed",
+            "state": "unknown"
+          }
+        }
+      ],
+      "source": {
+        "column": {
+          "reason": "source-column-not-exposed",
+          "state": "unknown"
+        },
+        "line": 1,
+        "path": "card.html"
+      },
+      "variadic": {
+        "args": {
+          "evidence": "component-row.vararg",
+          "state": "known",
+          "value": "items"
+        },
+        "kwargs": {
+          "evidence": "component-row.kwarg",
+          "state": "known",
+          "value": "attrs"
+        }
+      }
+    }
+  ],
+  "contract": "kida.component-catalog",
+  "contract_version": 1,
+  "fixture_status": "design-only"
+}
