@@ -20,6 +20,7 @@ SMOKE_EXAMPLES = [
     "coverage",
     "design_system",
     "extensions",
+    "render_capture_manifest",
     "sandbox",
     "terminal_basic",
     "terminal_dashboard",

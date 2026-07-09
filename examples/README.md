@@ -196,6 +196,17 @@ Opt-in metrics for identifying template performance bottlenecks.
 cd examples/profiling && python app.py
 ```
 
+### `render_capture_manifest/` -- Build-Time Render Facts
+
+`captured_render()` records rendered blocks and selected context into a
+`RenderCapture`. The example accumulates captures in a `RenderManifest`, compares
+two builds, inspects `FreezeCache` candidates and statistics, and derives search
+entries with `SearchManifestBuilder`.
+
+```bash
+cd examples/render_capture_manifest && python app.py
+```
+
 ### `dict_loader/` -- In-Memory Templates
 
 `DictLoader` loads templates from a dictionary. No filesystem required.
