@@ -14,7 +14,17 @@ from kida.compiler.stream_transform import (
     plan_block_render_modes,
 )
 from kida.lexer import Lexer
-from kida.nodes import Cache, Const, Data, Filter, FilterBlock, Node
+from kida.nodes import (
+    Cache,
+    Capture,
+    Const,
+    Data,
+    Filter,
+    FilterBlock,
+    Node,
+    Push,
+    Spaceless,
+)
 from kida.parser import Parser
 
 AST_CASES = (
@@ -72,6 +82,22 @@ AST_CASES = (
         "cache_filter",
         "256cfb522ef48654",
         "6d675c5428a45ae7",
+    ),
+    (
+        "special_blocks",
+        {
+            "special_blocks": (
+                "{% block content %}"
+                "{% capture message %}Hi {{ name }}{% end %}"
+                "{% spaceless %}<div> <span>{{ message }}</span> </div>{% end %}"
+                '{% push "scripts" %}<script>{{ name }}</script>{% end %}'
+                '{% stack "scripts" %}'
+                "{% end %}"
+            )
+        },
+        "special_blocks",
+        "e1899843c72d64e1",
+        "84cdb059d42b8e65",
     ),
 )
 
@@ -188,6 +214,52 @@ def test_lowering_mode_state_is_per_compiler_instance() -> None:
 def test_caching_body_failure_restores_streaming_mode(
     method_name: str,
     node: Cache | FilterBlock,
+) -> None:
+    compiler = _FailingChildCompiler(Environment())
+    compiler._streaming = True
+    compiler._async_mode = True
+
+    with pytest.raises(RuntimeError, match="stop on Data"):
+        getattr(compiler, method_name)(node)
+
+    assert compiler._streaming is True
+    assert compiler._async_mode is True
+
+
+@pytest.mark.parametrize(
+    ("method_name", "node"),
+    [
+        (
+            "_compile_capture",
+            Capture(
+                lineno=1,
+                col_offset=0,
+                name="message",
+                body=(Data(lineno=1, col_offset=0, value="body"),),
+            ),
+        ),
+        (
+            "_compile_spaceless",
+            Spaceless(
+                lineno=1,
+                col_offset=0,
+                body=(Data(lineno=1, col_offset=0, value="body"),),
+            ),
+        ),
+        (
+            "_compile_push",
+            Push(
+                lineno=1,
+                col_offset=0,
+                stack_name="scripts",
+                body=(Data(lineno=1, col_offset=0, value="body"),),
+            ),
+        ),
+    ],
+)
+def test_special_block_body_failure_restores_streaming_mode(
+    method_name: str,
+    node: Capture | Push | Spaceless,
 ) -> None:
     compiler = _FailingChildCompiler(Environment())
     compiler._streaming = True

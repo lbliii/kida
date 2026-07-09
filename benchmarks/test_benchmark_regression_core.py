@@ -73,6 +73,15 @@ CACHE_FILTER_COMPILE_TEMPLATE = """\
 {% end %}
 """
 
+SPECIAL_BLOCK_COMPILE_TEMPLATE = """\
+{% block content %}
+  {% capture message %}Hi {{ name }}{% end %}
+  {% spaceless %}<div> <span>{{ message }}</span> </div>{% end %}
+  {% push "scripts" %}<script>{{ name }}</script>{% end %}
+  {% stack "scripts" %}
+{% end %}
+"""
+
 
 class AttrObject:
     __slots__ = ("name",)
@@ -184,6 +193,15 @@ def _compile_cache_filter_batch(iterations: int) -> int:
     compiled = 0
     for i in range(iterations):
         template = env.from_string(CACHE_FILTER_COMPILE_TEMPLATE, name=f"cache-filter-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_special_block_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(SPECIAL_BLOCK_COMPILE_TEMPLATE, name=f"special-block-{i}")
         compiled += template.name is not None
     return compiled
 
@@ -330,4 +348,16 @@ def test_compile_cache_filter_template_batch(benchmark: BenchmarkFixture) -> Non
     assert "".join(template.render_stream(name="Ada")) == rendered
 
     total = benchmark(_compile_cache_filter_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_special_block_template_batch(benchmark: BenchmarkFixture) -> None:
+    template = Environment(auto_reload=False).from_string(SPECIAL_BLOCK_COMPILE_TEMPLATE)
+    rendered = template.render(name="Ada")
+    assert "<div><span>Hi Ada</span></div>" in rendered
+    assert "<script>Ada</script>" in rendered
+    assert "".join(template.render_stream(name="Ada")) == rendered
+
+    total = benchmark(_compile_special_block_batch, COMPILE_CALLS_PER_ROUND)
     assert total == COMPILE_CALLS_PER_ROUND
