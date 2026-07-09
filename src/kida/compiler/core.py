@@ -687,8 +687,9 @@ class Compiler(
         # Region blocks use their own delegation path and are unaffected.
         from kida.compiler.stream_transform import (
             BlockLoweringStrategy,
+            build_async_stream_block_function,
+            build_stream_block_function,
             plan_block_render_modes,
-            sync_body_to_stream,
         )
 
         sync_blocks: list[ast.stmt] = []
@@ -722,30 +723,14 @@ class Compiler(
             else:
                 # Reuse sync body compilation saved by _make_block_function.
                 compiled_stmts = self._last_block_compiled_stmts or []
-
-                stream_stmts = sync_body_to_stream(compiled_stmts)
-
-                # Build stream block function
-                stream_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
-                stream_body.extend(self._emit_cache_assignments(self._last_block_cacheable_vars))
-                stream_body.extend(stream_stmts)
-                stream_body.append(ast.Return(value=None))
-                stream_body.append(ast.Expr(value=ast.Yield(value=None)))
                 stream_blocks.append(
-                    ast.FunctionDef(
-                        name=f"_block_{block_name}_stream",
-                        args=ast.arguments(
-                            posonlyargs=[],
-                            args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
-                            vararg=None,
-                            kwonlyargs=[],
-                            kw_defaults=[],
-                            kwarg=None,
-                            defaults=[],
+                    build_stream_block_function(
+                        block_name,
+                        preamble=self._make_block_preamble(streaming=True),
+                        cache_assignments=self._emit_cache_assignments(
+                            self._last_block_cacheable_vars
                         ),
-                        body=stream_body,
-                        decorator_list=[],
-                        returns=None,
+                        compiled_stmts=compiled_stmts,
                     )
                 )
 
@@ -759,27 +744,14 @@ class Compiler(
                     self._async_mode = False
                     self._streaming = False
                 else:
-                    async_stmts = sync_body_to_stream(compiled_stmts)
-                    async_body: list[ast.stmt] = self._make_block_preamble(streaming=True)
-                    async_body.extend(self._emit_cache_assignments(self._last_block_cacheable_vars))
-                    async_body.extend(async_stmts)
-                    async_body.append(ast.Return(value=None))
-                    async_body.append(ast.Expr(value=ast.Yield(value=None)))
                     async_stream_blocks.append(
-                        ast.AsyncFunctionDef(
-                            name=f"_block_{block_name}_stream_async",
-                            args=ast.arguments(
-                                posonlyargs=[],
-                                args=[ast.arg(arg="ctx"), ast.arg(arg="_blocks")],
-                                vararg=None,
-                                kwonlyargs=[],
-                                kw_defaults=[],
-                                kwarg=None,
-                                defaults=[],
+                        build_async_stream_block_function(
+                            block_name,
+                            preamble=self._make_block_preamble(streaming=True),
+                            cache_assignments=self._emit_cache_assignments(
+                                self._last_block_cacheable_vars
                             ),
-                            body=async_body,
-                            decorator_list=[],
-                            returns=None,
+                            compiled_stmts=compiled_stmts,
                         )
                     )
 
