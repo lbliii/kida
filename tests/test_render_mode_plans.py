@@ -1,0 +1,138 @@
+"""Contracts for immutable block render-mode strategy planning."""
+
+from __future__ import annotations
+
+import ast
+import hashlib
+
+import pytest
+
+from kida import DictLoader, Environment
+from kida.compiler import Compiler
+from kida.compiler.stream_transform import (
+    BlockLoweringStrategy,
+    plan_block_render_modes,
+)
+from kida.lexer import Lexer
+from kida.parser import Parser
+
+AST_CASES = (
+    (
+        "plain",
+        {"plain": "{% block content %}Hello {{ name }}{% end %}"},
+        "plain",
+        "b8a82ac1d79dfff2",
+        "075fbbd2e9623f2c",
+    ),
+    (
+        "capture",
+        {
+            "capture": (
+                "{% block content %}{% capture message %}Hi {{ name }}{% end %}"
+                "{{ message }}{% end %}"
+            )
+        },
+        "capture",
+        "17feb42fcde3d9d8",
+        "3d8e53fe84118875",
+    ),
+    (
+        "region",
+        {"region": ('{% region panel(name) %}<p>{{ name }}</p>{% end %}{{ panel("x") }}')},
+        "region",
+        "319763b427a0e90f",
+        "c8690ec35716e6b2",
+    ),
+    (
+        "async",
+        {"async": ("{% block content %}{% async for item in items %}{{ item }}{% end %}{% end %}")},
+        "async",
+        "da10c61a10540e10",
+        "fa10684b2c1e3820",
+    ),
+    (
+        "inheritance",
+        {
+            "base": "{% block content %}Base{% end %}",
+            "child": '{% extends "base" %}{% block content %}Child{% end %}',
+        },
+        "child",
+        "35bdaefc06ab71da",
+        "8259eda1b126565e",
+    ),
+)
+
+
+@pytest.mark.parametrize("is_region", [False, True])
+@pytest.mark.parametrize("rebinds_append", [False, True])
+@pytest.mark.parametrize("template_has_regions", [False, True])
+@pytest.mark.parametrize("template_has_async", [False, True])
+def test_block_render_mode_plan_covers_complete_decision_matrix(
+    *,
+    is_region: bool,
+    rebinds_append: bool,
+    template_has_regions: bool,
+    template_has_async: bool,
+) -> None:
+    plan = plan_block_render_modes(
+        is_region=is_region,
+        rebinds_append=rebinds_append,
+        template_has_regions=template_has_regions,
+        template_has_async=template_has_async,
+    )
+
+    direct_stream = is_region or rebinds_append or template_has_regions
+    direct_async_stream = direct_stream or template_has_async
+    assert (plan.stream is BlockLoweringStrategy.COMPILE_DIRECT) is direct_stream
+    assert (plan.async_stream is BlockLoweringStrategy.COMPILE_DIRECT) is direct_async_stream
+
+
+def test_block_render_mode_plan_is_frozen() -> None:
+    plan = plan_block_render_modes(
+        is_region=False,
+        rebinds_append=False,
+        template_has_regions=False,
+        template_has_async=False,
+    )
+
+    assert type(plan).__dataclass_params__.frozen is True
+
+
+def _generated_ast_hash(
+    templates: dict[str, str],
+    entry: str,
+    *,
+    include_attributes: bool,
+) -> str:
+    source = templates[entry]
+    env = Environment(loader=DictLoader(templates))
+    tokens = list(Lexer(source, env._lexer_config).tokenize())
+    tree = Parser(
+        tokens,
+        entry,
+        source=source,
+        autoescape=env.select_autoescape(entry),
+    ).parse()
+    module = Compiler(env)._compile_template(tree)
+    ast.fix_missing_locations(module)
+    dump = ast.dump(module, include_attributes=include_attributes, indent=2)
+    return hashlib.sha256(dump.encode()).hexdigest()[:16]
+
+
+@pytest.mark.parametrize(
+    ("case_name", "templates", "entry", "structural_hash", "location_hash"),
+    AST_CASES,
+)
+def test_render_mode_plans_preserve_generated_ast_and_locations(
+    case_name: str,
+    templates: dict[str, str],
+    entry: str,
+    structural_hash: str,
+    location_hash: str,
+) -> None:
+    assert _generated_ast_hash(templates, entry, include_attributes=False) == structural_hash, (
+        case_name
+    )
+    assert _generated_ast_hash(templates, entry, include_attributes=True) == location_hash, (
+        case_name
+    )

@@ -1,10 +1,11 @@
-"""Sync-to-stream Python AST transformer.
+"""Block render-mode planning and sync-to-stream Python AST transformation.
 
 Transforms compiled sync block stmts (_append calls) into streaming stmts
 (yield expressions). This eliminates a redundant full Kida AST compilation
 per block by deriving the stream variant from the sync compilation output.
 
-The transform replaces:
+The immutable plan selects direct compilation or transformation for each
+streaming variant. The transform replaces:
     _append(expr)  →  yield expr
     return ''.join(buf)  →  (removed)
 
@@ -20,7 +21,50 @@ from __future__ import annotations
 
 import ast
 import copy
-from typing import Any
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import Any, final
+
+
+@final
+class BlockLoweringStrategy(Enum):
+    """How one streaming block variant is produced."""
+
+    COMPILE_DIRECT = auto()
+    TRANSFORM_SYNC = auto()
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class BlockRenderModePlan:
+    """Lowering strategies for the stream and async-stream block variants."""
+
+    stream: BlockLoweringStrategy
+    async_stream: BlockLoweringStrategy
+
+
+def plan_block_render_modes(
+    *,
+    is_region: bool,
+    rebinds_append: bool,
+    template_has_regions: bool,
+    template_has_async: bool,
+) -> BlockRenderModePlan:
+    """Choose direct compilation or sync-AST transformation for each variant."""
+    direct_stream = is_region or rebinds_append or template_has_regions
+    direct_async_stream = direct_stream or template_has_async
+    return BlockRenderModePlan(
+        stream=(
+            BlockLoweringStrategy.COMPILE_DIRECT
+            if direct_stream
+            else BlockLoweringStrategy.TRANSFORM_SYNC
+        ),
+        async_stream=(
+            BlockLoweringStrategy.COMPILE_DIRECT
+            if direct_async_stream
+            else BlockLoweringStrategy.TRANSFORM_SYNC
+        ),
+    )
 
 
 def sync_body_to_stream(stmts: list[ast.stmt]) -> list[ast.stmt]:
