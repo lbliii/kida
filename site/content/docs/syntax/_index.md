@@ -32,7 +32,7 @@ composition.
 |---------|--------|---------|
 | Output | `{{ expr }}` | `{{ user.name }}` |
 | Tags | `{% tag %}` | `{% if %}`, `{% for %}` |
-| Block end | `{% end %}` | Unified ending |
+| Canonical block end | `{% end %}` | Matching explicit closers are also accepted |
 | Comments | `{# text #}` | `{# TODO #}` |
 | Filters | `\| filter` | `{{ name \| upper }}` |
 | Pipeline | `\|> filter` | `{{ x \|> a \|> b }}` |
@@ -106,7 +106,8 @@ composition.
 
 ## Key Features
 
-- **Unified `{% end %}`** — Clean, consistent block endings
+- **Canonical unified `{% end %}`** — Clean, consistent block endings; matching
+  explicit closers remain valid
 - **Pattern matching** — `{% match status %}{% case "active" %}...{% end %}`
 - **Pipeline operator** — `{{ title |> escape |> upper |> truncate(50) }}`
 - **Safe pipeline** — `{{ user?.name ?|> upper ?? "Anonymous" }}` — None-propagating

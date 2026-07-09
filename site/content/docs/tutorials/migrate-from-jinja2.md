@@ -76,11 +76,10 @@ env = Environment(
 
 Note: Kida does not use Jinja2-style extensions. For side effects, use `{% set _ = expr %}`.
 
-## Step 4: Rewrite Block Endings
+## Step 4: Keep Matching Block Endings
 
-Convert specific endings to unified `{% end %}`:
-
-**Jinja2:**
+No migration edit is required for matching explicit closers on constructs Kida
+supports. The following Jinja source is valid in Kida unchanged:
 
 ```jinja2
 {% if condition %}
@@ -96,7 +95,8 @@ Convert specific endings to unified `{% end %}`:
 {% endblock %}
 ```
 
-**Kida:**
+Unified `{% end %}` remains canonical Kida style, so you may normalize the same
+template later as an optional style cleanup:
 
 ```kida
 {% if condition %}
@@ -177,9 +177,9 @@ def is_prime(n):
 
 | Jinja2 | Kida |
 |--------|------|
-| `{% endif %}` | `{% end %}` |
-| `{% endfor %}` | `{% end %}` |
-| `{% endblock %}` | `{% end %}` |
+| `{% endif %}` | Accepted unchanged; `{% end %}` is the canonical alternative |
+| `{% endfor %}` | Accepted unchanged; `{% end %}` is the canonical alternative |
+| `{% endblock %}` | Accepted unchanged; `{% end %}` is the canonical alternative |
 | `{% macro name(...) %}` | `{% def name(...) %}` (Kida has no `{% macro %}` keyword) |
 | `{% endmacro %}` | `{% end %}` |
 | `{{ x \| filter }}` | `{{ x \|> filter }}` (pipeline) |
@@ -255,13 +255,15 @@ env.add_filter('name', func)  # Not env.filters['name'] = func
 
 ### Block Endings
 
-**Error**: `TemplateSyntaxError: Unexpected tag 'endif'`
-
-**Fix**: Use unified `{% end %}`:
+Matching explicit closers are accepted. If Kida reports a block-ending error,
+check that the closer matches the open construct. Both of these are valid:
 
 ```kida
-{% if x %}...{% end %}  # Not {% endif %}
+{% if x %}...{% endif %}
+{% if x %}...{% end %}  {# canonical Kida style #}
 ```
+
+Do not blanket-rewrite `endif`, `endfor`, or `endblock` during migration.
 
 ## See Also
 

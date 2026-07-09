@@ -228,6 +228,10 @@ class Compiler(
         self._filename: str | None = None
         self._warnings: list[TemplateWarning] = []
         self._scope_depth: int = 0  # Track nesting depth inside scoping blocks (if/for/while)
+        # Track the kinds of nested blocks relevant to Jinja assignment
+        # semantics. Jinja ``if`` branches share their surrounding scope,
+        # while loops introduce a local scope.
+        self._jinja_scope_stack: list[str] = []
         # Track local variables (loop variables, etc.) for O(1) direct access
         self._locals: set[str] = set()
         # Track blocks for inheritance
@@ -476,6 +480,7 @@ class Compiler(
         self._declared_definitions = set()
         self._template_scope_names = set()
         self._loop_usage_cache = {}
+        self._jinja_scope_stack = []
 
         # Validate top-level placement of {% def %} / {% region %}: nesting
         # inside control-flow constructs (if/for/with/provide/...) prevents

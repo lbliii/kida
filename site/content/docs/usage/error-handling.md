@@ -178,7 +178,7 @@ Kida emits Python warnings during template compilation for common pitfalls:
 |---------|------|---------|
 | `PrecedenceWarning` | K-WARN-001 | `x ?? [] \| length` — filter pipe binds tighter than `??` |
 | `CoercionWarning` | — | `"abc" \| float` — silent type coercion to `0.0` |
-| `MigrationWarning` | K-WARN-002 | Nested `{% set %}` shadows a `{% let %}`/`{% export %}` name (default-on; disable via `jinja2_compat_warnings=False`) |
+| `MigrationWarning` | K-WARN-002 | `{% set %}` in an `if` branch shadows a `{% let %}`/`{% export %}` name (default-on; disable via `jinja2_compat_warnings=False`) |
 
 Access warnings on a compiled template:
 
@@ -187,6 +187,11 @@ template = env.get_template("page.html")
 for w in template.warnings:
     print(f"{w.code}: {w.message} (line {w.lineno})")
 ```
+
+`kida check`, `diagnose_source()`, and `diagnose_directory()` also include
+code-bearing compiler warnings in the shared structured-diagnostics collection.
+Text, diagnostics JSON v1, and SARIF preserve the same path, line, suggestion,
+and confidence. These advisory findings do not include automatic edits.
 
 These are standard Python warnings — filter them with `warnings.filterwarnings("ignore", category=PrecedenceWarning)`.
 

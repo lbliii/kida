@@ -33,7 +33,8 @@ icon: git-branch
 {% end %}
 ```
 
-Note: Kida uses unified `{% end %}` to close all blocks.
+Note: Unified `{% end %}` is canonical Kida style. Matching explicit closers
+such as `{% endif %}` and `{% endfor %}` are also accepted.
 
 ### Inline Conditionals
 
@@ -178,8 +179,9 @@ Block-scoped variable — **does not leak** out of `{% if %}`, `{% for %}`, or o
 {{ x }}  → outer   {# set did not modify the outer variable #}
 ```
 
-> **Coming from Jinja2?** This is the biggest scoping difference. In Jinja2, `set`
-> inside a block modifies the outer variable. In Kida, `set` is block-scoped. Use
+> **Coming from Jinja2?** Jinja2 `if` branches do not introduce a scope, so `set`
+> inside an `if` modifies the surrounding variable. Jinja2 `for` loops do have a
+> local assignment scope. Kida makes `set` block-scoped in both constructs. Use
 > `let` for template-wide variables or `export` to push values out of blocks.
 
 ### export / promote

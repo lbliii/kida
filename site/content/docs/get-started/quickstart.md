@@ -48,7 +48,8 @@ Create `templates/hello.html`:
 </html>
 ```
 
-Note: Kida uses unified `{% end %}` to close all blocks.
+Note: Unified `{% end %}` is canonical Kida style. Matching explicit closers
+such as `{% endif %}` and `{% endfor %}` are also accepted.
 
 ## Step 2: Render the Template
 

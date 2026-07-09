@@ -17,6 +17,7 @@ from kida._diagnostic_adapters import (
     convert_call_validation,
     convert_fragile_path_issue,
     convert_template_error,
+    convert_template_warning,
     convert_type_issue,
     convert_type_mismatch,
 )
@@ -31,13 +32,22 @@ from kida.diagnostics import (
     SourceSpan,
     apply_safe_edits,
 )
-from kida.exceptions import ErrorCode, TemplateError, TemplateSyntaxError, build_source_snippet
+from kida.exceptions import (
+    ComponentWarning,
+    ErrorCode,
+    MigrationWarning,
+    PrecedenceWarning,
+    TemplateError,
+    TemplateSyntaxError,
+    build_source_snippet,
+)
 from kida.lexer import Lexer, LexerError
 from kida.parser import Parser
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from kida.exceptions import TemplateWarning
     from kida.nodes import Template as TemplateNode
     from kida.template import Template
 
@@ -46,13 +56,14 @@ _TEMPLATE_GLOBS = ("*.html", "*.kida")
 _PHASE_ORDER = {
     "configuration": 0,
     "load": 1,
-    "strict": 2,
-    "component-call": 3,
-    "component-type": 4,
-    "type": 5,
-    "fragile-path": 6,
-    "accessibility": 7,
-    "extension": 8,
+    "compiler-warning": 2,
+    "strict": 3,
+    "component-call": 4,
+    "component-type": 5,
+    "type": 6,
+    "fragile-path": 7,
+    "accessibility": 8,
+    "extension": 9,
 }
 
 
@@ -158,6 +169,34 @@ def _with_path(diagnostic: Diagnostic, path: str) -> Diagnostic:
         diagnostic,
         span=SourceSpan(path=path, start=diagnostic.span.start, end=diagnostic.span.end),
     )
+
+
+def _compiler_warning_text(diagnostic: Diagnostic) -> str:
+    location = diagnostic.span.path or "<string>"
+    if diagnostic.span.start is not None:
+        location = f"{location}:{diagnostic.span.start.line}"
+    text = f"{location}: {diagnostic.code}: {diagnostic.message}"
+    if diagnostic.suggestion is not None:
+        text += f"\n  Hint: {diagnostic.suggestion}"
+    return text
+
+
+def _collect_compiler_warnings(
+    collector: _Collector,
+    template_warnings: Iterable[TemplateWarning],
+    *,
+    path: str,
+) -> None:
+    converted = [
+        _with_path(convert_template_warning(template_warning), path)
+        for template_warning in template_warnings
+    ]
+    for diagnostic in sorted(converted, key=_diagnostic_key):
+        collector.add(
+            diagnostic,
+            phase="compiler-warning",
+            text=_compiler_warning_text(diagnostic),
+        )
 
 
 def _snippet(source: str, line: int, column: int | None) -> DiagnosticSnippet:
@@ -427,7 +466,14 @@ def collect_check_diagnostics(
         return _invalid_root_result(root)
 
     collector = _Collector(root)
-    env = Environment(loader=FileSystemLoader(str(root)), validate_calls=False)
+    # Diagnostics need producer records, which are not serialized in bytecode
+    # cache entries. Compile deterministically so cache hits cannot drop
+    # TemplateWarning findings between otherwise identical checks.
+    env = Environment(
+        loader=FileSystemLoader(str(root)),
+        validate_calls=False,
+        bytecode_cache=False,
+    )
     failed_loads: set[str] = set()
     templates: dict[str, Template] = {}
     strict_warnings = 0
@@ -436,7 +482,16 @@ def collect_check_diagnostics(
     for path in _iter_templates(root):
         rel = path.relative_to(root).as_posix()
         try:
-            tpl = env.get_template(rel)
+            # Compiler warnings are collected below as structured diagnostics.
+            # Suppress their legacy Python-warning mirror only within this load
+            # so the text surface does not print the same finding twice.
+            import warnings
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", ComponentWarning)
+                warnings.simplefilter("ignore", MigrationWarning)
+                warnings.simplefilter("ignore", PrecedenceWarning)
+                tpl = env.get_template(rel)
             templates[rel] = tpl
         except Exception as exc:
             collector.add(
@@ -447,6 +502,8 @@ def collect_check_diagnostics(
             collector.partial = True
             failed_loads.add(rel)
             continue
+
+        _collect_compiler_warnings(collector, tpl.warnings, path=rel)
 
         if strict:
             try:
@@ -675,6 +732,25 @@ def collect_source_diagnostics(
         )
         collector.partial = True
         return collector.build(exit_code=1)
+
+    # Compile the optimized parsed AST with a request-local compiler. Dead-code
+    # elimination is functional: it returns existing frozen nodes or rebuilt
+    # core nodes and leaves extension-owned payloads untouched.
+    from kida.compiler import Compiler
+    from kida.compiler.partial_eval import eliminate_dead_code
+
+    compiler = Compiler(env)
+    try:
+        compiler.compile(eliminate_dead_code(ast), name, None)
+    except Exception as exc:
+        collector.add(
+            _exception_diagnostic(exc, name),
+            phase="load",
+            text=f"{name}: {exc}",
+        )
+        collector.partial = True
+        return collector.build(exit_code=1)
+    _collect_compiler_warnings(collector, compiler.warnings, path=name)
 
     if strict:
         for lineno, col, closing in parser._unified_end_closures:

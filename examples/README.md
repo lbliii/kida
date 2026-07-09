@@ -238,9 +238,10 @@ cd examples/t_string && python app.py
 
 ### `jinja2_migration/` -- Jinja2 Migration Guide
 
-Side-by-side comparison of equivalent templates. Highlights syntax differences:
-`{% end %}` vs `{% endif %}/{% endfor %}`, `{% match %}` vs `{% if %}/{% elif %}`,
-`??` vs `| default()`, `?.` vs optional chaining patterns.
+Side-by-side comparison of equivalent templates. Shows that matching Jinja
+closers such as `{% endif %}` and `{% endfor %}` are accepted unchanged while
+`{% end %}` remains canonical Kida style, then compares `{% match %}`, `??`, and
+`?.` with their Jinja patterns.
 
 ```bash
 cd examples/jinja2_migration && python app.py

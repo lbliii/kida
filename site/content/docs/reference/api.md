@@ -66,8 +66,9 @@ for finding in report.diagnostics:
     print(finding.code, finding.message, start.line if start else None)
 ```
 
-`diagnose_source()` parses the supplied text directly. The unsaved buffer is
-not added to the environment's template or bytecode caches. A supplied
+`diagnose_source()` parses and compiles the supplied text directly so compiler
+warnings are included alongside analysis findings. The unsaved buffer is not
+added to the environment's template or bytecode caches. A supplied
 `Environment` contributes lexer/parser configuration, extensions, autoescape
 selection, and loader-backed imported component metadata. Resolving imports may
 use that environment's existing thread-safe template cache; registries are not
@@ -88,6 +89,8 @@ Both functions return a frozen `DiagnosticReport` containing an ordered tuple
 of `Diagnostic` records and a `partial` flag. `partial=True` means requested
 analysis could not finish, such as when malformed source prevents later static
 checks. Reports intentionally have no CLI exit code or stream-routing policy.
+Compiler warnings retain their stable code, template path and line, suggestion,
+and confidence; advisory warnings do not gain a `safe_edit`.
 
 The public model includes `Diagnostic`, `DiagnosticSeverity`,
 `DiagnosticConfidence`, `SourcePosition`, `SourceSpan`, `RelatedLocation`,
@@ -167,7 +170,7 @@ env = Environment(
 | `fragment_ttl` | `float` | `300.0` | Fragment TTL (seconds) |
 | `static_context` | `dict \| None` | `None` | Values for compile-time partial evaluation |
 | `strict_undefined` | `bool` | `True` | Raise `UndefinedError` on missing variable or attribute access (set to `False` for lenient empty-string fallback) |
-| `jinja2_compat_warnings` | `bool` | `True` | Warn when nested `{% set %}` shadows a `{% let %}`/`{% export %}` name |
+| `jinja2_compat_warnings` | `bool` | `True` | Warn when `{% set %}` in an `if` branch shadows a `{% let %}`/`{% export %}` name |
 | `validate_calls` | `bool` | `False` | Validate `{% def %}` call sites at compile time |
 
 > **Constructor contract note**: the generated dataclass constructor is part of
@@ -776,7 +779,7 @@ Compile-time warnings emitted during template compilation:
 |-------|------|-------------|
 | `PrecedenceWarning` | K-WARN-001 | `\|` binds tighter than `??` |
 | `CoercionWarning` | — | Silent type coercion in filters (e.g. `"abc" \| float` → `0.0`) |
-| `MigrationWarning` | K-WARN-002 | Nested `{% set %}` shadows a `{% let %}`/`{% export %}` name (Jinja2 scoping trap) |
+| `MigrationWarning` | K-WARN-002 | `{% set %}` in an `if` branch shadows a `{% let %}`/`{% export %}` name (Jinja2 scoping trap) |
 
 These are standard Python warnings and can be filtered with `warnings.filterwarnings`.
 

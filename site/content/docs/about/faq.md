@@ -63,7 +63,11 @@ from kida import Markup  # Built-in, not markupsafe
 
 ### Why unified `{% end %}`?
 
-Unified endings are:
+Unified `{% end %}` is Kida's canonical style. Matching explicit closers such as
+`{% endif %}`, `{% endfor %}`, and `{% endblock %}` remain valid, so migration
+does not require closer-only edits.
+
+The canonical unified form is:
 
 - **Simpler**: One syntax to remember
 - **Cleaner**: Less visual noise

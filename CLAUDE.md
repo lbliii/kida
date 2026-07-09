@@ -64,10 +64,10 @@ readability in deeply nested templates, but `{% end %}` is the canonical style.
 | Keyword | Scope | Jinja2 equivalent |
 |---------|-------|-------------------|
 | `{% let x = ... %}` | Template-wide — visible everywhere after assignment | `{% set %}` at top level |
-| `{% set x = ... %}` | Block-scoped — does NOT leak out of `{% if %}`, `{% for %}`, etc. | No equivalent (Jinja2 `set` leaks) |
+| `{% set x = ... %}` | Block-scoped — does NOT leak out of `{% if %}`, `{% for %}`, etc. | Jinja2 `set` is loop-local but leaks through `if` branches |
 | `{% export x = ... %}` | Promotes to template (outermost) scope from any nesting depth | `namespace()` pattern |
 
-This is the #1 Jinja2 migration trap: `{% set %}` inside a block does NOT modify outer variables in Kida.
+This is a key Jinja2 migration trap: `{% set %}` inside an `if` modifies an outer variable in Jinja2, but remains block-local in Kida. Assignments inside `for` loops are local in both engines.
 
 ### Inheritance (extends + block)
 
@@ -179,9 +179,9 @@ Or use a single-quoted attribute with default `tojson`, or a JSON `<script>` tag
 
 | Jinja2 | Kida | Notes |
 |--------|------|-------|
-| `{% endif %}` | `{% end %}` | Unified block ending |
-| `{% endfor %}` | `{% end %}` | Unified block ending |
-| `{% endblock %}` | `{% end %}` | Unified block ending |
+| `{% endif %}` | No change required | Accepted matching closer; `{% end %}` is canonical Kida style |
+| `{% endfor %}` | No change required | Accepted matching closer; `{% end %}` is canonical Kida style |
+| `{% endblock %}` | No change required | Accepted matching closer; `{% end %}` is canonical Kida style |
 | `{% macro %}` | `{% def %}` | `{% macro %}` is NOT a valid keyword in Kida — rename to `{% def %}` |
 | `{{ super() }}` | N/A | No super() — use extension blocks |
 | `{% set x = ... %}` | `{% let x = ... %}` | Kida `set` is block-scoped, not template-wide |

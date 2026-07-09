@@ -455,13 +455,15 @@ class TestMigrationWarnings:
 
     The warning is narrowed to the actual trap pattern: a nested {% set %}
     that shadows a name already bound template-wide via {% let %} or
-    {% export %}. Fresh names used for genuine block-scoped purposes do
-    not warn — the two engines behave identically there.
+    {% export %} inside an {% if %} branch. Jinja loops are already local,
+    so loop assignments do not warn.
     """
 
-    def test_let_then_set_emits_warning(self):
-        """{% let x %} then nested {% set x %} — the canonical Jinja2 trap."""
+    def test_if_assignment_emits_warning_for_differential_behavior(self):
+        """Jinja if assignments leak; Kida assignments remain branch-local."""
         import warnings
+
+        from jinja2 import Environment as JinjaEnvironment
 
         from kida import MigrationWarning
 
@@ -469,19 +471,103 @@ class TestMigrationWarnings:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             tmpl = env.from_string(
-                "{% let count = 0 %}"
-                "{% for x in items %}"
-                "{% set count = count + 1 %}"
-                "{% end %}"
-                "{{ count }}"
+                "{% let value = 1 %}{% if true %}{% set value = 2 %}{% end %}{{ value }}"
             )
         migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
         assert len(migration_warnings) == 1
         msg = str(migration_warnings[0].message)
-        assert "'count'" in msg
+        assert "'value'" in msg
+        assert "if" in msg
         assert "let" in msg or "export" in msg
-        # Template still renders correctly — set is block-scoped
-        assert tmpl.render(items=[1, 2, 3]) == "0"
+        assert tmpl.render() == "1"
+        assert (
+            JinjaEnvironment()
+            .from_string(
+                "{% set value = 1 %}{% if true %}{% set value = 2 %}{% endif %}{{ value }}"
+            )
+            .render()
+            == "2"
+        )
+
+    def test_for_assignment_does_not_warn_and_matches_jinja(self):
+        """Jinja and Kida both keep loop assignments local to the loop."""
+        import warnings
+
+        from jinja2 import Environment as JinjaEnvironment
+
+        from kida import MigrationWarning
+
+        env = Environment(jinja2_compat_warnings=True)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            tmpl = env.from_string(
+                "{% let value = 1 %}{% for item in [1] %}{% set value = 2 %}{% end %}{{ value }}"
+            )
+
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert migration_warnings == []
+        assert tmpl.render() == "1"
+        assert (
+            JinjaEnvironment()
+            .from_string(
+                "{% set value = 1 %}{% for item in [1] %}{% set value = 2 %}{% endfor %}{{ value }}"
+            )
+            .render()
+            == "1"
+        )
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            (
+                "{% let value = 1 %}{% for item in [1] %}"
+                "{% if true %}{% set value = 2 %}{% end %}{% end %}"
+            ),
+            (
+                "{% let value = 1 %}{% if true %}"
+                "{% for item in [1] %}{% set value = 2 %}{% end %}{% end %}"
+            ),
+        ],
+    )
+    def test_mixed_if_and_for_assignments_do_not_warn(self, source):
+        """An enclosing Jinja loop keeps nested assignments loop-local."""
+        import warnings
+
+        from kida import MigrationWarning
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            Environment(jinja2_compat_warnings=True).from_string(source)
+
+        migration_warnings = [x for x in w if issubclass(x.category, MigrationWarning)]
+        assert migration_warnings == []
+
+    def test_if_assignment_after_nested_for_still_warns(self):
+        """Leaving a nested loop restores the enclosing if warning context."""
+        env = Environment(jinja2_compat_warnings=True)
+        tmpl = env.from_string(
+            "{% let value = 1 %}{% if true %}"
+            "{% for item in [1] %}{% set value = 2 %}{% end %}"
+            "{% set value = 3 %}{% end %}"
+        )
+
+        assert len(tmpl.warnings) == 1
+        assert tmpl.warnings[0].code.value == "K-WARN-002"
+
+    def test_if_warning_preserves_location_and_suggestion(self):
+        """K-WARN-002 keeps stable code, source line, and next action."""
+        env = Environment(jinja2_compat_warnings=True)
+        tmpl = env.from_string(
+            "{% let value = 1 %}\n{% if true %}\n{% set value = 2 %}\n{% end %}",
+            name="scope.kida",
+        )
+
+        assert len(tmpl.warnings) == 1
+        warning = tmpl.warnings[0]
+        assert warning.code.value == "K-WARN-002"
+        assert warning.template_name == "scope.kida"
+        assert warning.lineno == 3
+        assert warning.suggestion == "Use {% export value = ... %} to write to outer scope."
 
     def test_export_then_set_emits_warning(self):
         """{% export x %} earlier in template then nested {% set x %} — also a trap."""

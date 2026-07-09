@@ -35,3 +35,15 @@ class TestJinja2MigrationApp:
         assert "Alice" in jinja2_norm
         assert "Developer" in kida_norm
         assert "Developer" in jinja2_norm
+
+    def test_matching_explicit_closers_are_a_migration_noop(self, example_app) -> None:
+        source = example_app.SHARED_EXPLICIT_CLOSERS
+
+        assert "{% endif %}" in source
+        assert "{% endfor %}" in source
+        assert "{% endblock %}" in source
+        assert _normalize(example_app.shared_kida_output) == _normalize(
+            example_app.shared_jinja2_output
+        )
+        assert "Visible" in example_app.shared_kida_output
+        assert "Hidden" not in example_app.shared_kida_output

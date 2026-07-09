@@ -32,7 +32,7 @@ For a component-by-component example, see
 
 ### Unified Block Endings
 
-Kida uses `{% end %}` for all blocks:
+Kida's canonical style uses `{% end %}` for all blocks:
 
 ```kida
 {% if condition %}
@@ -43,6 +43,10 @@ Kida uses `{% end %}` for all blocks:
     {{ item }}
 {% end %}
 ```
+
+Matching explicit closers such as `{% endif %}`, `{% endfor %}`, and
+`{% endblock %}` are also accepted; existing compatible Jinja source does not
+need closer-only edits.
 
 ### Pipeline Operator
 
@@ -83,7 +87,7 @@ Kida uses `|>` for pipelines (Jinja2 uses `|`):
 | Rendering | StringBuilder O(n) |
 | Free-threading | Native (PEP 703, Python 3.14t+) |
 | Dependencies | Zero |
-| Block endings | Unified `{% end %}` |
+| Block endings | Unified `{% end %}` canonical; matching explicit closers accepted |
 | Profiling | Opt-in `profiled_render()` |
 | Pattern matching | `{% match %}` |
 | Block caching | `{% cache %}` |

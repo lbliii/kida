@@ -47,6 +47,9 @@ review.
 
 `kida check` now converts those producers at one collection boundary, preserves
 the existing text surface, and can emit diagnostics JSON v1 or SARIF 2.1.0.
+Compiler `TemplateWarning` records are included once in that collection; their
+legacy Python-warning mirror is suppressed only during `kida check` collection
+to avoid duplicate text.
 `diagnose_directory()` exposes that collection without CLI policy;
 `diagnose_source()` handles unsaved buffers without entering template or
 bytecode caches; and `diagnostic_from_exception()` gives framework adapters a
@@ -65,7 +68,7 @@ and isolates each hook failure as a partial `K-RUN-007` finding.
 | Parser | `ParseError` / `TemplateSyntaxError` | `ErrorCode`, normally `K-PAR-*` or `K-TPL-002` | Implicit error | line, zero-based column, filename/name, optional source | Optional suggestion; parser formats its own source display | Environment callers, `kida check`, compact exception text |
 | Runtime | `TemplateError` hierarchy | `ErrorCode`, including `K-RUN-*`, `K-TPL-*`, and `K-SEC-*` | Implicit error | Attributes vary by subtype; syntax errors use `name`/`filename`, runtime errors use `template_name`, undefined errors use `template` | Some subtypes carry source snippets, expression, values, suggestion, template stack, and component stack | Programmatic callers, framework adapters, compact terminal/log text |
 | Undefined runtime access | `UndefinedError` -> internal `TemplateDiagnostic` | `ErrorCode`, normally `K-RUN-001` | Implicit error | `DiagnosticLocation(template, line, column, filename)` | Immutable snippet, ordered hints, docs URL, related template/component frames, string metadata | Compact exception renderer plus HTML fragment/page and Markdown renderers |
-| Compiler warnings | `TemplateWarning` | `ErrorCode`, currently `K-WARN-*` | Implicit warning | `template_name`, line only | Optional suggestion | `Template.warnings`, `format_message()` |
+| Compiler warnings | `TemplateWarning` | `ErrorCode`, currently `K-WARN-*` | Implicit warning | `template_name`, line only | Optional suggestion; no automatic edit | `Template.warnings`, `format_message()`, `kida check`, `diagnose_source()`, `diagnose_directory()` |
 | Python warnings | `KidaWarning` subclasses and direct `warnings.warn()` calls | Warning class or plain `UserWarning`; generally no stable code | Python warning category | Python call site via `stacklevel`; not a template range | Message only in most cases | Python warnings filters and host logging |
 | Component call validation | `CallValidation` | CLI assigns `K-CMP-001` | Treated as a failing problem | line and zero-based column on the record; CLI prints line only | Unknown, missing, and duplicate parameter tuples | `kida check --validate-calls`, programmatic `BlockAnalyzer` callers |
 | Component literal types | `TypeMismatch` | CLI assigns `K-CMP-002` | Treated as a failing problem | line and zero-based column on the record; CLI prints line only | Definition, parameter, expected type, actual type/value | `kida check --validate-calls`, programmatic `BlockAnalyzer` callers |
@@ -181,9 +184,9 @@ not be mistaken for a SARIF diagnostics output path.
    unified closers are the first public safe-edit producer; ambiguous type,
    path, component, and migration suggestions remain advisory.
 5. **The public service covers the current check families, not every analyzer.**
-   Directory and unsaved-source collection expose the CLI checks, while privacy,
-   context, escape, compiler-warning, and future migration orchestration remain
-   direct producer APIs until separately integrated.
+   Directory and unsaved-source collection expose compiler warnings and the CLI
+   checks, while privacy, context, escape, and future migration orchestration
+   remain direct producer APIs until separately integrated.
 6. **Ordering and de-duplication are shared collection policy.** `kida check`,
    `diagnose_directory()`, and `diagnose_source()` order by phase, path, range,
    code, and message and remove exact `(code, path, range, message)` duplicates.
