@@ -15,7 +15,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
 
-    from kida.compiler.callable_plans import CallableSignaturePlan
+    from kida.compiler.callable_plans import (
+        CallableSignaturePlan,
+        CallBlockPlan,
+        CallSlotPlan,
+    )
     from kida.nodes import CallBlock, Def, Node, Region, Slot
 
 logger = logging.getLogger(__name__)
@@ -463,175 +467,140 @@ class FunctionCompilationMixin:
 
         return [func_def, assign]
 
-    def _compile_call_block(self, node: CallBlock) -> list[ast.stmt]:
-        """Compile {% call func(args) %}...{% endcall %.
+    def _make_call_slot_function(self, slot: CallSlotPlan) -> ast.FunctionDef:
+        """Lower one named call-block slot into its callback function."""
+        slot_name = slot.name
+        caller_body: list[ast.stmt] = self._make_callable_preamble()
 
-        Builds a caller that supports named slots. Passes _caller(slot="default")
-        so both _caller() and _caller("header_actions") work.
-
-        With scoped slots: slot functions accept **_slot_kwargs from the def-side
-        bindings and push them onto the scope stack so let: params are available
-        as local variables in the slot body.
-        """
-        from kida.compiler.callable_plans import plan_call_block
-
-        plan = plan_call_block(node)
-        stmts: list[ast.stmt] = []
-
-        # Build one function per slot
-        for slot in plan.slots:
-            slot_name = slot.name
-            slot_body = slot.body
-            fn_name = slot.function_name
-
-            caller_body: list[ast.stmt] = self._make_callable_preamble()
-
-            # Scoped slots: if this slot has params, push _slot_kwargs onto scope_stack
-            # so that let: bindings from the def-side are available as local variables.
-            # The **_slot_kwargs parameter is always accepted (no-op when empty).
-            # Wrapped in try/finally to ensure scope_stack is popped after use.
-            caller_body.append(
-                ast.If(
-                    test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
-                    body=[
-                        ast.Expr(
-                            value=ast.Call(
-                                func=ast.Attribute(
-                                    value=ast.Name(id="_scope_stack", ctx=ast.Load()),
-                                    attr="append",
-                                    ctx=ast.Load(),
-                                ),
-                                args=[ast.Name(id="_slot_kwargs", ctx=ast.Load())],
-                                keywords=[],
-                            ),
-                        )
-                    ],
-                    orelse=[],
-                )
-            )
-            # Record where the scope push ends so we can wrap subsequent
-            # statements in try/finally for cleanup.
-            _scope_push_idx = len(caller_body)
-
-            outer = self._def_caller_stack[-1] if self._def_caller_stack else None
-            # Use _outer_caller param to avoid shadowing by inner _caller wrapper
-            if outer is not None:
-                self._outer_caller_expr = ast.Name(id="_outer_caller", ctx=ast.Load())
-                # Delegate to outer caller when slot body is empty (fixes nested macro slot passthrough)
-                if slot.delegates_when_nested:
-                    caller_body.append(
-                        ast.If(
-                            test=ast.Compare(
-                                left=ast.Name(id="_outer_caller", ctx=ast.Load()),
-                                ops=[ast.IsNot()],
-                                comparators=[ast.Constant(value=None)],
-                            ),
-                            body=[
-                                ast.Return(
-                                    value=ast.Call(
-                                        func=ast.Name(id="_outer_caller", ctx=ast.Load()),
-                                        args=[ast.Constant(value=slot_name)],
-                                        keywords=[],
-                                    )
-                                )
-                            ],
-                            orelse=[],
-                        )
-                    )
-            # Disable CSE cached-var substitution while compiling slot
-            # bodies.  Slot bodies run after _slot_kwargs are pushed onto
-            # _scope_stack, so they must always resolve names via
-            # _lookup_scope — never via a _cv_<name> closure captured at
-            # function entry before the push.
-            saved_cached_vars = self._cached_vars
-            self._cached_vars = set()
-            try:
-                with self._lowering_mode(async_mode=False):
-                    for child in slot_body:
-                        caller_body.extend(self._compile_node(child))
-            finally:
-                self._cached_vars = saved_cached_vars
-                if outer is not None:
-                    self._outer_caller_expr = None
-
-            return_stmt = ast.Return(
-                value=ast.Call(
-                    func=ast.Name(id="_Markup", ctx=ast.Load()),
-                    args=[
-                        ast.Call(
+        # Scoped slots push def-side bindings for local lookup. The parameter is
+        # always accepted and the push is a no-op when the mapping is empty.
+        caller_body.append(
+            ast.If(
+                test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                body=[
+                    ast.Expr(
+                        value=ast.Call(
                             func=ast.Attribute(
-                                value=ast.Constant(value=""),
-                                attr="join",
+                                value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                                attr="append",
                                 ctx=ast.Load(),
                             ),
-                            args=[ast.Name(id="buf", ctx=ast.Load())],
+                            args=[ast.Name(id="_slot_kwargs", ctx=ast.Load())],
                             keywords=[],
-                        ),
-                    ],
-                    keywords=[],
-                ),
-            )
-
-            # Wrap the body+return in try/finally to pop _slot_kwargs from scope_stack.
-            # Everything after _scope_push_idx was compiled with the scope push active.
-            scope_pop = ast.Expr(
-                value=ast.Call(
-                    func=ast.Attribute(
-                        value=ast.Name(id="_scope_stack", ctx=ast.Load()),
-                        attr="pop",
-                        ctx=ast.Load(),
-                    ),
-                    args=[],
-                    keywords=[],
-                )
-            )
-            # Extract body statements after scope push, wrap in try/finally
-            inner_body = caller_body[_scope_push_idx:]
-            inner_body.append(return_stmt)
-            caller_body[_scope_push_idx:] = [
-                ast.Try(
-                    body=inner_body,
-                    handlers=[],
-                    orelse=[],
-                    finalbody=[
-                        ast.If(
-                            test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
-                            body=[scope_pop],
-                            orelse=[],
                         )
-                    ],
-                )
-            ]
-
-            # _scope_stack required for _lookup_scope; _outer_caller for def nesting
-            # **_slot_kwargs accepts scoped slot bindings from the def-side
-            slot_args: list[ast.arg] = [ast.arg(arg="_scope_stack")]
-            slot_defaults: list[ast.expr] = []
-            if outer is not None:
-                slot_args.append(ast.arg(arg="_outer_caller"))
-                slot_defaults.append(outer)
-            stmts.append(
-                ast.FunctionDef(
-                    name=fn_name,
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=slot_args,
-                        vararg=None,
-                        kwonlyargs=[],
-                        kw_defaults=[],
-                        kwarg=ast.arg(arg="_slot_kwargs"),
-                        defaults=slot_defaults,
-                    ),
-                    body=caller_body,
-                    decorator_list=[],
-                    returns=None,
-                )
+                    )
+                ],
+                orelse=[],
             )
+        )
+        scope_push_idx = len(caller_body)
 
-        # Build _caller(slot="default", **kwargs) wrapper
-        # def _caller_wrapper(_scope_stack, slot="default", **_slot_kwargs):
-        #     f = _caller_slots.get(slot)
-        #     return f(_scope_stack, **_slot_kwargs) if f else _Markup("")
+        outer = self._def_caller_stack[-1] if self._def_caller_stack else None
+        if outer is not None:
+            self._outer_caller_expr = ast.Name(id="_outer_caller", ctx=ast.Load())
+            if slot.delegates_when_nested:
+                caller_body.append(
+                    ast.If(
+                        test=ast.Compare(
+                            left=ast.Name(id="_outer_caller", ctx=ast.Load()),
+                            ops=[ast.IsNot()],
+                            comparators=[ast.Constant(value=None)],
+                        ),
+                        body=[
+                            ast.Return(
+                                value=ast.Call(
+                                    func=ast.Name(id="_outer_caller", ctx=ast.Load()),
+                                    args=[ast.Constant(value=slot_name)],
+                                    keywords=[],
+                                )
+                            )
+                        ],
+                        orelse=[],
+                    )
+                )
+
+        # Slot bodies run after scoped bindings are pushed, so they must resolve
+        # names through _lookup_scope rather than captured CSE locals.
+        saved_cached_vars = self._cached_vars
+        self._cached_vars = set()
+        try:
+            with self._lowering_mode(async_mode=False):
+                for child in slot.body:
+                    caller_body.extend(self._compile_node(child))
+        finally:
+            self._cached_vars = saved_cached_vars
+            if outer is not None:
+                self._outer_caller_expr = None
+
+        return_stmt = ast.Return(
+            value=ast.Call(
+                func=ast.Name(id="_Markup", ctx=ast.Load()),
+                args=[
+                    ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Constant(value=""),
+                            attr="join",
+                            ctx=ast.Load(),
+                        ),
+                        args=[ast.Name(id="buf", ctx=ast.Load())],
+                        keywords=[],
+                    )
+                ],
+                keywords=[],
+            ),
+        )
+        scope_pop = ast.Expr(
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id="_scope_stack", ctx=ast.Load()),
+                    attr="pop",
+                    ctx=ast.Load(),
+                ),
+                args=[],
+                keywords=[],
+            )
+        )
+        inner_body = caller_body[scope_push_idx:]
+        inner_body.append(return_stmt)
+        caller_body[scope_push_idx:] = [
+            ast.Try(
+                body=inner_body,
+                handlers=[],
+                orelse=[],
+                finalbody=[
+                    ast.If(
+                        test=ast.Name(id="_slot_kwargs", ctx=ast.Load()),
+                        body=[scope_pop],
+                        orelse=[],
+                    )
+                ],
+            )
+        ]
+
+        slot_args: list[ast.arg] = [ast.arg(arg="_scope_stack")]
+        slot_defaults: list[ast.expr] = []
+        if outer is not None:
+            slot_args.append(ast.arg(arg="_outer_caller"))
+            slot_defaults.append(outer)
+        return ast.FunctionDef(
+            name=slot.function_name,
+            args=ast.arguments(
+                posonlyargs=[],
+                args=slot_args,
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=ast.arg(arg="_slot_kwargs"),
+                defaults=slot_defaults,
+            ),
+            body=caller_body,
+            decorator_list=[],
+            returns=None,
+        )
+
+    @staticmethod
+    def _make_caller_wrapper_body() -> list[ast.stmt]:
+        """Build caller dispatch with temporary source-location context."""
         wrapper_call_body: list[ast.stmt] = [
             ast.Assign(
                 targets=[ast.Name(id="_f", ctx=ast.Store())],
@@ -666,7 +635,7 @@ class FunctionCompilationMixin:
                 ),
             ),
         ]
-        wrapper_body: list[ast.stmt] = [
+        return [
             ast.Assign(
                 targets=[ast.Name(id="_rc", ctx=ast.Store())],
                 value=ast.BoolOp(
@@ -773,7 +742,10 @@ class FunctionCompilationMixin:
                 ],
             ),
         ]
-        stmts.append(
+
+    def _make_call_wrapper_scaffold(self, plan: CallBlockPlan) -> list[ast.stmt]:
+        """Build slot dispatch mapping, source captures, wrapper, and bound lambda."""
+        stmts: list[ast.stmt] = [
             ast.Assign(
                 targets=[ast.Name(id="_caller_slots", ctx=ast.Store())],
                 value=ast.Dict(
@@ -784,7 +756,7 @@ class FunctionCompilationMixin:
                     ],
                 ),
             )
-        )
+        ]
         for attr, local_name in (
             ("template_name", "_caller_template_name"),
             ("source", "_caller_source"),
@@ -800,10 +772,6 @@ class FunctionCompilationMixin:
                     ),
                 )
             )
-        # Use _caller_wrapper to avoid shadowing the def's _caller parameter
-        # (which would cause UnboundLocalError when _def_caller = _caller runs)
-        # Wrapper takes (_scope_stack, slot, **_slot_kwargs) so slot functions get
-        # scope for _lookup_scope and scoped bindings via kwargs
         stmts.append(
             ast.FunctionDef(
                 name="_caller_wrapper",
@@ -816,13 +784,11 @@ class FunctionCompilationMixin:
                     kwarg=ast.arg(arg="_slot_kwargs"),
                     defaults=[ast.Constant(value="default")],
                 ),
-                body=wrapper_body,
+                body=self._make_caller_wrapper_body(),
                 decorator_list=[],
                 returns=None,
             )
         )
-        # Lambda captures _scope_stack from render scope; macro calls _caller() or _caller(slot)
-        # **_slot_kwargs passes scoped bindings through the chain
         stmts.append(
             ast.Assign(
                 targets=[ast.Name(id="_caller_with_scope", ctx=ast.Store())],
@@ -852,31 +818,47 @@ class FunctionCompilationMixin:
                 ),
             )
         )
+        return stmts
 
-        # Compile the call expression and add _caller keyword argument
-        # Suppress macro instrumentation so we get a raw ast.Call back
+    def _compile_call_with_caller(self, call: Node) -> ast.Call:
+        """Lower a raw call expression and attach the bound caller callback."""
         saved_skip = getattr(self, "_skip_macro_instrumentation", False)
         self._skip_macro_instrumentation = True
-        call_expr = self._compile_expr(plan.call)
-        self._skip_macro_instrumentation = saved_skip
+        try:
+            call_expr = self._compile_expr(call)
+        finally:
+            self._skip_macro_instrumentation = saved_skip
 
-        # If it's a function call, add _caller keyword (lambda binds _scope_stack)
+        caller_keyword = ast.keyword(
+            arg="_caller",
+            value=ast.Name(id="_caller_with_scope", ctx=ast.Load()),
+        )
         if isinstance(call_expr, ast.Call):
-            call_expr.keywords.append(
-                ast.keyword(arg="_caller", value=ast.Name(id="_caller_with_scope", ctx=ast.Load()))
-            )
-        else:
-            # Wrap in a call with _caller
-            call_expr = ast.Call(
-                func=call_expr,
-                args=[],
-                keywords=[
-                    ast.keyword(
-                        arg="_caller",
-                        value=ast.Name(id="_caller_with_scope", ctx=ast.Load()),
-                    )
-                ],
-            )
+            call_expr.keywords.append(caller_keyword)
+            return call_expr
+        return ast.Call(
+            func=call_expr,
+            args=[],
+            keywords=[caller_keyword],
+        )
+
+    def _compile_call_block(self, node: CallBlock) -> list[ast.stmt]:
+        """Compile {% call func(args) %}...{% endcall %.
+
+        Builds a caller that supports named slots. Passes _caller(slot="default")
+        so both _caller() and _caller("header_actions") work.
+
+        With scoped slots: slot functions accept **_slot_kwargs from the def-side
+        bindings and push them onto the scope stack so let: params are available
+        as local variables in the slot body.
+        """
+        from kida.compiler.callable_plans import plan_call_block
+
+        plan = plan_call_block(node)
+        stmts: list[ast.stmt] = [self._make_call_slot_function(slot) for slot in plan.slots]
+
+        stmts.extend(self._make_call_wrapper_scaffold(plan))
+        call_expr = self._compile_call_with_caller(plan.call)
 
         # _append(result)
         stmts.append(
