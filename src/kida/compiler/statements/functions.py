@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
 
+    from kida.compiler.callable_plans import CallableSignaturePlan
     from kida.nodes import CallBlock, Def, Node, Region, Slot
 
 logger = logging.getLogger(__name__)
@@ -145,52 +146,13 @@ class FunctionCompilationMixin:
         )
         return stmts
 
-    def _compile_def(self, node: Def) -> list[ast.stmt]:
-        """Compile {% def name(params) %}...{% enddef %.
-
-        Kida functions have true lexical scoping - they can access variables
-        from their enclosing scope, unlike Jinja2 macros.
-
-        Generates:
-            def _def_name(arg1, arg2=default, *, _caller=None, _outer_ctx=ctx):
-                buf = []
-                ctx = {**_outer_ctx, 'arg1': arg1, 'arg2': arg2}
-                if _caller:
-                    ctx['caller'] = _caller
-                ... body ...
-                return Markup(''.join(buf))
-            ctx['name'] = _def_name
-        """
-        from kida.compiler.callable_plans import plan_def_signature
-
-        plan = plan_def_signature(node)
-        def_name = plan.public_name
-        func_name = plan.function_name
-        # Track for profiling: FuncCall to this name will be instrumented
-        self._def_names.add(def_name)
-
-        # Lower the immutable semantic signature into Python AST.
-        args_list = [
-            ast.arg(
-                arg=parameter.name,
-                annotation=(
-                    self._parse_annotation(parameter.annotation) if parameter.annotation else None
-                ),
-            )
-            for parameter in plan.parameters
-        ]
+    def _make_def_runtime_setup(self, plan: CallableSignaturePlan) -> list[ast.stmt]:
+        """Build the callable preamble, local context, and slot-presence helper."""
         ctx_keys: list[ast.expr | None] = [ast.Constant(value=name) for name in plan.bound_names]
         ctx_values: list[ast.expr] = [
             ast.Name(id=name, ctx=ast.Load()) for name in plan.bound_names
         ]
-        defaults = [self._compile_expr(d) for d in node.defaults]
-
-        # Build vararg and kwarg AST nodes
-        vararg_node = ast.arg(arg=plan.vararg) if plan.vararg else None
-        kwarg_node = ast.arg(arg=plan.kwarg) if plan.kwarg else None
-
-        # Build function body
-        func_body: list[ast.stmt] = [
+        return [
             *self._make_callable_preamble(),
             # Create local context: ctx = {**_outer_ctx, 'arg1': arg1, ...}
             ast.Assign(
@@ -221,7 +183,6 @@ class FunctionCompilationMixin:
                 orelse=[],
             ),
             # ctx['has_slot'] = (lambda: True) if _caller is not None else (lambda: False)
-            # Allows {% if has_slot() %} guards inside def bodies.
             # Uses constant lambdas instead of a closure over _caller to avoid
             # creating a cell object for every def invocation.
             ast.Assign(
@@ -266,23 +227,9 @@ class FunctionCompilationMixin:
             ),
         ]
 
-        # Add args to locals for direct access
-        self._locals.update(plan.bound_names)
-
-        # Compile function body
-        # Macros (def) are always sync StringBuilder functions — disable
-        # async and streaming modes so surrounding render_stream compilation
-        # does not turn the component body into a generator.
-        # Lexical caller scoping: capture _caller to _def_caller so slot functions
-        # can reference it without shadowing by the inner _caller wrapper.
-        func_body.append(
-            ast.Assign(
-                targets=[ast.Name(id="_def_caller", ctx=ast.Store())],
-                value=ast.Name(id="_caller", ctx=ast.Load()),
-            )
-        )
-
-        # Component call stack: push frame on entry (Sprint 1.3)
+    @staticmethod
+    def _make_def_component_stack_scaffold(def_name: str) -> tuple[ast.Expr, ast.Expr]:
+        """Build paired component-stack push and pop statements for one def."""
         # Imported macro wrappers set component_call_* so this frame points to
         # the caller site while template_name/source still point at the def.
         component_template_expr = ast.BoolOp(
@@ -322,32 +269,108 @@ class FunctionCompilationMixin:
                 ctx=ast.Load(),
             ),
         )
-        func_body.append(
-            ast.Expr(
-                value=ast.Call(
-                    func=ast.Attribute(
-                        value=ast.Attribute(
-                            value=ast.Name(id="_rc", ctx=ast.Load()),
-                            attr="component_stack",
-                            ctx=ast.Load(),
-                        ),
-                        attr="append",
+        component_push = ast.Expr(
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(
+                        value=ast.Name(id="_rc", ctx=ast.Load()),
+                        attr="component_stack",
                         ctx=ast.Load(),
                     ),
-                    args=[
-                        ast.Tuple(
-                            elts=[
-                                component_template_expr,
-                                component_line_expr,
-                                ast.Constant(value=def_name),
-                            ],
-                            ctx=ast.Load(),
-                        )
-                    ],
-                    keywords=[],
+                    attr="append",
+                    ctx=ast.Load(),
                 ),
+                args=[
+                    ast.Tuple(
+                        elts=[
+                            component_template_expr,
+                            component_line_expr,
+                            ast.Constant(value=def_name),
+                        ],
+                        ctx=ast.Load(),
+                    )
+                ],
+                keywords=[],
             )
         )
+        component_pop = ast.Expr(
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(
+                        value=ast.Name(id="_rc", ctx=ast.Load()),
+                        attr="component_stack",
+                        ctx=ast.Load(),
+                    ),
+                    attr="pop",
+                    ctx=ast.Load(),
+                ),
+                args=[],
+                keywords=[],
+            ),
+        )
+        return component_push, component_pop
+
+    def _compile_def(self, node: Def) -> list[ast.stmt]:
+        """Compile {% def name(params) %}...{% enddef %.
+
+        Kida functions have true lexical scoping - they can access variables
+        from their enclosing scope, unlike Jinja2 macros.
+
+        Generates:
+            def _def_name(arg1, arg2=default, *, _caller=None, _outer_ctx=ctx):
+                buf = []
+                ctx = {**_outer_ctx, 'arg1': arg1, 'arg2': arg2}
+                if _caller:
+                    ctx['caller'] = _caller
+                ... body ...
+                return Markup(''.join(buf))
+            ctx['name'] = _def_name
+        """
+        from kida.compiler.callable_plans import plan_def_signature
+
+        plan = plan_def_signature(node)
+        def_name = plan.public_name
+        func_name = plan.function_name
+        # Track for profiling: FuncCall to this name will be instrumented
+        self._def_names.add(def_name)
+
+        # Lower the immutable semantic signature into Python AST.
+        args_list = [
+            ast.arg(
+                arg=parameter.name,
+                annotation=(
+                    self._parse_annotation(parameter.annotation) if parameter.annotation else None
+                ),
+            )
+            for parameter in plan.parameters
+        ]
+        defaults = [self._compile_expr(d) for d in node.defaults]
+
+        # Build vararg and kwarg AST nodes
+        vararg_node = ast.arg(arg=plan.vararg) if plan.vararg else None
+        kwarg_node = ast.arg(arg=plan.kwarg) if plan.kwarg else None
+
+        func_body = self._make_def_runtime_setup(plan)
+
+        # Add args to locals for direct access
+        self._locals.update(plan.bound_names)
+
+        # Compile function body
+        # Macros (def) are always sync StringBuilder functions — disable
+        # async and streaming modes so surrounding render_stream compilation
+        # does not turn the component body into a generator.
+        # Lexical caller scoping: capture _caller to _def_caller so slot functions
+        # can reference it without shadowing by the inner _caller wrapper.
+        func_body.append(
+            ast.Assign(
+                targets=[ast.Name(id="_def_caller", ctx=ast.Store())],
+                value=ast.Name(id="_caller", ctx=ast.Load()),
+            )
+        )
+
+        # Component call stack: push frame on entry (Sprint 1.3).
+        component_push, component_pop = self._make_def_component_stack_scaffold(def_name)
+        func_body.append(component_push)
 
         # Compile the body statements
         inner_body: list[ast.stmt] = []
@@ -381,23 +404,7 @@ class FunctionCompilationMixin:
             )
         )
 
-        # Wrap body in try/finally to pop component stack on exit
-        # _rc.component_stack.pop()
-        component_pop = ast.Expr(
-            value=ast.Call(
-                func=ast.Attribute(
-                    value=ast.Attribute(
-                        value=ast.Name(id="_rc", ctx=ast.Load()),
-                        attr="component_stack",
-                        ctx=ast.Load(),
-                    ),
-                    attr="pop",
-                    ctx=ast.Load(),
-                ),
-                args=[],
-                keywords=[],
-            ),
-        )
+        # Wrap body in try/finally to pop component stack on exit.
         func_body.append(
             ast.Try(
                 body=inner_body,

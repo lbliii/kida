@@ -79,6 +79,45 @@ def test_def_signature_plan_maps_defaults_variadics_and_annotations() -> None:
     assert type(plan).__dataclass_params__.frozen is True
 
 
+def test_def_runtime_scaffold_preserves_context_slot_and_stack_contract() -> None:
+    compiler = Compiler(Environment())
+    plan = plan_def_signature(
+        Def(
+            lineno=1,
+            col_offset=0,
+            name="card",
+            params=_params(),
+            body=(),
+            defaults=_defaults(),
+            vararg="items",
+            kwarg="attrs",
+        )
+    )
+
+    setup = compiler._make_def_runtime_setup(plan)
+    ctx_assign, caller_guard, has_slot_assign = setup[-3:]
+    component_push, component_pop = compiler._make_def_component_stack_scaffold("card")
+
+    assert isinstance(ctx_assign, ast.Assign)
+    assert isinstance(ctx_assign.targets[0], ast.Name)
+    assert ctx_assign.targets[0].id == "ctx"
+    assert isinstance(caller_guard, ast.If)
+    assert isinstance(caller_guard.test, ast.Name)
+    assert caller_guard.test.id == "_caller"
+    assert isinstance(has_slot_assign, ast.Assign)
+    assert isinstance(has_slot_assign.targets[0], ast.Subscript)
+    assert isinstance(has_slot_assign.targets[0].slice, ast.Constant)
+    assert has_slot_assign.targets[0].slice.value == "has_slot"
+    assert isinstance(component_push.value, ast.Call)
+    assert isinstance(component_push.value.func, ast.Attribute)
+    assert component_push.value.func.attr == "append"
+    assert isinstance(component_push.value.args[0], ast.Tuple)
+    assert component_push.value.args[0].elts[-1].value == "card"
+    assert isinstance(component_pop.value, ast.Call)
+    assert isinstance(component_pop.value.func, ast.Attribute)
+    assert component_pop.value.func.attr == "pop"
+
+
 def test_region_signature_plan_handles_no_defaults_without_slicing_all_params() -> None:
     node = Region(
         lineno=1,
