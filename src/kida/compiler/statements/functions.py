@@ -164,37 +164,33 @@ class FunctionCompilationMixin:
                 return Markup(''.join(buf))
             ctx['name'] = _def_name
         """
-        def_name = node.name
-        func_name = f"_def_{def_name}"
+        from kida.compiler.callable_plans import plan_def_signature
+
+        plan = plan_def_signature(node)
+        def_name = plan.public_name
+        func_name = plan.function_name
         # Track for profiling: FuncCall to this name will be instrumented
         self._def_names.add(def_name)
 
-        # Build function arguments, param names, and context dict entries in one pass
-        args_list: list[ast.arg] = []
-        ctx_keys: list[ast.expr | None] = []
-        ctx_values: list[ast.expr] = []
-        for p in node.params:
-            args_list.append(
-                ast.arg(
-                    arg=p.name,
-                    annotation=(self._parse_annotation(p.annotation) if p.annotation else None),
-                )
+        # Lower the immutable semantic signature into Python AST.
+        args_list = [
+            ast.arg(
+                arg=parameter.name,
+                annotation=(
+                    self._parse_annotation(parameter.annotation) if parameter.annotation else None
+                ),
             )
-            ctx_keys.append(ast.Constant(value=p.name))
-            ctx_values.append(ast.Name(id=p.name, ctx=ast.Load()))
+            for parameter in plan.parameters
+        ]
+        ctx_keys: list[ast.expr | None] = [ast.Constant(value=name) for name in plan.bound_names]
+        ctx_values: list[ast.expr] = [
+            ast.Name(id=name, ctx=ast.Load()) for name in plan.bound_names
+        ]
         defaults = [self._compile_expr(d) for d in node.defaults]
 
         # Build vararg and kwarg AST nodes
-        vararg_node = ast.arg(arg=node.vararg) if node.vararg else None
-        kwarg_node = ast.arg(arg=node.kwarg) if node.kwarg else None
-
-        if node.vararg:
-            ctx_keys.append(ast.Constant(value=node.vararg))
-            ctx_values.append(ast.Name(id=node.vararg, ctx=ast.Load()))
-
-        if node.kwarg:
-            ctx_keys.append(ast.Constant(value=node.kwarg))
-            ctx_values.append(ast.Name(id=node.kwarg, ctx=ast.Load()))
+        vararg_node = ast.arg(arg=plan.vararg) if plan.vararg else None
+        kwarg_node = ast.arg(arg=plan.kwarg) if plan.kwarg else None
 
         # Build function body
         func_body: list[ast.stmt] = [
@@ -274,12 +270,7 @@ class FunctionCompilationMixin:
         ]
 
         # Add args to locals for direct access
-        for p in node.params:
-            self._locals.add(p.name)
-        if node.vararg:
-            self._locals.add(node.vararg)
-        if node.kwarg:
-            self._locals.add(node.kwarg)
+        self._locals.update(plan.bound_names)
 
         # Compile function body
         # Macros (def) are always sync StringBuilder functions — disable
@@ -381,12 +372,7 @@ class FunctionCompilationMixin:
                 self._streaming = saved_streaming
 
         # Remove args from locals
-        for p in node.params:
-            self._locals.discard(p.name)
-        if node.vararg:
-            self._locals.discard(node.vararg)
-        if node.kwarg:
-            self._locals.discard(node.kwarg)
+        self._locals.difference_update(plan.bound_names)
 
         # return _Markup(''.join(buf))
         inner_body.append(
@@ -921,40 +907,39 @@ class FunctionCompilationMixin:
         No _caller/slots — regions are parameterized renderable units only.
         Returns (thunk_defs, region_func) — thunks must be emitted before the region func.
         """
-        func_name = f"_region_{name}"
-        param_names = [p.name for p in node.params]
-        ctx_keys: list[ast.expr | None] = [ast.Constant(value=n) for n in param_names]
-        ctx_values: list[ast.expr] = [ast.Name(id=n, ctx=ast.Load()) for n in param_names]
-        if node.vararg:
-            ctx_keys.append(ast.Constant(value=node.vararg))
-            ctx_values.append(ast.Name(id=node.vararg, ctx=ast.Load()))
-        if node.kwarg:
-            ctx_keys.append(ast.Constant(value=node.kwarg))
-            ctx_values.append(ast.Name(id=node.kwarg, ctx=ast.Load()))
+        from kida.compiler.callable_plans import plan_region_signature
+
+        plan = plan_region_signature(node, emitted_name=name)
+        func_name = plan.function_name
+        ctx_keys: list[ast.expr | None] = [
+            ast.Constant(value=bound_name) for bound_name in plan.bound_names
+        ]
+        ctx_values: list[ast.expr] = [
+            ast.Name(id=bound_name, ctx=ast.Load()) for bound_name in plan.bound_names
+        ]
 
         args_list = [
             ast.arg(
-                arg=p.name,
-                annotation=(self._parse_annotation(p.annotation) if p.annotation else None),
+                arg=parameter.name,
+                annotation=(
+                    self._parse_annotation(parameter.annotation) if parameter.annotation else None
+                ),
             )
-            for p in node.params
+            for parameter in plan.parameters
         ]
         # Use _REGION_DEFAULT for param defaults: Python evaluates defaults at def time,
         # but region defaults reference ctx/_scope_stack which don't exist during exec().
         # We resolve them at call time in the function body.
         defaults: list[ast.expr] = [
-            ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()) for _ in node.defaults
+            ast.Name(id="_REGION_DEFAULT", ctx=ast.Load()) for _ in plan.default_parameter_names
         ]
         from kida.nodes.expressions import Name
 
         default_resolvers: list[tuple[str, str]] = []  # (param_name, lookup_key)
         thunk_resolvers: list[tuple[str, str]] = []  # (param_name, thunk_name)
         thunk_defs: list[ast.FunctionDef] = []
-        n_defaults = len(node.defaults)
-        n_required = len(param_names) - n_defaults
-
         for i, default_node in enumerate(node.defaults):
-            param_name = param_names[n_required + i]
+            param_name = plan.default_parameter_names[i]
             if isinstance(default_node, Name):
                 default_resolvers.append((param_name, default_node.name))
             else:
@@ -989,8 +974,8 @@ class FunctionCompilationMixin:
                 thunk_defs.append(thunk_def)
                 thunk_resolvers.append((param_name, thunk_name))
 
-        vararg_node = ast.arg(arg=node.vararg) if node.vararg else None
-        kwarg_node = ast.arg(arg=node.kwarg) if node.kwarg else None
+        vararg_node = ast.arg(arg=plan.vararg) if plan.vararg else None
+        kwarg_node = ast.arg(arg=plan.kwarg) if plan.kwarg else None
 
         func_body = list(self._make_callable_preamble(include_scope_stack=True))
 
@@ -1060,12 +1045,7 @@ class FunctionCompilationMixin:
             ),
         )
 
-        for p in node.params:
-            self._locals.add(p.name)
-        if node.vararg:
-            self._locals.add(node.vararg)
-        if node.kwarg:
-            self._locals.add(node.kwarg)
+        self._locals.update(plan.bound_names)
 
         saved_async = getattr(self, "_async_mode", False)
         saved_streaming = getattr(self, "_streaming", False)
@@ -1077,12 +1057,7 @@ class FunctionCompilationMixin:
             for child in node.body:
                 func_body.extend(self._compile_node(child))
         finally:
-            for p in node.params:
-                self._locals.discard(p.name)
-            if node.vararg:
-                self._locals.discard(node.vararg)
-            if node.kwarg:
-                self._locals.discard(node.kwarg)
+            self._locals.difference_update(plan.bound_names)
             if saved_async:
                 self._async_mode = True
             if saved_streaming:

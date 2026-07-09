@@ -37,6 +37,16 @@ COMPILE_TEMPLATE = """\
 {% end %}
 """
 
+CALLABLE_COMPILE_TEMPLATE = """\
+{% def card(title: str, count: int = 2, *items, **attrs) %}
+  <article data-count="{{ count }}">{{ title }}{{ items | length }}{{ attrs | length }}</article>
+{% end %}
+{% region panel(title: str, count: int = 2, *items, **attrs) %}
+  <section data-count="{{ count }}">{{ title }}{{ items | length }}{{ attrs | length }}</section>
+{% end %}
+{{ card("Card") }}{{ panel("Panel") }}
+"""
+
 
 class AttrObject:
     __slots__ = ("name",)
@@ -121,6 +131,15 @@ def _compile_small_batch(iterations: int) -> int:
     compiled = 0
     for i in range(iterations):
         template = env.from_string(COMPILE_TEMPLATE, name=f"regression-core-{i}")
+        compiled += template.name is not None
+    return compiled
+
+
+def _compile_callable_batch(iterations: int) -> int:
+    env = Environment(auto_reload=False, preserve_ast=False)
+    compiled = 0
+    for i in range(iterations):
+        template = env.from_string(CALLABLE_COMPILE_TEMPLATE, name=f"callable-core-{i}")
         compiled += template.name is not None
     return compiled
 
@@ -232,4 +251,10 @@ def test_html_escape_markup_batch(benchmark: BenchmarkFixture) -> None:
 @pytest.mark.benchmark(group="regression-core:compile")
 def test_compile_small_template_batch(benchmark: BenchmarkFixture) -> None:
     total = benchmark(_compile_small_batch, COMPILE_CALLS_PER_ROUND)
+    assert total == COMPILE_CALLS_PER_ROUND
+
+
+@pytest.mark.benchmark(group="regression-core:compile")
+def test_compile_callable_template_batch(benchmark: BenchmarkFixture) -> None:
+    total = benchmark(_compile_callable_batch, COMPILE_CALLS_PER_ROUND)
     assert total == COMPILE_CALLS_PER_ROUND
