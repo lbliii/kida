@@ -1,7 +1,7 @@
 # Downstream Pilot Evidence Policy
 
-Status: validated against historical changes; steward-guidance adoption awaits
-explicit constitution review
+Status: validated against historical changes and adopted into root steward
+guidance after explicit constitution review
 
 Tracking: [GitHub issue #245](https://github.com/lbliii/kida/issues/245)
 
@@ -135,11 +135,10 @@ locally provable changes. It also shows why category alone is insufficient: a
 diagnostic wording edit and a diagnostic schema edit do not carry the same
 downstream risk.
 
-## Steward Notes Integration — Deferred Constitution Change
+## Steward Notes Integration
 
-This validated policy should be integrated only after explicit review of the
-root constitution. The precise proposed addition to the root `AGENTS.md`
-**Contract Checklist** is:
+After explicit constitution review, the root `AGENTS.md` **Contract Checklist**
+adopts this rule:
 
 > New component/runtime features and downstream-observable contract changes
 > classify their pilot requirement under `docs/downstream-pilot-policy.md`.
@@ -147,7 +146,7 @@ root constitution. The precise proposed addition to the root `AGENTS.md`
 > result, and coordination evidence, or `No downstream pilot: <allowed reason>`
 > with replacement proof.
 
-No root or scoped `AGENTS.md` is changed by this policy-validation work. Scoped
-stewards may later link the same policy where their checklist owns a mapped
-consumer surface; that adoption is a separate reviewed change, not a condition
-that silently expands every local steward consultation.
+The root rule is the single routing point. Scoped stewards do not duplicate it;
+they may link this policy later when their checklist owns a mapped consumer
+surface. Such links remain separately reviewed changes and do not silently
+expand every local steward consultation.
