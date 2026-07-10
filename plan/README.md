@@ -14,7 +14,7 @@ Current contributor commands and invariants live in `AGENTS.md`, `CLAUDE.md`,
 | Work | Status | Tracker |
 |---|---|---|
 | Pre-1.0 stability rituals | Active upkeep | `plan/epic-pre-1.0-stabilization.md` |
-| Downstream pilot evidence policy | Validated; steward-guidance adoption awaits explicit constitution review | [#245](https://github.com/lbliii/kida/issues/245) |
+| Downstream pilot evidence policy | Complete; adopted into root steward guidance | [#245](https://github.com/lbliii/kida/issues/245) |
 | Kida/Milo marketplace and external dogfooding | Active; external publication and PR work remains | `plan/epic-kida-milo-integration.md` |
 | Large-app ergonomics | Proposed; stop-and-ask items are not approved by the plan | `plan/epic-large-app-ergonomics.md` |
 | Runtime-helper `Any` reduction | Active; baseline refreshed and first bounded slice implemented | [#146](https://github.com/lbliii/kida/issues/146) |

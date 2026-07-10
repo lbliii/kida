@@ -73,6 +73,11 @@ Stewards use this operating model:
 - Every accepted finding must name required proof and collateral updates, or explicitly say `no collateral: <reason>`.
 - Docs, examples, and scaffold/templates move in the same PR as user-facing behavior unless synthesis records why they are unaffected.
 - Contract-affecting PRs include a parity matrix when behavior spans multiple entrypoints.
+- New component/runtime features and downstream-observable contract changes
+  classify their pilot requirement under `docs/downstream-pilot-policy.md`.
+  Steward Notes record the selected consumer, fixture, provenance, sensitivity,
+  result, and coordination evidence, or
+  `No downstream pilot: <allowed reason>` with replacement proof.
 
 ## Steward Signal Format
 Steward findings should be contract-oriented, evidence-backed, and collateral-aware.
