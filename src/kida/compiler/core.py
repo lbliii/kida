@@ -157,7 +157,6 @@ class Compiler(
         "_outer_caller_expr",
         "_scope_override",
         "_streaming",
-        "_template_scope_names",
     )
 
     # Class-level dispatch table: node type name → unbound method name.
@@ -228,10 +227,6 @@ class Compiler(
         self._filename: str | None = None
         self._warnings: list[TemplateWarning] = []
         self._scope_depth: int = 0  # Track nesting depth inside scoping blocks (if/for/while)
-        # Track the kinds of nested blocks relevant to Jinja assignment
-        # semantics. Jinja ``if`` branches share their surrounding scope,
-        # while loops introduce a local scope.
-        self._jinja_scope_stack: list[str] = []
         # Track local variables (loop variables, etc.) for O(1) direct access
         self._locals: set[str] = set()
         # Track blocks for inheritance
@@ -256,11 +251,6 @@ class Compiler(
         # Per-compile memo for loop-variable analysis. The same AST bodies are
         # consulted for sync, stream, and async function generation.
         self._loop_usage_cache: dict[int, bool] = {}
-        # Names bound by {% let %} / {% export %} — template-scope visible.
-        # Used to narrow the {% set %}-inside-block migration warning: the
-        # Jinja2 scoping trap only fires when the author expects a nested
-        # {% set %} to mutate a template-scope name.
-        self._template_scope_names: set[str] = set()
         # Lexical caller scoping: def → call → caller() (reset in compile())
         self._def_caller_stack: list[ast.expr] = []
         self._outer_caller_expr: ast.expr | None = None
@@ -478,14 +468,37 @@ class Compiler(
         self._precomputed = []  # Reset precomputed for each compilation
         self._precomputed_ids = {}
         self._declared_definitions = set()
-        self._template_scope_names = set()
         self._loop_usage_cache = {}
-        self._jinja_scope_stack = []
 
         # Validate top-level placement of {% def %} / {% region %}: nesting
         # inside control-flow constructs (if/for/with/provide/...) prevents
         # _globals_setup from binding the name for render_block() dispatch.
         self._check_definition_nesting(node.body, parent_chain=())
+
+        if self._env.jinja2_compat_warnings:
+            from kida.compiler.analysis_phases import collect_jinja_set_read_findings
+            from kida.exceptions import ErrorCode
+
+            for finding in collect_jinja_set_read_findings(node.body):
+                if finding.shadow:
+                    message = (
+                        f"{{% set %}} assigns to '{finding.name}' which is already "
+                        "bound in the surrounding scope. In Kida, this creates a "
+                        "block-scoped shadow; Jinja2 {% if %} does not create a scope."
+                    )
+                else:
+                    message = (
+                        f"{{% set %}} assigns to '{finding.name}' inside a Jinja2 "
+                        "{% if %} scope, and that binding is read after the block. "
+                        "Jinja2 leaks the assignment through {% if %}; Kida keeps "
+                        "it block-scoped."
+                    )
+                self._emit_warning(
+                    ErrorCode.JINJA2_SET_SCOPING,
+                    message,
+                    lineno=finding.lineno,
+                    suggestion=finding.suggestion,
+                )
 
         # Generate Python AST
         module = self._compile_template(node)

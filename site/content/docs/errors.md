@@ -467,11 +467,11 @@ Fix: Add parentheses to clarify intent: `(x ?? []) | length`.
 
 ### k-warn-002
 
-**Jinja2 `set` scoping difference** — An `{% if %}` branch contains `{% set x = ... %}` targeting a name already bound template-wide via `{% let x %}` or `{% export x %}`. In Kida this creates a branch-scoped shadow that does not leak to outer scope; in Jinja2 an `if` does not create a scope, so the assignment modifies the outer variable.
+**Jinja2 `set` scoping difference** — An `{% if %}` branch contains `{% set x = ... %}` whose Jinja binding is read after the block, or it targets a name already bound template-wide via `{% let x %}` or `{% export x %}`. In Kida this creates a branch-scoped value that does not leak to outer scope; in Jinja2 an `if` does not create a scope.
 
-Fix: Use `{% export x = ... %}` to write to outer scope, or rename the target to avoid the shadow.
+Fix: For a fresh name that must remain visible, use `{% let x = ... %}`. To update an existing template-wide binding, use `{% export x = ... %}`. The diagnostic is advisory and never supplies an automatic edit.
 
-Enabled by default. Suppress with `warnings.filterwarnings("ignore", category=MigrationWarning)` or `Environment(jinja2_compat_warnings=False)`. The warning is narrowed to the actual trap pattern: fresh names and assignments inside Jinja-local `for` scopes do not trigger.
+Enabled by default. Suppress with `warnings.filterwarnings("ignore", category=MigrationWarning)` or `Environment(jinja2_compat_warnings=False)`. The read-after-block analysis follows nested `if` branches, stops at unambiguous rebinding, and does not claim that assignments inside Jinja-local `for` scopes escape. Ambiguous binding origins remain unreported.
 
 The warning is also available through `kida check`, `diagnose_source()`, and
 `diagnose_directory()` with its template path, line, suggestion, and proven

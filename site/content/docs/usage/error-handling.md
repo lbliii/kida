@@ -178,7 +178,7 @@ Kida emits Python warnings during template compilation for common pitfalls:
 |---------|------|---------|
 | `PrecedenceWarning` | K-WARN-001 | `x ?? [] \| length` — filter pipe binds tighter than `??` |
 | `CoercionWarning` | — | `"abc" \| float` — silent type coercion to `0.0` |
-| `MigrationWarning` | K-WARN-002 | `{% set %}` in an `if` branch shadows a `{% let %}`/`{% export %}` name (default-on; disable via `jinja2_compat_warnings=False`) |
+| `MigrationWarning` | K-WARN-002 | Jinja `if`-local `{% set %}` flow differs from Kida block scope (default-on; disable via `jinja2_compat_warnings=False`) |
 
 Access warnings on a compiled template:
 
