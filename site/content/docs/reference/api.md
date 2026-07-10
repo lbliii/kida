@@ -189,7 +189,7 @@ env = Environment(
 | `fragment_ttl` | `float` | `300.0` | Fragment TTL (seconds) |
 | `static_context` | `dict \| None` | `None` | Values for compile-time partial evaluation |
 | `strict_undefined` | `bool` | `True` | Raise `UndefinedError` on missing variable or attribute access (set to `False` for lenient empty-string fallback) |
-| `jinja2_compat_warnings` | `bool` | `True` | Warn when `{% set %}` in an `if` branch shadows a `{% let %}`/`{% export %}` name |
+| `jinja2_compat_warnings` | `bool` | `True` | Warn on proven Jinja `if`-local `set` flow that Kida block scope changes |
 | `validate_calls` | `bool` | `False` | Validate `{% def %}` call sites at compile time |
 | `enable_capture` | `bool` | `False` | Compile opt-in render-capture hooks; activate them per render with `captured_render()` |
 
@@ -799,7 +799,7 @@ Compile-time warnings emitted during template compilation:
 |-------|------|-------------|
 | `PrecedenceWarning` | K-WARN-001 | `\|` binds tighter than `??` |
 | `CoercionWarning` | — | Silent type coercion in filters (e.g. `"abc" \| float` → `0.0`) |
-| `MigrationWarning` | K-WARN-002 | `{% set %}` in an `if` branch shadows a `{% let %}`/`{% export %}` name (Jinja2 scoping trap) |
+| `MigrationWarning` | K-WARN-002 | Jinja `if`-local `{% set %}` is read after the Kida block or shadows a template-wide binding |
 
 These are standard Python warnings and can be filtered with `warnings.filterwarnings`.
 

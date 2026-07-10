@@ -186,6 +186,27 @@ def is_prime(n):
 | `{% if %}...{% elif %}...{% endif %}` | `{% match %}...{% case %}...{% end %}` |
 | N/A | `{% cache key %}...{% end %}` |
 
+### Audit assignments that cross an `if` block
+
+Jinja2 lets an assignment inside `{% if %}` update the surrounding scope;
+Kida keeps `{% set %}` block-scoped. `kida check` reports K-WARN-002 when it
+can prove that such a binding is read after the block:
+
+```jinja2
+{% if user %}
+  {% set greeting = "Hello " ~ user.name %}
+{% endif %}
+{{ greeting }}
+```
+
+Use `{% let greeting = ... %}` when the name is first introduced and should
+be template-wide. Use `{% export greeting = ... %}` when updating an existing
+template-wide binding. Assignments do not escape `{% for %}` in either engine;
+an `if`-local assignment read later in the same iteration can still be reported
+with loop-local restructuring advice. K-WARN-002 is advisory only because
+control flow, shadowing, and dynamic values can make an automatic rewrite
+unsound.
+
 ## New Features
 
 After migrating, explore Kida-only features:

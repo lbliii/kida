@@ -343,6 +343,46 @@ def test_compiler_warning_has_text_json_and_sarif_parity(
     assert _validate_schema(payload, schema, schema) == []
 
 
+def test_jinja_set_read_warning_has_text_json_and_sarif_parity(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (tmp_path / "page.html").write_text(
+        "{% if enabled %}\n{% set value = 2 %}\n{% end %}\n{{ value }}",
+        encoding="utf-8",
+    )
+
+    text_exit = main(["check", str(tmp_path)])
+    text = capsys.readouterr()
+    json_exit = main(["check", str(tmp_path), "--format", "json"])
+    json_capture = capsys.readouterr()
+    sarif_exit = main(["check", str(tmp_path), "--format", "sarif"])
+    sarif_capture = capsys.readouterr()
+
+    assert text_exit == json_exit == sarif_exit == 1
+    assert "page.html:2: K-WARN-002:" in text.err
+    assert "Hint: Use {% let value = ... %} to make the value template-wide." in text.err
+    assert json_capture.err == sarif_capture.err == ""
+
+    diagnostic = json.loads(json_capture.out)["diagnostics"][0]
+    result = json.loads(sarif_capture.out)["runs"][0]["results"][0]
+    assert diagnostic["code"] == result["ruleId"] == "K-WARN-002"
+    assert diagnostic["message"] == result["message"]["text"]
+    assert diagnostic["message"] in text.err
+    assert diagnostic["range"] == {
+        "start": {"line": 2, "column": None},
+        "end": None,
+    }
+    assert (
+        diagnostic["suggestion"]
+        == result["properties"]["suggestion"]
+        == ("Use {% let value = ... %} to make the value template-wide.")
+    )
+    assert diagnostic["confidence"] == result["properties"]["confidence"] == "proven"
+    assert diagnostic["safe_edit"] is None
+    assert "fixes" not in result
+
+
 def test_deduplication_keeps_first_exact_diagnostic_event(tmp_path: Path) -> None:
     collector = _Collector(tmp_path)
     diagnostic = Diagnostic(
