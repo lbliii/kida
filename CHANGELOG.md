@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added typed literal modifiers to `{% block %}` and `{% fragment %}`
+  declarations. Immutable `BlockModifierMetadata` records preserve order,
+  scalar values, and source locations for framework introspection without
+  changing rendering, dependency analysis, or structural block hashes. (`#268`)
 - Added report-only downstream canaries for chirp-ui's HTML/component corpus
   and Milo's terminal/CLI templates. Each job proves it imports the proposed
   Kida checkout instead of the released wheel, records commit provenance, runs

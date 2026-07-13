@@ -49,6 +49,7 @@ from kida.analysis.i18n import ExtractedMessage, ExtractMessagesVisitor
 from kida.analysis.landmarks import LandmarkDetector
 from kida.analysis.metadata import (
     BlockMetadata,
+    BlockModifierMetadata,
     CallValidation,
     DefMetadata,
     DefParamInfo,
@@ -65,6 +66,7 @@ __all__ = [
     "AnalysisConfig",
     "BlockAnalyzer",
     "BlockMetadata",
+    "BlockModifierMetadata",
     "CallValidation",
     "ContextContractIssue",
     "DefMetadata",

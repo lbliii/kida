@@ -462,6 +462,7 @@ See [Framework Integration](/docs/usage/framework-integration/) for the full ada
 | Field | Type | Description |
 |---|---|---|
 | `name` | `str` | Block identifier |
+| `modifiers` | `tuple[BlockModifierMetadata, ...]` | Ordered literal framework metadata with source locations |
 | `depends_on` | `frozenset[str]` | Context paths accessed |
 | `is_pure` | `"pure" \| "impure" \| "unknown"` | Determinism classification |
 | `cache_scope` | `"site" \| "page" \| "none" \| "unknown"` | Recommended cache level |
@@ -470,6 +471,11 @@ See [Framework Integration](/docs/usage/framework-integration/) for the full ada
 | `inferred_role` | `str` | Heuristic role classification |
 | `is_region` | `bool` | True if block is a `{% region %}` |
 | `region_params` | `tuple[str, ...]` | Parameter names (regions only) |
+
+`BlockMetadata.get_modifier(name)` returns the matching immutable
+`BlockModifierMetadata` or `None`. Each modifier exposes `name`, its typed
+scalar `value`, and the one-based `lineno` / zero-based `col_offset` where its
+name begins.
 
 ### TemplateMetadata
 

@@ -31,6 +31,15 @@ class Extends(Node):
 
 @final
 @dataclass(frozen=True, slots=True)
+class BlockModifier(Node):
+    """Literal framework metadata attached to a block or fragment."""
+
+    name: str
+    value: str | int | float | bool | None
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class Block(Node):
     """Named block for inheritance: {% block name %}...{% end %}"""
 
@@ -40,6 +49,7 @@ class Block(Node):
     required: bool = False
     fragment: bool = False
     condition: Expr | None = None
+    modifiers: tuple[BlockModifier, ...] = ()
 
 
 @final

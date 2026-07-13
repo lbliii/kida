@@ -62,6 +62,7 @@ from kida.nodes.output import (
 )
 from kida.nodes.structure import (
     Block,
+    BlockModifier,
     Cache,
     Embed,
     Extends,
@@ -89,6 +90,7 @@ __all__ = [
     "Await",
     "BinOp",
     "Block",
+    "BlockModifier",
     "BoolOp",
     "Break",
     "Cache",

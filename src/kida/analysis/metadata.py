@@ -12,6 +12,17 @@ from typing import Literal, final
 
 @final
 @dataclass(frozen=True, slots=True)
+class BlockModifierMetadata:
+    """One literal block modifier with its declaration location."""
+
+    name: str
+    value: str | int | float | bool | None
+    lineno: int
+    col_offset: int
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class BlockMetadata:
     """Metadata about a template block, inferred from static analysis.
 
@@ -57,6 +68,7 @@ class BlockMetadata:
     """
 
     name: str
+    modifiers: tuple[BlockModifierMetadata, ...] = ()
 
     # Output characteristics
     emits_html: bool = True
@@ -83,6 +95,10 @@ class BlockMetadata:
     # Region-specific (RFC: kida-regions)
     is_region: bool = False
     region_params: tuple[str, ...] = ()
+
+    def get_modifier(self, name: str) -> BlockModifierMetadata | None:
+        """Return a declared modifier by name, or ``None`` when absent."""
+        return next((modifier for modifier in self.modifiers if modifier.name == name), None)
 
     def is_cacheable(self) -> bool:
         """Check if this block can be safely cached.

@@ -43,6 +43,7 @@ The categories mean:
 | `AnalysisConfig` | stable advanced | Configures opt-in static analysis rather than ordinary rendering. |
 | `AsyncLoopContext` | stable advanced | Documents the observable `loop` contract for async iterables. |
 | `BlockMetadata` | stable advanced | Framework introspection consumes this immutable block contract. |
+| `BlockModifierMetadata` | stable advanced | Frameworks consume typed literal block declarations and their source locations. |
 | `ChoiceLoader` | stable core | Loader composition is a documented application setup path. |
 | `CoercionWarning` | stable advanced | Callers can filter a specific documented compatibility warning. |
 | `ComponentWarning` | stable advanced | Component users need a specific Python warning filter category. |

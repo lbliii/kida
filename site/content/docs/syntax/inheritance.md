@@ -76,6 +76,41 @@ Result: The child template inherits all of `base.html`, with the `title` and `co
 
 Use `template.render_block("block_name", **ctx)` to render a single block in isolation — useful for HTMX partials, cached nav, or fragment responses. Blocks resolve through the inheritance chain: you can render parent-only blocks (e.g. `sidebar` from base) on a descendant template. See [Framework Integration](/docs/usage/framework-integration/) for full usage.
 
+## Block and Fragment Modifiers
+
+Blocks and fragments can declare literal metadata for frameworks and tooling:
+
+```kida
+{% block chart enhanced="sse" fallback="table" %}
+    <div id="chart">{{ chart }}</div>
+{% end %}
+
+{% fragment updates transport="sse" %}
+    <div id="updates">{{ message }}</div>
+{% end %}
+```
+
+Modifier values must be literal strings, numbers, booleans, or `None`.
+Duplicate names, runtime expressions, collections, and malformed assignments
+are compile-time errors. Kida preserves modifier order, scalar types, and exact
+source locations in `BlockMetadata.modifiers`; it does not assign meaning to
+modifier names or change rendering, dependency analysis, or block hashes.
+
+Frameworks can validate their own vocabulary through immutable metadata:
+
+```python
+chart = template.block_metadata()["chart"]
+enhanced = chart.get_modifier("enhanced")
+if enhanced is not None:
+    print(enhanced.value, enhanced.lineno, enhanced.col_offset)
+```
+
+Modifiers must precede an optional block condition:
+
+```kida
+{% block chart enhanced="sse" if show_chart %}...{% end %}
+```
+
 ## Real-World Examples
 
 ### Documentation Site

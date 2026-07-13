@@ -23,7 +23,7 @@ EXPECTED_CATEGORIES = {
 }
 EXPECTED_CATEGORY_COUNTS = {
     "stable core": 20,
-    "stable advanced": 27,
+    "stable advanced": 28,
     "tooling/observability": 23,
     "internal-before-1.0": 3,
 }
@@ -49,6 +49,6 @@ def test_every_top_level_export_has_exactly_one_classification() -> None:
 
     assert len(classified_names) == len(set(classified_names)), "duplicate classification row"
     assert set(classified_names) == set(exports)
-    assert len(classified_names) == 73
+    assert len(classified_names) == 74
     assert {category for _name, category in rows} <= EXPECTED_CATEGORIES
     assert Counter(category for _name, category in rows) == EXPECTED_CATEGORY_COUNTS

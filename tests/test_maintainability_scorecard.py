@@ -99,7 +99,7 @@ def test_repository_scorecard_has_stable_contract(scorecard_module) -> None:
     )
     assert scorecard["scope"]["source_files"] > 0
     assert scorecard["scope"]["test_files"] > 0
-    assert len(scorecard["public_api"]["exports"]) == 73
+    assert len(scorecard["public_api"]["exports"]) == 74
     assert scorecard["import_closure"]["error"] is None
 
 
