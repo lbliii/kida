@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-13
+
 ### Added
 
 - Added typed literal modifiers to `{% block %}` and `{% fragment %}`
@@ -43,6 +45,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stable `K-A11Y-*`, `K-TYP-*`, and `K-PATH-001` mappings. Accessibility,
   template-declaration type, and fragile-path findings expose computed `code`
   properties without changing their constructor fields or CLI behavior.
+- Added K-WARN-002 detection for a Jinja `{% set %}` binding read after an
+  `if` block, including nested branches, named blocks, and later reads in the
+  same loop iteration. The advisory remains default-on and has no safe edit.
+
+### Changed
+
+- GitHub pull-request release-note collection now uses typed, fixture-tested
+  Python with pagination, report-contract validation, and explicit failures for
+  malformed responses or invalid ref ranges. (`#139`)
+- The README and thread-safety contract now link the required Python 3.14t
+  no-GIL pull-request lane and scheduled seeded debug-runtime stress evidence.
+  (`#158`)
+- Split the CLI monolith into private command-owned modules behind the unchanged
+  `kida.cli:main` entry point. Argument parsing, lazy dispatch, execution, and
+  structured presentation now have direct test seams; all eight commands keep
+  their flags, help, streams, serialized shapes, and exit statuses. Focused CLI
+  line/branch coverage rose from 53.7% to 94.7%, cold-start medians did not
+  regress, and no dependency was added.
+- Split compiler lowering, analysis, callable plans, block variants, and
+  partial-evaluation tests into phase-owned modules without changing generated
+  output, render surfaces, or the zero-dependency runtime.
+
+### Fixed
+
+- Shared `DependencyWalker`, `PurityAnalyzer`, and `BlockAnalyzer` instances
+  now isolate traversal state across concurrent calls. Thread-safety docs define
+  the stable-source boundary for loaders and read-only metadata mappings. (`#158`)
+- K-WARN-002 now matches Jinja's block-sensitive assignment behavior: it warns
+  for outer-name shadows in non-scoping `if` branches and avoids false positives
+  for loop-local `for` assignments. (`#253`, `#255`)
+- Live renderer updates are serialized under free-threading, and seeded no-GIL
+  stress coverage now exercises shared templates, caches, registries, coverage
+  instrumentation, runtime debugging, and analysis.
+- Streaming error boundaries inside named blocks now preserve fallback behavior
+  across the synchronous and asynchronous render surfaces.
 
 ## [0.11.0] - 2026-07-07
 
@@ -53,12 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Split the CLI monolith into private command-owned modules behind the unchanged
-  `kida.cli:main` entry point. Argument parsing, lazy dispatch, execution, and
-  structured presentation now have direct test seams; all eight commands keep
-  their flags, help, streams, serialized shapes, and exit statuses. Focused CLI
-  line/branch coverage rose from 53.7% to 94.7%, cold-start medians did not
-  regress, and no dependency was added.
 - Hardened GitHub release automation so releases fail before publishing when the
   worktree, main commit, tag, or curated release notes do not match. (`#134`)
 - Consolidated duplicate ty checks into the report-producing `Type Check (ty)`

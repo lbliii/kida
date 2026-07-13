@@ -395,6 +395,9 @@ for structured diagnostics and source-attribution hardening.
 Moving from 0.10.x? See the [0.11 release notes](https://lbliii.github.io/kida/releases/0.11.0/)
 for framework quickstarts, release hardening, and internal compiler modularization.
 
+Moving from 0.11.x? See the [0.12 release notes](https://lbliii.github.io/kida/releases/0.12.0/)
+for programmatic diagnostics, literal block metadata, and expanded free-threading proof.
+
 ## Python Components Ecosystem
 
 Kida is the component layer in a broader pure-Python stack built for 3.14t
