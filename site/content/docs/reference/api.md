@@ -29,7 +29,7 @@ contract:
 - `ErrorCode` names and values
 - `Environment(...)` constructor parameters
 - `Template` render, block-render, streaming, and metadata methods
-- metadata dataclass fields for `BlockMetadata`, `DefParamInfo`,
+- metadata dataclass fields for `BlockMetadata`, `BlockModifierMetadata`, `DefParamInfo`,
   `DefMetadata`, `TemplateMetadata`, and `TemplateStructureManifest`
 - render-capture records, manifests, diffs, freeze-cache analysis, and search
   manifest helpers exported from `kida`

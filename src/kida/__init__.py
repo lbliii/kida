@@ -201,6 +201,7 @@ __all__ = [
     "AnalysisConfig",
     "AsyncLoopContext",
     "BlockMetadata",
+    "BlockModifierMetadata",
     "ChoiceLoader",
     "CoercionWarning",
     "ComponentWarning",
@@ -280,6 +281,7 @@ _LAZY_ANALYSIS = frozenset(
     {
         "AnalysisConfig",
         "BlockMetadata",
+        "BlockModifierMetadata",
         "DefMetadata",
         "DefParamInfo",
         "TemplateMetadata",
@@ -300,6 +302,7 @@ def __getattr__(name: str) -> object:
         from kida.analysis import (
             AnalysisConfig,
             BlockMetadata,
+            BlockModifierMetadata,
             DefMetadata,
             DefParamInfo,
             TemplateMetadata,
@@ -310,6 +313,7 @@ def __getattr__(name: str) -> object:
         globals().update(
             AnalysisConfig=AnalysisConfig,
             BlockMetadata=BlockMetadata,
+            BlockModifierMetadata=BlockModifierMetadata,
             DefMetadata=DefMetadata,
             DefParamInfo=DefParamInfo,
             TemplateMetadata=TemplateMetadata,

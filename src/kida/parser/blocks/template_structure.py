@@ -14,6 +14,7 @@ from kida._types import Token, TokenType
 from kida.exceptions import ErrorCode
 from kida.nodes import (
     Block,
+    BlockModifier,
     Extends,
     FromImport,
     Globals,
@@ -103,6 +104,89 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
             declarations=tuple(declarations),
         )
 
+    def _parse_block_modifiers(self, *, allow_condition: bool) -> tuple[BlockModifier, ...]:
+        """Parse ordered ``name=literal`` metadata before a block tag closes."""
+        modifiers: list[BlockModifier] = []
+        seen: set[str] = set()
+
+        while self._current.type == TokenType.NAME:
+            if (
+                allow_condition
+                and self._current.value == "if"
+                and self._peek(1).type != TokenType.ASSIGN
+            ):
+                break
+
+            name_token = self._advance()
+            if self._current.type != TokenType.ASSIGN:
+                raise self._error(
+                    f"Block modifier '{name_token.value}' must use name=value syntax",
+                    token=name_token,
+                    suggestion=(f'Assign a literal scalar: {name_token.value}="value"'),
+                    code=ErrorCode.UNSUPPORTED_SYNTAX,
+                )
+            self._advance()  # consume '='
+
+            if name_token.value in seen:
+                raise self._error(
+                    f"Duplicate block modifier: '{name_token.value}'",
+                    token=name_token,
+                    suggestion="Remove the duplicate modifier; each name may appear once.",
+                )
+
+            value = self._parse_block_modifier_literal(name_token.value)
+            seen.add(name_token.value)
+            modifiers.append(
+                BlockModifier(
+                    lineno=name_token.lineno,
+                    col_offset=name_token.col_offset,
+                    name=name_token.value,
+                    value=value,
+                )
+            )
+
+        return tuple(modifiers)
+
+    def _parse_block_modifier_literal(self, name: str) -> str | int | float | bool | None:
+        """Parse one scalar literal without accepting runtime expressions."""
+        token = self._current
+
+        if token.type == TokenType.STRING:
+            self._advance()
+            return token.value
+        if token.type == TokenType.INTEGER:
+            self._advance()
+            return int(token.value)
+        if token.type == TokenType.FLOAT:
+            self._advance()
+            return float(token.value)
+        if token.type == TokenType.SUB and self._peek(1).type in (
+            TokenType.INTEGER,
+            TokenType.FLOAT,
+        ):
+            self._advance()
+            number = self._advance()
+            if number.type == TokenType.INTEGER:
+                return -int(number.value)
+            return -float(number.value)
+        if token.type == TokenType.NAME:
+            if token.value in ("True", "true"):
+                self._advance()
+                return True
+            if token.value in ("False", "false"):
+                self._advance()
+                return False
+            if token.value in ("None", "none"):
+                self._advance()
+                return None
+
+        raise self._error(
+            f"Block modifier '{name}' requires a literal scalar value",
+            token=token,
+            suggestion="Use a string, number, boolean, or None; runtime expressions are not allowed.",
+            code=ErrorCode.UNSUPPORTED_SYNTAX,
+        )
+
     def _parse_block_tag(self) -> Block:
         """Parse {% block name [if expr] %}...{% end %} or {% endblock %}.
 
@@ -129,11 +213,19 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
                 code=ErrorCode.INVALID_IDENTIFIER,
             )
 
-        # Optional condition: {% block detail if show_detail %}
+        modifiers: tuple[BlockModifier, ...] = ()
         condition: Expr | None = None
-        if self._current.type == TokenType.NAME and self._current.value == "if":
-            self._advance()  # consume 'if'
-            condition = self._parse_expression()
+        if self._current.type == TokenType.NAME:
+            if self._current.value == "if" and self._peek(1).type != TokenType.ASSIGN:
+                self._advance()  # consume 'if'
+                condition = self._parse_expression()
+            else:
+                modifiers = self._parse_block_modifiers(allow_condition=True)
+
+                # Optional condition after modifiers
+                if self._current.type == TokenType.NAME and self._current.value == "if":
+                    self._advance()  # consume 'if'
+                    condition = self._parse_expression()
 
         self._expect(TokenType.BLOCK_END)
         body = self._parse_body()
@@ -147,6 +239,7 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
             name=name,
             body=tuple(body),
             condition=condition,
+            modifiers=modifiers,
         )
 
     def _parse_globals_tag(self) -> Globals:
@@ -222,6 +315,10 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
                 code=ErrorCode.INVALID_IDENTIFIER,
             )
 
+        modifiers: tuple[BlockModifier, ...] = ()
+        if self._current.type == TokenType.NAME:
+            modifiers = self._parse_block_modifiers(allow_condition=False)
+
         self._expect(TokenType.BLOCK_END)
         body = self._parse_body()
 
@@ -234,6 +331,7 @@ class TemplateStructureBlockParsingMixin(BlockStackMixin):
             name=name,
             body=tuple(body),
             fragment=True,
+            modifiers=modifiers,
         )
 
     def _parse_extends(self) -> Extends:

@@ -26,6 +26,7 @@ Integration:
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from typing import Any
 
 from kida.compiler import partial_eval_constants as _constants
@@ -750,14 +751,7 @@ class PartialEvaluator(
                 new_body = self._transform_body(node.body)
                 if new_body is node.body:
                     return node
-                return Block(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    name=node.name,
-                    body=new_body,
-                    scoped=node.scoped,
-                    required=node.required,
-                )
+                return replace(node, body=new_body)
 
             case Def():
                 # Register def for potential inlining, then recurse into body

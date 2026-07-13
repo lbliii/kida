@@ -248,6 +248,7 @@ and collapse generated Python traceback frames by default.
 - **Layout composition** — `render_with_blocks()` for programmatic layout assembly
 - **Streaming** — `render_stream()`, `render_stream_async()` for chunked HTTP
 - **Introspection** — `template_metadata()` for composition planning, `validate_block_exists()` before `render_block`
+- **Literal block modifiers** — `BlockMetadata.modifiers` for framework-owned enhancement, fallback, and transport declarations
 - **Adapter** — `KidaAdapter` implements Chirp's `TemplateAdapter` interface
 
 **AST-driven OOB discovery**: Chirp uses `template_metadata()` to discover OOB regions
@@ -258,6 +259,11 @@ calls `meta.regions()` (or filters `meta.blocks` by `*_oob` suffix), extracts
 page fragment plus the OOB regions as `hx-swap-oob` updates. See [Chirp's Kida
 Integration](https://lbliii.github.io/chirp/docs/templates/kida-integration/)
 for the full flow.
+
+Kida validates only the generic modifier contract: unique names and literal
+scalar values. Chirp or another framework owns the supported modifier names,
+allowed value vocabulary, and any response behavior derived from them. Reading
+metadata alone does not change Kida rendering or cache identity.
 
 ### Chirp + Regions: Step-by-Step
 

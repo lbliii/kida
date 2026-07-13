@@ -17,6 +17,7 @@ from kida.analysis.dependencies import DependencyWalker
 from kida.analysis.landmarks import _LANDMARK_ELEMENTS, _TAG_RE, LandmarkDetector
 from kida.analysis.metadata import (
     BlockMetadata,
+    BlockModifierMetadata,
     CallValidation,
     DefMetadata,
     TemplateMetadata,
@@ -163,6 +164,19 @@ class BlockAnalyzer:
 
         return BlockMetadata(
             name=block_node.name,
+            modifiers=(
+                tuple(
+                    BlockModifierMetadata(
+                        name=modifier.name,
+                        value=modifier.value,
+                        lineno=modifier.lineno,
+                        col_offset=modifier.col_offset,
+                    )
+                    for modifier in block_node.modifiers
+                )
+                if isinstance(block_node, Block)
+                else ()
+            ),
             emits_html=scan.emits_html,
             emits_landmarks=scan.landmarks,
             inferred_role=inferred_role,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, final
 
 from kida.nodes import Block, CallBlock, Node, SlotBlock, Template
@@ -49,16 +49,7 @@ def _flatten_body(body: Sequence[Node]) -> Sequence[Node]:
             new_block_body = _flatten_body(node.body)
             if new_block_body is not node.body:
                 changed = True
-                result.append(
-                    Block(
-                        lineno=node.lineno,
-                        col_offset=node.col_offset,
-                        name=node.name,
-                        body=new_block_body,
-                        scoped=node.scoped,
-                        required=node.required,
-                    )
-                )
+                result.append(replace(node, body=new_block_body))
             else:
                 result.append(node)
         elif isinstance(node, CallBlock):

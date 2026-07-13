@@ -11,6 +11,7 @@ import kida
 from kida import Environment, ErrorCode, Template
 from kida.analysis.metadata import (
     BlockMetadata,
+    BlockModifierMetadata,
     DefMetadata,
     DefParamInfo,
     TemplateMetadata,
@@ -23,6 +24,7 @@ EXPECTED_PUBLIC_API = {
         "AnalysisConfig",
         "AsyncLoopContext",
         "BlockMetadata",
+        "BlockModifierMetadata",
         "ChoiceLoader",
         "CoercionWarning",
         "ComponentWarning",
@@ -203,6 +205,7 @@ EXPECTED_PUBLIC_API = {
     "metadata_fields": {
         "BlockMetadata": [
             "name",
+            "modifiers",
             "emits_html",
             "emits_landmarks",
             "inferred_role",
@@ -213,6 +216,7 @@ EXPECTED_PUBLIC_API = {
             "is_region",
             "region_params",
         ],
+        "BlockModifierMetadata": ["name", "value", "lineno", "col_offset"],
         "DefParamInfo": ["name", "annotation", "has_default", "is_required"],
         "DefMetadata": [
             "name",
@@ -295,6 +299,7 @@ EXPECTED_CLI_CONTRACT = {
 def _public_api_snapshot() -> dict[str, object]:
     metadata_classes = [
         BlockMetadata,
+        BlockModifierMetadata,
         DefParamInfo,
         DefMetadata,
         TemplateMetadata,
