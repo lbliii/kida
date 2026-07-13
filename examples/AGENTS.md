@@ -1,47 +1,30 @@
-# Examples Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain owns runnable examples that show how Kida should be used in real apps, migrations, terminals, CI reports, and integrations. It matters because examples become copied production code.
+# Steward: examples
 
-Related docs:
-- root `AGENTS.md`
-- `examples/README.md`
-- `site/content/docs/tutorials/`
-- `site/content/docs/get-started/`
+Keep runnable examples canonical, focused, tested, dependency-isolated, and safe to copy into real applications.
 
-## Point Of View
-Represent new users, migrators, framework authors, and agents looking for canonical usage patterns.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- Every example should be runnable, focused, and tested when practical.
-- Examples should demonstrate preferred Kida patterns, not legacy compatibility shortcuts.
-- Migration examples must call out Kida-specific traps such as block-scoped `set`, no `super()`, and `{% slot %}` inside `{% call %}`.
-- Terminal and CI examples should match render-surface contracts.
+## Protects
 
-## Contract Checklist
-- Example changes inspect the example README, example test, `tests/test_examples.py`, docs/tutorial links, and package import assumptions.
-- Public API or syntax changes search examples for stale patterns and update paired docs snippets.
-- Optional integration examples keep dependencies isolated, documented, and absent from runtime requirements.
-- Render-surface examples compare terminal/markdown/CI output expectations and update snapshots or captured output where relevant.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| Runnable examples remain listed, importable, dependency-isolated, and aligned with preferred Kida usage. | P1 | machine-backed | `uv run pytest tests/test_examples.py -q` (`examples-suite`) |
 
-## Advocate
-- Small examples that each prove one real workflow.
-- Tests that keep examples from rotting.
-- Example README updates when public APIs or syntax change.
-- Dogfooding new features in examples only after the feature is stable enough to teach.
+## Guardrails
 
-## Serve Peers
-- Give docs steward runnable source for tutorials.
-- Give runtime and environment stewards integration smoke coverage.
-- Give render-surface stewards realistic terminal/markdown scenarios.
-- Give tests steward sample apps that catch packaging and import regressions.
+- Examples teach Kida patterns rather than legacy shortcuts and call out block-scoped set, no super, and slot-in-call migration traps.
+- Terminal, markdown, framework, and CI examples remain aligned with their surface contracts.
 
-## Do Not
-- Add examples that need heavyweight optional dependencies unless isolated and documented.
-- Show patterns that bypass static validation or thread-safety guidance.
-- Leave example output, README, and test expectations inconsistent.
-- Use examples as a dumping ground for experiments; put proposals in `plan/`.
+## Edges
 
-## Own
-- `examples/`, example READMEs, example tests, and `tests/test_examples.py` expectations.
-- Tutorial-source alignment for examples that appear in the docs site.
-- Steward notes when deleting, renaming, or deprecating an example.
+- supplies → **site** (runnable tutorial source)
+- exercises → **contrib** (framework adapters)
+
+## Owns
+
+- **code:** `examples/`
+- **tests:** `tests/test_examples.py`
+- **docs:** `examples/README.md`, `site/content/docs/tutorials/`

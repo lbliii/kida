@@ -1,51 +1,38 @@
-# Kida Runtime Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain represents the installed Python package and the contracts downstream frameworks use directly: imports, environments, templates, loaders, sandboxing, rendering helpers, caches, t-strings, CLI entry points, and utility primitives. It matters because most regressions here are public API breaks or free-threaded runtime bugs.
+# Steward: public
 
-Related docs:
-- root `AGENTS.md`
-- `CLAUDE.md`
-- `README.md`
-- `docs/stability-gate.md`
-- `site/content/docs/reference/api.md`
-- `site/content/docs/about/thread-safety.md`
+Represent downstream frameworks and application authors importing Kida under Python 3.14t.
 
-## Point Of View
-Represent framework builders, app authors, and downstream packages that import `kida` and expect stable behavior under Python 3.14t.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- Public exports in `__init__.py`, `Environment`, `Template`, loaders, sandbox types, `Extension`, render helpers, worker APIs, and CLI behavior.
-- Zero-runtime-dependency packaging and pure-Python operation.
-- Copy-on-write environment mutation, immutable compiled templates, local render buffers, and `ContextVar` render state.
-- Strict undefined behavior, safe-string semantics, escaping guarantees, and source-attributed exceptions.
-- Compatibility between full render, block render, render-with-blocks, streaming, async rendering, and t-string helpers.
+## Protects
 
-## Contract Checklist
-- Public API changes inspect `src/kida/__init__.py`, `pyproject.toml`, public docs, README snippets, public API snapshot tests, and changelog/release notes.
-- Rendering behavior changes compare full render, block render, render-with-blocks, streaming, async streaming, t-strings, and render-surface parity tests.
-- Safety changes inspect sandbox tests, markup/escaping tests, strict undefined diagnostics, and security docs.
-- Concurrency or cache changes inspect copy-on-write state, locks, `ContextVar` usage, GIL-disabled tests, and benchmark/profiling notes when hot-path.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| Every top-level export is classified exactly once and public signatures remain snapshotted. | P0 | machine-backed | `uv run pytest tests/test_public_api_snapshot.py tests/test_public_api_classification.py tests/test_public_diagnostics.py tests/test_release_contract.py -q` (`public-contract`) |
+| Strict undefined, safe-string, autoescape, and sandbox public behavior stays explicit and tested. | P0 | machine-backed | `uv run pytest tests/test_sandbox_fuzz.py tests/test_markup_security.py tests/test_strict_mode.py -q` (`sandbox-suite`) |
+| The built wheel imports, renders, exposes CLI metadata, and enforces sandbox denial without undeclared dependencies. | P1 | machine-backed | `uv run python scripts/package_smoke.py` (`package-smoke`) |
 
-## Advocate
-- Better diagnostics for downstream framework authors, especially line/col and migration hints.
-- Smaller public surfaces with stronger examples instead of new knobs.
-- Thread-safety tests for every new shared cache or helper.
-- API docs and examples that show the preferred pattern, not every possible shortcut.
+## Guardrails
 
-## Serve Peers
-- Give parser/compiler stewards stable runtime helper contracts.
-- Give render-surface stewards clear safe-string and autoescape behavior.
-- Give tests and docs stewards focused examples for public API changes.
-- Give benchmarks steward realistic runtime scenarios before claiming performance wins.
+- Public exports, signatures, ErrorCode values, strict defaults, loaders, sandbox types, and worker APIs change intentionally and together.
+- Compiled templates are immutable; render buffers are local; environment registries are copy-on-write; shared caches are lock-guarded.
+- SandboxedEnvironment reduces capability but does not isolate adversarial code; suspected escapes follow the private reporting protocol in SECURITY.md before public disclosure.
+
+## Edges
+
+- configured-by → **environment** (loaders and registries)
+- executed-by → **template** (render APIs)
+
+## Owns
+
+- **code:** `src/kida/*.py`
+- **tests:** `tests/test_public_api_snapshot.py`, `tests/test_markup_security.py`, `tests/test_kida_stress_test.py`
+- **docs:** `README.md`, `CLAUDE.md`, `SECURITY.md`, `site/content/docs/reference/api.md`
 
 ## Do Not
-- Add module-level mutable state without a locking or immutability story.
-- Change `Environment` constructor semantics casually.
-- Mutate filters/tests/globals in place.
-- Hide template names or source locations from user-facing errors.
-- Treat sandbox restrictions as complete isolation.
 
-## Own
-- API docs, `README.md` snippets, `CLAUDE.md` tactical references, and changelog notes for public contracts.
-- Tests for public API snapshots, rendering modes, block rendering, streaming, context, caches, sandbox, t-strings, and thread safety.
-- Package smoke checks and `make verify-stability` evidence for release-sensitive changes.
+- Add module-level mutable state without an immutability, lock, or ContextVar story.
+- Describe the sandbox as complete isolation.

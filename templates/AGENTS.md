@@ -1,47 +1,30 @@
-# Report Template Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain owns built-in report templates for pytest, coverage, ruff, ty, SARIF, release notes, AMP messages, and related CI outputs. It matters because these templates are the visible product of `kida render` and the GitHub Action.
+# Steward: templates
 
-Related docs:
-- root `AGENTS.md`
-- `docs/kida-render-product.md`
-- `schemas/amp/v1/`
-- `.github/kida-templates/`
-- `tests/templates/fixtures/`
+Keep built-in pytest, coverage, ruff, ty, SARIF, release, and AMP reports readable, schema-backed, and safe for untrusted tool output.
 
-## Point Of View
-Represent developers reading generated CI summaries and PR comments who need failures, risk, and next actions to be obvious.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- Template compatibility with documented input schemas and fixture data.
-- Stable report sections, severity labels, deduplication markers, and markdown rendering.
-- Output that remains useful in both step summaries and PR comments.
-- Safe escaping for untrusted tool output and agent messages.
+## Protects
 
-## Contract Checklist
-- Template changes inspect declared schemas, fixture payloads, snapshots, markdown escaping, and `.github/kida-templates/` parity.
-- Field usage changes require schema updates or `no collateral: field already declared`, plus fixture coverage.
-- Output-structure changes inspect report readability tests, GitHub Action docs, release/marketplace docs, and dedupe markers.
-- Security-sensitive rendering changes inspect escaping tests and untrusted tool-output fixtures.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| Built-in report templates, declared fields, fixtures, snapshots, copied Action templates, readability, and dedupe markers remain aligned. | P0 | machine-backed | `uv run pytest tests/templates -q` (`templates-suite`) |
 
-## Advocate
-- Fixture-backed templates for each supported tool/schema.
-- Compact reports that lead with actionable failures.
-- Shared patterns across terminal and markdown report variants where possible.
-- Schema changes that are versioned rather than silently breaking templates.
+## Guardrails
 
-## Serve Peers
-- Give schemas steward feedback when data contracts are awkward or underspecified.
-- Give markdown steward real fixtures for table/details/code-block behavior.
-- Give GitHub workflow steward stable outputs for action tests and marketplace docs.
-- Give docs steward examples that match current templates.
+- Template fields exist in schemas and realistic fixtures.
+- Source templates, copied GitHub templates, snapshots, dedupe markers, and docs move together when report structure changes.
 
-## Do Not
-- Depend on fields not declared in schemas or fixtures.
-- Render raw user/tool output without considering markdown or HTML escaping.
-- Change report structure without snapshot or fixture updates.
-- Let cosmetic churn obscure severity or actionability.
+## Edges
 
-## Own
-- `templates/`, `tests/templates/fixtures/`, `tests/templates/snapshots/`, and report-template documentation snippets.
-- Steward notes for template-breaking schema or output changes.
+- consumes → **schemas** (report shapes)
+- escaped-by → **markdown** (GitHub output)
+
+## Owns
+
+- **code:** `templates/`, `.github/kida-templates/`
+- **tests:** `tests/templates/`
+- **docs:** `docs/kida-render-product.md`, `site/content/docs/usage/github-action.md`

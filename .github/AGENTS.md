@@ -1,48 +1,35 @@
-# GitHub Workflow Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain owns GitHub Actions, marketplace-facing templates, release workflows, and agent instructions used in CI. It matters because these files publish Kida's reports, releases, benchmarks, pages, and package artifacts.
+# Steward: github
 
-Related docs:
-- root `AGENTS.md`
-- `.github/workflows/`
-- `.github/kida-templates/`
-- `.github/copilot-instructions.md`
-- `docs/marketplace-listing.md`
-- `docs/stability-gate.md`
+Keep CI, release, benchmark, downstream-canary, report, and copied-template workflows least-privilege and evidence-producing.
 
-## Point Of View
-Represent maintainers, PR authors, release operators, and GitHub Action users who need reproducible CI and clear generated reports.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- Test, ty, benchmark, pages, release, publish, and action-tag workflows.
-- Permissions, tokens, artifact names, cache keys, and release tag behavior.
-- Built-in `.github/kida-templates/` compatibility with public `templates/` and schemas.
-- Marketplace docs and action examples that match current workflow behavior.
+## Protects
 
-## Contract Checklist
-- Workflow changes inspect `.github/workflows/`, required permissions, triggers, cache keys, artifact names, and failure visibility.
-- Report-template changes compare `.github/kida-templates/`, `templates/`, AMP schemas, fixtures, and rendered snapshots.
-- Release/publish changes inspect `Makefile`, `pyproject.toml`, `CHANGELOG.md`, `site/content/releases/`, action tags, and marketplace docs.
-- CI behavior changes name proof from the affected workflow, local equivalent command, or explain why local proof is unavailable.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| CI retains one authoritative Ty lane, repository-wide Ruff, raw failure output, rendered reports, and supported setup inputs. | P1 | machine-backed | `uv run pytest tests/action tests/templates/test_github_report_contracts.py -q` (`action-suite`) |
+| Report-only downstream canaries stay least-privilege, fork-safe, source-pinned, GIL-disabled, and multi-surface. | P1 | machine-backed | `uv run pytest tests/test_downstream_canary.py -q` (`downstream-canary`) |
+| Release events, curated release bodies, Python publishing, Pages, artifacts, and floating action tags retain their fail-loud contract. | P0 | machine-backed | `uv run pytest tests/action tests/templates/test_github_report_contracts.py -q` (`action-suite`) |
 
-## Advocate
-- Least-privilege workflow permissions.
-- Reusable report generation that dogfoods Kida without hiding raw CI failures.
-- Release workflows that fail loudly before publishing bad packages or tags.
-- Benchmark workflow evidence that names baseline source and threshold.
+## Guardrails
 
-## Serve Peers
-- Give templates and schemas stewards real CI usage constraints.
-- Give benchmarks steward stable artifact paths and baseline workflow behavior.
-- Give docs steward marketplace and release examples that match workflows.
-- Give runtime steward package smoke evidence from CI.
+- The authoritative CI lanes keep raw failures visible alongside rendered reports.
+- Scheduled free-threading stress preserves pinned seeds, GIL-disabled provenance, and debug-runtime semantics without overstating sanitizer coverage.
+- Release, publish, package, Pages, marketplace, and floating action-tag workflows preserve least privilege, artifact provenance, and fail-loud preconditions.
+- Downstream canaries are report-only and never substitute for change-specific pilot evidence.
 
-## Do Not
-- Expand token permissions without a specific need.
-- Change release, publish, or floating action tag behavior casually.
-- Hide failing lint/type/test output behind formatted reports.
-- Diverge `.github/kida-templates/` from source `templates/` without explaining why.
+## Edges
 
-## Own
-- `.github/workflows/`, `.github/kida-templates/`, `.github/copilot-instructions.md`, marketplace listing support, and CI report dogfooding.
-- Steward notes for workflow permission, release, or publishing changes.
+- runs → **action** (typed support code)
+- gates → **benchmarks** (Linux baselines)
+- copies → **templates** (report templates)
+
+## Owns
+
+- **code:** `.github/workflows/`, `.github/kida-templates/`
+- **tests:** `tests/templates/test_github_report_contracts.py`, `tests/test_downstream_canary.py`
+- **docs:** `docs/stability-gate.md`, `docs/downstream-pilot-policy.md`, `docs/marketplace-listing.md`
