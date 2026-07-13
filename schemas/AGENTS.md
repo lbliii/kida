@@ -1,47 +1,30 @@
-# AMP Schema Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain owns the Agent Message Protocol schemas used by generated PR summaries, code reviews, security scans, dependency reviews, deploy previews, and release notes. It matters because schemas are contracts between agents, templates, and CI rendering.
+# Steward: schemas
 
-Related docs:
-- root `AGENTS.md`
-- `schemas/amp/v1/`
-- `templates/`
-- `.github/copilot-instructions.md`
-- `examples/amp/`
+Protect versioned AMP and diagnostic JSON schemas consumed by agents, templates, CLI output, and CI.
 
-## Point Of View
-Represent producers and consumers of machine-readable agent output that must render consistently without schema guessing.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- Versioned JSON schema compatibility under `schemas/amp/v1/`.
-- Required fields, enum meanings, severity/category semantics, and confidence handling.
-- Backward compatibility for existing templates and fixtures.
-- Clear migration path for any v2-level breaking change.
+## Protects
 
-## Contract Checklist
-- Schema changes inspect `schemas/amp/v1/`, built-in templates, `.github/kida-templates/`, fixtures, validation tests, examples, and producer docs.
-- New fields define type, optionality, privacy implications, rendering behavior, and fallback behavior in templates.
-- Enum or severity changes inspect every renderer and snapshot for consistent interpretation.
-- Breaking changes require versioning/migration notes rather than changing v1 semantics in place.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| AMP and diagnostic v1 payloads validate against versioned schemas with stable enums, required fields, and template routing. | P0 | machine-backed | `uv run pytest tests/templates/test_amp_schema_contracts.py tests/test_check_diagnostic_formats.py -q` (`schema-suite`) |
 
-## Advocate
-- Schema examples that match real reports.
-- Validation fixtures for every schema used by a built-in template.
-- Explicit optional fields instead of template-side guesswork.
-- Release notes when schema behavior changes.
+## Guardrails
 
-## Serve Peers
-- Give templates steward stable field names and meanings.
-- Give GitHub workflow steward schemas that can validate agent output before rendering.
-- Give examples steward canonical AMP payloads.
-- Give docs steward concise producer guidance.
+- Required fields, enums, severity, confidence, privacy, and fallback behavior remain versioned contracts.
+- Breaking shapes create a new version and migration path rather than mutating v1 in place.
 
-## Do Not
-- Break v1 schemas in place for convenience.
-- Add fields with unclear ownership, rendering behavior, or privacy implications.
-- Let templates encode undocumented schema rules.
-- Treat low-confidence findings or severity enums differently across templates.
+## Edges
 
-## Own
-- `schemas/amp/v1/`, AMP examples, schema validation tests, and cross-links from agent instructions.
-- Steward notes for any schema addition, removal, or semantic change.
+- rendered-by → **templates** (report templates)
+- emitted-by → **cli** (structured diagnostics)
+
+## Owns
+
+- **code:** `schemas/`
+- **tests:** `tests/templates/test_amp_schema_contracts.py`, `tests/test_check_diagnostic_formats.py`
+- **docs:** `site/content/docs/usage/amp.md`

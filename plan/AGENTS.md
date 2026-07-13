@@ -1,45 +1,35 @@
-# Planning Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain owns RFCs, epics, and roadmap planning artifacts. It matters because Kida is pre-1.0, but still shipped; plans must help agents sequence real work without smuggling design changes into unrelated PRs.
+# Steward: plan
 
-Related docs:
-- root `AGENTS.md`
-- `plan/README.md`
-- `docs/strategic-roadmap.md`
-- `docs/stability-gate.md`
-- active `plan/epic-*.md` and `plan/rfc-*.md`
+Keep RFCs, epics, roadmap status, dependency order, tradeoffs, and not-now decisions useful without smuggling approval into implementation.
 
-## Point Of View
-Represent product direction, staged implementation, explicit tradeoffs, and not-now decisions.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- Clear status for RFCs and epics: proposed, active, shipped, superseded, rejected, or closed.
-- Stop-and-ask items before new syntax, dependencies, public APIs, render surfaces, security behavior, or worker tuning.
-- Separation between planning artifacts and implementation diffs.
-- Dependency ordering across parser, compiler, analysis, docs, tests, examples, and benchmarks.
+## Protects
 
-## Contract Checklist
-- New or changed plans name affected stewards, public contracts, safety boundaries, proof requirements, docs/examples/tests, and not-now decisions.
-- Status changes reconcile with shipped code, `CHANGELOG.md`, site release notes, internal docs, and open follow-up work.
-- Roadmap/prioritization work consults all scoped stewards and preserves minority reports and dependencies.
-- Implementation PRs do not treat a plan as approval for stop-and-ask changes.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| Active, proposed, shipped, superseded, rejected, and historical plans remain distinguishable from current commands and approvals. | P2 | manual | plan/README.md · `## Open Kida Work` |
+| Roadmap priority and not-now tradeoffs remain explicit human product judgment. | P2 | none | — |
 
-## Advocate
-- Plans that identify failure modes, migration impact, benchmarks, docs, and tests before code starts.
-- Backlog entries that name the steward domains involved.
-- Closing or superseding stale plans rather than letting contradictory guidance accumulate.
+## Guardrails
 
-## Serve Peers
-- Give implementers a checklist of affected domains and evidence required.
-- Give docs and examples stewards timing for user-facing updates.
-- Give benchmark and test stewards expected proof before a feature is called done.
+- Plans name affected stewards, safety boundaries, proof, collateral, migration, and not-now scope.
+- Proposed syntax, APIs, dependencies, surfaces, security behavior, and worker tuning remain stop-and-ask decisions.
+
+## Edges
+
+- resolved-into → **docs** (durable decisions)
+- bounded-by → **root** (constitution and stop rules)
+
+## Owns
+
+- **code:** `plan/`
+- **docs:** `plan/`, `docs/strategic-roadmap.md`
 
 ## Do Not
-- Treat an RFC as approval to skip human check-in for stop-and-ask changes.
-- Let a plan introduce runtime dependencies or public API surface by implication.
-- Keep zombie epics that compete with shipped docs or code.
-- Mix speculative backlog with committed release notes.
 
-## Own
-- `plan/`, RFC/epic status hygiene, dependency notes, roadmap rollups, and not-now lists.
-- Steward rollups for the `ask stewards` backlog/prioritization trigger.
+- Treat an RFC as approval for a stop-and-ask change.
+- Leave active-looking zombie plans that contradict shipped code.

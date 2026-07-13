@@ -1,49 +1,33 @@
-# Utility Contract Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain owns shared primitives for safe strings, escaping, terminal width/probing, template key resolution, report parsers, LRU caches, CSP helpers, and worker decisions. It matters because small utility changes can silently alter security, rendering parity, path safety, or concurrency behavior across Kida.
+# Steward: utils
 
-Related docs:
-- root `AGENTS.md`
-- `site/content/docs/usage/escaping.md`
-- `site/content/docs/advanced/security.md`
-- `site/content/docs/advanced/csp.md`
-- `site/content/docs/advanced/workers.md`
-- `plan/rfc-relative-template-resolution.md`
+Keep safe strings, escaping, terminal width, template keys, report parsers, caches, CSP helpers, and worker decisions boring and deterministic.
 
-## Point Of View
-Represent every upstream module that relies on utilities to be boring, deterministic, safe, and cross-surface compatible.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- `Markup`, `Styled`, and `Marked` safe-string protocols and escape semantics.
-- HTML, markdown, and terminal escaping/width behavior and their parity expectations.
-- Template key resolution, alias handling, and path traversal protections.
-- LRU/cache helpers and worker utilities that must remain safe under free-threaded Python.
-- Report parser helpers for JUnit XML, LCOV, and SARIF inputs.
+## Protects
 
-## Contract Checklist
-- Escaping changes inspect HTML/markdown/terminal tests, safe-string protocols, render-surface parity, docs, snapshots, and changelog/migration notes.
-- Path/key changes inspect loader behavior, fragile-path analysis, relative/alias tests, template-not-found diagnostics, and docs.
-- Cache/worker changes inspect lock/state ownership, GIL-disabled tests, benchmarks, and public API docs if exported.
-- Report parser changes inspect fixtures, schema/template expectations, CI report snapshots, and malformed input tests.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| Surface-specific safe strings, escaping, template keys, aliases, and traversal checks retain focused proof. | P0 | machine-backed | `uv run pytest tests/test_markup_security.py tests/test_template_keys.py tests/test_lru_cache_concurrency.py tests/test_workers.py tests/test_junit_xml.py tests/test_lcov.py tests/test_sarif.py -q` (`utils-suite`) |
+| LRU caches, worker decisions, and JUnit/LCOV/SARIF parsers remain synchronized, deterministic, and malformed-input aware. | P1 | machine-backed | `uv run pytest tests/test_markup_security.py tests/test_template_keys.py tests/test_lru_cache_concurrency.py tests/test_workers.py tests/test_junit_xml.py tests/test_lcov.py tests/test_sarif.py -q` (`utils-suite`) |
 
-## Advocate
-- Utility APIs with narrow names and explicit contracts rather than clever shared behavior.
-- Tests that cover malformed, hostile, and cross-platform inputs.
-- Centralized escaping and path resolution rather than duplicated ad hoc logic.
-- Benchmarks only where a utility is on a real hot path.
+## Guardrails
 
-## Serve Peers
-- Give environment and template stewards stable path, cache, and worker primitives.
-- Give render-surface stewards shared escape semantics without hidden mode coupling.
-- Give templates/schemas stewards parser behavior that handles real CI output.
-- Give docs/tests stewards crisp examples for safety-sensitive helpers.
+- Markup, Styled, and Marked preserve surface-specific trust protocols.
+- Path resolution is structured and traversal-safe; caches and worker helpers carry lock and GIL reasoning.
+- Malformed JUnit, LCOV, and SARIF input fails with actionable context.
 
-## Do Not
-- Change escape tables without render-surface and snapshot evidence.
-- Treat terminal display width as string length.
-- Add global caches without concurrency reasoning.
-- Use string slicing or path normalization shortcuts where structured parsing is available.
+## Edges
 
-## Own
-- `src/kida/utils/`, utility-focused tests, escaping/path/concurrency docs, and benchmark notes for utility hot paths.
-- Steward notes for safe-string, escaping, template-key, report-parser, cache, or worker changes.
+- serves → **environment** (loaders and registries)
+- serves → **terminal** (width and capability helpers)
+- serves → **markdown** (safe strings)
+
+## Owns
+
+- **code:** `src/kida/utils/`
+- **tests:** `tests/test_markup_security.py`, `tests/test_template_keys.py`, `tests/test_workers.py`
+- **docs:** `site/content/docs/usage/escaping.md`, `site/content/docs/advanced/workers.md`

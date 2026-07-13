@@ -1,49 +1,31 @@
-# Terminal Render Surface Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain owns terminal rendering behavior, live output, ANSI-aware strings, capability detection, and terminal components. It matters because terminal regressions corrupt CLI output, dashboards, logs, and SSH sessions where users cannot inspect hidden template machinery.
+# Steward: terminal
 
-Related docs:
-- root `AGENTS.md`
-- `docs/terminal-api-contract.md`
-- `site/content/docs/tutorials/terminal-rendering.md`
-- `site/content/docs/advanced/workers.md`
-- `examples/terminal_*`
+Protect terminal rendering, ANSI-aware strings, capability detection, live output, and log-safe degradation.
 
-## Point Of View
-Represent CLI authors, Milo users, CI operators, and terminal users across TTY and non-TTY output.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- `terminal_env()`, `LiveRenderer`, `Spinner`, and `stream_to_terminal` contract in `docs/terminal-api-contract.md`.
-- ANSI-safe escaping, width calculation, truncation, wrapping, tables, icons, boxes, badges, and color fallback.
-- `NO_COLOR`, `FORCE_COLOR`, TTY detection, Unicode fallback, and non-TTY log-safe behavior.
-- Thread-safe live renderer updates and spinner frame advancement.
-- Parity with HTML/markdown semantics where templates share syntax.
+## Protects
 
-## Contract Checklist
-- Terminal API changes inspect `docs/terminal-api-contract.md`, `site/content/docs/tutorials/terminal-rendering.md`, examples, and public imports.
-- Formatting changes inspect ANSI width tests, color-depth tests, TTY/non-TTY behavior, Unicode fallback, and captured output snapshots.
-- Live/concurrency changes inspect locking/state ownership, GIL-disabled behavior where relevant, and terminal integration tests.
-- Shared report changes compare terminal templates, markdown templates, schemas, fixtures, and render-surface parity tests.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| ANSI-aware width, truncation, wrapping, tables, colors, and Unicode fallback remain correct. | P0 | machine-backed | `uv run pytest tests/terminal tests/test_terminal_colors.py -q` (`terminal-suite`) |
+| Terminal environments, TTY capabilities, live rendering, and non-TTY degradation remain stable and thread-safe. | P1 | machine-backed | `uv run pytest tests/terminal tests/test_terminal_colors.py -q` (`terminal-suite`) |
 
-## Advocate
-- Golden or snapshot coverage for ANSI output where user-visible.
-- Clear examples for terminal dashboards, deploy reports, live monitors, and CI output.
-- Capability detection improvements that degrade predictably.
-- Benchmark coverage for terminal-heavy templates when filters/layout change.
+## Guardrails
 
-## Serve Peers
-- Give environment steward mode-specific filters/globals without expanding default HTML behavior.
-- Give markdown/templates stewards shared report semantics without ANSI leakage.
-- Give tests steward fixtures for TTY and non-TTY behavior.
-- Give docs/examples stewards screenshots or captured outputs when contract changes.
+- Visible width is not Python string length; truncation, wrapping, tables, and alignment remain ANSI-aware.
+- NO_COLOR, FORCE_COLOR, TTY/non-TTY, color depth, Unicode fallback, and concurrent live updates remain explicit contracts.
 
-## Do Not
-- Assume ANSI width equals Python string length.
-- Emit color when disabled or when non-TTY output must be log-safe.
-- Break stable terminal API without major-version-level discussion.
-- Optimize layout by dropping Unicode/ASCII fallback behavior.
+## Edges
 
-## Own
-- `tests/terminal/`, terminal integration tests, terminal benchmark coverage, and terminal examples.
-- Terminal API contract docs and tutorial updates.
-- Steward notes for changes touching `environment/terminal.py`, terminal filters, `utils/terminal_*`, or built-in terminal components outside this directory.
+- uses → **utils** (ANSI width and safe strings)
+- shares → **templates** (report intent)
+
+## Owns
+
+- **code:** `src/kida/terminal/`, `src/kida/environment/terminal.py`
+- **tests:** `tests/terminal/`, `tests/test_terminal_colors.py`
+- **docs:** `docs/terminal-api-contract.md`, `site/content/docs/usage/terminal-rendering.md`

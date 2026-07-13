@@ -1,51 +1,32 @@
-# Environment And Extension Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain owns template loading, environment configuration, registries, built-in filters/tests/globals, extension hooks, and autoescape mode setup. It matters because this is where application authors customize Kida and where public API sprawl can become permanent.
+# Steward: environment
 
-Related docs:
-- root `AGENTS.md`
-- `CLAUDE.md`
-- `site/content/docs/reference/configuration.md`
-- `site/content/docs/extending/`
-- `site/content/docs/reference/filters.md`
-- `site/content/docs/reference/tests.md`
+Keep loaders, Environment configuration, registries, built-ins, extension hooks, and autoescape setup stable and thread-safe.
 
-## Point Of View
-Represent application integrators who need stable, thread-safe customization without new runtime dependencies.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- `Environment(...)` constructor behavior and defaults.
-- Loader contracts, path traversal protections, relative template resolution, and useful `TemplateNotFoundError` suggestions.
-- Copy-on-write registries for filters, tests, and globals.
-- Default filter/test/global curation and safe-string return types.
-- Extension registration semantics for tags, filters, tests, globals, and custom node compilation.
+## Protects
 
-## Contract Checklist
-- Configuration changes inspect `Environment(...)`, factories, public API docs, README/CLAUDE snippets, examples, and changelog/migration notes.
-- Loader changes inspect template key resolution, path traversal tests, relative/alias behavior, diagnostics, and troubleshooting docs.
-- Filter/test/global changes inspect registry copy-on-write behavior, type/safe-string semantics, terminal/markdown variants, docs, and examples.
-- Extension changes inspect parser/compiler hook boundaries, custom extension examples, tests, and stop-and-ask requirements for new syntax.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| Environment filters, tests, globals, extensions, and mode factories preserve copy-on-write isolation and defaults. | P0 | machine-backed | `uv run pytest tests/test_kida_environment.py tests/test_relative_template_resolution.py tests/test_template_aliases.py tests/test_kida_filters.py -q` (`environment-suite`) |
+| Loaders preserve aliases and relative resolution while rejecting traversal and explaining missing templates. | P0 | machine-backed | `uv run pytest tests/test_kida_environment.py tests/test_relative_template_resolution.py tests/test_template_aliases.py tests/test_kida_filters.py -q` (`environment-suite`) |
 
-## Advocate
-- Contrib or extension examples before expanding default filters/tests/globals.
-- Better docs for custom loaders, filters, tests, globals, and extensions.
-- Static validation of extension-sensitive behavior where possible.
-- Targeted tests for attr-safe JSON, terminal/markdown escaping, and loader fallback ordering.
+## Guardrails
 
-## Serve Peers
-- Give runtime steward stable public customization contracts.
-- Give parser/compiler stewards clear extension hook boundaries.
-- Give render-surface stewards mode-specific environment factories without duplicated semantics.
-- Give docs/examples stewards runnable snippets for integration patterns.
+- Filters, tests, and globals use copy-on-write registration rather than shared in-place mutation.
+- File and package resolution reject traversal and preserve aliases, relative lookup, and actionable TemplateNotFoundError suggestions.
+- Optional integrations stay absent from minimal imports.
 
-## Do Not
-- Add speculative `Environment` flags or sandbox-policy-shaped options.
-- Introduce mutable registry sharing between environments.
-- Add top-level defaults when a contrib module or example would do.
-- Let optional integrations become required imports in minimal installs.
+## Edges
 
-## Own
-- Environment, loader, registry, filter, test, global, and extension tests.
-- Extending docs and examples.
-- Public API docs and migration notes for any configuration change.
-- Thread-safety tests for registry/cache changes.
+- uses → **utils** (template keys and escaping)
+- adapted-by → **contrib** (framework setup)
+
+## Owns
+
+- **code:** `src/kida/environment/`, `src/kida/extensions.py`
+- **tests:** `tests/test_kida_environment.py`, `tests/test_relative_template_resolution.py`, `tests/test_template_aliases.py`
+- **docs:** `site/content/docs/reference/configuration.md`, `site/content/docs/extending/`

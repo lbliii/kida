@@ -1,0 +1,860 @@
+network = "Kida"
+protocol = ".stewards/PROTOCOL.md"
+max_active_bytes = 24576
+coverage_roots = ["src/kida"]
+
+pillars = [
+  "Kida is a pure-Python, zero-runtime-dependency template engine for statically validated components on free-threaded Python 3.14t.",
+  "Typed props, named and scoped slots, scoped state, diagnostics, and predictable concurrency are product contracts rather than implementation details.",
+  "Compile-time decisions and static safety win over runtime convenience when the lexer, parser, analyzer, or compiler can decide safely.",
+  "Full, block, streaming, async, HTML, terminal, markdown, and CI-report surfaces preserve shared intent; unexplained surface drift is a regression.",
+  "The sandbox is defense-in-depth, never an isolation boundary, and escaping or trust-boundary changes receive adversarial proof.",
+  "Diagnostics are public behavior: stable codes, source location where possible, and an actionable next step move with tests and docs.",
+]
+
+search_policy = [
+  "At task start, read the root map before repository discovery; never locate instructions by inventorying every AGENTS.md in the repository.",
+  "Before reading or searching content beneath a path, open the nearest scoped map on that path; add another map only when the investigation crosses into its scope.",
+  "If the request names an exact file, symbol, diagnostic code, template, or failing test, inspect that target before searching elsewhere.",
+  "Search progressively: likely files, then filename or import discovery, then scoped content search; expand repository-wide only when scoped evidence fails or proves a cross-cutting dependency, and state the reason.",
+  "Treat 10 commands or 12 content-exposed files as a strategy checkpoint, never as a hard stopping limit; record the current frontier, remaining uncertainty, and whether to continue the bounded closure or pivot to a narrower reproduction.",
+  "For import, dependency, registration, or call-chain bugs, prove graph closure with a bounded static traversal through ancestor package initializers and repository-local module-level imports; stop at function/class bodies, TYPE_CHECKING blocks, and classified external dependencies.",
+  "For syntax, compiler, analysis, or render bugs, prove semantic pipeline closure for the named construct: token or source form, parser handler, node shape, compiler handler, applicable analysis, runtime helper, and only the render surfaces actually reached.",
+  "Semantic pipeline closure is bounded by references to the named node, handler, diagnostic, or helper; do not inventory whole parser, compiler, or test trees as a substitute for tracing the construct.",
+  "Do not use repository-wide dependency, lockfile, documentation, workflow, or benchmark searches to establish import or semantic closure; broaden only after the bounded graph identifies a cross-surface contract.",
+]
+
+operating_rules = [
+  "`dependencies = []` is a release contract; optional extras and thin contrib adapters are the escape valve, and minimal imports never require frameworks or C extensions.",
+  "Static restrictions such as top-level-only defs/regions, block-scoped set, and unknown call-parameter errors are features; do not loosen them for convenience.",
+  "HTML, terminal, markdown, serialized diagnostics, AMP schemas, report templates, and GitHub Action output move together only when the changed value flow reaches those surfaces.",
+  "Treat `SandboxedEnvironment` as defense-in-depth; a sandbox finding is security-sensitive and never becomes a marketing claim of isolation.",
+  "Public API, CLI, syntax, diagnostic-code, schema, render-surface, and generated-scaffold changes move with focused tests, docs/examples, release collateral, and migration notes when needed.",
+  "New component/runtime features and downstream-observable contract changes classify pilot evidence under `docs/downstream-pilot-policy.md`; use its exact consumer record or `No downstream pilot` shape.",
+  "`ask stewards`, `bugbash`, `review swarm`, and `steward synthesis` are explicit review triggers: open the protocol, consult independent affected maps, preserve dissent, and synthesize with evidence.",
+  "Cross-boundary work includes Steward Notes naming consulted stewards, risks, evidence, collateral, downstream-pilot classification, and unresolved tradeoffs.",
+  "Backlog, roadmap, and prioritization work consults all scoped stewards and preserves raw signals, confidence, dependencies, convergence, minority reports, ranked work, and not-now items.",
+  "Generated output under `site/public/` is not source-of-truth; edit site source/config and build it or record a no-build rationale.",
+  "Commit subjects use Kida's existing `feat:`, `fix:`, `refactor:`, `docs:`, or `release:` style without manually appended PR numbers; keep one concern per PR.",
+  "No silent exception, unexplained type ignore, new S110/S112/noqa escape, per-file suppression growth, speculative knob, snapshot refresh without sensitivity proof, or adjacent refactor unless it is the fix.",
+]
+
+stop_and_ask = [
+  "A change alters public API or CLI, Environment or Template behavior, loaders, extensions, sandbox policy, worker tuning, strict defaults, or compatibility tiers.",
+  "A change adds syntax, an AST node, a tag, a top-level filter/test/global, a render surface, a schema version, an Action behavior, a runtime dependency, a C extension, or a new config surface.",
+  "A change touches sandbox semantics, escaping placement, safe-string protocols, trust boundaries, shared mutable state, caches, singletons, ContextVar ownership, or free-threading assumptions.",
+  "A hot-path lexer, parser, compiler, accumulator, cache, worker, or surface-escaping change lacks benchmark evidence or a clear measurement plan.",
+  "Tests and code disagree, a reported bug cannot be reproduced with a minimal template and context, or a public-contract decision is unresolved.",
+  "When public behavior depends on unresolved product choices, identify only the minimum blocking decisions and stop before designing collateral, compatibility behavior, or migration policy.",
+  "An irreversible operation, deletion, release action, external write, or coordinated downstream change is required.",
+]
+
+done_criteria = [
+  "Run `make lint`, `make format-check`, and `make ty`; do not add ignores or suppressions merely to make them pass.",
+  "Run the narrowest relevant pytest targets first and `make test` for broad or release-class changes; combined branch coverage remains at least 83 percent when the stability gate applies.",
+  "Run `make verify-stability` for release-critical, public-contract, sandbox, render-surface, packaging, or concurrency work.",
+  "Parser changes include malformed source and location assertions; diagnostic changes include code, structured format, location, and suggestion proof.",
+  "Render changes compare every reached sync/async/full/block/stream and HTML/terminal/markdown/report surface, recording intentional differences.",
+  "Hot-path changes name benchmark applicability and evidence; concurrency changes explain shared state, locks, caches, ContextVar use, Python build, and GIL status.",
+  "User-facing behavior moves with site docs, examples, templates/scaffolds, schemas, benchmarks or an explicit no-impact reason, and a changelog fragment when required.",
+  "Run `make docs` when published site content, structure, templates, or configuration changes, or record why the build was not applicable.",
+  "Every accepted finding names proof and collateral plus downstream-pilot classification under `docs/downstream-pilot-policy.md`.",
+]
+
+[check.steward-tools]
+invoke = "uv run pytest tests/stewards -q"
+location = "tests/stewards/test_steward_tools.py"
+proof_contains = "test_repository_steward_network_is_current_and_covered"
+
+[check.public-contract]
+invoke = "uv run pytest tests/test_public_api_snapshot.py tests/test_public_api_classification.py tests/test_public_diagnostics.py tests/test_release_contract.py -q"
+location = "tests/test_public_api_snapshot.py"
+proof_contains = "test_public_api_snapshot"
+
+[check.cli-contract]
+invoke = "uv run pytest tests/test_cli.py tests/test_cli_command_modules.py tests/test_cli_components.py tests/test_check_diagnostic_formats.py -q"
+location = "tests/test_check_diagnostic_formats.py"
+proof_contains = "test_one_fixture_has_equivalent_text_json_and_sarif_facts"
+
+[check.syntax-suite]
+invoke = "uv run pytest tests/test_kida_lexer_comprehensive.py tests/test_kida_parser_edge_cases.py tests/test_kida_modern_syntax.py tests/test_definition_toplevel_check.py tests/test_explicit_closer_documentation.py -q"
+location = "tests/test_kida_parser_edge_cases.py"
+proof_contains = "class TestSyntaxErrors"
+
+[check.compiler-suite]
+invoke = "uv run pytest tests/test_kida_compile_validation.py tests/test_compiler_analysis_phases.py tests/test_partial_eval.py tests/test_block_recompile.py tests/test_fstring_coalescing.py -q"
+location = "tests/test_kida_compile_validation.py"
+proof_contains = "class TestFilterCompileTimeValidation"
+
+[check.analysis-suite]
+invoke = "uv run pytest tests/analysis tests/test_analysis_error_codes.py tests/test_validate_call_types.py tests/test_check_diagnostic_formats.py -q"
+location = "tests/test_analysis_error_codes.py"
+
+[check.environment-suite]
+invoke = "uv run pytest tests/test_kida_environment.py tests/test_relative_template_resolution.py tests/test_template_aliases.py tests/test_kida_filters.py -q"
+location = "tests/test_relative_template_resolution.py"
+
+[check.runtime-suite]
+invoke = "uv run pytest tests/test_render_mode_plans.py tests/test_render_surface_parity.py tests/test_render_block.py tests/test_render_with_blocks.py tests/test_render_stream.py tests/test_kida_async_rendering.py -q"
+location = "tests/test_render_surface_parity.py"
+proof_contains = "class TestFullRenderParity"
+
+[check.sandbox-suite]
+invoke = "uv run pytest tests/test_sandbox_fuzz.py tests/test_markup_security.py tests/test_strict_mode.py -q"
+location = "tests/test_sandbox_fuzz.py"
+proof_contains = "test_any_blocked_hop_raises_security_error"
+
+[check.safety-suite]
+invoke = "PYTHON_GIL=0 uv run pytest tests/test_render_surface_parity.py tests/test_sandbox_fuzz.py tests/test_bytecode_cache_concurrency.py tests/test_lru_cache_concurrency.py tests/test_kida_stress_test.py tests/test_randomized_thread_stress.py -q --tb=short"
+location = "tests/test_randomized_thread_stress.py"
+proof_contains = "PYTHON_GIL"
+
+[check.contrib-suite]
+invoke = "uv run pytest tests/contrib tests/test_examples.py -q"
+location = "tests/contrib/test_framework_adapters.py"
+
+[check.markdown-suite]
+invoke = "uv run pytest tests/markdown -q"
+location = "tests/markdown/test_markdown_integration.py"
+proof_contains = "class TestMarkdownEnv"
+
+[check.terminal-suite]
+invoke = "uv run pytest tests/terminal tests/test_terminal_colors.py -q"
+location = "tests/terminal/test_terminal_integration.py"
+proof_contains = "class TestTerminalEnv"
+
+[check.utils-suite]
+invoke = "uv run pytest tests/test_markup_security.py tests/test_template_keys.py tests/test_lru_cache_concurrency.py tests/test_workers.py tests/test_junit_xml.py tests/test_lcov.py tests/test_sarif.py -q"
+location = "tests/test_markup_security.py"
+
+[check.readme-suite]
+invoke = "uv run pytest tests/test_readme.py -q"
+location = "tests/test_readme.py"
+
+[check.action-suite]
+invoke = "uv run pytest tests/action tests/templates/test_github_report_contracts.py -q"
+location = "tests/action/test_release_notes.py"
+proof_contains = "test_collect_release_data_matches_report_contract_fixture"
+
+[check.templates-suite]
+invoke = "uv run pytest tests/templates -q"
+location = "tests/templates/test_template_snapshots.py"
+proof_contains = "test_report_contract_inventory"
+
+[check.schema-suite]
+invoke = "uv run pytest tests/templates/test_amp_schema_contracts.py tests/test_check_diagnostic_formats.py -q"
+location = "tests/templates/test_amp_schema_contracts.py"
+proof_contains = "test_amp_report_fixture_matches_schema"
+
+[check.examples-suite]
+invoke = "uv run pytest tests/test_examples.py -q"
+location = "tests/test_examples.py"
+proof_contains = "test_example_runs"
+
+[check.docs-contract]
+invoke = "uv run pytest tests/test_docs_install_snippets.py tests/test_explicit_closer_documentation.py -q"
+location = "tests/test_docs_install_snippets.py"
+proof_contains = "test_published_docs_use_distribution_package_name"
+
+[check.benchmark-sanity]
+invoke = "uv run pytest tests/test_cold_start_phase_benchmark.py -q"
+location = "tests/test_cold_start_phase_benchmark.py"
+proof_contains = "test_report_schema_runs_preflight_before_samples"
+
+[check.downstream-canary]
+invoke = "uv run pytest tests/test_downstream_canary.py -q"
+location = "tests/test_downstream_canary.py"
+proof_contains = "test_workflow_proves_source_override_and_runs_two_surface_canaries"
+
+[check.full-tests]
+invoke = "make test"
+location = "Makefile"
+proof_contains = "test:"
+
+[check.package-smoke]
+invoke = "uv run python scripts/package_smoke.py"
+location = "scripts/package_smoke.py"
+proof_contains = "Package smoke passed"
+
+[check.stability]
+invoke = "make verify-stability"
+location = "Makefile"
+proof_contains = "verify-stability:"
+
+[check.lint]
+invoke = "make lint"
+location = "Makefile"
+proof_contains = "ruff check ."
+
+[check.format]
+invoke = "make format-check"
+location = "Makefile"
+proof_contains = "ruff format --check ."
+
+[check.ty]
+invoke = "make ty"
+location = "Makefile"
+proof_contains = "ty check src/kida/ action_support/"
+
+[check.changelog-draft]
+invoke = "uv run towncrier build --draft"
+location = "pyproject.toml"
+proof_contains = "[tool.towncrier]"
+
+[[steward]]
+id = "root"
+path = "AGENTS.md"
+point_of_view = "Protect Kida's static component model and route work to the narrowest knowledgeable steward."
+edges = [
+  { to = "public", type = "governs", what = "installed API and runtime contracts" },
+  { to = "syntax", type = "governs", what = "template language" },
+  { to = "compiler", type = "governs", what = "AST code generation" },
+  { to = "tests", type = "verified-by", what = "executable evidence" },
+]
+
+[[steward]]
+id = "public"
+path = "src/kida/AGENTS.md"
+point_of_view = "Represent downstream frameworks and application authors importing Kida under Python 3.14t."
+guardrails = [
+  "Public exports, signatures, ErrorCode values, strict defaults, loaders, sandbox types, and worker APIs change intentionally and together.",
+  "Compiled templates are immutable; render buffers are local; environment registries are copy-on-write; shared caches are lock-guarded.",
+  "SandboxedEnvironment reduces capability but does not isolate adversarial code; suspected escapes follow the private reporting protocol in SECURITY.md before public disclosure.",
+]
+owns.code = ["src/kida/*.py"]
+owns.tests = ["tests/test_public_api_snapshot.py", "tests/test_markup_security.py", "tests/test_kida_stress_test.py"]
+owns.docs = ["README.md", "CLAUDE.md", "SECURITY.md", "site/content/docs/reference/api.md"]
+edges = [{ to = "environment", type = "configured-by", what = "loaders and registries" }, { to = "template", type = "executed-by", what = "render APIs" }]
+
+[[steward]]
+id = "cli"
+path = "src/kida/_cli/AGENTS.md"
+point_of_view = "Keep the kida command facade, lazy dispatch, exit policy, and text/JSON/SARIF output stable and scriptable."
+guardrails = ["Commands own their flags and handlers without eager-loading unrelated command modules.", "Machine output preserves codes, fields, coordinates, sorting, and stdout/stderr boundaries."]
+owns.code = ["src/kida/_cli/", "src/kida/cli.py", "src/kida/__main__.py"]
+owns.tests = ["tests/test_cli.py", "tests/test_cli_command_modules.py", "tests/test_check_diagnostic_formats.py"]
+owns.docs = ["site/content/docs/reference/cli.md"]
+edges = [{ to = "analysis", type = "presents", what = "static diagnostics" }, { to = "readme", type = "dispatches", what = "README scaffolding" }]
+
+[[steward]]
+id = "syntax"
+path = "src/kida/parser/AGENTS.md"
+point_of_view = "Represent template authors and every analyzer/compiler stage that trusts the parsed AST."
+guardrails = ["Unified end, block-scoped set, top-level defs/regions, call/slot/yield composition, and exact source locations remain deliberate language rules.", "A syntax change crosses lexer, parser, nodes, compiler, formatter, analysis, malformed-source tests, and docs before it is complete."]
+owns.code = ["src/kida/lexer.py", "src/kida/parser/", "src/kida/formatter.py"]
+owns.tests = ["tests/test_kida_lexer_comprehensive.py", "tests/test_kida_parser_edge_cases.py", "tests/test_kida_modern_syntax.py"]
+owns.docs = ["CLAUDE.md", "site/content/docs/syntax/"]
+edges = [{ to = "nodes", type = "produces", what = "immutable AST shapes" }, { to = "compiler", type = "consumed-by", what = "code generation" }, { to = "analysis", type = "consumed-by", what = "static checks" }]
+
+[[steward]]
+id = "nodes"
+path = "src/kida/nodes/AGENTS.md"
+point_of_view = "Keep Kida AST shapes explicit, immutable in practice, source-attributed, and shared consistently by parser, compiler, formatter, and analysis."
+guardrails = ["New fields preserve source coordinates and have a parser, compiler, formatter, analysis, and test story.", "New node kinds are public language design and require stop-and-ask review."]
+owns.code = ["src/kida/nodes/"]
+owns.tests = ["tests/test_kida_parser_edge_cases.py", "tests/test_compiler_expr_dispatch.py"]
+owns.docs = ["site/content/docs/advanced/compiler.md"]
+edges = [{ to = "syntax", type = "built-by", what = "parser handlers" }, { to = "compiler", type = "compiled-by", what = "statement and expression dispatch" }]
+
+[[steward]]
+id = "compiler"
+path = "src/kida/compiler/AGENTS.md"
+point_of_view = "Protect Python-AST code generation, escaping placement, source mapping, and semantics-preserving optimization."
+guardrails = ["Only pure deterministic expressions fold at compile time.", "Full, block, streaming, async, inherited, and non-HTML paths cannot silently receive different codegen semantics.", "Hot-path edits carry output proof and benchmark evidence or a bounded no-benchmark reason."]
+owns.code = ["src/kida/compiler/"]
+owns.tests = ["tests/test_kida_compile_validation.py", "tests/test_partial_eval.py", "tests/test_block_recompile.py"]
+owns.docs = ["site/content/docs/advanced/compiler.md"]
+edges = [{ to = "nodes", type = "consumes", what = "AST shapes" }, { to = "analysis", type = "consults", what = "purity and call metadata" }, { to = "template", type = "emits", what = "runtime render functions" }]
+
+[[steward]]
+id = "analysis"
+path = "src/kida/analysis/AGENTS.md"
+point_of_view = "Catch dependency, type, call, purity, privacy, a11y, coverage, and fragile-path mistakes before rendering."
+guardrails = ["Diagnostics include stable codes, template/source location, structured facts, and a next action.", "Analysis never accepts a construct the parser/compiler rejects and never marks unknown side effects pure."]
+owns.code = ["src/kida/analysis/", "src/kida/diagnostics.py", "src/kida/_diagnostic_adapters.py"]
+owns.tests = ["tests/analysis/", "tests/test_analysis_error_codes.py", "tests/test_validate_call_types.py"]
+owns.docs = ["site/content/docs/advanced/analysis.md", "site/content/docs/advanced/type-checking.md"]
+edges = [{ to = "syntax", type = "reads", what = "source-attributed AST" }, { to = "cli", type = "reported-by", what = "text, JSON, and SARIF" }]
+
+[[steward]]
+id = "environment"
+path = "src/kida/environment/AGENTS.md"
+point_of_view = "Keep loaders, Environment configuration, registries, built-ins, extension hooks, and autoescape setup stable and thread-safe."
+guardrails = ["Filters, tests, and globals use copy-on-write registration rather than shared in-place mutation.", "File and package resolution reject traversal and preserve aliases, relative lookup, and actionable TemplateNotFoundError suggestions.", "Optional integrations stay absent from minimal imports."]
+owns.code = ["src/kida/environment/", "src/kida/extensions.py"]
+owns.tests = ["tests/test_kida_environment.py", "tests/test_relative_template_resolution.py", "tests/test_template_aliases.py"]
+owns.docs = ["site/content/docs/reference/configuration.md", "site/content/docs/extending/"]
+edges = [{ to = "utils", type = "uses", what = "template keys and escaping" }, { to = "contrib", type = "adapted-by", what = "framework setup" }]
+
+[[steward]]
+id = "template"
+path = "src/kida/template/AGENTS.md"
+point_of_view = "Preserve compiled template execution across full, block, inherited, streaming, async, cached, and introspection paths."
+guardrails = ["Render surfaces share setup, validation, escaping, and source-attributed failure behavior unless a difference is explicit and tested.", "Cached blocks preserve key/invalidation semantics and introduce no hidden mutable cross-template state."]
+owns.code = ["src/kida/template/", "src/kida/render_context.py", "src/kida/render_accumulator.py", "src/kida/composition.py"]
+owns.tests = ["tests/test_render_surface_parity.py", "tests/test_render_block.py", "tests/test_render_stream.py"]
+owns.docs = ["site/content/docs/usage/rendering-contexts.md", "site/content/docs/usage/streaming.md"]
+edges = [{ to = "compiler", type = "executes", what = "compiled functions" }, { to = "terminal", type = "specialized-by", what = "terminal surface" }, { to = "markdown", type = "specialized-by", what = "markdown surface" }]
+
+[[steward]]
+id = "contrib"
+path = "src/kida/contrib/AGENTS.md"
+point_of_view = "Translate Kida into Django, Flask, Starlette, and future framework lifecycles without making them runtime dependencies."
+guardrails = ["Framework imports are guarded and adapters remain thin compositions of Environment, loader, and Template contracts.", "Adapters preserve Kida diagnostics, async behavior, escaping, and path safety rather than inventing framework-only semantics."]
+owns.code = ["src/kida/contrib/"]
+owns.tests = ["tests/contrib/", "tests/test_examples.py"]
+owns.docs = ["site/content/docs/usage/framework-integration.md", "site/content/docs/tutorials/"]
+edges = [{ to = "environment", type = "configures", what = "loaders and context" }, { to = "template", type = "calls", what = "sync and async rendering" }]
+
+[[steward]]
+id = "markdown"
+path = "src/kida/markdown/AGENTS.md"
+point_of_view = "Keep GitHub-oriented markdown escaping and report output readable, safe, and semantically aligned with other surfaces."
+guardrails = ["Markdown is not plain-text escaping and never inherits ANSI- or HTML-only assumptions.", "Tables, details, code blocks, safe strings, and report markers stay fixture-backed."]
+owns.code = ["src/kida/markdown/", "src/kida/environment/markdown.py"]
+owns.tests = ["tests/markdown/"]
+owns.docs = ["site/content/docs/usage/github-action.md"]
+edges = [{ to = "templates", type = "renders", what = "report templates" }, { to = "schemas", type = "consumes", what = "AMP/report fields" }]
+
+[[steward]]
+id = "terminal"
+path = "src/kida/terminal/AGENTS.md"
+point_of_view = "Protect terminal rendering, ANSI-aware strings, capability detection, live output, and log-safe degradation."
+guardrails = ["Visible width is not Python string length; truncation, wrapping, tables, and alignment remain ANSI-aware.", "NO_COLOR, FORCE_COLOR, TTY/non-TTY, color depth, Unicode fallback, and concurrent live updates remain explicit contracts."]
+owns.code = ["src/kida/terminal/", "src/kida/environment/terminal.py"]
+owns.tests = ["tests/terminal/", "tests/test_terminal_colors.py"]
+owns.docs = ["docs/terminal-api-contract.md", "site/content/docs/usage/terminal-rendering.md"]
+edges = [{ to = "utils", type = "uses", what = "ANSI width and safe strings" }, { to = "templates", type = "shares", what = "report intent" }]
+
+[[steward]]
+id = "utils"
+path = "src/kida/utils/AGENTS.md"
+point_of_view = "Keep safe strings, escaping, terminal width, template keys, report parsers, caches, CSP helpers, and worker decisions boring and deterministic."
+guardrails = ["Markup, Styled, and Marked preserve surface-specific trust protocols.", "Path resolution is structured and traversal-safe; caches and worker helpers carry lock and GIL reasoning.", "Malformed JUnit, LCOV, and SARIF input fails with actionable context."]
+owns.code = ["src/kida/utils/"]
+owns.tests = ["tests/test_markup_security.py", "tests/test_template_keys.py", "tests/test_workers.py"]
+owns.docs = ["site/content/docs/usage/escaping.md", "site/content/docs/advanced/workers.md"]
+edges = [{ to = "environment", type = "serves", what = "loaders and registries" }, { to = "terminal", type = "serves", what = "width and capability helpers" }, { to = "markdown", type = "serves", what = "safe strings" }]
+
+[[steward]]
+id = "readme"
+path = "src/kida/readme/AGENTS.md"
+point_of_view = "Keep `kida readme` presets accurate, deterministic, non-destructive, and aligned with current Kida syntax and packaging."
+guardrails = ["Generated examples compile and teach current patterns.", "Metadata detection remains local and handles missing/malformed project state; overwrite requires explicit intent."]
+owns.code = ["src/kida/readme/"]
+owns.tests = ["tests/test_readme.py"]
+owns.docs = ["site/content/docs/reference/cli.md"]
+edges = [{ to = "cli", type = "invoked-by", what = "readme command" }, { to = "examples", type = "teaches", what = "canonical snippets" }]
+
+[[steward]]
+id = "action"
+path = "action_support/AGENTS.md"
+point_of_view = "Keep typed GitHub Action support code, release-note collection, provenance, and report data contracts deterministic and diagnosable."
+guardrails = ["GitHub data collection is read-only, paginated, range-validated, and checked against the report contract before rendering.", "Malformed responses, missing refs, and divergent ranges fail with actionable context rather than partial reports."]
+owns.code = ["action_support/", "action.yml"]
+owns.tests = ["tests/action/"]
+owns.docs = ["site/content/docs/usage/github-action.md"]
+edges = [{ to = "github", type = "executed-by", what = "workflow/action runtime" }, { to = "templates", type = "feeds", what = "release-note report data" }]
+
+[[steward]]
+id = "github"
+path = ".github/AGENTS.md"
+point_of_view = "Keep CI, release, benchmark, downstream-canary, report, and copied-template workflows least-privilege and evidence-producing."
+guardrails = ["The authoritative CI lanes keep raw failures visible alongside rendered reports.", "Scheduled free-threading stress preserves pinned seeds, GIL-disabled provenance, and debug-runtime semantics without overstating sanitizer coverage.", "Release, publish, package, Pages, marketplace, and floating action-tag workflows preserve least privilege, artifact provenance, and fail-loud preconditions.", "Downstream canaries are report-only and never substitute for change-specific pilot evidence."]
+owns.code = [".github/workflows/", ".github/kida-templates/"]
+owns.tests = ["tests/templates/test_github_report_contracts.py", "tests/test_downstream_canary.py"]
+owns.docs = ["docs/stability-gate.md", "docs/downstream-pilot-policy.md", "docs/marketplace-listing.md"]
+edges = [{ to = "action", type = "runs", what = "typed support code" }, { to = "benchmarks", type = "gates", what = "Linux baselines" }, { to = "templates", type = "copies", what = "report templates" }]
+
+[[steward]]
+id = "schemas"
+path = "schemas/AGENTS.md"
+point_of_view = "Protect versioned AMP and diagnostic JSON schemas consumed by agents, templates, CLI output, and CI."
+guardrails = ["Required fields, enums, severity, confidence, privacy, and fallback behavior remain versioned contracts.", "Breaking shapes create a new version and migration path rather than mutating v1 in place."]
+owns.code = ["schemas/"]
+owns.tests = ["tests/templates/test_amp_schema_contracts.py", "tests/test_check_diagnostic_formats.py"]
+owns.docs = ["site/content/docs/usage/amp.md"]
+edges = [{ to = "templates", type = "rendered-by", what = "report templates" }, { to = "cli", type = "emitted-by", what = "structured diagnostics" }]
+
+[[steward]]
+id = "templates"
+path = "templates/AGENTS.md"
+point_of_view = "Keep built-in pytest, coverage, ruff, ty, SARIF, release, and AMP reports readable, schema-backed, and safe for untrusted tool output."
+guardrails = ["Template fields exist in schemas and realistic fixtures.", "Source templates, copied GitHub templates, snapshots, dedupe markers, and docs move together when report structure changes."]
+owns.code = ["templates/", ".github/kida-templates/"]
+owns.tests = ["tests/templates/"]
+owns.docs = ["docs/kida-render-product.md", "site/content/docs/usage/github-action.md"]
+edges = [{ to = "schemas", type = "consumes", what = "report shapes" }, { to = "markdown", type = "escaped-by", what = "GitHub output" }]
+
+[[steward]]
+id = "tests"
+path = "tests/AGENTS.md"
+point_of_view = "Keep executable evidence focused on user paths, escaped bugs, deterministic concurrency, stable diagnostics, and realistic fixtures."
+guardrails = ["Change tests only after deciding whether code or expectation is authoritative.", "Safety and concurrency regressions use adversarial or synchronized proof rather than sleeps, tolerance growth, or snapshot churn."]
+owns.code = ["tests/"]
+owns.tests = ["tests/"]
+owns.docs = ["docs/stability-gate.md"]
+edges = [{ to = "root", type = "proves", what = "repository contracts" }, { to = "benchmarks", type = "sanity-checks", what = "outputs before timing" }]
+
+[[steward]]
+id = "benchmarks"
+path = "benchmarks/AGENTS.md"
+point_of_view = "Represent honest evidence for compiler, renderer, escaping, streaming, caching, and free-threaded scaling claims."
+guardrails = ["Output-sanity precedes timing and thresholds name variance rationale.", "Linux 3.14t committed baselines are authoritative; Darwin runs are development evidence only."]
+owns.code = ["benchmarks/", "scripts/benchmark_compare.sh", "scripts/benchmark_baseline.sh"]
+owns.tests = ["tests/test_cold_start_phase_benchmark.py"]
+owns.docs = ["benchmarks/RESULTS.md", "docs/stability-gate.md"]
+edges = [{ to = "compiler", type = "measures", what = "compile and render hot paths" }, { to = "github", type = "gated-by", what = "Linux comparison workflow" }]
+
+[[steward]]
+id = "docs"
+path = "docs/AGENTS.md"
+point_of_view = "Preserve internal rationale, audits, investigations, stability gates, and superseded-plan history without presenting aspirations as shipped behavior."
+guardrails = ["Contract docs name evidence, scope, status, unresolved risk, and current source paths.", "User-facing how-to material is routed or linked to the published site."]
+owns.code = ["docs/"]
+owns.tests = ["tests/test_docs_install_snippets.py"]
+owns.docs = ["docs/"]
+edges = [{ to = "site", type = "informs", what = "published guidance" }, { to = "plan", type = "records", what = "decisions and closure" }]
+
+[[steward]]
+id = "site"
+path = "site/AGENTS.md"
+point_of_view = "Keep published installation, syntax, API, migration, troubleshooting, release, and integration guidance aligned with tested Kida behavior."
+guardrails = ["Reference docs distinguish stable contracts from advanced/internal hooks.", "Generated site output is never edited as source and performance claims cite benchmark platform and command."]
+owns.code = ["site/config/", "site/content/"]
+owns.tests = ["tests/test_docs_install_snippets.py", "tests/test_explicit_closer_documentation.py"]
+owns.docs = ["site/content/docs/", "site/content/releases/"]
+edges = [{ to = "examples", type = "teaches-through", what = "runnable snippets" }, { to = "public", type = "documents", what = "API and runtime" }]
+
+[[steward]]
+id = "examples"
+path = "examples/AGENTS.md"
+point_of_view = "Keep runnable examples canonical, focused, tested, dependency-isolated, and safe to copy into real applications."
+guardrails = ["Examples teach Kida patterns rather than legacy shortcuts and call out block-scoped set, no super, and slot-in-call migration traps.", "Terminal, markdown, framework, and CI examples remain aligned with their surface contracts."]
+owns.code = ["examples/"]
+owns.tests = ["tests/test_examples.py"]
+owns.docs = ["examples/README.md", "site/content/docs/tutorials/"]
+edges = [{ to = "site", type = "supplies", what = "runnable tutorial source" }, { to = "contrib", type = "exercises", what = "framework adapters" }]
+
+[[steward]]
+id = "plan"
+path = "plan/AGENTS.md"
+point_of_view = "Keep RFCs, epics, roadmap status, dependency order, tradeoffs, and not-now decisions useful without smuggling approval into implementation."
+guardrails = ["Plans name affected stewards, safety boundaries, proof, collateral, migration, and not-now scope.", "Proposed syntax, APIs, dependencies, surfaces, security behavior, and worker tuning remain stop-and-ask decisions."]
+owns.code = ["plan/"]
+owns.tests = []
+owns.docs = ["plan/", "docs/strategic-roadmap.md"]
+edges = [{ to = "docs", type = "resolved-into", what = "durable decisions" }, { to = "root", type = "bounded-by", what = "constitution and stop rules" }]
+
+[judgment.public]
+do_not = ["Add module-level mutable state without an immutability, lock, or ContextVar story.", "Describe the sandbox as complete isolation."]
+
+[judgment.syntax]
+do_not = ["Add a tag without full semantic pipeline closure.", "Move a parse-time error to runtime for convenience."]
+
+[judgment.compiler]
+advocate = ["Add a nested call/yield case to the render-surface parity corpus before changing sync-to-stream callback handling."]
+do_not = ["Fold time, randomness, I/O, mutation, or unknown-purity calls.", "Hide source-map or output regressions behind snapshot churn."]
+
+[judgment.tests]
+do_not = ["Add sleeps for concurrency correctness.", "Broaden tolerances or update snapshots without explaining sensitivity."]
+
+[judgment.benchmarks]
+do_not = ["Replace Linux baselines with local Darwin results.", "Benchmark unequal output or unexplained changed workloads."]
+
+[judgment.plan]
+do_not = ["Treat an RFC as approval for a stop-and-ask change.", "Leave active-looking zombie plans that contradict shipped code."]
+
+[[invariant]]
+id = "zero-runtime-dependencies"
+steward = "root"
+statement = "The installed Kida package remains pure Python with an empty runtime dependency list."
+severity = "P0"
+verification = "machine"
+enforced_by = "steward-tools"
+
+[[invariant]]
+id = "public-contract-snapshot"
+steward = "root"
+statement = "Public exports, signatures, ErrorCode values, CLI shape, and release collateral remain classified and synchronized."
+severity = "P0"
+verification = "machine"
+enforced_by = "public-contract"
+
+[[invariant]]
+id = "render-surface-parity"
+steward = "root"
+statement = "Full, block, streaming, and async rendering preserve the tested semantic parity corpus."
+severity = "P0"
+verification = "machine"
+enforced_by = "runtime-suite"
+
+[[invariant]]
+id = "sandbox-adversarial-proof"
+steward = "root"
+statement = "Sandbox blocklist, allowlist, resource caps, strict behavior, and escaping boundaries retain adversarial regression proof."
+severity = "P0"
+verification = "machine"
+enforced_by = "sandbox-suite"
+
+[[invariant]]
+id = "free-threaded-safety"
+steward = "root"
+statement = "Shared runtime operations retain synchronized GIL-disabled safety and provenance checks."
+severity = "P0"
+verification = "machine"
+enforced_by = "safety-suite"
+
+[[invariant]]
+id = "steward-network-integrity"
+steward = "root"
+statement = "Generated maps fail when stale, uncovered, over budget, evidence-rotted, falsely wired, or pointed at dead command paths."
+severity = "P1"
+verification = "machine"
+enforced_by = "steward-tools"
+
+[[invariant]]
+id = "repository-lint"
+steward = "root"
+statement = "Repository Python remains Ruff-clean without governance-specific suppression growth."
+severity = "P1"
+verification = "machine"
+enforced_by = "lint"
+
+[[invariant]]
+id = "repository-format"
+steward = "root"
+statement = "Repository Python formatting remains stable under Ruff."
+severity = "P1"
+verification = "machine"
+enforced_by = "format"
+
+[[invariant]]
+id = "repository-types"
+steward = "root"
+statement = "Kida and Action support remain clean at the repository's default Ty severity."
+severity = "P1"
+verification = "machine"
+enforced_by = "ty"
+
+[[invariant]]
+id = "downstream-pilot-policy"
+steward = "root"
+statement = "Downstream-observable contracts receive consumer pilot evidence or an allowed exact no-pilot record."
+severity = "P1"
+verification = "manual"
+evidence_file = "docs/downstream-pilot-policy.md"
+anchor = "## Decision Rule"
+
+[[invariant]]
+id = "public-api-exactness"
+steward = "public"
+statement = "Every top-level export is classified exactly once and public signatures remain snapshotted."
+severity = "P0"
+verification = "machine"
+enforced_by = "public-contract"
+
+[[invariant]]
+id = "public-safety-defaults"
+steward = "public"
+statement = "Strict undefined, safe-string, autoescape, and sandbox public behavior stays explicit and tested."
+severity = "P0"
+verification = "machine"
+enforced_by = "sandbox-suite"
+
+[[invariant]]
+id = "installed-artifact-smoke"
+steward = "public"
+statement = "The built wheel imports, renders, exposes CLI metadata, and enforces sandbox denial without undeclared dependencies."
+severity = "P1"
+verification = "machine"
+enforced_by = "package-smoke"
+
+[[invariant]]
+id = "cli-command-contract"
+steward = "cli"
+statement = "CLI subcommands, flags, lazy command modules, and exit behavior remain intentional."
+severity = "P1"
+verification = "machine"
+enforced_by = "cli-contract"
+
+[[invariant]]
+id = "cli-diagnostic-parity"
+steward = "cli"
+statement = "Text, JSON, and SARIF diagnostics preserve equivalent codes, facts, coordinates, ordering, and safe edits."
+severity = "P0"
+verification = "machine"
+enforced_by = "cli-contract"
+
+[[invariant]]
+id = "language-semantics"
+steward = "syntax"
+statement = "Unified endings, scoping, defs, regions, calls, slots, yield, expressions, and migration traps retain parser coverage."
+severity = "P0"
+verification = "machine"
+enforced_by = "syntax-suite"
+
+[[invariant]]
+id = "syntax-diagnostics"
+steward = "syntax"
+statement = "Malformed source fails early with the correct location and actionable syntax error."
+severity = "P0"
+verification = "machine"
+enforced_by = "syntax-suite"
+
+[[invariant]]
+id = "node-pipeline-shapes"
+steward = "nodes"
+statement = "AST node shapes remain constructible by the parser and consumable by compiler dispatch with source metadata intact."
+severity = "P0"
+verification = "machine"
+enforced_by = "syntax-suite"
+
+[[invariant]]
+id = "compiler-codegen"
+steward = "compiler"
+statement = "Generated Python AST preserves output, escaping placement, block semantics, and source-attributed errors."
+severity = "P0"
+verification = "machine"
+enforced_by = "compiler-suite"
+
+[[invariant]]
+id = "partial-eval-purity"
+steward = "compiler"
+statement = "Partial evaluation folds only deterministic pure work and preserves behavior when optimization does not apply."
+severity = "P0"
+verification = "machine"
+enforced_by = "compiler-suite"
+
+[[invariant]]
+id = "stream-transform-callback-scope"
+steward = "compiler"
+statement = "Nested slot callbacks remain normal callable scopes when an outer block body is transformed from append operations to stream yields."
+severity = "P0"
+verification = "none"
+
+[[invariant]]
+id = "analysis-diagnostic-contract"
+steward = "analysis"
+statement = "Static findings preserve stable codes, source facts, structured formats, and actionable suggestions."
+severity = "P0"
+verification = "machine"
+enforced_by = "analysis-suite"
+
+[[invariant]]
+id = "analysis-parser-compiler-agreement"
+steward = "analysis"
+statement = "Call, type, purity, context, privacy, a11y, and path analysis remains conservative and agrees with executable semantics."
+severity = "P1"
+verification = "machine"
+enforced_by = "analysis-suite"
+
+[[invariant]]
+id = "environment-registry-isolation"
+steward = "environment"
+statement = "Environment filters, tests, globals, extensions, and mode factories preserve copy-on-write isolation and defaults."
+severity = "P0"
+verification = "machine"
+enforced_by = "environment-suite"
+
+[[invariant]]
+id = "loader-path-contract"
+steward = "environment"
+statement = "Loaders preserve aliases and relative resolution while rejecting traversal and explaining missing templates."
+severity = "P0"
+verification = "machine"
+enforced_by = "environment-suite"
+
+[[invariant]]
+id = "runtime-mode-equivalence"
+steward = "template"
+statement = "Full, block, inherited, streaming, async, and composition paths share setup and intended output semantics."
+severity = "P0"
+verification = "machine"
+enforced_by = "runtime-suite"
+
+[[invariant]]
+id = "runtime-cache-context-safety"
+steward = "template"
+statement = "Render context, buffers, cached blocks, and async helpers retain local or synchronized state ownership."
+severity = "P0"
+verification = "machine"
+enforced_by = "safety-suite"
+
+[[invariant]]
+id = "optional-framework-boundary"
+steward = "contrib"
+statement = "Django, Flask, and Starlette adapters remain optional, thin, diagnosable, path-safe, and sync/async compatible."
+severity = "P1"
+verification = "machine"
+enforced_by = "contrib-suite"
+
+[[invariant]]
+id = "markdown-surface"
+steward = "markdown"
+statement = "Markdown escaping, safe strings, filters, components, and CLI rendering remain fixture-backed and GitHub-readable."
+severity = "P0"
+verification = "machine"
+enforced_by = "markdown-suite"
+
+[[invariant]]
+id = "terminal-layout-contract"
+steward = "terminal"
+statement = "ANSI-aware width, truncation, wrapping, tables, colors, and Unicode fallback remain correct."
+severity = "P0"
+verification = "machine"
+enforced_by = "terminal-suite"
+
+[[invariant]]
+id = "terminal-runtime-contract"
+steward = "terminal"
+statement = "Terminal environments, TTY capabilities, live rendering, and non-TTY degradation remain stable and thread-safe."
+severity = "P1"
+verification = "machine"
+enforced_by = "terminal-suite"
+
+[[invariant]]
+id = "safe-string-and-path-primitives"
+steward = "utils"
+statement = "Surface-specific safe strings, escaping, template keys, aliases, and traversal checks retain focused proof."
+severity = "P0"
+verification = "machine"
+enforced_by = "utils-suite"
+
+[[invariant]]
+id = "cache-worker-report-primitives"
+steward = "utils"
+statement = "LRU caches, worker decisions, and JUnit/LCOV/SARIF parsers remain synchronized, deterministic, and malformed-input aware."
+severity = "P1"
+verification = "machine"
+enforced_by = "utils-suite"
+
+[[invariant]]
+id = "readme-scaffold-contract"
+steward = "readme"
+statement = "README presets, metadata detection, syntax snippets, dry-run, and overwrite behavior remain deterministic and current."
+severity = "P1"
+verification = "machine"
+enforced_by = "readme-suite"
+
+[[invariant]]
+id = "action-release-data-contract"
+steward = "action"
+statement = "Release-note collection preserves markers, issues, dependencies, commits, placeholders, pagination, and actionable failure context."
+severity = "P0"
+verification = "machine"
+enforced_by = "action-suite"
+
+[[invariant]]
+id = "action-report-shape"
+steward = "action"
+statement = "Action support validates its typed report payload before templates consume it."
+severity = "P0"
+verification = "machine"
+enforced_by = "action-suite"
+
+[[invariant]]
+id = "ci-authoritative-lanes"
+steward = "github"
+statement = "CI retains one authoritative Ty lane, repository-wide Ruff, raw failure output, rendered reports, and supported setup inputs."
+severity = "P1"
+verification = "machine"
+enforced_by = "action-suite"
+
+[[invariant]]
+id = "downstream-canary-provenance"
+steward = "github"
+statement = "Report-only downstream canaries stay least-privilege, fork-safe, source-pinned, GIL-disabled, and multi-surface."
+severity = "P1"
+verification = "machine"
+enforced_by = "downstream-canary"
+
+[[invariant]]
+id = "release-workflow-contract"
+steward = "github"
+statement = "Release events, curated release bodies, Python publishing, Pages, artifacts, and floating action tags retain their fail-loud contract."
+severity = "P0"
+verification = "machine"
+enforced_by = "action-suite"
+
+[[invariant]]
+id = "schema-v1-compatibility"
+steward = "schemas"
+statement = "AMP and diagnostic v1 payloads validate against versioned schemas with stable enums, required fields, and template routing."
+severity = "P0"
+verification = "machine"
+enforced_by = "schema-suite"
+
+[[invariant]]
+id = "report-template-contract"
+steward = "templates"
+statement = "Built-in report templates, declared fields, fixtures, snapshots, copied Action templates, readability, and dedupe markers remain aligned."
+severity = "P0"
+verification = "machine"
+enforced_by = "templates-suite"
+
+[[invariant]]
+id = "test-corpus-quality"
+steward = "tests"
+statement = "The full test corpus and focused safety suites remain executable through repository-supported commands."
+severity = "P1"
+verification = "machine"
+enforced_by = "full-tests"
+
+[[invariant]]
+id = "benchmark-runner-contract"
+steward = "benchmarks"
+statement = "Cold-start and benchmark runners preserve preflight, provenance, timing/memory separation, and output schema before timing claims."
+severity = "P1"
+verification = "machine"
+enforced_by = "benchmark-sanity"
+
+[[invariant]]
+id = "benchmark-baseline-policy"
+steward = "benchmarks"
+statement = "Published performance claims name platform, Python build, GIL status, command, and Linux baseline provenance."
+severity = "P1"
+verification = "manual"
+evidence_file = "benchmarks/RESULTS.md"
+anchor = "## Environment"
+
+[[invariant]]
+id = "stability-gate-rationale"
+steward = "docs"
+statement = "Internal stability guidance accurately describes current commands, coverage, safety, package, release, and benchmark evidence."
+severity = "P1"
+verification = "manual"
+evidence_file = "docs/stability-gate.md"
+anchor = "## Local Stability Gate"
+
+[[invariant]]
+id = "published-doc-contract"
+steward = "site"
+statement = "Published install, migration, syntax, framework, and free-threading guidance matches tested package and language behavior."
+severity = "P1"
+verification = "machine"
+enforced_by = "docs-contract"
+
+[[invariant]]
+id = "runnable-example-contract"
+steward = "examples"
+statement = "Runnable examples remain listed, importable, dependency-isolated, and aligned with preferred Kida usage."
+severity = "P1"
+verification = "machine"
+enforced_by = "examples-suite"
+
+[[invariant]]
+id = "planning-status-hygiene"
+steward = "plan"
+statement = "Active, proposed, shipped, superseded, rejected, and historical plans remain distinguishable from current commands and approvals."
+severity = "P2"
+verification = "manual"
+evidence_file = "plan/README.md"
+anchor = "## Open Kida Work"
+
+[[invariant]]
+id = "planning-priority-judgment"
+steward = "plan"
+statement = "Roadmap priority and not-now tradeoffs remain explicit human product judgment."
+severity = "P2"
+verification = "none"

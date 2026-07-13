@@ -1,53 +1,37 @@
-# Parser And Syntax Steward
+<!-- generated from .stewards/manifest.toml — edit the manifest, not this file -->
 
-This domain turns template source into Kida AST nodes and owns the first user-facing explanation of invalid syntax. It matters because parser mistakes either reject valid templates or compile the wrong tree before any runtime safety can help.
+# Steward: syntax
 
-Related docs:
-- root `AGENTS.md`
-- `CLAUDE.md`
-- `site/content/docs/syntax/`
-- `site/content/docs/errors.md`
-- `plan/rfc-typed-def-parameters.md`
-- `plan/rfc-scoped-slots.md`
-- `plan/rfc-yield-directive.md`
+Represent template authors and every analyzer/compiler stage that trusts the parsed AST.
 
-## Point Of View
-Represent template authors, migrators from Jinja2, agents bulk-editing templates, and every downstream compiler/analyzer that trusts the parsed AST.
+Ordinary work: use this map directly with the root map and run only affected checks.
+Do not open `.stewards/PROTOCOL.md` or `.stewards/manifest.toml` unless the task is an explicit review/audit or steward-network maintenance.
 
-## Protect
-- Unified block ending semantics and accepted explicit closers.
-- `{% let %}`, `{% set %}`, and `{% export %}` scoping rules.
-- Top-level-only `{% def %}` and `{% region %}` rules.
-- `{% call %}`, `{% slot %}`, scoped slots, and `{% yield %}` composition semantics.
-- Precise token positions, template names, actionable parse errors, and migration hints.
-- Parser mixin boundaries typed at default ty severity without core
-  `unresolved-attribute` overrides.
+## Protects
 
-## Contract Checklist
-- Syntax changes inspect lexer tokens, parser blocks/statements/expressions, node definitions, compiler support, formatter output, analysis agreement, and syntax docs.
-- Error changes inspect `ErrorCode`, location metadata, diagnostic snapshots, malformed-source tests, and migration hints in docs.
-- Scoping/composition changes inspect def/call/slot/region tests, examples, README/CLAUDE syntax references, and render-surface parity cases.
-- Mixin or dispatch changes run ty at default severity and must not restore
-  core `unresolved-attribute` overrides without an explicit contract review.
+| Invariant | Sev | Backing | Proof / anchor |
+| --- | --- | --- | --- |
+| Unified endings, scoping, defs, regions, calls, slots, yield, expressions, and migration traps retain parser coverage. | P0 | machine-backed | `uv run pytest tests/test_kida_lexer_comprehensive.py tests/test_kida_parser_edge_cases.py tests/test_kida_modern_syntax.py tests/test_definition_toplevel_check.py tests/test_explicit_closer_documentation.py -q` (`syntax-suite`) |
+| Malformed source fails early with the correct location and actionable syntax error. | P0 | machine-backed | `uv run pytest tests/test_kida_lexer_comprehensive.py tests/test_kida_parser_edge_cases.py tests/test_kida_modern_syntax.py tests/test_definition_toplevel_check.py tests/test_explicit_closer_documentation.py -q` (`syntax-suite`) |
 
-## Advocate
-- Early, specific parse errors that suggest `kida check <dir> --strict --validate-calls` for nested or bulk-edit failures.
-- Parser tests that include malformed source, recovery-adjacent edge cases, and nested structures.
-- Syntax documentation that names the Kida rule and the likely Jinja2 trap.
+## Guardrails
 
-## Serve Peers
-- Give compiler and analysis stewards immutable nodes with reliable line/col metadata.
-- Give formatter stable syntax rules and canonical spellings.
-- Give docs and examples stewards exact error text and migration examples.
+- Unified end, block-scoped set, top-level defs/regions, call/slot/yield composition, and exact source locations remain deliberate language rules.
+- A syntax change crosses lexer, parser, nodes, compiler, formatter, analysis, malformed-source tests, and docs before it is complete.
+
+## Edges
+
+- produces → **nodes** (immutable AST shapes)
+- consumed-by → **compiler** (code generation)
+- consumed-by → **analysis** (static checks)
+
+## Owns
+
+- **code:** `src/kida/lexer.py`, `src/kida/parser/`, `src/kida/formatter.py`
+- **tests:** `tests/test_kida_lexer_comprehensive.py`, `tests/test_kida_parser_edge_cases.py`, `tests/test_kida_modern_syntax.py`
+- **docs:** `CLAUDE.md`, `site/content/docs/syntax/`
 
 ## Do Not
-- Add a tag without a full lexer/parser/nodes/compiler/formatter/analysis/test/docs plan.
-- Loosen static restrictions to make a convenience case pass.
-- Parse extension tags in a way that hides end-keyword ownership.
-- Convert syntax errors into runtime errors when the parser can decide.
 
-## Own
-- Parser, lexer, token, and node-shape tests, especially malformed templates.
-- Syntax docs and migration-trap examples.
-- Fixture updates for template snapshots when syntax output changes.
-- Steward notes for any new node or tag sketch before implementation.
+- Add a tag without full semantic pipeline closure.
+- Move a parse-time error to runtime for convenience.
