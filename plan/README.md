@@ -11,13 +11,22 @@ Current contributor commands and invariants live in `AGENTS.md`, `CLAUDE.md`,
 
 ## Open Kida Work
 
+GitHub sagas and epics are strategic rollups, not direct implementation
+tickets. The executable queue is the set of open `task` issues labeled
+`status/ready`. Move one epic into execution at a time by marking it
+`status/active` and giving it a bounded ready child; preserve approved ideas
+outside the current queue as `status/not-now`.
+
 | Work | Status | Tracker |
 |---|---|---|
 | Pre-1.0 stability rituals | Active upkeep | `plan/epic-pre-1.0-stabilization.md` |
+| Bounded execution queue | Active: cold-start boundaries, cache differential proof, and public warning documentation | [#273](https://github.com/lbliii/kida/issues/273), [#274](https://github.com/lbliii/kida/issues/274), [#275](https://github.com/lbliii/kida/issues/275) |
+| Downstream canary promotion evidence | Blocked until the fourteen-day observation gate and reverse-canary evidence are available | [#244](https://github.com/lbliii/kida/issues/244) |
+| Deferred product epics | Preserved as `status/not-now`; require a new grooming and stop-and-ask decision before implementation | [GitHub backlog](https://github.com/lbliii/kida/issues?q=is%3Aissue%20is%3Aopen%20label%3Astatus%2Fnot-now) |
 | Downstream pilot evidence policy | Complete; adopted into root steward guidance | [#245](https://github.com/lbliii/kida/issues/245) |
 | Kida/Milo marketplace and external dogfooding | Active; external publication and PR work remains | `plan/epic-kida-milo-integration.md` |
 | Large-app ergonomics | Proposed; stop-and-ask items are not approved by the plan | `plan/epic-large-app-ergonomics.md` |
-| Runtime-helper `Any` reduction | Active; baseline refreshed and first bounded slice implemented | [#146](https://github.com/lbliii/kida/issues/146) |
+| Runtime-helper `Any` reduction | Complete; tracker closed | [#146](https://github.com/lbliii/kida/issues/146) |
 
 ## Historical Type-Checking Sequence
 
