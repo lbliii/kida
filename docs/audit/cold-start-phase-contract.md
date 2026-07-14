@@ -100,6 +100,51 @@ complete #167 phase contract and must not be used to attribute import cost.
 
 ## Current evidence status
 
-The runner and schema can be developed and smoke-tested on other platforms, but
-issue #247 is not fully evidenced until its JSON is captured on the guarded
-Linux 3.14t host. This document intentionally contains no local timing values.
+Issue #247's guarded baseline candidate was captured on 2026-07-13. The raw
+machine-readable report is
+[`2026-07-13-linux-aarch64-linuxkit.json`](../../benchmarks/results/cold-start/2026-07-13-linux-aarch64-linuxkit.json).
+It contains all raw samples, exact module lists, memory samples, environment
+metadata, and summary statistics; a focused test preserves the committed
+artifact's schema, provenance, sanity result, and sample counts.
+
+### Capture provenance
+
+- Kida 0.12.0 at commit
+  [`79b5586`](https://github.com/lbliii/kida/commit/79b5586982acdfa8c0d3a8af06a2cc53ac932579).
+- CPython 3.14.6 free-threaded aarch64 build with `PYTHON_GIL=0`; the runtime
+  reported `gil_enabled: false` and `free_threading_build: true`.
+- LinuxKit 6.10.14 in Docker Desktop 28.2.2 on Apple Silicon, with 11 virtual
+  CPUs and 18,833,428,480 bytes of VM memory.
+- Pinned runner image
+  `ghcr.io/astral-sh/uv@sha256:1107ab06cc316f42650d7e77b42f45620ab97e03eabc39fac11b717fe95921ef`.
+  The disposable container installed `git` for exact checkout provenance,
+  copied the read-only checkout only for package-metadata installation, and
+  ran the benchmark against the mounted source tree.
+- Three warmups, twenty timing samples, and five separately traced memory
+  samples per Kida phase. Process startup has no traced-memory sample by
+  design. The untimed output/cache preflight passed before sampling.
+
+The Linux and free-threading guards passed, so the runner correctly labels the
+report `baseline-candidate`. Because LinuxKit was virtualized by a Darwin host,
+this is an internal phase-contract baseline, not a dedicated benchmark-host or
+public competitive result. It does not update `benchmarks/RESULTS.md`, the
+README comparison, or any regression threshold. A public claim under #199
+still requires a separately governed capture on the documented Linux benchmark
+host.
+
+### Summary
+
+| Phase | Median | p95 | Kida modules / source LOC | Median Python peak | Median process peak RSS |
+|---|---:|---:|---:|---:|---:|
+| Process startup | 6.771 ms | 7.421 ms | 0 / 0 | n/a | 43.99 MiB |
+| `import kida` | 51.867 ms | 60.847 ms | 43 / 15,426 | 8.10 MiB | 49.97 MiB |
+| `from kida import Environment` | 56.605 ms | 62.134 ms | 43 / 15,426 | 8.10 MiB | 49.97 MiB |
+| `Environment()` | 1.045 ms | 2.009 ms | 45 / 16,165 | 238.30 KiB | 49.97 MiB |
+| First source compile + render | 65.789 ms | 71.978 ms | 93 / 33,841 | 6.01 MiB | 51.82 MiB |
+| First bytecode-cache render | 24.569 ms | 27.508 ms | 53 / 17,263 | 1.84 MiB | 49.97 MiB |
+| Warm render | 0.0147 ms | 0.0166 ms | 93 / 33,841 | 2.58 KiB | 49.97 MiB |
+
+These are isolated phase measurements, not an additive end-to-end total. The
+module/LOC values describe post-phase closure, while process RSS is cumulative
+peak RSS for each fresh worker. The raw report remains authoritative for exact
+values and sample-level inspection.

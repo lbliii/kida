@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -10,6 +11,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "benchmarks" / "benchmark_cold_start_phases.py"
+LINUX_BASELINE = (
+    ROOT / "benchmarks" / "results" / "cold-start" / "2026-07-13-linux-aarch64-linuxkit.json"
+)
 
 
 @pytest.fixture(scope="module")
@@ -154,3 +158,37 @@ def test_real_preflight_proves_source_warm_and_cache_output(
 
     assert result["passed"] is True
     assert result["bytecode_cache_artifacts"]
+
+
+def test_committed_linux_baseline_preserves_capture_contract(cold_start_module) -> None:
+    report = json.loads(LINUX_BASELINE.read_text(encoding="utf-8"))
+
+    assert report["schema_version"] == 1
+    assert report["contract"] == "kida-cold-start-phases-v1"
+    assert report["issue"] == 247
+    assert report["status"] == "baseline-candidate"
+    assert report["claim_eligible"] is True
+    assert report["sanity"]["passed"] is True
+
+    environment = report["environment"]
+    assert environment["platform_system"] == "Linux"
+    assert environment["platform_machine"] == "aarch64"
+    assert environment["python_implementation"] == "CPython"
+    assert environment["python_version"] == "3.14.6"
+    assert environment["free_threading_build"] is True
+    assert environment["gil_enabled"] is False
+    assert environment["kida_version"] == "0.12.0"
+    assert environment["git_revision"] == "79b5586982acdfa8c0d3a8af06a2cc53ac932579"
+
+    methodology = report["methodology"]
+    assert methodology["warmups_per_phase"] == 3
+    assert methodology["samples_per_phase"] == 20
+    assert methodology["memory_samples_per_phase"] == 5
+    assert methodology["child_environment"]["PYTHON_GIL"] == "0"
+
+    for phase in cold_start_module.PHASES:
+        phase_report = report["phases"][phase]
+        assert len(phase_report["samples"]) == 20
+        assert len(phase_report["memory_samples"]) == (0 if phase == "process_startup" else 5)
+        assert phase_report["summary"]["elapsed_ms"]["median"] > 0
+        assert phase_report["summary"]["elapsed_ms"]["p95"] > 0

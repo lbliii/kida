@@ -167,6 +167,15 @@ Choose another suite with `BENCHMARK_SUITE=product` or `BENCHMARK_SUITE=explorat
 Use `BENCHMARK_STORAGE_DIR=/tmp/kida-benchmarks` for smoke runs that should
 not touch committed baseline files.
 
+### Cold-Start Captures
+
+Raw phase-contract captures live under `benchmarks/results/cold-start/`. The
+2026-07-13 Linux aarch64 capture records the full 3/20/5 methodology for Kida
+0.12.0 at commit `79b5586`. It was collected in a pinned LinuxKit container and
+is internal baseline evidence, not a public competitive claim. See
+`docs/audit/cold-start-phase-contract.md` for environment provenance, summary
+statistics, and interpretation limits.
+
 ### Benchmark Regression CI
 
 CI runs the `core` benchmark regression check on every PR and push. It compares against a committed baseline and fails if benchmarks exceed the regression threshold.
