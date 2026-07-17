@@ -360,10 +360,109 @@ def inspect_components(
     )
 
 
+def advise_encapsulation_roots(
+    roots: Iterable[TemplateRoot],
+    *,
+    environment: Environment | None = None,
+) -> DiagnosticReport:
+    """Return opt-in extraction and flattening advice across owned roots."""
+    from kida.environment import Environment
+
+    if environment is not None and not isinstance(environment, Environment):
+        raise TypeError("environment must be a kida.Environment")
+    inventory = _build_inventory(roots)
+    env = environment or _default_environment(inventory)
+    diagnostics = list(inventory.diagnostics)
+    partial = inventory.partial
+    source_names = {str(entry.source_path.resolve()): entry.name for entry in inventory.entries}
+
+    from kida._check import (
+        _exception_diagnostic,
+        _exception_template_path,
+        _loader_ownership_diagnostic,
+        _with_inventory_metadata,
+    )
+    from kida.analysis.encapsulation_advice import _advise_flattening, _OwnedTemplate
+    from kida.analysis.extraction_advice import _parse, advise_extraction_source
+
+    templates: list[_OwnedTemplate] = []
+    for entry in inventory.entries:
+        try:
+            template = env.get_template(entry.name)
+        except Exception as exc:
+            error_path = _exception_template_path(exc, entry.name, source_names)
+            diagnostic = _exception_diagnostic(exc, error_path)
+            metadata_entry = next(
+                (candidate for candidate in inventory.entries if candidate.name == error_path),
+                entry,
+            )
+            diagnostics.append(
+                _with_inventory_metadata(
+                    diagnostic,
+                    owner=metadata_entry.owner,
+                    source_path=str(metadata_entry.source_path),
+                )
+            )
+            partial = True
+            continue
+        actual_path = template._filename
+        if actual_path is None or Path(actual_path).resolve() != entry.source_path.resolve():
+            diagnostics.append(
+                _with_inventory_metadata(
+                    _loader_ownership_diagnostic(
+                        name=entry.name,
+                        expected_path=entry.source_path,
+                        actual_path=actual_path,
+                    ),
+                    owner=entry.owner,
+                    source_path=str(entry.source_path),
+                )
+            )
+            partial = True
+            continue
+
+        source = template._source
+        if source is None:
+            source = entry.source_path.read_text(encoding="utf-8")
+        ast, profile_spans = _parse(source, name=entry.name, environment=env)
+        templates.append(
+            _OwnedTemplate(
+                owner=entry.owner,
+                name=entry.name,
+                source_path=str(entry.source_path),
+                ast=ast,
+                profile_spans=profile_spans,
+            )
+        )
+        extraction = advise_extraction_source(source, name=entry.name, environment=env)
+        diagnostics.extend(
+            _with_inventory_metadata(
+                diagnostic,
+                owner=entry.owner,
+                source_path=str(entry.source_path),
+            )
+            for diagnostic in extraction.diagnostics
+        )
+        partial = partial or extraction.partial
+
+    diagnostics.extend(_advise_flattening(tuple(templates)))
+    diagnostics.sort(
+        key=lambda diagnostic: (
+            diagnostic.span.path or "",
+            diagnostic.span.start.line if diagnostic.span.start else -1,
+            diagnostic.span.start.column if diagnostic.span.start else -1,
+            diagnostic.code,
+            diagnostic.message,
+        )
+    )
+    return DiagnosticReport(diagnostics=tuple(diagnostics), partial=partial)
+
+
 __all__ = [
     "ComponentInspection",
     "ComponentRecord",
     "TemplateRoot",
+    "advise_encapsulation_roots",
     "diagnose_roots",
     "inspect_components",
 ]

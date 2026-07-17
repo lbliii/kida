@@ -1,0 +1,70 @@
+{
+  "category": "modularity",
+  "code": "K-MOD-103",
+  "confidence": "conservative",
+  "documentation_url": "https://lbliii.github.io/kida/docs/errors/#k-mod-103",
+  "kind": "flatten-candidate",
+  "message": "Component 'app_button' has one same-owner caller and only forwards 2 identically named props to 'button' without owning markup or behavior.",
+  "metadata": {
+    "caller_count": "1",
+    "caller_templates": "[\"app/page.kida\"]",
+    "candidate_kind": "pass-through-component",
+    "component_name": "app_button",
+    "downstream_component": "button",
+    "downstream_owner": "app",
+    "downstream_template": "app/components.kida",
+    "forwarded_props": "[\"disabled\",\"label\"]",
+    "forwarded_slots": "[]",
+    "interface_match": "exact",
+    "owner": "app",
+    "signals": "[\"exact-interface-forwarding\",\"no-owned-markup-or-behavior\",\"same-owner-downstream\",\"single-downstream-component\",\"single-same-owner-caller\"]",
+    "source_path": "<fixture>/app/components.kida"
+  },
+  "notes": [
+    "The finding requires exact interface forwarding and no owned template policy.",
+    "Cross-root callers or downstream components, reused wrappers, markup, control flow, accessibility structure, and context boundaries suppress this advice."
+  ],
+  "path": "app/components.kida",
+  "range": {
+    "end": {
+      "column": 9,
+      "line": 7
+    },
+    "start": {
+      "column": 3,
+      "line": 5
+    }
+  },
+  "related_locations": [
+    {
+      "label": "Only same-owner caller",
+      "path": "app/page.kida",
+      "range": {
+        "end": null,
+        "start": {
+          "column": 3,
+          "line": 4
+        }
+      }
+    },
+    {
+      "label": "Forwarded component",
+      "path": "app/components.kida",
+      "range": {
+        "end": {
+          "column": 9,
+          "line": 3
+        },
+        "start": {
+          "column": 3,
+          "line": 1
+        }
+      }
+    }
+  ],
+  "safe_edit": null,
+  "severity": "info",
+  "source_snippet": null,
+  "suggestion": "Consider calling 'button' directly from 'app/page.kida'. Keep the wrapper if it represents a documented public, product, test, or adapter boundary.",
+  "title": "Pass-through component"
+}

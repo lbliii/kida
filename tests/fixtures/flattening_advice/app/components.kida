@@ -1,0 +1,45 @@
+{% def button(label: str, disabled: bool = false) %}
+<button type="button"{% if disabled %} disabled aria-disabled="true"{% end %}>{{ label }}</button>
+{% end %}
+
+{% def app_button(label: str, disabled: bool = false) %}
+  {{ button(label=label, disabled=disabled) }}
+{% end %}
+
+{% def shared_button(label: str, disabled: bool = false) %}
+  {{ button(label=label, disabled=disabled) }}
+{% end %}
+
+{% def public_button(label: str, disabled: bool = false) %}
+  {{ button(label=label, disabled=disabled) }}
+{% end %}
+
+{% def labeled_field(name: str, label: str) %}
+<div class="field">
+  <label for="{{ name }}">{{ label }}</label>
+  <input id="{{ name }}" name="{{ name }}">
+</div>
+{% end %}
+
+{% def project_summary(project: dict) %}
+<article class="project-summary">
+  <h2>{{ project.name }}</h2>
+  {% if project.status %}<p>{{ project.status }}</p>{% end %}
+</article>
+{% end %}
+
+{% def panel(title: str) %}
+<section class="panel">
+  <h2>{{ title }}</h2>
+  {% slot %}
+</section>
+{% end %}
+
+{% def app_panel(title: str) %}
+  {% call panel(title=title) %}{% yield %}{% end %}
+{% end %}
+
+{% from "adapter/components.kida" import adapter_frame %}
+{% def app_adapter_shell(title: str) %}
+  {% call adapter_frame(title=title) %}{% yield %}{% end %}
+{% end %}

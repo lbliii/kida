@@ -1,0 +1,10 @@
+{% def adapter_frame(title: str) %}
+<main data-adapter-boundary="page">
+  <h1>{{ title }}</h1>
+  {% slot %}
+</main>
+{% end %}
+
+{% def adapter_shell(title: str) %}
+  {% call adapter_frame(title=title) %}{% yield %}{% end %}
+{% end %}
