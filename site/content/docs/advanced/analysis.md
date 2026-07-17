@@ -212,8 +212,46 @@ product, test, and adapter boundaries.
 
 This programmatic API is opt-in. It does not add a CLI flag or change default
 `kida check` behavior. Root ownership is explicit; Kida does not infer package
-or adapter semantics from ambient imports. Adapter-supplied role context is a
-separate extension point.
+or adapter semantics from ambient imports.
+
+### Adapter Advice Context
+
+Framework adapters can translate their own route, response, or component facts
+into immutable context attached to exact profile spans:
+
+```python
+from kida.analysis import AdviceContext, profile_source
+from kida.inspection import TemplateRoot, advise_encapsulation_roots
+
+profile = profile_source(source, name="app/messages.kida")
+response_block = next(item for item in profile.profiles if item.kind == "block")
+context = AdviceContext(
+    response_block.span,
+    (
+        ("consumer_context", "iterated"),
+        ("preserve_boundary", True),
+        ("response_boundary", True),
+        ("role", "framework-response"),
+    ),
+)
+
+report = advise_encapsulation_roots(roots, context=(context,))
+```
+
+The recognized generic facts are `consumer_context` (`"iterated"` or
+`"repeated"`), boolean `preserve_boundary` and `response_boundary`, descriptive
+`role`, and `visibility` (`"package"` or `"public"`). An iterated response block
+stays intact while nested extraction candidates can become visible. Visibility
+and preservation facts suppress flatten advice only for an exact definition
+span.
+
+Unknown facts and values are ignored; a context containing only unknown facts
+produces the same report as no adapter context. Kida does not interpret
+framework modifier names or import framework packages. Facts are sorted,
+invocation-local, and represented in ordinary diagnostic metadata, so no new
+schema or shared registry is introduced. See the
+[adapter advice-context contract](https://github.com/lbliii/kida/blob/main/docs/audit/adapter-advice-context-contract.md)
+for the complete matching and compatibility rules.
 
 ### Dependencies
 

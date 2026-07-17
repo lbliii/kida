@@ -13,6 +13,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from kida.analysis.advice_context import AdviceContext, _preserves_span
 from kida.analysis.extraction_advice import _span_for_block, _walk
 from kida.diagnostics import (
     Diagnostic,
@@ -351,11 +352,16 @@ def _diagnostic(
     )
 
 
-def _advise_flattening(templates: Sequence[_OwnedTemplate]) -> tuple[Diagnostic, ...]:
+def _advise_flattening(
+    templates: Sequence[_OwnedTemplate],
+    contexts: tuple[AdviceContext, ...] = (),
+) -> tuple[Diagnostic, ...]:
     definitions = _definition_records(templates)
     calls, resolutions = _call_graph(templates, definitions)
     diagnostics: list[Diagnostic] = []
     for key, definition in sorted(definitions.items()):
+        if _preserves_span(definition.span, contexts):
+            continue
         callers = calls.get(key)
         if callers is None or len(callers) != 1 or callers[0].owner != definition.owner:
             continue
