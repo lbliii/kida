@@ -18,6 +18,13 @@ from kida.analysis.metadata import (
     TemplateStructureManifest,
 )
 from kida.cli import main
+from kida.inspection import (
+    ComponentInspection,
+    ComponentRecord,
+    TemplateRoot,
+    diagnose_roots,
+    inspect_components,
+)
 
 EXPECTED_PUBLIC_API = {
     "module_all": [
@@ -129,6 +136,7 @@ EXPECTED_PUBLIC_API = {
         "SYNTAX_ERROR": "K-TPL-002",
         "CIRCULAR_IMPORT": "K-TPL-003",
         "DEFINITION_NOT_TOPLEVEL": "K-TPL-004",
+        "TEMPLATE_ROOT_CONFIGURATION": "K-TPL-005",
         "BLOCKED_ATTRIBUTE": "K-SEC-001",
         "BLOCKED_TYPE": "K-SEC-002",
         "RANGE_LIMIT": "K-SEC-003",
@@ -239,6 +247,26 @@ EXPECTED_PUBLIC_API = {
             "dependencies",
         ],
     },
+    "inspection_api": {
+        "TemplateRoot": "(namespace: 'str', path: 'Path') -> None",
+        "ComponentRecord": (
+            "(owner: 'str', template: 'str', source_path: 'str', metadata: 'DefMetadata') -> None"
+        ),
+        "ComponentInspection": (
+            "(components: 'tuple[ComponentRecord, ...]', diagnostics: "
+            "'tuple[Diagnostic, ...]' = (), partial: 'bool' = False) -> None"
+        ),
+        "diagnose_roots": (
+            "(roots: 'Iterable[TemplateRoot]', *, environment: 'Environment | None' = None, "
+            "options: 'DiagnosticOptions' = DiagnosticOptions(strict=False, "
+            "validate_calls=False, a11y=False, typed=False, lint_fragile_paths=False)) "
+            "-> 'DiagnosticReport'"
+        ),
+        "inspect_components": (
+            "(roots: 'Iterable[TemplateRoot]', *, environment: 'Environment | None' = None, "
+            "filter_name: 'str | None' = None) -> 'ComponentInspection'"
+        ),
+    },
 }
 
 EXPECTED_CLI_CONTRACT = {
@@ -258,12 +286,13 @@ EXPECTED_CLI_CONTRACT = {
             "--format",
             "--help",
             "--lint-fragile-paths",
+            "--root",
             "--strict",
             "--typed",
             "--validate-calls",
             "-h",
         ],
-        "components": ["--filter", "--help", "--json", "-h"],
+        "components": ["--filter", "--help", "--json", "--root", "-h"],
         "diff": ["--help", "-h"],
         "extract": ["--ext", "--help", "--output", "-h", "-o"],
         "fmt": ["--check", "--help", "--indent", "-h"],
@@ -329,6 +358,13 @@ def _public_api_snapshot() -> dict[str, object]:
         },
         "metadata_fields": {
             cls.__name__: list(cls.__dataclass_fields__) for cls in metadata_classes
+        },
+        "inspection_api": {
+            "TemplateRoot": str(inspect.signature(TemplateRoot)),
+            "ComponentRecord": str(inspect.signature(ComponentRecord)),
+            "ComponentInspection": str(inspect.signature(ComponentInspection)),
+            "diagnose_roots": str(inspect.signature(diagnose_roots)),
+            "inspect_components": str(inspect.signature(inspect_components)),
         },
     }
 

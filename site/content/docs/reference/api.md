@@ -87,6 +87,43 @@ report = diagnose_directory(
 )
 ```
 
+For explicit multi-root tooling, use the public `kida.inspection` inventory:
+
+```python
+from pathlib import Path
+
+from kida.diagnostics import DiagnosticOptions
+from kida.inspection import TemplateRoot, diagnose_roots, inspect_components
+
+roots = (
+    TemplateRoot("framework", Path("framework/templates")),
+    TemplateRoot("app", Path("app/templates")),
+)
+
+report = diagnose_roots(
+    roots,
+    options=DiagnosticOptions(validate_calls=True),
+)
+catalog = inspect_components(roots)
+```
+
+Logical names are always `namespace/relative/path`; no root-order override is
+inferred. `ComponentRecord` preserves the owner, logical template identifier,
+resolved source path, and immutable `DefMetadata`. `ComponentInspection` also
+returns structured configuration/load diagnostics and a `partial` flag.
+
+Adapters that need custom filters, globals, tests, or extensions can pass a
+preconfigured `Environment` whose loader resolves the same prefixed names:
+
+```python
+report = diagnose_roots(roots, environment=adapter_environment)
+catalog = inspect_components(roots, environment=adapter_environment)
+```
+
+Kida reads that environment without mutating its registries. This keeps adapter
+configuration programmatic and avoids ambient discovery or a Kida config-file
+surface.
+
 Both functions return a frozen `DiagnosticReport` containing an ordered tuple
 of `Diagnostic` records and a `partial` flag. `partial=True` means requested
 analysis could not finish, such as when malformed source prevents later static
