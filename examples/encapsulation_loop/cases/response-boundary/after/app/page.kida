@@ -1,0 +1,14 @@
+{% from "app/components.kida" import message_row %}
+{% template messages: list, current_user: dict %}
+{% block messages_oob transport="oob" %}
+<section aria-labelledby="messages-heading">
+  <h1 id="messages-heading">Messages</h1>
+  <ol class="message-list">
+    {% for message in messages %}
+      {{ message_row(message=message, current_user=current_user) }}
+    {% else %}
+      <li>No messages yet.</li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}

@@ -253,6 +253,34 @@ schema or shared registry is introduced. See the
 [adapter advice-context contract](https://github.com/lbliii/kida/blob/main/docs/audit/adapter-advice-context-contract.md)
 for the complete matching and compatibility rules.
 
+### Evidence-Driven Encapsulation Loop
+
+Humans and coding agents can use the same supported loop without a specialized
+Kida orchestration layer:
+
+1. Run `advise_encapsulation_roots()` and consume each finding's code, exact
+   span, confidence, metadata, and related locations.
+2. Choose extraction, pass-through inlining, or intentional preservation from
+   that evidence; Kida does not make the ownership decision.
+3. Run `diagnose_roots(..., options=DiagnosticOptions(validate_calls=True))` to
+   validate the resulting props and slots.
+4. Render the same context before and after, including named response blocks.
+5. Re-run advice and record remaining findings, false positives, false
+   negatives, context effects, and analysis cost.
+
+The runnable
+[`examples/encapsulation_loop`](https://github.com/lbliii/kida/tree/main/examples/encapsulation_loop)
+commits five before/after cases and deterministic calibration JSON: a growing
+route, a healthy large layout, a pass-through micro-component, an
+adapter-preserved response boundary, and multiple explicit roots. The replay
+proves render and call-validation parity while leaving ambiguous edits to the
+consumer. Optional `--measure` output stays outside the stable snapshot.
+
+```bash
+uv run python examples/encapsulation_loop/app.py
+uv run python examples/encapsulation_loop/app.py --measure --rounds 5
+```
+
 ### Dependencies
 
 The dependency walker extracts every context variable path a template accesses.

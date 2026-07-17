@@ -1,0 +1,2 @@
+{% def card(title: str) %}<article class="card"><h2>{{ title }}</h2></article>{% end %}
+{% def public_card(title: str) %}{{ card(title=title) }}{% end %}

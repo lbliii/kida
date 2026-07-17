@@ -1,0 +1,205 @@
+{
+  "cases": [
+    {
+      "after_codes": [],
+      "before_codes": [
+        "K-MOD-102"
+      ],
+      "before_without_context_codes": [
+        "K-MOD-102"
+      ],
+      "behavior_equal": true,
+      "component_names_after": [
+        "message_row"
+      ],
+      "component_names_before": [],
+      "decision": "extract-message-row",
+      "evidence": [
+        {
+          "code": "K-MOD-102",
+          "confidence": "conservative",
+          "evidence": {
+            "candidate_kind": "iterated-region",
+            "possible_slots": "[\"actions\"]",
+            "signals": "[\"interactive-accessibility-structure\",\"iterated-region\",\"narrow-lexical-boundary\",\"repeated-normalized-subtree\",\"substantial-structure\"]",
+            "tentative_props": "[\"current_user\",\"message\"]"
+          },
+          "kind": "extraction-candidate",
+          "span": {
+            "end": [
+              27,
+              16
+            ],
+            "path": "app/page.kida",
+            "start": [
+              5,
+              7
+            ]
+          }
+        }
+      ],
+      "expected_after_candidates": [],
+      "expected_before_candidates": [
+        "K-MOD-102@app/page.kida:5:7-27:16"
+      ],
+      "false_negatives": [],
+      "false_positives": [],
+      "id": "growing-route",
+      "validation_codes_after": [],
+      "validation_codes_before": []
+    },
+    {
+      "after_codes": [],
+      "before_codes": [],
+      "before_without_context_codes": [],
+      "behavior_equal": true,
+      "component_names_after": [],
+      "component_names_before": [],
+      "decision": "keep-layout-intact",
+      "evidence": [],
+      "expected_after_candidates": [],
+      "expected_before_candidates": [],
+      "false_negatives": [],
+      "false_positives": [],
+      "id": "healthy-layout",
+      "validation_codes_after": [],
+      "validation_codes_before": []
+    },
+    {
+      "after_codes": [],
+      "before_codes": [
+        "K-MOD-103"
+      ],
+      "before_without_context_codes": [
+        "K-MOD-103"
+      ],
+      "behavior_equal": true,
+      "component_names_after": [
+        "button"
+      ],
+      "component_names_before": [
+        "button",
+        "save_button"
+      ],
+      "decision": "inline-pass-through-wrapper",
+      "evidence": [
+        {
+          "code": "K-MOD-103",
+          "confidence": "conservative",
+          "evidence": {
+            "candidate_kind": "pass-through-component",
+            "component_name": "save_button",
+            "downstream_component": "button",
+            "forwarded_props": "[\"disabled\",\"label\"]",
+            "forwarded_slots": "[]",
+            "signals": "[\"exact-interface-forwarding\",\"no-owned-markup-or-behavior\",\"same-owner-downstream\",\"single-downstream-component\",\"single-same-owner-caller\"]"
+          },
+          "kind": "flatten-candidate",
+          "span": {
+            "end": [
+              7,
+              9
+            ],
+            "path": "app/components.kida",
+            "start": [
+              5,
+              3
+            ]
+          }
+        }
+      ],
+      "expected_after_candidates": [],
+      "expected_before_candidates": [
+        "K-MOD-103@app/components.kida:5:3-7:9"
+      ],
+      "false_negatives": [],
+      "false_positives": [],
+      "id": "pass-through-component",
+      "validation_codes_after": [],
+      "validation_codes_before": []
+    },
+    {
+      "after_codes": [],
+      "before_codes": [
+        "K-MOD-102"
+      ],
+      "before_without_context_codes": [],
+      "behavior_equal": true,
+      "component_names_after": [
+        "message_row"
+      ],
+      "component_names_before": [],
+      "decision": "preserve-response-and-extract-message-row",
+      "evidence": [
+        {
+          "code": "K-MOD-102",
+          "confidence": "conservative",
+          "evidence": {
+            "advice_context": "[{\"facts\":{\"consumer_context\":\"repeated\",\"preserve_boundary\":true,\"response_boundary\":true,\"role\":\"adapter-response\"},\"span\":{\"end\":{\"column\":14,\"line\":31},\"path\":\"app/page.kida\",\"start\":{\"column\":3,\"line\":2}}}]",
+            "candidate_kind": "iterated-region",
+            "possible_slots": "[\"actions\"]",
+            "signals": "[\"interactive-accessibility-structure\",\"iterated-region\",\"narrow-lexical-boundary\",\"repeated-normalized-subtree\",\"substantial-structure\"]",
+            "tentative_props": "[\"current_user\",\"message\"]"
+          },
+          "kind": "extraction-candidate",
+          "span": {
+            "end": [
+              28,
+              16
+            ],
+            "path": "app/page.kida",
+            "start": [
+              6,
+              7
+            ]
+          }
+        }
+      ],
+      "expected_after_candidates": [],
+      "expected_before_candidates": [
+        "K-MOD-102@app/page.kida:6:7-28:16"
+      ],
+      "false_negatives": [],
+      "false_positives": [],
+      "id": "response-boundary",
+      "validation_codes_after": [],
+      "validation_codes_before": []
+    },
+    {
+      "after_codes": [],
+      "before_codes": [],
+      "before_without_context_codes": [
+        "K-MOD-103"
+      ],
+      "behavior_equal": true,
+      "component_names_after": [
+        "card",
+        "public_card",
+        "frame"
+      ],
+      "component_names_before": [
+        "card",
+        "public_card",
+        "frame"
+      ],
+      "decision": "preserve-public-app-boundary",
+      "evidence": [],
+      "expected_after_candidates": [],
+      "expected_before_candidates": [],
+      "false_negatives": [],
+      "false_positives": [],
+      "id": "multiple-roots",
+      "validation_codes_after": [],
+      "validation_codes_before": []
+    }
+  ],
+  "contract": "kida.encapsulation-loop-calibration",
+  "contract_version": 1,
+  "summary": {
+    "behavior_parity_failures": 0,
+    "case_count": 5,
+    "false_negatives": 0,
+    "false_positives": 0,
+    "validation_failures": 0
+  }
+}

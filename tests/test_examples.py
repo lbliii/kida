@@ -19,6 +19,7 @@ SMOKE_EXAMPLES = [
     "content_stacks",
     "coverage",
     "design_system",
+    "encapsulation_loop",
     "extensions",
     "local_components",
     "render_capture_manifest",

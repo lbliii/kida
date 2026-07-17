@@ -1,0 +1,2 @@
+{% from "app/components.kida" import button %}
+<main>{{ button(label="Save", disabled=false) }}</main>
