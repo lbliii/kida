@@ -1,0 +1,11 @@
+{% from "app/components.kida" import app_adapter_shell, app_button, app_panel, labeled_field, project_summary, shared_button %}
+{% from "adapter/components.kida" import adapter_shell %}
+
+{{ app_button(label="Save", disabled=false) }}
+{{ shared_button(label="Previous", disabled=false) }}
+{{ shared_button(label="Next", disabled=false) }}
+{{ labeled_field(name="query", label="Search") }}
+{{ project_summary(project=project) }}
+{% call app_panel(title="Details") %}<p>{{ project.summary }}</p>{% end %}
+{% call adapter_shell(title="Account") %}<p>{{ account.name }}</p>{% end %}
+{% call app_adapter_shell(title="Settings") %}<p>{{ account.summary }}</p>{% end %}

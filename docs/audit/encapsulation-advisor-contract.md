@@ -1,6 +1,9 @@
 # Encapsulation Advisor Contract
 
-Status: proposed evidence contract for #284 under the component-authoring contract in #281 and the advisor initiative in #282. This record and its fixtures are design evidence only. They add no analyzer, diagnostic registration, CLI behavior, schema, or public API.
+Status: accepted evidence contract for #284 under the component-authoring
+contract in #281 and the advisor initiative in #282. `K-MOD-102` was
+implemented by #287 and `K-MOD-103` by #283; the labeled corpus remains the
+calibration source for both opt-in analyzers.
 
 ## Evidence Corpus
 
@@ -39,7 +42,8 @@ Kida's AST treats static HTML as `Data`; it does not expose an HTML element tree
 
 Profiles are facts and never diagnostics. Advice is a separate opt-in interpretation that must cite multiple contributing facts and the evidence that connects them to a candidate boundary. A node-count, depth, branch, loop, density, repetition, coupling, call, slot, or interaction threshold alone cannot create advice.
 
-The proposed extraction diagnostic is `K-MOD-102`; the proposed pass-through diagnostic is `K-MOD-103`. These identifiers are reserved by this design record only and are not registered production error codes yet. A future implementation must use the existing immutable `Diagnostic` model with:
+The extraction diagnostic is `K-MOD-102`; the pass-through diagnostic is
+`K-MOD-103`. Both use the existing immutable `Diagnostic` model with:
 
 - `DiagnosticSeverity.INFO`;
 - `DiagnosticConfidence.CONSERVATIVE`;
@@ -58,7 +62,11 @@ No source-level suppression syntax is introduced. There are no magic comments, t
 
 ## Output And Compatibility Decision
 
-The recommended first implementation surface is an opt-in programmatic analysis operation under `kida.analysis`: one operation returns policy-neutral profiles, and a separate operation returns advisory `Diagnostic` values. Any public symbol, signature, registered code, or CLI flag remains a separately reviewed implementation decision. Default `kida check` behavior does not change under this contract.
+The implementation surface is opt-in and programmatic: `kida.analysis`
+provides policy-neutral profiles and single-source extraction advice, while
+`kida.inspection.advise_encapsulation_roots()` evaluates extraction and inverse
+flattening advice across explicitly owned roots. Default `kida check` behavior
+does not change under this contract.
 
 If advice later reaches machine output, it reuses existing diagnostic JSON v1 and SARIF rendering. Contributing facts belong in diagnostic metadata and repeated evidence in related locations; this design requires no new schema. Human output must preserve the same code, severity, confidence, candidate location, related locations, and rationale.
 

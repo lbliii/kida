@@ -178,6 +178,43 @@ This API is single-source and opt-in. It does not change `DiagnosticOptions`,
 rendering. Directory and multi-root orchestration belong to a later adapter
 contract.
 
+### Multi-Root Encapsulation Advice
+
+Explicitly owned roots can be analyzed as one deterministic component call
+graph:
+
+```python
+from pathlib import Path
+
+from kida.inspection import TemplateRoot, advise_encapsulation_roots
+
+report = advise_encapsulation_roots(
+    (
+        TemplateRoot("app", Path("templates")),
+        TemplateRoot("adapter", Path("adapter-templates")),
+    )
+)
+```
+
+The report preserves `K-MOD-102` extraction candidates and adds `K-MOD-103`
+for exact pass-through components. Flatten advice requires one same-owner
+caller, one downstream component, an identical typed/defaulted prop interface,
+at most one identically forwarded slot, and no owned markup or behavior. Reuse,
+zero local callers, cross-root callers or downstream components, markup,
+control flow, accessibility structure, context policy, changed defaults,
+renamed/narrowed props, or a different slot surface suppress the finding.
+
+Every flatten finding includes an exact definition span, the only caller and
+downstream definition as related locations, contributing signals, owner/source
+facts, and forwarded props/slots. It is informational and conservative, has no
+safe edit, and explicitly asks the reviewer to preserve documented public,
+product, test, and adapter boundaries.
+
+This programmatic API is opt-in. It does not add a CLI flag or change default
+`kida check` behavior. Root ownership is explicit; Kida does not infer package
+or adapter semantics from ambient imports. Adapter-supplied role context is a
+separate extension point.
+
 ### Dependencies
 
 The dependency walker extracts every context variable path a template accesses.

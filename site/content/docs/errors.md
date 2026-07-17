@@ -475,6 +475,16 @@ contributing signals, tentative props and slots, dependencies, and related
 locations before changing source. This opt-in informational diagnostic is
 conservative and never supplies an automatic edit.
 
+### k-mod-103
+
+**Pass-through component** — A local component has exactly one same-owner
+caller and only forwards an identical prop/slot interface to one downstream
+component without owning markup, behavior, accessibility policy, or context.
+Consider calling the downstream component directly. Keep the wrapper when it
+represents a documented public, product, test, or adapter boundary. This
+opt-in informational diagnostic is conservative and never supplies an
+automatic edit.
+
 ## Warnings (K-WARN-xxx)
 
 Compile-time warnings that indicate potential issues but do not prevent rendering.
