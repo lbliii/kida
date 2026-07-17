@@ -36,6 +36,11 @@ passing it through every layer of parameters.
 `provide` pushes a value onto a per-key stack. `consume` reads the top of
 that stack, or returns a default if the key is absent.
 
+The
+[App-Owned Component Authoring Contract](/docs/usage/components/#app-owned-authoring-contract)
+explains when ambient subtree configuration is appropriate and when an explicit
+prop is the narrower interface.
+
 ## Syntax
 
 ### provide

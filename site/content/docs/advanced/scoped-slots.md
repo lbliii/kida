@@ -24,6 +24,9 @@ Scoped slots let a component expose data **up** to the caller. The component
 defines what data is available; the caller decides how to render it.
 
 This is the same pattern as Svelte's `let:` directive or Vue's scoped slots.
+Use the
+[App-Owned Component Authoring Contract](/docs/usage/components/#app-owned-authoring-contract)
+to decide when that data boundary earns a component rather than staying inline.
 
 ## Basic usage
 
@@ -34,7 +37,7 @@ A component provides data with `let:name=expr` on `{% slot %}`:
 {% def user_list(users) %}
 <ul>
   {% for user in users %}
-    <li>{% slot let:item=user %}{{ item }}{% end %}</li>
+    <li>{% slot row let:item=user %}{{ item }}{% end %}</li>
   {% end %}
 </ul>
 {% end %}
@@ -45,8 +48,10 @@ The caller receives that data with `let:name` on `{% call %}`:
 ```kida
 {% from "components/user-list.html" import user_list %}
 
-{% call(let:item) user_list(users=people) %}
-  <strong>{{ item.name }}</strong> &mdash; {{ item.email }}
+{% call user_list(users=people) %}
+  {% slot row let:item %}
+    <strong>{{ item.name }}</strong> &mdash; {{ item.email }}
+  {% end %}
 {% end %}
 ```
 
@@ -57,11 +62,12 @@ coupled to the other.
 
 | Side | Syntax | Purpose |
 |------|--------|---------|
-| Component (def) | `{% slot let:name=expr %}` | Push data to the caller |
-| Caller (call) | `{% call(let:name) fn() %}` | Receive the data |
+| Component (def) | `{% slot row let:name=expr %}` | Push data to the caller |
+| Caller (call) | `{% slot row let:name %}` inside `{% call %}` | Receive the data |
 
-The `let:` bindings flow **up** from the slot to the caller's block. Inside the
-`{% call %}...{% end %}` body, the bound names are available as local variables.
+The `let:` bindings flow **up** from the component's slot to the matching slot
+body inside `{% call %}...{% end %}`. The declared names are local to that slot
+body.
 
 ## Multiple bindings
 
@@ -71,17 +77,19 @@ A slot can expose more than one value:
 {% def data_table(rows) %}
 <table>
   {% for row in rows %}
-    <tr>{% slot let:item=row, let:index=loop.index0 %}{% end %}</tr>
+    <tr>{% slot row let:item=row, let:index=loop.index0 %}{% end %}</tr>
   {% end %}
 </table>
 {% end %}
 ```
 
 ```kida
-{% call(let:item, let:index) data_table(rows=data) %}
-  <td>{{ index }}</td>
-  <td>{{ item.name }}</td>
-  <td>{{ item.value }}</td>
+{% call data_table(rows=data) %}
+  {% slot row let:item, let:index %}
+    <td>{{ index }}</td>
+    <td>{{ item.name }}</td>
+    <td>{{ item.value }}</td>
+  {% end %}
 {% end %}
 ```
 
@@ -104,7 +112,7 @@ content** -- rendered when no caller provides a block:
 ```kida
 {% def card(user) %}
 <div class="card">
-  {% slot let:item=user %}
+  {% slot body let:item=user %}
     {# Default: simple name display #}
     <span>{{ item.name }}</span>
   {% end %}
@@ -122,8 +130,10 @@ Called without a block, the default renders:
 Called with a block, the caller takes over:
 
 ```kida
-{% call(let:item) card(user=alice) %}
-  <img src="{{ item.avatar }}"> <b>{{ item.name }}</b>
+{% call card(user=alice) %}
+  {% slot body let:item %}
+    <img src="{{ item.avatar }}"> <b>{{ item.name }}</b>
+  {% end %}
 {% end %}
 ```
 
@@ -139,9 +149,9 @@ Scoped slots work with named slots too:
 ```
 
 ```kida
-{% call(let:data) layout(page=p) %}
+{% call layout(page=p) %}
   {% slot header %}<h1 class="fancy">{{ p.title }}</h1>{% end %}
-  <div class="prose">{{ data | markdown }}</div>
+  {% slot body let:data %}<div class="prose">{{ data | markdown }}</div>{% end %}
 {% end %}
 ```
 
@@ -162,14 +172,16 @@ They can be used together:
 {% provide theme = "dark" %}
 <ul>
   {% for item in items %}
-    <li>{% slot let:item=item %}{{ item }}{% end %}</li>
+    <li>{% slot row let:item=item %}{{ item }}{% end %}</li>
   {% end %}
 </ul>
 {% endprovide %}
 {% end %}
 
-{% call(let:item) themed_list(items=data) %}
-  <span class="{{ consume("theme") }}">{{ item.name }}</span>
+{% call themed_list(items=data) %}
+  {% slot row let:item %}
+    <span class="{{ consume("theme") }}">{{ item.name }}</span>
+  {% end %}
 {% end %}
 ```
 
@@ -188,7 +200,7 @@ They can be used together:
   </thead>
   <tbody>
     {% for row in rows %}
-      <tr>{% slot let:row=row, let:cols=columns %}
+      <tr>{% slot row let:row=row, let:cols=columns %}
         {% for col in cols %}
           <td>{{ row[col.key] }}</td>
         {% end %}
@@ -203,15 +215,17 @@ Default rendering works out of the box. Callers override when they need custom
 cell rendering:
 
 ```kida
-{% call(let:row, let:cols) sortable_table(rows=users, columns=cols) %}
-  <td>{{ row.name }}</td>
-  <td>{{ row.email }}</td>
-  <td>
-    {% if row.active %}
-      <span class="badge badge-green">Active</span>
-    {% else %}
-      <span class="badge badge-gray">Inactive</span>
-    {% end %}
-  </td>
+{% call sortable_table(rows=users, columns=cols) %}
+  {% slot row let:row, let:cols %}
+    <td>{{ row.name }}</td>
+    <td>{{ row.email }}</td>
+    <td>
+      {% if row.active %}
+        <span class="badge badge-green">Active</span>
+      {% else %}
+        <span class="badge badge-gray">Inactive</span>
+      {% end %}
+    </td>
+  {% end %}
 {% end %}
 ```

@@ -109,6 +109,10 @@ Key rules:
 - Bare content inside `{% call %}` = provides content for the default slot
 - There is NO `{% fill %}` tag — use `{% slot %}` inside `{% call %}` blocks
 
+For component extraction, pass-through-wrapper, CSS ownership, and
+framework/application boundary decisions, follow the
+[App-Owned Component Authoring Contract](site/content/docs/usage/components.md#app-owned-authoring-contract).
+
 ### Regions (parameterized blocks)
 
 Regions compile to both a block (for `render_block()`) and a callable:

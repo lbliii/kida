@@ -2,6 +2,9 @@
 
 Kida's `{% def %}` / `{% call %}` / `{% slot %}` pattern for building reusable UI components.
 
+Boundary and ownership guidance lives in the
+[App-Owned Component Authoring Contract](https://lbliii.github.io/kida/docs/usage/components/#app-owned-authoring-contract).
+
 ## Run
 
 ```bash

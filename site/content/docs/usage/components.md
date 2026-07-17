@@ -29,6 +29,180 @@ Kida's component model gives you the composition patterns of React or Svelte —
 
 This guide covers the blessed patterns for writing, organizing, and consuming components.
 
+## App-Owned Authoring Contract
+
+This section is the canonical, framework-neutral contract for deciding what
+becomes a Kida component in an application. A component is an interface, not a
+reward for making a template shorter. It should own at least one meaningful
+boundary: values, replaceable content, accessibility or behavior policy,
+provided context, reuse, or a stable product concept.
+
+### Extract a component when the interface matters
+
+Extraction is usually worthwhile when one or more of these statements is true:
+
+- the same concept is rendered from more than one caller;
+- props and defaults express rules that callers should not repeat;
+- named slots define intentional, replaceable regions;
+- a scoped slot lets the component own iteration while the caller owns item
+  markup;
+- the component consistently enforces an accessible relationship or server-side
+  state;
+- `provide`/`consume` connects a deliberate family of components without
+  unrelated intermediates forwarding configuration;
+- the name represents a stable product concept even when it currently has one
+  caller.
+
+For example, a destructive-action form earns a boundary because it owns product
+language, form behavior, and the relationship between its explanation and
+control:
+
+```kida
+{# contract-example: destructive-action #}
+{% def delete_account_form(action: str, account_name: str, disabled: bool = false) %}
+<form class="delete-account" method="post" action="{{ action }}">
+  <p id="delete-account-help">
+    Delete {{ account_name }} permanently.
+    {% slot consequences %}
+  </p>
+  <button type="submit" aria-describedby="delete-account-help"
+    {% if disabled %}disabled{% end %}>
+    Delete account
+  </button>
+</form>
+{% end %}
+```
+
+The props carry values and policy; the named slot is the caller's explicit seam
+for product-specific consequences.
+
+### Keep one-off composition inline
+
+Line count alone is not an extraction signal. A large layout or route page can
+remain healthy when it uniquely arranges sections and does not hide a reusable
+interface. Keep markup inline when a proposed component merely renames one call,
+forwards the caller's entire context, or mirrors another component's props and
+slots without adding policy.
+
+This wrapper adds indirection but no contract:
+
+```kida
+{% def app_button(
+  label: str,
+  variant: str = "primary",
+  disabled: bool = false,
+) %}
+  {{ button(label=label, variant=variant, disabled=disabled) }}
+{% end %}
+```
+
+Prefer the direct call until `app_button` owns a real application decision:
+
+```kida
+{{ button(label="Save", variant="primary", disabled=is_saving) }}
+```
+
+A single caller is not proof that a component is wasteful. Accessibility
+primitives, adapter boundaries, test seams, and stable product concepts may
+still justify one. Name the owned decision in review; if there is none, keep the
+markup with its caller.
+
+### Choose the narrowest composition seam
+
+| Need | Kida contract | Guidance |
+|---|---|---|
+| Caller supplies a value | Typed prop | Prefer explicit props for ordinary data dependencies. |
+| Component owns a common policy | Defaulted prop | Keep the default visible in the signature. |
+| Caller replaces a region | Named or default slot | Name slots after their role, not their markup. |
+| Component owns iteration; caller owns each item | Scoped slot | Expose only the item facts the caller needs. |
+| A component family shares ambient configuration | `provide` / `consume` | Use for a deliberate subtree, not to avoid every prop. |
+| Caller selects a component from another file | Explicit import | Import the exact definition from a stable template path. |
+
+A scoped slot keeps the loop and empty-state policy inside the component while
+letting the caller render product-specific rows:
+
+```kida
+{# components/result-list.html #}
+{# contract-example: result-list-definition #}
+{% def result_list(results: list) %}
+<ul class="result-list">
+  {% for result in results %}
+    <li>{% slot row let:item=result %}{{ item.title }}{% end %}</li>
+  {% else %}
+    <li>No results</li>
+  {% end %}
+</ul>
+{% end %}
+```
+
+```kida
+{# contract-example: result-list-call #}
+{% from "components/result-list.html" import result_list %}
+
+{% call result_list(results=search_results) %}
+  {% slot row let:item %}
+    <a href="{{ item.url }}">{{ item.title }}</a>
+  {% end %}
+{% end %}
+```
+
+### Component source and imports
+
+Component source belongs to the application or to an explicitly selected
+package; it is never discovered through an ambient working directory or an
+implied framework folder name. Applications and adapters configure loader roots
+and their order. Templates use explicit, stable import paths such as
+`components/result-list.html`, and each definition has one clear source owner.
+
+Framework adapters may establish conventions such as `layouts/`, `pages/`, or
+private partials, but those names do not acquire meaning in Kida core. When an
+adapter combines framework and application roots, it owns that configuration
+and duplicate-name policy. The application still owns its component interfaces
+and source files.
+
+Use the supported inspection surfaces rather than a parallel manifest:
+
+```bash
+kida check templates/ --validate-calls
+kida components templates/ --json
+```
+
+`kida check` validates known calls and props. Component metadata preserves
+definition names, parameters, slots, template paths, and source lines for human,
+agent, and adapter tooling.
+
+### CSS ownership
+
+Kida components emit ordinary class names. The application owns the stylesheet,
+semantic custom properties, layers, override policy, and visual identity:
+
+```css
+@layer components {
+  .delete-account {
+    color: var(--app-danger-text);
+    border-color: var(--app-danger-border);
+  }
+}
+```
+
+CSS may be global, layered, adjacent to a component template, or routed through
+the shipped `push`/`stack` mechanism. Kida does not make selectors unique,
+prevent style leakage, define a token schema, persist a theme, or require a
+frontend build step. Those remain application choices.
+
+### Responsibility boundaries
+
+| Owner | Owns | Does not become |
+|---|---|---|
+| Kida core | Typed props, slots, imports, scoped state, metadata, and diagnostics | A router, theme system, CSS framework, catalog, or asset pipeline |
+| Framework adapter | Explicit loader roots, layout/page roles, response boundaries, and framework conventions | A source of framework semantics inside Kida syntax |
+| Application | Component boundaries, product patterns, route composition, CSS, tokens, themes, and assets | An implicit global component package |
+
+Humans and coding agents should apply the same loop: identify the owned
+decision, choose the narrowest props/slots/context interface, import it
+explicitly, then run `kida check` and inspect metadata. Extraction remains an
+architectural choice; diagnostics provide evidence, not a universal size limit.
+
 ## Anatomy of a Component
 
 A Kida component is a `{% def %}` with typed parameters and slots:

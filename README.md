@@ -86,6 +86,10 @@ mismatches at check time.
 ## Component Model
 
 Kida brings frontend-style composition to ordinary Python templates.
+See the
+[App-Owned Component Authoring Contract](site/content/docs/usage/components.md#app-owned-authoring-contract)
+for extraction heuristics, composition seams, and framework/application
+ownership boundaries.
 
 | Feature | Syntax |
 |---------|--------|
