@@ -140,6 +140,18 @@ component-inspection commands, plus tests for broken props and slot bindings.
 uv run python examples/local_components/app.py
 ```
 
+### `encapsulation_loop/` -- Evidence-Driven Component Refactoring
+
+A deterministic before/after corpus for humans and coding agents. It consumes
+ordinary structured advice, chooses extraction, inlining, or boundary
+preservation, validates calls and slots, compares rendered surfaces, and reports
+false positives, false negatives, and optional local analysis cost.
+
+```bash
+uv run python examples/encapsulation_loop/app.py
+uv run python examples/encapsulation_loop/app.py --measure --rounds 5
+```
+
 ### `flask_components/` -- Typed Components in Flask
 
 A real Flask 3.1 app using `kida.contrib.flask`: a typed form component on the

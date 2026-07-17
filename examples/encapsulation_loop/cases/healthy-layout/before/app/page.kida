@@ -1,0 +1,25 @@
+{% template site: dict, navigation: list, body_html: str, footer_links: list %}
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ site.title }}</title>
+  <meta name="description" content="{{ site.description }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">{{ site.name }}</a>
+    <nav aria-label="Primary">
+      {% for item in navigation %}
+        <a href="{{ item.url }}"{% if item.current %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      {% endfor %}
+    </nav>
+  </header>
+  {% if site.notice %}<aside role="status">{{ site.notice }}</aside>{% endif %}
+  <main id="main">{{ body_html | safe }}</main>
+  <footer>
+    <ul>
+      {% for link in footer_links %}<li><a href="{{ link.url }}">{{ link.label }}</a></li>{% endfor %}
+    </ul>
+  </footer>
+</body>
+</html>

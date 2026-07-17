@@ -1,0 +1,7 @@
+{% def button(label: str, disabled: bool = false) %}
+<button type="button"{% if disabled %} disabled aria-disabled="true"{% end %}>{{ label }}</button>
+{% end %}
+
+{% def save_button(label: str, disabled: bool = false) %}
+{{ button(label=label, disabled=disabled) }}
+{% end %}
