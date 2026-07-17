@@ -140,10 +140,43 @@ compiled template's retained source, so a fresh compilation and a bytecode-cache
 hit describe the same source shape instead of optimization artifacts. This is
 an opt-in analysis cost and does not change rendering or default compilation.
 
-The first public surface is programmatic only. It does not add a CLI mode,
-diagnostic code, extraction advice, directory/multi-root discovery, or a root
-`kida` export. Callers can serialize `report.to_dict()` with the standard
-`json` module when they need stable machine-readable facts.
+The shape-profile surface is programmatic only. It does not add a CLI mode,
+directory/multi-root discovery, or a root `kida` export. Callers can serialize
+`report.to_dict()` with the standard `json` module when they need stable
+machine-readable facts.
+
+### Extraction Candidate Advice
+
+Tooling can opt into conservative component-boundary advice for one source or
+compiled template:
+
+```python
+from kida.analysis import advise_extraction_source, advise_extraction_template
+
+source_report = advise_extraction_source(source, name="messages.kida")
+compiled_report = advise_extraction_template(template)
+
+for diagnostic in source_report.diagnostics:
+    print(diagnostic.code, diagnostic.span, dict(diagnostic.metadata))
+```
+
+`K-MOD-102` is an informational, conservative `Diagnostic`. Kida emits it only
+when several independent signals converge: a substantial iterated region or
+normalized repeated siblings, owned interaction/accessibility structure, and a
+small lexical input boundary. A loop, repeated markup, template size, or branch
+count alone is not enough. Existing defs, regions, blocks, and call boundaries
+are not re-recommended.
+
+Each finding has an exact primary span, contributing signals, tentative props,
+possible slots, context and component dependencies, provide/consume
+dependencies, and related locations for repeated siblings. Metadata list values
+are deterministic compact JSON strings. The result deliberately has no combined
+score and no `safe_edit`: component ownership and reuse remain human decisions.
+
+This API is single-source and opt-in. It does not change `DiagnosticOptions`,
+`diagnose_source()`, `kida check`, default compilation, suppression syntax, or
+rendering. Directory and multi-root orchestration belong to a later adapter
+contract.
 
 ### Dependencies
 

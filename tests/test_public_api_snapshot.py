@@ -158,6 +158,7 @@ EXPECTED_PUBLIC_API = {
         "TYPE_UNUSED_DECLARATION": "K-TYP-002",
         "TYPE_TYPO_SUGGESTION": "K-TYP-003",
         "FRAGILE_TEMPLATE_PATH": "K-PATH-001",
+        "MODULARITY_EXTRACTION_CANDIDATE": "K-MOD-102",
     },
     "environment_init": (
         "(loader: 'Loader | None' = None, "

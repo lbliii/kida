@@ -147,6 +147,7 @@ class ErrorCode(Enum):
     TYPE_UNUSED_DECLARATION = "K-TYP-002"
     TYPE_TYPO_SUGGESTION = "K-TYP-003"
     FRAGILE_TEMPLATE_PATH = "K-PATH-001"
+    MODULARITY_EXTRACTION_CANDIDATE = "K-MOD-102"
 
     @property
     def docs_url(self) -> str:
@@ -172,6 +173,7 @@ class ErrorCode(Enum):
             "A11Y": "accessibility",
             "TYP": "type",
             "PATH": "path",
+            "MOD": "modularity",
         }.get(prefix, "unknown")
 
 
