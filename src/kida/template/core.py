@@ -112,7 +112,7 @@ def _make_error_dict(exc: BaseException) -> ErrorDict:
 
 if TYPE_CHECKING:
     import types
-    from collections.abc import AsyncIterator, Callable, Iterator
+    from collections.abc import AsyncIterator, Callable, Iterable, Iterator
 
     from kida.analysis import DefMetadata, TemplateMetadata
     from kida.environment import Environment
@@ -328,7 +328,20 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         from kida.sandbox import SandboxedEnvironment, patch_template_namespace
 
         if isinstance(env, SandboxedEnvironment):
-            patch_template_namespace(namespace, env._get_sandbox_policy())
+            env_ref = self._env_ref
+
+            def trusted_environment_callables() -> Iterable[object]:
+                current_env = env_ref()
+                if current_env is None:
+                    return ()
+                return current_env.globals.values()
+
+            patch_template_namespace(
+                namespace,
+                env._get_sandbox_policy(),
+                sandbox_marker=env._get_sandbox_marker(),
+                trusted_callables=trusted_environment_callables,
+            )
             self._max_output_size = env._get_sandbox_policy().max_output_size
         else:
             self._max_output_size = None
@@ -391,15 +404,48 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
         """Enforce max_output_size if sandbox policy sets one."""
         limit = self._get_max_output_size()
         if limit is not None and len(output) > limit:
-            from kida.sandbox import SecurityError
-
-            raise SecurityError(
-                f"Render output size ({len(output)} chars) exceeds sandbox limit of {limit}",
-                code=ErrorCode.OUTPUT_LIMIT,
-                suggestion=f"Reduce template output, or increase "
-                f"SandboxPolicy(max_output_size={limit * 2}) if this is intentional.",
-            )
+            self._raise_output_limit(len(output), limit)
         return output
+
+    @staticmethod
+    def _raise_output_limit(size: int, limit: int) -> None:
+        """Raise the shared full/stream output-limit diagnostic."""
+        from kida.sandbox import SecurityError
+
+        raise SecurityError(
+            f"Render output size ({size} chars) exceeds sandbox limit of {limit}",
+            code=ErrorCode.OUTPUT_LIMIT,
+            suggestion=f"Reduce template output, or increase "
+            f"SandboxPolicy(max_output_size={limit * 2}) if this is intentional.",
+        )
+
+    def _bounded_stream_chunks(
+        self,
+        chunks: Iterator[str | None],
+        limit: int,
+    ) -> Iterator[str]:
+        """Yield sync chunks while enforcing one cumulative output limit."""
+        output_size = 0
+        for chunk in chunks:
+            if chunk is not None:
+                output_size += len(chunk)
+                if output_size > limit:
+                    self._raise_output_limit(output_size, limit)
+                yield chunk
+
+    async def _bounded_stream_chunks_async(
+        self,
+        chunks: AsyncIterator[str | None],
+        limit: int,
+    ) -> AsyncIterator[str]:
+        """Yield async chunks while enforcing one cumulative output limit."""
+        output_size = 0
+        async for chunk in chunks:
+            if chunk is not None:
+                output_size += len(chunk)
+                if output_size > limit:
+                    self._raise_output_limit(output_size, limit)
+                yield chunk
 
     def _build_context(
         self, args: tuple[Any, ...], kwargs: dict[str, Any], method_name: str
@@ -881,9 +927,14 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             _render_ctx,
             blocks_arg,
         ):
-            for chunk in stream_func(ctx, blocks_arg):
-                if chunk is not None:
-                    yield chunk
+            chunks = stream_func(ctx, blocks_arg)
+            limit = self._max_output_size
+            if limit is None:
+                for chunk in chunks:
+                    if chunk is not None:
+                        yield chunk
+            else:
+                yield from self._bounded_stream_chunks(chunks, limit)
 
     def list_blocks(self) -> list[str]:
         """List all blocks available for render_block() (including inherited).
@@ -974,14 +1025,25 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
                     )
 
             try:
+                limit = self._max_output_size
                 if async_func is not None:
-                    async for chunk in async_func(ctx, blocks_arg):
-                        if chunk is not None:
+                    chunks = async_func(ctx, blocks_arg)
+                    if limit is None:
+                        async for chunk in chunks:
+                            if chunk is not None:
+                                yield chunk
+                    else:
+                        async for chunk in self._bounded_stream_chunks_async(chunks, limit):
                             yield chunk
                 elif sync_func is not None:
                     # Wrap sync stream for API compatibility
-                    for chunk in sync_func(ctx, blocks_arg):
-                        if chunk is not None:
+                    chunks = sync_func(ctx, blocks_arg)
+                    if limit is None:
+                        for chunk in chunks:
+                            if chunk is not None:
+                                yield chunk
+                    else:
+                        for chunk in self._bounded_stream_chunks(chunks, limit):
                             yield chunk
                 else:
                     raise TemplateRuntimeError(
@@ -1033,13 +1095,24 @@ class Template(TemplateInheritanceMixin, TemplateIntrospectionMixin):
             render_ctx,
         ):
             try:
+                limit = self._max_output_size
                 if inspect.isasyncgenfunction(block_func):
-                    async for chunk in block_func(ctx, effective):
-                        if chunk is not None:
+                    chunks = block_func(ctx, effective)
+                    if limit is None:
+                        async for chunk in chunks:
+                            if chunk is not None:
+                                yield chunk
+                    else:
+                        async for chunk in self._bounded_stream_chunks_async(chunks, limit):
                             yield chunk
                 else:
-                    for chunk in block_func(ctx, effective):
-                        if chunk is not None:
+                    chunks = block_func(ctx, effective)
+                    if limit is None:
+                        for chunk in chunks:
+                            if chunk is not None:
+                                yield chunk
+                    else:
+                        for chunk in self._bounded_stream_chunks(chunks, limit):
                             yield chunk
             except TemplateRuntimeError:
                 raise

@@ -77,6 +77,30 @@ rather than averaging percentages.
 | Worker decisions | `utils/workers.py` | 65/97 (67.0%) | 21/38 (55.3%) | Utility | Bad environment detection or worker count advice under unsupported conditions. |
 | Public composition helpers | `composition.py` | 0/25 (0.0%) | 0/8 (0.0%) | Runtime | Framework validation helpers can regress while nearby `Template` methods stay green. |
 
+### Sandbox follow-up evidence (2026-07-17)
+
+Issue [#304](https://github.com/lbliii/kida/issues/304) added hostile behavioral
+proof for callable allowlists, trusted environment globals, Kida-compiled local
+and imported functions, optional calls, mutating methods, exact dicts, dict
+subclasses, mapping-protocol fallbacks, import-policy namespace behavior, and
+cumulative output limits across full, block, sync-stream, and async-stream
+surfaces.
+
+The focused command below now covers 172/172 sandbox statements and 56/56
+branches (100%), up from the issue's recorded 59.7% combined focused baseline:
+
+```bash
+uv run pytest \
+  tests/test_sandbox_fuzz.py \
+  tests/unit/test_sandbox.py \
+  tests/test_sandbox_callable_policy.py \
+  tests/test_sandbox_policy_branches.py \
+  --cov=kida.sandbox --cov-branch --cov-report=term-missing -q
+```
+
+This closes the sandbox row's named local proof gap; it does not change the
+inventory's historical full-suite totals or close the other #192 contract rows.
+
 ## #192 checklist reconciliation
 
 ### 1. Raise overall branch coverage to a justified 90%+

@@ -13,10 +13,10 @@ most recent minor line only.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.6.x   | :white_check_mark: |
-| < 0.6   | :x:                |
+| 0.12.x  | :white_check_mark: |
+| < 0.12  | :x:                |
 
-Upgrade to the latest 0.6.x release to receive security fixes.
+Upgrade to the latest 0.12.x release to receive security fixes.
 
 ## Threat Model
 
@@ -80,13 +80,17 @@ What the sandbox does:
   (`__class__`, `__mro__`, `__globals__`, `__code__`, `f_locals`, etc.) that
   are the classic pivots for server-side template injection.
 - Blocks access to `type`, function, and code objects by default.
+- Blocks direct calls to arbitrary Python functions supplied through render
+  context while preserving explicitly registered globals and Kida-compiled
+  component functions.
 - Blocks mutating collection methods (`append`, `pop`, `clear`, …) unless
   `allow_mutating_methods=True`.
 - Disables `__import__` unless `allow_import=True`.
 - Supports an attribute *allowlist* (`SandboxPolicy.allowed_attributes`) for
   strict whitelisting.
-- Caps `range()` size (`max_range`, default 10,000) and optionally total
-  output length (`max_output_size`).
+- Caps `range()` size (`max_range`, default 10,000) and optionally cumulative
+  output length (`max_output_size`) on full, block, sync-stream, and
+  async-stream render surfaces.
 
 What the sandbox does **not** do:
 
