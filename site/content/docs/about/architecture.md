@@ -155,7 +155,8 @@ Three cache layers:
 
 ### Bytecode Cache (Disk)
 
-Persists compiled bytecode via `marshal`:
+Persists compiled bytecode via `marshal`, compiler-warning facts as primitive
+JSON fields, and optional compiler-owned data in a versioned framed record:
 
 ```python
 from pathlib import Path
@@ -166,7 +167,9 @@ cache.set(name, source_hash, code)
 cached = cache.get(name, source_hash)
 ```
 
-**Benefits**: Significant cold-start improvement for serverless deployments.
+**Benefits**: Significant cold-start improvement for serverless deployments,
+while preserving source/cache diagnostic parity. Component call validation is
+recomputed from the current component signatures rather than serialized.
 
 ### Template Cache (Memory)
 
