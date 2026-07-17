@@ -1,0 +1,17 @@
+{% template account: dict, projects: list, activity: list %}
+<header class="route-heading">
+  <h1>{{ account.name }}</h1>
+  <p>{{ account.summary }}</p>
+</header>
+
+<div class="account-grid">
+  <section aria-labelledby="projects-heading">
+    <h2 id="projects-heading">Projects</h2>
+    {% call project_summary(projects=projects) %}{% endcall %}
+  </section>
+
+  <section aria-labelledby="activity-heading">
+    <h2 id="activity-heading">Recent activity</h2>
+    {% call activity_feed(items=activity) %}{% endcall %}
+  </section>
+</div>

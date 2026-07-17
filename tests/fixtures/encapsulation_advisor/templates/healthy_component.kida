@@ -1,0 +1,13 @@
+{% def project_card(project: dict, compact: bool = false) %}
+<article class="project-card{% if compact %} project-card--compact{% endif %}">
+  <header>
+    <h2><a href="{{ project.url }}">{{ project.name }}</a></h2>
+    {% slot actions %}
+  </header>
+  <p>{{ project.summary }}</p>
+  {% if project.status %}
+    <span class="project-status">{{ project.status }}</span>
+  {% endif %}
+  {% slot details %}
+</article>
+{% enddef %}

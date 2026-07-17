@@ -1,0 +1,16 @@
+{% template account: dict, workspace: dict %}
+<section class="danger-zone" aria-labelledby="danger-heading">
+  <h1 id="danger-heading">Danger zone</h1>
+  <form method="post" action="{{ account.archive_url }}">
+    <h2>Archive account</h2>
+    <p>Hide {{ account.name }} and stop new activity.</p>
+    <button type="submit" aria-describedby="archive-help">Archive</button>
+    <small id="archive-help">Existing data remains available to administrators.</small>
+  </form>
+  <form method="post" action="{{ workspace.delete_url }}">
+    <h2>Delete workspace</h2>
+    <p>Delete {{ workspace.name }} and all of its data.</p>
+    <button type="submit" aria-describedby="delete-help">Delete</button>
+    <small id="delete-help">This operation cannot be undone.</small>
+  </form>
+</section>
