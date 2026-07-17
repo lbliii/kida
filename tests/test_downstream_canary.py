@@ -46,7 +46,7 @@ def test_workflow_is_report_only_least_privilege_and_fork_safe() -> None:
     assert "workflow_dispatch:" in workflow
 
 
-def test_workflow_proves_source_override_and_runs_pinned_surface_canaries() -> None:
+def test_workflow_proves_source_override_and_runs_two_surface_canaries() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert "repository: lbliii/chirp-ui" in workflow
