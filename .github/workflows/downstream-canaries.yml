@@ -28,8 +28,13 @@ jobs:
         include:
           - name: chirp-ui
             repository: lbliii/chirp-ui
+            ref: d06ea60536ee8b909ae8a23815799d018809742d
           - name: milo-cli
             repository: lbliii/milo-cli
+            ref: 085526215cdec5a9a9dfc2c59ed589b97ec645ff
+          - name: chirp-multi-root
+            repository: lbliii/chirp
+            ref: 3e56ce273cf6ec3cb73c6ce8decef2f78e6dc1f5
 
     steps:
       - name: Check out Kida
@@ -42,6 +47,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: ${{ matrix.repository }}
+          ref: ${{ matrix.ref }}
           path: downstream
           persist-credentials: false
 
@@ -51,8 +57,17 @@ jobs:
           python-version: "3.14t"
 
       - name: Install downstream development dependencies
+        if: matrix.name != 'chirp-multi-root'
         working-directory: downstream
         run: uv sync --group dev
+
+      - name: Install minimal Chirp pilot dependencies
+        if: matrix.name == 'chirp-multi-root'
+        working-directory: downstream
+        run: |
+          uv venv --python 3.14t
+          uv pip install --python .venv/bin/python --no-deps --editable .
+          uv pip install --python .venv/bin/python pytest pytest-asyncio
 
       - name: Override released Kida with this checkout
         run: |
@@ -76,6 +91,15 @@ jobs:
           PYTHON_GIL: "0"
         run: uv run --no-sync pytest -q
 
+      - name: Run Chirp multi-root pilot
+        if: matrix.name == 'chirp-multi-root'
+        working-directory: downstream
+        env:
+          CHIRP_KIDA_MULTI_ROOT_PILOT: "1"
+          CI: "true"
+          PYTHON_GIL: "0"
+        run: uv run --no-sync pytest tests/templating/test_kida_multi_root_pilot.py -q
+
       - name: Record canary provenance
         if: always()
         working-directory: downstream
@@ -84,5 +108,6 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Kida: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Downstream: \`$(git rev-parse HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Downstream pin: \`${{ matrix.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Python: 3.14t with \`PYTHON_GIL=0\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Policy: report only; failures must be investigated before high-risk compiler merges" >> "$GITHUB_STEP_SUMMARY"

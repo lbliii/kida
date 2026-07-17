@@ -24,11 +24,16 @@ without a sensitive fixture is not pilot evidence.
 |---|---|---|---|
 | `lbliii/chirp-ui` | HTML/components | `pytest tests/ -x -q` | defs, calls, named/scoped slots, provide/consume, regions, filters, metadata, packaged templates |
 | `lbliii/milo-cli` | terminal/CLI | `pytest -q` | terminal autoescape, ANSI/width helpers, template-driven CLI output, packaged `.kida` components |
+| `lbliii/chirp` | framework/multi-root pilot | `pytest tests/templating/test_kida_multi_root_pilot.py -q` | explicit framework/app roots, CLI validation, deterministic component discovery, ownership diagnostics, adapter rendering without `chirp-ui` |
 
 The workflow runs on pull requests, pushes to `main`, a weekly schedule, and
-manual dispatch. Both jobs are report-only (`continue-on-error: true`) and use
+manual dispatch. All jobs are report-only (`continue-on-error: true`) and use
 only `contents: read`; they do not consume secrets, so public-fork pull requests
 exercise the same public repositories safely.
+
+Every downstream checkout uses an immutable commit SHA from the workflow
+matrix. Pin refreshes are reviewed changes, so a consumer moving independently
+cannot make an otherwise identical Kida candidate pass or fail.
 
 ## Source Override Proof
 
@@ -44,6 +49,12 @@ out `kida/src/kida` directory. A PyPI or unrelated workspace import fails with a
 direct provenance error. The job summary records both repository commits and
 the Python/GIL mode.
 
+The Chirp multi-root pilot uses a minimal environment: Chirp and the candidate
+Kida checkout are installed editable with `--no-deps`, then only pytest and its
+asyncio plugin are added. The consumer fixture makes `chirp-ui` importability a
+hard failure in pilot mode. This proves the explicit-root contract rather than
+accidentally relying on Chirp's full development extras.
+
 ## Failure Protocol
 
 1. Re-run the failed downstream job and inspect the raw pytest output.
@@ -56,7 +67,7 @@ the Python/GIL mode.
 5. Record genuine downstream flakiness separately; report-only status must not
    become a reason to ignore a deterministic regression.
 
-High-risk compiler issue #144 requires both Phase 1 canaries green before and
+High-risk compiler issue #144 requires all Phase 1 canaries green before and
 after each slice even while the GitHub check remains technically non-required.
 
 ## Promotion And Known Gaps
@@ -66,6 +77,9 @@ only after at least ten consecutive relevant green runs spanning fourteen days,
 with documented runtime and flake behavior.
 
 ### Promotion evidence snapshot: 2026-07-09
+
+This historical snapshot predates the narrow Chirp multi-root pilot, so its
+counts and tables cover only the original `chirp-ui` and Milo jobs.
 
 The observation window currently available starts with the workflow's first PR
 run at 2026-07-08 22:23 UTC and ends at 2026-07-09 20:57 UTC. GitHub reported
@@ -145,7 +159,8 @@ Deferred work:
 - private Furatena checks follow the proposed
   [private downstream canary trust model](private-downstream-canary-trust-model.md)
   and still need explicit owner/authorization decisions before implementation;
-- Chirp and Purr add framework/Markdown breadth after the first matrix is stable;
+- the narrow Chirp multi-root fixture does not replace a future broad framework
+  canary; Purr still adds Markdown breadth after the first matrix is stable;
 - reverse scheduled canaries belong in downstream repositories and require
   separate repository authorization;
 - no single consumer covers source mapping, every render mode, sandbox policy,

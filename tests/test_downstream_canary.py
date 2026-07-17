@@ -51,11 +51,22 @@ def test_workflow_proves_source_override_and_runs_two_surface_canaries() -> None
 
     assert "repository: lbliii/chirp-ui" in workflow
     assert "repository: lbliii/milo-cli" in workflow
+    assert "repository: lbliii/chirp" in workflow
+    assert "ref: d06ea60536ee8b909ae8a23815799d018809742d" in workflow
+    assert "ref: 085526215cdec5a9a9dfc2c59ed589b97ec645ff" in workflow
+    assert "ref: 3e56ce273cf6ec3cb73c6ce8decef2f78e6dc1f5" in workflow
+    assert "ref: ${{ matrix.ref }}" in workflow
     assert "--no-deps --editable ./kida" in workflow
     assert "verify_downstream_override.py" in workflow
     assert 'python-version: "3.14t"' in workflow
     assert "run: uv run --no-sync pytest tests/ -x -q\n" in workflow
     assert "run: uv run --no-sync pytest -q\n" in workflow
+    assert "--no-deps --editable ." in workflow
+    assert "CHIRP_KIDA_MULTI_ROOT_PILOT" in workflow
+    assert (
+        "run: uv run --no-sync pytest tests/templating/test_kida_multi_root_pilot.py -q\n"
+        in workflow
+    )
     assert "--timeout=" not in workflow
     assert 'PYTHON_GIL: "0"' in workflow
     assert "Record canary provenance" in workflow
