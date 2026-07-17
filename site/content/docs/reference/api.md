@@ -25,6 +25,7 @@ contract:
 
 - imports exported from `kida.__all__`
 - names exported from the public `kida.diagnostics` module
+- `AdviceContext` and `AdviceFactValue` from `kida.analysis`
 - `Extension` and `ExtensionDiagnosticContext` from `kida.extensions`
 - `ErrorCode` names and values
 - `Environment(...)` constructor parameters
@@ -123,6 +124,14 @@ catalog = inspect_components(roots, environment=adapter_environment)
 Kida reads that environment without mutating its registries. This keeps adapter
 configuration programmatic and avoids ambient discovery or a Kida config-file
 surface.
+
+Adapters can pass immutable, exact-span `AdviceContext` records to
+`advise_encapsulation_roots(..., context=...)`. Kida recognizes only the
+framework-neutral role, visibility, preservation, response-boundary, and
+consumer-context facts documented in
+[Static Analysis](/docs/advanced/analysis/#adapter-advice-context). Unknown facts
+are ignored, and adapter context never changes parsing, rendering, or default
+diagnostics.
 
 Both functions return a frozen `DiagnosticReport` containing an ordered tuple
 of `Diagnostic` records and a `partial` flag. `partial=True` means requested

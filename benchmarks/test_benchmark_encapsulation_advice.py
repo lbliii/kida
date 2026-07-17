@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from kida.analysis import AdviceContext, profile_source
 from kida.inspection import TemplateRoot, advise_encapsulation_roots
 
 if TYPE_CHECKING:
@@ -63,5 +64,30 @@ def test_encapsulation_advice_reused_wrapper_negative_graph(
     assert expected.diagnostics == ()
 
     result = benchmark(advise_encapsulation_roots, (root,))
+
+    assert result == expected
+
+
+@pytest.mark.benchmark(group="analysis:encapsulation-advice")
+def test_encapsulation_advice_large_adapter_context_graph(
+    benchmark: BenchmarkFixture,
+    tmp_path: Path,
+) -> None:
+    """Measure deterministic matching for 250 adapter-supplied role records."""
+    root_path = tmp_path / "context"
+    root = _write_component_graph(root_path, count=250, caller_count=1)
+    source = (root_path / "components.kida").read_text(encoding="utf-8")
+    profiles = profile_source(source, name="app/components.kida")
+    contexts = tuple(
+        AdviceContext(profile.span, (("role", "adapter-component"),))
+        for profile in profiles.profiles
+        if profile.kind == "definition" and profile.name.startswith("wrapper_")
+    )
+    assert len(contexts) == 250
+    expected = advise_encapsulation_roots((root,), context=contexts)
+    assert len(expected.diagnostics) == 250
+    assert all("advice_context" in dict(item.metadata) for item in expected.diagnostics)
+
+    result = benchmark(advise_encapsulation_roots, (root,), context=contexts)
 
     assert result == expected

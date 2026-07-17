@@ -38,6 +38,7 @@ not be mutated while shared.
 
 from __future__ import annotations
 
+from kida.analysis.advice_context import AdviceContext, AdviceFactValue
 from kida.analysis.analyzer import BlockAnalyzer
 from kida.analysis.attributes import LiteralAttribute, extract_literal_attributes
 from kida.analysis.cache import infer_cache_scope
@@ -72,6 +73,8 @@ from kida.analysis.shape_profiles import (
 
 __all__ = [
     "DEFAULT_CONFIG",
+    "AdviceContext",
+    "AdviceFactValue",
     "AnalysisConfig",
     "BlockAnalyzer",
     "BlockMetadata",

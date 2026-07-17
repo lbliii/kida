@@ -138,6 +138,12 @@ complete.
 - No export is currently deprecated. Assigning that label later requires a
   supported replacement, user-visible guidance, tests, and changelog coverage.
 
+Public submodules also carry documented advanced contracts without expanding
+the root namespace. `kida.analysis.AdviceContext` and `AdviceFactValue` are
+stable advanced adapter-analysis contracts: they are opt-in, immutable, and
+covered by the reviewed adapter advice-context decision record. They remain
+absent from `kida.__all__` intentionally.
+
 ## Proof And Collateral
 
 `tests/test_public_api_classification.py` parses this table and compares it with

@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, final
 
+from kida.analysis.advice_context import AdviceContext
 from kida.diagnostics import (
     Diagnostic,
     DiagnosticConfidence,
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
 _NAMESPACE_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _TEMPLATE_GLOBS = ("*.html", "*.kida")
 _DEFAULT_OPTIONS = DiagnosticOptions()
+_EMPTY_ADVICE_CONTEXT: tuple[AdviceContext, ...] = ()
 
 
 @final
@@ -364,12 +366,20 @@ def advise_encapsulation_roots(
     roots: Iterable[TemplateRoot],
     *,
     environment: Environment | None = None,
+    context: Iterable[AdviceContext] = _EMPTY_ADVICE_CONTEXT,
 ) -> DiagnosticReport:
     """Return opt-in extraction and flattening advice across owned roots."""
+    from kida.analysis.advice_context import _context_key
     from kida.environment import Environment
 
     if environment is not None and not isinstance(environment, Environment):
         raise TypeError("environment must be a kida.Environment")
+    if not isinstance(context, Iterable):
+        raise TypeError("context must be an iterable of AdviceContext records")
+    contexts = tuple(context)
+    if any(not isinstance(item, AdviceContext) for item in contexts):
+        raise TypeError("context must contain only AdviceContext records")
+    contexts = tuple(sorted(contexts, key=_context_key))
     inventory = _build_inventory(roots)
     env = environment or _default_environment(inventory)
     diagnostics = list(inventory.diagnostics)
@@ -382,8 +392,9 @@ def advise_encapsulation_roots(
         _loader_ownership_diagnostic,
         _with_inventory_metadata,
     )
+    from kida.analysis.advice_context import _enrich_diagnostic, _transparent_spans
     from kida.analysis.encapsulation_advice import _advise_flattening, _OwnedTemplate
-    from kida.analysis.extraction_advice import _parse, advise_extraction_source
+    from kida.analysis.extraction_advice import _advise_extraction_source, _parse
 
     templates: list[_OwnedTemplate] = []
     for entry in inventory.entries:
@@ -434,7 +445,12 @@ def advise_encapsulation_roots(
                 profile_spans=profile_spans,
             )
         )
-        extraction = advise_extraction_source(source, name=entry.name, environment=env)
+        extraction = _advise_extraction_source(
+            source,
+            name=entry.name,
+            environment=env,
+            transparent_boundaries=_transparent_spans(contexts, path=entry.name),
+        )
         diagnostics.extend(
             _with_inventory_metadata(
                 diagnostic,
@@ -445,7 +461,13 @@ def advise_encapsulation_roots(
         )
         partial = partial or extraction.partial
 
-    diagnostics.extend(_advise_flattening(tuple(templates)))
+    diagnostics.extend(_advise_flattening(tuple(templates), contexts))
+    diagnostics = [
+        _enrich_diagnostic(diagnostic, contexts)
+        if diagnostic.code.startswith("K-MOD-")
+        else diagnostic
+        for diagnostic in diagnostics
+    ]
     diagnostics.sort(
         key=lambda diagnostic: (
             diagnostic.span.path or "",

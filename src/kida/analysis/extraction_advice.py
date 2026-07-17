@@ -661,24 +661,15 @@ def _parse(
     return parser.parse(), parser.profile_spans
 
 
-def advise_extraction_source(
+def _advise_extraction_source(
     source: str,
     *,
-    name: str = "<string>",
-    environment: Environment | None = None,
+    name: str,
+    environment: Environment,
+    transparent_boundaries: tuple[SourceSpan, ...] = (),
 ) -> DiagnosticReport:
-    """Return conservative extraction candidates for one in-memory template."""
-    if not isinstance(source, str):
-        raise TypeError("source must be a string")
-    if not isinstance(name, str):
-        raise TypeError("name must be a string")
-    if not name.strip():
-        raise ValueError("name must not be empty")
-    if environment is not None and not isinstance(environment, Environment):
-        raise TypeError("environment must be a kida.Environment")
-
-    env = environment or Environment()
-    ast, profile_spans = _parse(source, name=name, environment=env)
+    """Collect candidates with selected existing boundaries open to nested advice."""
+    ast, profile_spans = _parse(source, name=name, environment=environment)
     starts = _line_starts(source)
     html_parser = _HtmlStructureParser(source)
     html_parser.feed(source)
@@ -687,6 +678,9 @@ def advise_extraction_source(
         ast,
         path=name,
         profile_spans=profile_spans,
+    )
+    boundaries = tuple(
+        boundary for boundary in boundaries if boundary not in transparent_boundaries
     )
     diagnostics = _loop_diagnostics(
         ast,
@@ -722,6 +716,29 @@ def advise_extraction_source(
         )
     )
     return DiagnosticReport(diagnostics=tuple(diagnostics))
+
+
+def advise_extraction_source(
+    source: str,
+    *,
+    name: str = "<string>",
+    environment: Environment | None = None,
+) -> DiagnosticReport:
+    """Return conservative extraction candidates for one in-memory template."""
+    if not isinstance(source, str):
+        raise TypeError("source must be a string")
+    if not isinstance(name, str):
+        raise TypeError("name must be a string")
+    if not name.strip():
+        raise ValueError("name must not be empty")
+    if environment is not None and not isinstance(environment, Environment):
+        raise TypeError("environment must be a kida.Environment")
+
+    return _advise_extraction_source(
+        source,
+        name=name,
+        environment=environment or Environment(),
+    )
 
 
 def advise_extraction_template(template: CompiledTemplate) -> DiagnosticReport:
