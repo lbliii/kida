@@ -45,6 +45,7 @@ from kida.analysis.config import DEFAULT_CONFIG, AnalysisConfig
 from kida.analysis.context_contracts import ContextContractIssue, check_context_contract
 from kida.analysis.dependencies import DependencyWalker
 from kida.analysis.escape_audit import EscapeAuditFinding, audit_escaping
+from kida.analysis.extraction_advice import advise_extraction_source, advise_extraction_template
 from kida.analysis.i18n import ExtractedMessage, ExtractMessagesVisitor
 from kida.analysis.landmarks import LandmarkDetector
 from kida.analysis.metadata import (
@@ -94,6 +95,8 @@ __all__ = [
     "TemplateMetadata",
     "TemplateStructureManifest",
     "TypeMismatch",
+    "advise_extraction_source",
+    "advise_extraction_template",
     "audit_escaping",
     "check_context_contract",
     "classify_role",

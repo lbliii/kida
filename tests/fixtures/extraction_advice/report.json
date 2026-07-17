@@ -1,0 +1,59 @@
+{
+  "category": "modularity",
+  "code": "K-MOD-102",
+  "confidence": "conservative",
+  "documentation_url": "https://lbliii.github.io/kida/docs/errors/#k-mod-102",
+  "kind": "extraction-candidate",
+  "message": "2 sibling <form> regions repeat the same interactive and accessibility structure while varying 2 lexical inputs.",
+  "metadata": {
+    "accessibility_relationships": "2",
+    "candidate_kind": "repeated-siblings",
+    "component_dependencies": "[]",
+    "context_dependencies": "[\"account.archive_url\",\"account.name\",\"workspace.delete_url\",\"workspace.name\"]",
+    "existing_boundary_conflicts": "[]",
+    "interactive_elements": "1",
+    "occurrence_count": "2",
+    "occurrence_dependencies": "[[\"account.archive_url\",\"account.name\"],[\"workspace.delete_url\",\"workspace.name\"]]",
+    "possible_slots": "[]",
+    "provide_consume_dependencies": "[]",
+    "signals": "[\"interactive-accessibility-structure\",\"narrow-varying-input-boundary\",\"normalized-repeated-siblings\"]",
+    "source_lines": "6",
+    "tentative_props": "[\"account\",\"workspace\"]"
+  },
+  "notes": [
+    "Independent signals suggest a boundary, but reuse and product ownership need human judgment.",
+    "Kida does not offer an automatic edit for extraction candidates."
+  ],
+  "path": "danger.kida",
+  "range": {
+    "end": {
+      "column": 9,
+      "line": 9
+    },
+    "start": {
+      "column": 2,
+      "line": 4
+    }
+  },
+  "related_locations": [
+    {
+      "label": "Equivalent repeated sibling 2",
+      "path": "danger.kida",
+      "range": {
+        "end": {
+          "column": 9,
+          "line": 15
+        },
+        "start": {
+          "column": 2,
+          "line": 10
+        }
+      }
+    }
+  ],
+  "safe_edit": null,
+  "severity": "info",
+  "source_snippet": null,
+  "suggestion": "Consider a typed local component at this boundary; review the tentative props and slots before changing source.",
+  "title": "Extraction candidate"
+}

@@ -455,6 +455,16 @@ name. Fix: Review and apply the suggestion only when semantically correct.
 or import uses a root-relative path. Fix: Use the suggested `./` path so moving
 the folder does not require editing its internal references.
 
+## Modularity Findings (K-MOD-xxx)
+
+### k-mod-102
+
+**Extraction candidate** — Several independent signals suggest that a source
+region may support a typed local component boundary. Review the exact span,
+contributing signals, tentative props and slots, dependencies, and related
+locations before changing source. This opt-in informational diagnostic is
+conservative and never supplies an automatic edit.
+
 ## Warnings (K-WARN-xxx)
 
 Compile-time warnings that indicate potential issues but do not prevent rendering.

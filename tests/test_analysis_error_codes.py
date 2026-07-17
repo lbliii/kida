@@ -93,3 +93,4 @@ def test_analysis_code_categories_are_stable() -> None:
     assert ErrorCode.PRIVACY_SECRET_LITERAL.category == "privacy"
     assert ErrorCode.CONTEXT_UNUSED.category == "context"
     assert ErrorCode.ESCAPE_TRUSTED_MARKUP.category == "escape"
+    assert ErrorCode.MODULARITY_EXTRACTION_CANDIDATE.category == "modularity"
