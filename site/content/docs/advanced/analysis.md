@@ -109,6 +109,42 @@ True
 
 ## Analysis Concepts
 
+### Shape Profiles
+
+Use the opt-in shape profiler when tooling needs deterministic structural facts
+without asking Kida to decide whether a component should be extracted or
+flattened:
+
+```python
+from kida.analysis import profile_source, profile_template
+
+source_report = profile_source(source, name="components/card.kida")
+compiled_report = profile_template(template)
+
+for profile in source_report.profiles:
+    print(profile.kind, profile.name, profile.span, profile.facts.node_count)
+
+payload = source_report.to_dict()  # JSON-compatible kida.shape-profiles v1
+```
+
+Reports contain one whole-template profile followed by source-ordered profiles
+for `{% def %}`, `{% region %}`, `{% block %}`, and `{% fragment %}` owners.
+Each immutable `ShapeFacts` record keeps node and source volume, depth, branches,
+loops, dynamic expressions and density, component calls, slots, literal HTML
+attributes, repeated AST shapes, conservative context dependencies, and a
+normalized structural fingerprint as separate facts. There is deliberately no
+combined score, severity, suggestion, or automatic edit.
+
+Every profile has an exact `SourceSpan`. `profile_template()` re-analyzes the
+compiled template's retained source, so a fresh compilation and a bytecode-cache
+hit describe the same source shape instead of optimization artifacts. This is
+an opt-in analysis cost and does not change rendering or default compilation.
+
+The first public surface is programmatic only. It does not add a CLI mode,
+diagnostic code, extraction advice, directory/multi-root discovery, or a root
+`kida` export. Callers can serialize `report.to_dict()` with the standard
+`json` module when they need stable machine-readable facts.
+
 ### Dependencies
 
 The dependency walker extracts every context variable path a template accesses.

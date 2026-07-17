@@ -60,6 +60,14 @@ from kida.analysis.metadata import (
 from kida.analysis.privacy import PrivacyFinding, lint_privacy
 from kida.analysis.purity import PurityAnalyzer
 from kida.analysis.roles import classify_role
+from kida.analysis.shape_profiles import (
+    ShapeFacts,
+    ShapeProfile,
+    ShapeProfileKind,
+    ShapeProfileReport,
+    profile_source,
+    profile_template,
+)
 
 __all__ = [
     "DEFAULT_CONFIG",
@@ -79,6 +87,10 @@ __all__ = [
     "LiteralAttribute",
     "PrivacyFinding",
     "PurityAnalyzer",
+    "ShapeFacts",
+    "ShapeProfile",
+    "ShapeProfileKind",
+    "ShapeProfileReport",
     "TemplateMetadata",
     "TemplateStructureManifest",
     "TypeMismatch",
@@ -88,4 +100,6 @@ __all__ = [
     "extract_literal_attributes",
     "infer_cache_scope",
     "lint_privacy",
+    "profile_source",
+    "profile_template",
 ]

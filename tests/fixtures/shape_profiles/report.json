@@ -1,0 +1,68 @@
+{
+  "contract": "kida.shape-profiles",
+  "contract_version": 1,
+  "partial": false,
+  "profiles": [
+    {
+      "facts": {
+        "branch_count": 2,
+        "component_call_count": 0,
+        "context_dependencies": [],
+        "dynamic_density_basis_points": 3056,
+        "dynamic_expression_count": 11,
+        "literal_attribute_count": 1,
+        "loop_count": 0,
+        "max_depth": 5,
+        "node_count": 36,
+        "repeated_shape_groups": 0,
+        "slot_count": 2,
+        "source_lines": 13,
+        "structural_fingerprint": "3164f51bcdc4588e8c9f4a6d8be00a8fe0e536232d6967ebfe7ef005730e7e8d"
+      },
+      "kind": "template",
+      "name": "healthy_component.kida",
+      "span": {
+        "end": {
+          "column": 0,
+          "line": 14
+        },
+        "path": "healthy_component.kida",
+        "start": {
+          "column": 0,
+          "line": 1
+        }
+      }
+    },
+    {
+      "facts": {
+        "branch_count": 2,
+        "component_call_count": 0,
+        "context_dependencies": [],
+        "dynamic_density_basis_points": 3235,
+        "dynamic_expression_count": 11,
+        "literal_attribute_count": 1,
+        "loop_count": 0,
+        "max_depth": 4,
+        "node_count": 34,
+        "repeated_shape_groups": 0,
+        "slot_count": 2,
+        "source_lines": 13,
+        "structural_fingerprint": "e83efadee20123c4c623004150bfc5061dcb5e636c843e8fa1c2b5869e2555fc"
+      },
+      "kind": "definition",
+      "name": "project_card",
+      "span": {
+        "end": {
+          "column": 12,
+          "line": 13
+        },
+        "path": "healthy_component.kida",
+        "start": {
+          "column": 3,
+          "line": 1
+        }
+      }
+    }
+  ],
+  "template_name": "healthy_component.kida"
+}
