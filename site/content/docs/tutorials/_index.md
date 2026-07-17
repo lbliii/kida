@@ -53,6 +53,14 @@ Configure Kida as a backend, then render a full form and a named fragment.
 Build a form and fragment endpoint, with Starlette and streaming patterns.
 :::{/card}
 
+:::{card} App-Owned Local Components
+:icon: puzzle
+:link: /docs/tutorials/local-components/
+:description: Compose typed controls and product patterns with ordinary CSS
+Build a server-rendered search surface with scoped slots, static validation,
+accessible state, and no component-library runtime.
+:::{/card}
+
 :::{card} Migrate from Jinja2
 :icon: arrow-right
 :link: /docs/tutorials/migrate-from-jinja2/

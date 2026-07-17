@@ -1,0 +1,13 @@
+:root {
+  color-scheme: light dark;
+  --app-surface: light-dark(#ffffff, #172033);
+  --app-surface-muted: light-dark(#f3f6fb, #222d44);
+  --app-text: light-dark(#182033, #edf2ff);
+  --app-accent: light-dark(#175cd3, #8bb7ff);
+  --app-border: light-dark(#b8c2d6, #52617d);
+  --app-focus: #f59e0b;
+  --app-space-1: 0.5rem;
+  --app-space-2: 1rem;
+  --app-space-3: 1.5rem;
+  --app-radius: 0.5rem;
+}

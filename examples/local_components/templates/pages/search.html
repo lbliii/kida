@@ -1,0 +1,26 @@
+{% from "app/patterns/search-panel.html" import search_panel %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local component search</title>
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/components.css">
+</head>
+<body>
+  <main class="page-shell">
+    {% call search_panel(query=query, results=results) %}
+      {% slot result let:item %}
+        <article class="result-card">
+          <h2><a href="{{ item.url }}">{{ item.title }}</a></h2>
+          <p>{{ item.summary }}</p>
+        </article>
+      {% end %}
+      {% slot no_results %}
+        <p>No docs matched. Try a broader term.</p>
+      {% end %}
+    {% end %}
+  </main>
+</body>
+</html>

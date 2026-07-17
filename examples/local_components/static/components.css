@@ -1,0 +1,82 @@
+@layer base, components, patterns;
+
+@layer base {
+  body {
+    margin: 0;
+    background: var(--app-surface-muted);
+    color: var(--app-text);
+    font-family: system-ui, sans-serif;
+  }
+
+  :focus-visible {
+    outline: 0.2rem solid var(--app-focus);
+    outline-offset: 0.15rem;
+  }
+
+  .page-shell {
+    width: min(48rem, calc(100% - 2rem));
+    margin: var(--app-space-3) auto;
+  }
+}
+
+@layer components {
+  .field {
+    display: grid;
+    gap: var(--app-space-1);
+  }
+
+  .field__label {
+    font-weight: 700;
+  }
+
+  .field__input,
+  .button {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    font: inherit;
+    padding: 0.7rem 0.9rem;
+  }
+
+  .button {
+    background: var(--app-accent);
+    color: var(--app-surface);
+    cursor: pointer;
+  }
+}
+
+@layer patterns {
+  .search-panel {
+    display: grid;
+    gap: var(--app-space-2);
+    padding: var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface);
+  }
+
+  .search-panel__form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--app-space-1);
+    align-items: end;
+  }
+
+  .search-panel__help,
+  .search-panel__status {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .result-list {
+    display: grid;
+    gap: var(--app-space-2);
+    padding: 0;
+    list-style: none;
+  }
+
+  .result-card {
+    padding: var(--app-space-2);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+  }
+}

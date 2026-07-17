@@ -1,0 +1,28 @@
+{% from "app/components/controls.html" import text_field, submit_button %}
+
+{% def search_panel(query: str, results: list) %}
+<section class="search-panel" aria-labelledby="search-title">
+  <h1 id="search-title">Search local documentation</h1>
+  <form class="search-panel__form" role="search" method="get">
+    {{ text_field(name="q", label="Search", value=query, help_id="search-help") }}
+    <p class="search-panel__help" id="search-help">Search terms are submitted to the server.</p>
+    {{ submit_button(label="Search") }}
+  </form>
+
+  <p class="search-panel__status" id="search-status" role="status" aria-live="polite">
+    {{ results | length }} result{% if results | length != 1 %}s{% end %} for “{{ query }}”.
+  </p>
+  <ul class="result-list" aria-describedby="search-status">
+    {% for result in results %}
+      <li class="result-list__item">
+        {% slot result let:item=result %}
+          <a href="{{ item.url }}">{{ item.title }}</a>
+        {% end %}
+      </li>
+    {% end %}
+    <li class="result-list__empty"{% if results %} hidden{% end %}>
+      {% slot no_results %}
+    </li>
+  </ul>
+</section>
+{% end %}
