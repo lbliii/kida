@@ -37,24 +37,32 @@ Custom policy::
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast, final
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Iterable, Mapping
 
 from kida.environment.core import Environment
 from kida.exceptions import ErrorCode, TemplateError
 
 # Types that are never safe to expose in templates
+_FUNCTION_TYPE = type(lambda: 0)
+_DEFAULT_SANDBOX_MARKER = object()
 _UNSAFE_TYPES = frozenset(
     {
         type,  # type() can access metaclasses
-        type(lambda: 0),  # function type — can access __globals__
+        _FUNCTION_TYPE,  # function type — can access __globals__
         type((lambda: 0).__code__),  # code objects
         type(type.__dict__["__dict__"]),  # getset_descriptor
     }
 )
+
+
+def _no_trusted_callables() -> tuple[object, ...]:
+    """Return the empty trusted-callable set for direct helper use."""
+    return ()
+
 
 # Attribute names that are always blocked
 _BLOCKED_ATTRS = frozenset(
@@ -187,8 +195,9 @@ class SandboxPolicy:
         allow_mutating_methods: Whether mutating collection methods (append,
             pop, clear, etc.) are accessible. Default: False.
         allow_calling: Set of type names whose instances may be called.
-            If None (default), all callables obtained via attribute access
-            are allowed. Pass an empty frozenset to block all calls.
+            If None (default), non-blocked callable types are allowed. Python
+            functions are callable only when registered as environment globals
+            or compiled by Kida. Pass an empty frozenset to block all calls.
         max_output_size: Maximum render output length in characters.
             None means unlimited.
         max_range: Maximum range() size. Default: 10000.
@@ -422,8 +431,10 @@ class SandboxedEnvironment(Environment):
     """
 
     sandbox_policy: SandboxPolicy | None = None
+    _sandbox_marker: object = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._sandbox_marker = object()
         self._sandbox_policy = self.sandbox_policy or DEFAULT_POLICY
         super().__post_init__()
         # Replace range() in globals with sandboxed version
@@ -432,19 +443,37 @@ class SandboxedEnvironment(Environment):
     def _get_sandbox_policy(self) -> SandboxPolicy:
         return self._sandbox_policy
 
+    def _get_sandbox_marker(self) -> object:
+        return self._sandbox_marker
 
-def _make_sandboxed_call(policy: SandboxPolicy):
+
+def _make_sandboxed_call(
+    policy: SandboxPolicy,
+    *,
+    namespace: dict[str, Any] | None = None,
+    sandbox_marker: object = _DEFAULT_SANDBOX_MARKER,
+    trusted_callables: Callable[[], Iterable[object]] = _no_trusted_callables,
+):
     """Create a call interceptor that blocks unsafe callables.
 
-    When ``policy.allow_calling`` is None, all callables are permitted
-    (attribute-level checks are still enforced).  When set to a
+    When ``policy.allow_calling`` is None, non-blocked callable types are
+    permitted (attribute-level checks are still enforced). When set to a
     frozenset of type names, only instances of those types may be called.
-    Blocked types (function, type, code) are always denied.
+    Blocked types (function, type, code) are always denied unless the callable
+    is an application-registered environment global or a function compiled
+    inside this template namespace. The explicit ``allow_calling`` policy is
+    still applied to those trusted callables when configured.
     """
 
     def sandboxed_call(func: Any, *args: Any, **kwargs: Any) -> Any:
+        trusted = any(func is candidate for candidate in trusted_callables())
+        if not trusted and type(func) is _FUNCTION_TYPE:
+            function_globals = func.__globals__
+            trusted = function_globals is namespace or (
+                function_globals.get("_kida_sandbox_marker") is sandbox_marker
+            )
         # Always block calls to fundamentally unsafe types
-        if _is_type_blocked(func, policy):
+        if not trusted and _is_type_blocked(func, policy):
             raise SecurityError(
                 f"Calling objects of type {type(func).__name__!r} is blocked by sandbox policy",
                 code=ErrorCode.BLOCKED_CALLABLE,
@@ -466,7 +495,29 @@ def _make_sandboxed_call(policy: SandboxPolicy):
     return sandboxed_call
 
 
-def patch_template_namespace(namespace: dict[str, Any], policy: SandboxPolicy) -> None:
+def _make_sandboxed_optional_call(sandboxed_call: Callable[..., Any]):
+    """Preserve optional-call short circuiting while enforcing call policy."""
+    from kida.template.helpers import UNDEFINED
+
+    def sandboxed_optional_call(
+        callee: Callable[..., object] | object | None,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
+        if callee is None or callee is UNDEFINED:
+            return UNDEFINED
+        return sandboxed_call(callee, *args, **kwargs)
+
+    return sandboxed_optional_call
+
+
+def patch_template_namespace(
+    namespace: dict[str, Any],
+    policy: SandboxPolicy,
+    *,
+    sandbox_marker: object = _DEFAULT_SANDBOX_MARKER,
+    trusted_callables: Callable[[], Iterable[object]] = _no_trusted_callables,
+) -> None:
     """Patch a template namespace dict to enforce sandbox restrictions.
 
     Called by Template.__init__ when the environment is a SandboxedEnvironment.
@@ -477,7 +528,15 @@ def patch_template_namespace(namespace: dict[str, Any], policy: SandboxPolicy) -
     namespace["_getattr_none"] = _make_sandboxed_getattr_none(policy)
 
     # Replace call helper with sandboxed version that blocks unsafe callables
-    namespace["_sandboxed_call"] = _make_sandboxed_call(policy)
+    sandboxed_call = _make_sandboxed_call(
+        policy,
+        namespace=namespace,
+        sandbox_marker=sandbox_marker,
+        trusted_callables=trusted_callables,
+    )
+    namespace["_sandboxed_call"] = sandboxed_call
+    namespace["_optional_call"] = _make_sandboxed_optional_call(sandboxed_call)
+    namespace["_kida_sandbox_marker"] = sandbox_marker
 
     # Restrict builtins
     if policy.allow_import:

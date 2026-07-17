@@ -155,6 +155,7 @@ class Compiler(
         "_name",
         "_node_dispatch",
         "_outer_caller_expr",
+        "_sandboxed",
         "_scope_override",
         "_streaming",
     )
@@ -220,6 +221,9 @@ class Compiler(
 
     def __init__(self, env: Environment):
         self._env = env
+        from kida.sandbox import SandboxedEnvironment
+
+        self._sandboxed = isinstance(env, SandboxedEnvironment)
         self._cached_pure_filters: frozenset[str] | None = None
         self._last_block_cacheable_vars: set[str] = set()
         self._last_block_compiled_stmts: list[ast.stmt] | None = None
