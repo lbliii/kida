@@ -2,6 +2,10 @@
 
 `{% def %}`, `{% slot %}`, and `{% call %}` composed into a design system.
 
+This example demonstrates composition mechanics. Apply the
+[App-Owned Component Authoring Contract](https://lbliii.github.io/kida/docs/usage/components/#app-owned-authoring-contract)
+before promoting application-local markup into a shared component boundary.
+
 ## Run
 
 ```bash

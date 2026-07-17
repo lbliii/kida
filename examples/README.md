@@ -27,6 +27,10 @@ cd examples/file_loader && python app.py
 
 Kida's `{% def %}` / `{% call %}` / `{% slot %}` pattern for building reusable
 UI components. Supports default and named slots for multi-region composition.
+Use the
+[App-Owned Component Authoring Contract](https://lbliii.github.io/kida/docs/usage/components/#app-owned-authoring-contract)
+to decide which boundaries belong in a component and which route composition
+should remain inline.
 
 ```bash
 cd examples/components && python app.py
