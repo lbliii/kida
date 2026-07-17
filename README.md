@@ -398,6 +398,10 @@ for framework quickstarts, release hardening, and internal compiler modularizati
 Moving from 0.11.x? See the [0.12 release notes](https://lbliii.github.io/kida/releases/0.12.0/)
 for programmatic diagnostics, literal block metadata, and expanded free-threading proof.
 
+Using 0.12.0? Upgrade to 0.12.1 and read the
+[security release notes](https://lbliii.github.io/kida/releases/0.12.1/) for
+sandbox callable-policy and streamed output-limit fixes.
+
 ## Python Components Ecosystem
 
 Kida is the component layer in a broader pure-Python stack built for 3.14t

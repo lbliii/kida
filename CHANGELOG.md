@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-07-17
+
+### Security
+
+- Enforce sandbox callable trust and cumulative output limits consistently across
+  full, block, sync-stream, and async-stream render surfaces. Applications using
+  `SandboxedEnvironment` should upgrade promptly. (`#304`)
+
 ## [0.12.0] - 2026-07-13
 
 ### Added
