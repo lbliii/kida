@@ -1,0 +1,10 @@
+{% def text_field(name: str, label: str, value: str = "", help_id: str = "") %}
+<div class="field">
+  <label class="field__label" for="{{ name }}">{{ label }}</label>
+  <input class="field__input" id="{{ name }}" name="{{ name }}" value="{{ value }}"{% if help_id %} aria-describedby="{{ help_id }}"{% end %}>
+</div>
+{% end %}
+
+{% def submit_button(label: str, disabled: bool = false) %}
+<button class="button" type="submit"{% if disabled %} disabled aria-disabled="true"{% end %}>{{ label }}</button>
+{% end %}

@@ -203,6 +203,9 @@ decision, choose the narrowest props/slots/context interface, import it
 explicitly, then run `kida check` and inspect metadata. Extraction remains an
 architectural choice; diagnostics provide evidence, not a universal size limit.
 
+For a complete runnable application of this contract, see
+[[docs/tutorials/local-components|Build App-Owned Local Components]].
+
 ## Anatomy of a Component
 
 A Kida component is a `{% def %}` with typed parameters and slots:

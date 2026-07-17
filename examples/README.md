@@ -129,6 +129,17 @@ buttons inside cards, cards inside pages.
 cd examples/design_system && python app.py
 ```
 
+### `local_components/` -- App-Owned Components and CSS
+
+A framework-neutral application with typed controls, a product-specific search
+pattern, named and scoped slots, server-rendered accessible state, and ordinary
+app-owned semantic CSS. Includes explicit `kida check` and machine-readable
+component-inspection commands, plus tests for broken props and slot bindings.
+
+```bash
+uv run python examples/local_components/app.py
+```
+
 ### `flask_components/` -- Typed Components in Flask
 
 A real Flask 3.1 app using `kida.contrib.flask`: a typed form component on the
