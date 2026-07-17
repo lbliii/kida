@@ -100,6 +100,15 @@ def test_repository_scorecard_has_stable_contract(scorecard_module) -> None:
     assert scorecard["scope"]["source_files"] > 0
     assert scorecard["scope"]["test_files"] > 0
     assert len(scorecard["public_api"]["exports"]) == 74
+    assert scorecard["public_api"]["undocumented"] == [
+        "WorkerEnvironment",
+        "strip_colors",
+    ]
+    undocumented_budget = next(
+        budget for budget in budgets if budget["name"] == "undocumented_exports"
+    )
+    assert undocumented_budget["current"] == 2
+    assert undocumented_budget["ratchet"] == 2
     assert scorecard["import_closure"]["error"] is None
 
 

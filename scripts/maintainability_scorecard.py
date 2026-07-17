@@ -331,7 +331,7 @@ RATCHETS = {
     "classes_over_1000_lines": 4,
     "complexity_over_25": 11,
     "public_exports": 73,
-    "undocumented_exports": 14,
+    "undocumented_exports": 2,
     "basic_render_import_modules": 93,
     "source_test_ownership_percent": 63.4,
     "critical_coverage_percent": 84.5,

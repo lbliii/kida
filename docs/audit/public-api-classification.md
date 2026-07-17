@@ -115,8 +115,8 @@ The categories mean:
 | `strip_colors` | internal-before-1.0 | The generic terminal helper is root-exported without a root-level contract. |
 | `timed_block` | tooling/observability | Adds custom spans to the active render profile. |
 
-Category totals: 20 stable core, 27 stable advanced, 23
-tooling/observability, 0 deprecated, and 3 internal-before-1.0; 73 exports total.
+Category totals: 20 stable core, 28 stable advanced, 23
+tooling/observability, 0 deprecated, and 3 internal-before-1.0; 74 exports total.
 
 ## Follow-up Gaps
 
@@ -128,10 +128,10 @@ complete.
   `FreezeCache`, `FreezeCacheStats`, `ManifestDiff`, `RenderCapture`,
   `RenderManifest`, `SearchEntry`, `SearchManifestBuilder`, `captured_render`,
   `default_field_extractor`, and `get_capture` without changing their contracts.
-- The scorecard now finds four names absent from the README, published docs, and
-  checked examples: `ComponentWarning`, `KidaWarning`, `WorkerEnvironment`, and
-  `strip_colors`. Exact-name presence remains a coarse signal; the warning
-  categories still need explicit filtering guidance.
+- The scorecard now finds two names absent from the README, published docs, and
+  checked examples: `WorkerEnvironment` and `strip_colors`. `ComponentWarning`
+  and `KidaWarning` have published hierarchy and filtering guidance plus focused
+  behavior tests.
 - `Token`, `WorkerEnvironment`, and `strip_colors` need public-contract review
   before 1.0. Any removal or relocation requires a separately approved
   deprecation path because all three remain in today's `kida.__all__` snapshot.

@@ -33,9 +33,11 @@ uv run coverage json -o coverage.json
 uv run python scripts/maintainability_scorecard.py --coverage-json coverage.json
 ```
 
-## July 2026 Baseline
+## July 2026 Ratchets
 
-Measured from `origin/main` at `5b17831` after issue #196 was merged.
+The initial baseline was measured from `origin/main` at `5b17831` after issue
+#196 was merged. Checked-in ratchets tighten when later contract work produces a
+durable improvement; the table records the current ratchet for each metric.
 
 | Metric | Baseline ratchet | Direction | Target |
 |---|---:|---|---:|
@@ -43,7 +45,7 @@ Measured from `origin/main` at `5b17831` after issue #196 was merged.
 | Classes over 1,000 lines | 4 | no increase | 0 |
 | Functions above decision complexity 25 | 11 | no increase; review each | 11 |
 | Top-level exports | 73 | no increase without contract review | 73 |
-| Exports absent from public docs/examples | 14 | decrease | 0 |
+| Exports absent from public docs/examples | 2 | decrease | 0 |
 | Modules loaded by an isolated basic render | 93 | no increase | 93 |
 | Source files with a direct test-ownership signal | 63.4% | increase | 100% |
 | Selected critical-contract line coverage | 84.5% | increase | 95% |
@@ -77,9 +79,10 @@ not a reduction target.
 
 The issue's estimates of 12 functions over 200 lines, four classes over 1,000
 lines, roughly 44.7K production lines, roughly 46.6K test lines, and 73 exports
-match the executable baseline. The earlier estimate of 12 undocumented exports
-does not: the deterministic docs/examples scan finds 14. The scorecard records
-14 rather than encoding the stale estimate.
+matched the initial executable baseline. The earlier estimate of 12
+undocumented exports did not: the deterministic docs/examples scan initially
+found 14. Subsequent public-contract work documented all but
+`WorkerEnvironment` and `strip_colors`, so the report-only ratchet is now two.
 
 The issue's 211 Ruff complexity findings combined several rule families and
 thresholds. The scorecard's 11 outliers are intentionally narrower: functions

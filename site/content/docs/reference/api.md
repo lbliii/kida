@@ -793,15 +793,51 @@ Raised by `SandboxedEnvironment` when a template violates the security policy. C
 
 ### Warning Classes
 
-Compile-time warnings emitted during template compilation:
+Kida's Python warning categories share one root, so applications can choose a
+specific policy for component-contract findings or one policy for every Kida
+warning:
+
+```text
+UserWarning
+└── KidaWarning
+    ├── ComponentWarning
+    ├── PrecedenceWarning
+    ├── CoercionWarning
+    └── MigrationWarning
+```
 
 | Class | Code | Description |
 |-------|------|-------------|
+| `KidaWarning` | — | Base category for all Python warnings emitted by Kida |
+| `ComponentWarning` | K-CMP-001, K-CMP-002 | Invalid component arguments or statically known prop type mismatches |
 | `PrecedenceWarning` | K-WARN-001 | `\|` binds tighter than `??` |
 | `CoercionWarning` | — | Silent type coercion in filters (e.g. `"abc" \| float` → `0.0`) |
 | `MigrationWarning` | K-WARN-002 | Jinja `if`-local `{% set %}` is read after the Kida block or shadows a template-wide binding |
 
-These are standard Python warnings and can be filtered with `warnings.filterwarnings`.
+Promote only component-contract warnings to errors:
+
+```python
+import warnings
+
+from kida import ComponentWarning
+
+warnings.filterwarnings("error", category=ComponentWarning)
+```
+
+Or apply one policy to every current and future Kida warning category:
+
+```python
+import warnings
+
+from kida import KidaWarning
+
+warnings.filterwarnings("error", category=KidaWarning)
+```
+
+Python warning filters apply to subclasses, so the second example includes
+`ComponentWarning`, `PrecedenceWarning`, `CoercionWarning`, and
+`MigrationWarning`. `TemplateWarning` is different: it is the structured record
+stored in `Template.warnings`, not a subclass of Python's `Warning`.
 
 ---
 
