@@ -1,6 +1,6 @@
 ---
 title: Sandboxed Environment
-description: Run untrusted templates safely with configurable security policies
+description: Add configurable defense-in-depth controls for risky templates
 draft: false
 weight: 55
 lang: en
@@ -19,7 +19,13 @@ icon: shield
 
 # Sandboxed Environment
 
-When templates come from untrusted sources -- user-submitted CMS content, customer-editable email templates, or plugin systems -- you need to prevent them from accessing sensitive data or executing arbitrary code. `SandboxedEnvironment` is a drop-in replacement for `Environment` that intercepts attribute access, function calls, imports, and resource consumption at render time.
+`SandboxedEnvironment` is a drop-in replacement for `Environment` that adds
+defense-in-depth controls for attribute access, function calls, imports, and
+resource consumption at render time.
+
+> **Security boundary:** The sandbox is not process isolation. Do not rely on
+> it alone for adversarial template source. Curate the render context and add
+> process/container controls for CPU, memory, filesystem, network, and time.
 
 ```python
 from kida import SandboxedEnvironment
@@ -43,7 +49,11 @@ tmpl = env.from_string("{{ user.__class__.__mro__ }}")
 tmpl.render(user="hello")  # raises SecurityError
 ```
 
-The default policy blocks all dunder attributes (except a safe subset like `__len__` and `__iter__`), prevents access to function, type, and code objects, disables imports, and limits `range()` to 10,000 elements.
+The default policy blocks all dunder attributes (except a safe subset like
+`__len__` and `__iter__`), prevents access to and direct calls of untrusted
+Python function, type, and code objects, disables imports, and limits `range()`
+to 10,000 elements. Functions registered as environment globals and functions
+compiled from Kida `{% def %}` / component templates are trusted call targets.
 
 ## Security Policy Configuration
 
@@ -70,8 +80,8 @@ env = SandboxedEnvironment(sandbox_policy=policy)
 | `blocked_types` | `frozenset[type]` | `frozenset()` | Object types that cannot be accessed at all. Function, type, and code objects are always blocked regardless of this setting. |
 | `allow_import` | `bool` | `False` | Whether `__import__` is available in templates. |
 | `allow_mutating_methods` | `bool` | `False` | Whether mutating collection methods (`append`, `pop`, `clear`, etc.) are accessible. |
-| `allow_calling` | `frozenset[str] \| None` | `None` | Set of type names whose instances may be called. `None` permits all callables. An empty `frozenset()` blocks all calls. |
-| `max_output_size` | `int \| None` | `None` | Maximum render output length in characters. Raises `SecurityError` (K-SEC-005) when exceeded. `None` means unlimited. |
+| `allow_calling` | `frozenset[str] \| None` | `None` | Set of type names whose instances may be called. `None` permits non-blocked callable types; untrusted Python functions remain blocked. An empty `frozenset()` blocks all calls, including Kida component and environment-global calls. |
+| `max_output_size` | `int \| None` | `None` | Maximum cumulative render output length in characters across full, block, sync-stream, and async-stream surfaces. Raises `SecurityError` (K-SEC-005) when exceeded. `None` means unlimited. |
 | `max_range` | `int` | `10000` | Maximum `range()` size allowed in templates. |
 
 `SandboxPolicy` is a frozen dataclass -- construct a new instance for each configuration.
@@ -119,7 +129,10 @@ The sandbox intercepts every attribute access and function call at render time -
 
 1. **Attribute access** is checked against the policy before the value is returned. Blocked attributes raise `SecurityError` immediately.
 2. **Type checks** run on the object being accessed. If the object's type is in the unsafe set (or `blocked_types`), access is denied regardless of the attribute name.
-3. **Function calls** are intercepted when `allow_calling` is configured. The callable's type name is checked against the allowlist before invocation.
+3. **Function calls** are always intercepted. Fundamentally unsafe callable
+   types are denied unless the callable is an application-registered
+   environment global or a Kida-compiled function. When `allow_calling` is
+   configured, the callable's type name must also be in that allowlist.
 
 ```python
 from kida import SandboxedEnvironment, SecurityError
@@ -179,7 +192,11 @@ policy = SandboxPolicy(
 env = SandboxedEnvironment(sandbox_policy=policy)
 ```
 
-When `allow_calling` is `None` (the default), all callables obtained via attribute access are permitted -- attribute-level checks still apply. Set it to an empty `frozenset()` to block all function calls:
+When `allow_calling` is `None` (the default), non-blocked callable types are
+permitted after attribute checks. Arbitrary Python functions supplied only in
+render context remain blocked; register trusted application functions with
+`env.add_global(...)`. Set an empty `frozenset()` to block every function call,
+including Kida components and registered globals:
 
 ```python
 # Block all calls -- templates can only read attributes

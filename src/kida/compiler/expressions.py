@@ -100,6 +100,7 @@ class ExpressionCompilationMixin:
         _precomputed: list[Any]
         _precomputed_ids: dict[int, int]
         _has_async: bool
+        _sandboxed: bool
 
         def _emit_warning(
             self,
@@ -437,12 +438,10 @@ class ExpressionCompilationMixin:
         # Lexical caller scoping: caller() in call body inside def → use enclosing _caller
         outer = getattr(self, "_outer_caller_expr", None)
         if outer is not None and isinstance(node.func, Name) and node.func.name == "caller":
-            return ast.Call(
-                func=outer,
-                args=[self._compile_expr(a) for a in node.args],
-                keywords=[
-                    ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()
-                ],
+            return self._compile_runtime_call(
+                outer,
+                [self._compile_expr(a) for a in node.args],
+                [ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()],
             )
 
         keywords = [ast.keyword(arg=k, value=self._compile_expr(v)) for k, v in node.kwargs.items()]
@@ -475,10 +474,10 @@ class ExpressionCompilationMixin:
             else:
                 blocks_value = ast.Name(id="_blocks", ctx=ast.Load())
             keywords.append(ast.keyword(arg="_blocks", value=blocks_value))
-        call_node = ast.Call(
-            func=self._compile_expr(node.func),
-            args=[self._compile_expr(a) for a in node.args],
-            keywords=keywords,
+        call_node = self._compile_runtime_call(
+            self._compile_expr(node.func),
+            [self._compile_expr(a) for a in node.args],
+            keywords,
         )
         # Profiling: record macro call when target is a known {% def %} name
         # Skip when inside {% call %} block (needs raw ast.Call for _caller kwarg)
@@ -496,6 +495,21 @@ class ExpressionCompilationMixin:
                 keywords=[],
             )
         return call_node
+
+    def _compile_runtime_call(
+        self,
+        func: ast.expr,
+        args: list[ast.expr],
+        keywords: list[ast.keyword],
+    ) -> ast.Call:
+        """Compile a template call through policy only for sandboxed environments."""
+        if self._sandboxed:
+            return ast.Call(
+                func=ast.Name(id="_sandboxed_call", ctx=ast.Load()),
+                args=[func, *args],
+                keywords=keywords,
+            )
+        return ast.Call(func=func, args=args, keywords=keywords)
 
     def _compile_filter(self, node: Filter) -> ast.expr:
         """Compile filter expression (value | filter_name)."""

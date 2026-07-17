@@ -20,7 +20,7 @@ outside the current queue as `status/not-now`.
 | Work | Status | Tracker |
 |---|---|---|
 | Pre-1.0 stability rituals | Active upkeep | `plan/epic-pre-1.0-stabilization.md` |
-| Bounded execution queue | Active: cold-start boundaries, cache differential proof, and public warning documentation | [#273](https://github.com/lbliii/kida/issues/273), [#274](https://github.com/lbliii/kida/issues/274), [#275](https://github.com/lbliii/kida/issues/275) |
+| Bounded execution queue | Active: critical-path sandbox policy proof; imported call/slot streaming is the next preserved leaf | [#304](https://github.com/lbliii/kida/issues/304), [#305](https://github.com/lbliii/kida/issues/305) |
 | Downstream canary promotion evidence | Blocked until the fourteen-day observation gate and reverse-canary evidence are available | [#244](https://github.com/lbliii/kida/issues/244) |
 | Deferred product epics | Preserved as `status/not-now`; require a new grooming and stop-and-ask decision before implementation | [GitHub backlog](https://github.com/lbliii/kida/issues?q=is%3Aissue%20is%3Aopen%20label%3Astatus%2Fnot-now) |
 | Downstream pilot evidence policy | Complete; adopted into root steward guidance | [#245](https://github.com/lbliii/kida/issues/245) |
