@@ -256,6 +256,16 @@ level. Top-level declarations are visible to render, block render, component
 metadata, and static validation. Nested defs are not render-block targets and
 cannot be validated reliably.
 
+### k-tpl-005
+
+**Invalid template-root configuration** — Explicit multi-root inspection found
+a missing directory, duplicate namespace, or duplicate logical template
+identifier.
+
+Fix: Give every `--root` a unique namespace, verify each directory exists, and
+ensure every template has one unambiguous `namespace/relative/path` identifier.
+Inspection never applies unprefixed first-loader-wins behavior.
+
 ## Security Errors (K-SEC-xxx)
 
 Security errors occur in sandboxed environments when a template tries to access restricted resources.

@@ -11,10 +11,21 @@ def _add_check(sub: argparse._SubParsersAction) -> None:
         "check",
         help="Parse all templates under a directory (syntax + loader resolution)",
     )
-    parser.add_argument(
+    locations = parser.add_mutually_exclusive_group(required=True)
+    locations.add_argument(
         "template_dir",
+        nargs="?",
         type=Path,
         help="Root directory passed to FileSystemLoader",
+    )
+    locations.add_argument(
+        "--root",
+        action="append",
+        default=[],
+        dest="template_roots",
+        type=str,
+        metavar="NAMESPACE=PATH",
+        help="Explicit namespaced template root; repeat for multi-root inspection",
     )
     parser.add_argument(
         "--strict",
@@ -210,10 +221,21 @@ def _add_components(sub: argparse._SubParsersAction) -> None:
         "components",
         help="List all def components across templates",
     )
-    parser.add_argument(
+    locations = parser.add_mutually_exclusive_group(required=True)
+    locations.add_argument(
         "template_dir",
+        nargs="?",
         type=Path,
         help="Root directory passed to FileSystemLoader",
+    )
+    locations.add_argument(
+        "--root",
+        action="append",
+        default=[],
+        dest="template_roots",
+        type=str,
+        metavar="NAMESPACE=PATH",
+        help="Explicit namespaced template root; repeat for multi-root inspection",
     )
     parser.add_argument(
         "--json",

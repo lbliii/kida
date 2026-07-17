@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from itertools import groupby
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from kida._cli.common import write_stderr, write_stdout
 
 if TYPE_CHECKING:
     import argparse
     from pathlib import Path
+
+    from kida.inspection import ComponentRecord, TemplateRoot
 
 
 class ComponentParamRow(TypedDict):
@@ -29,6 +31,8 @@ class ComponentRow(TypedDict):
     depends_on: list[str]
     vararg: str | None
     kwarg: str | None
+    owner: NotRequired[str]
+    source_path: NotRequired[str]
 
 
 def collect_components(root: Path, *, filter_name: str | None) -> list[ComponentRow]:
@@ -72,6 +76,31 @@ def collect_components(root: Path, *, filter_name: str | None) -> list[Component
     return rows
 
 
+def _record_to_row(record: ComponentRecord) -> ComponentRow:
+    metadata = record.metadata
+    return {
+        "name": metadata.name,
+        "template": record.template,
+        "lineno": metadata.lineno,
+        "params": [
+            {
+                "name": param.name,
+                "annotation": param.annotation,
+                "has_default": param.has_default,
+                "required": param.is_required,
+            }
+            for param in metadata.params
+        ],
+        "slots": list(metadata.slots),
+        "has_default_slot": metadata.has_default_slot,
+        "depends_on": sorted(metadata.depends_on),
+        "vararg": metadata.vararg,
+        "kwarg": metadata.kwarg,
+        "owner": record.owner,
+        "source_path": record.source_path,
+    }
+
+
 def render_text(rows: list[ComponentRow], *, use_color: bool) -> str:
     """Render component metadata using the existing human output contract."""
     lines: list[str] = []
@@ -104,18 +133,56 @@ def render_text(rows: list[ComponentRow], *, use_color: bool) -> str:
     return "\n".join(lines) + "\n"
 
 
-def execute(template_dir: Path, *, json_output: bool, filter_name: str | None) -> int:
-    """List all components below one template directory."""
+def execute(
+    template_dir: Path | None,
+    *,
+    template_roots: tuple[TemplateRoot, ...] = (),
+    json_output: bool,
+    filter_name: str | None,
+) -> int:
+    """List components below one directory or explicit namespaced roots."""
     import json
     import os
     import sys
 
-    root = template_dir.resolve()
-    if not root.is_dir():
-        write_stderr(f"kida components: not a directory: {root}")
-        return 2
+    diagnostics = ()
+    partial = False
+    if template_roots:
+        from kida.inspection import inspect_components
 
-    rows = collect_components(root, filter_name=filter_name)
+        inspection = inspect_components(template_roots, filter_name=filter_name)
+        rows = [_record_to_row(record) for record in inspection.components]
+        diagnostics = inspection.diagnostics
+        partial = inspection.partial
+    else:
+        if template_dir is None:
+            write_stderr("kida components: provide TEMPLATE_DIR or at least one --root")
+            return 2
+        root = template_dir.resolve()
+        if not root.is_dir():
+            write_stderr(f"kida components: not a directory: {root}")
+            return 2
+        rows = collect_components(root, filter_name=filter_name)
+
+    if diagnostics:
+        if json_output:
+            from kida._diagnostic_renderers import diagnostic_to_dict
+
+            write_stdout(
+                json.dumps(
+                    {
+                        "components": rows,
+                        "diagnostics": [diagnostic_to_dict(item) for item in diagnostics],
+                        "partial": partial,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        else:
+            for diagnostic in diagnostics:
+                write_stderr(f"kida components: {diagnostic.code}: {diagnostic.message}")
+        return 2 if any(diagnostic.code == "K-TPL-005" for diagnostic in diagnostics) else 1
     if not rows:
         if filter_name:
             write_stderr(f"No components matching '{filter_name}' found.")
@@ -133,8 +200,18 @@ def execute(template_dir: Path, *, json_output: bool, filter_name: str | None) -
 
 def run(args: argparse.Namespace) -> int:
     """Adapt parsed arguments to component collection."""
+    import argparse
+
+    from kida._cli.roots import parse_template_root
+
+    try:
+        roots = tuple(parse_template_root(value) for value in args.template_roots)
+    except argparse.ArgumentTypeError as exc:
+        write_stderr(f"kida components: {exc}")
+        return 2
     return execute(
         args.template_dir,
+        template_roots=roots,
         json_output=args.json_output,
         filter_name=args.filter_name,
     )

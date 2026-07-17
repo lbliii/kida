@@ -54,6 +54,7 @@ Parse all `.html` templates under a directory. Reports syntax errors, loader res
 
 ```bash
 kida check <template_dir> [flags]
+kida check --root <namespace>=<directory> [--root ...] [flags]
 ```
 
 **Positional argument:**
@@ -72,6 +73,7 @@ kida check <template_dir> [flags]
 | `--typed` | Type-check templates against `{% template %}` declarations. |
 | `--lint-fragile-paths` | Suggest `./` relative paths for same-folder include, extends, embed, and import statements so folder moves stay zero-edit. Programmatic `FragilePathIssue` records expose `K-PATH-001`; CLI text remains unchanged. |
 | `--format {text,json,sarif}` | Select human text, Kida diagnostics JSON v1, or SARIF 2.1.0 output. Defaults to `text`. |
+| `--root NAMESPACE=PATH` | Inspect an explicitly namespaced root. Repeat for multiple roots; cannot be combined with `template_dir`. |
 
 ### Examples
 
@@ -92,6 +94,22 @@ Full lint pass (all checks enabled):
 ```bash
 kida check templates/ --strict --validate-calls --a11y --typed --lint-fragile-paths
 ```
+
+Validate explicit framework and application roots:
+
+```bash
+kida check \
+  --root framework=framework/templates \
+  --root app=app/templates \
+  --validate-calls
+```
+
+Multi-root template identifiers are stable and namespaced, such as
+`framework/components/card.html`. Cross-root imports use that full identifier.
+Root order does not create an implicit override: duplicate namespaces or
+logical identifiers are `K-TPL-005` configuration errors. JSON and SARIF retain
+the logical identifier as the diagnostic path and add `owner` and
+`source_path` metadata.
 
 ### Output format
 
@@ -253,6 +271,7 @@ List all `{% def %}` components across templates in a directory. Useful for audi
 
 ```bash
 kida components <template_dir> [flags]
+kida components --root <namespace>=<directory> [--root ...] [flags]
 ```
 
 **Positional argument:**
@@ -267,6 +286,7 @@ kida components <template_dir> [flags]
 |------|---------|-------------|
 | `--json` | off | Output as JSON for machine consumption. |
 | `--filter NAME` | none | Filter components by name (case-insensitive substring match). |
+| `--root NAMESPACE=PATH` | none | Inspect an explicitly namespaced root. Repeat for multiple roots; cannot be combined with `template_dir`. |
 
 ### Examples
 
@@ -287,6 +307,19 @@ Machine-readable output:
 ```bash
 kida components templates/ --json
 ```
+
+Inspect multiple explicitly owned component roots:
+
+```bash
+kida components \
+  --root framework=framework/templates \
+  --root app=app/templates \
+  --json
+```
+
+Multi-root JSON rows add `owner` and resolved `source_path` fields while
+retaining the existing component metadata fields. Configuration failures return
+an object containing `components`, structured `diagnostics`, and `partial`.
 
 ### Output format
 

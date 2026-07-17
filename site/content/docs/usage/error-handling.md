@@ -234,6 +234,7 @@ that categorize the diagnostic and link to documentation:
 | `K-TPL-002` | Template | Template syntax error |
 | `K-TPL-003` | Template | Circular macro import |
 | `K-TPL-004` | Template | Definition not top-level |
+| `K-TPL-005` | Template | Invalid or ambiguous explicit template-root configuration |
 | `K-SEC-001` | Security | Blocked attribute access |
 | `K-SEC-002` | Security | Blocked type access |
 | `K-SEC-003` | Security | Range limit exceeded |

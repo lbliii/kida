@@ -360,6 +360,19 @@ Use `diagnose_directory()` for programmatic parity with `kida check`. A supplied
 environment can also run namespaced `Extension.diagnose()` hooks with immutable
 source, AST, and visible component-signature context.
 
+Explicit framework/app roots use stable namespaces in both the CLI and public
+inspection API:
+
+```bash
+kida check --root framework=framework/templates --root app=app/templates --validate-calls
+kida components --root framework=framework/templates --root app=app/templates --json
+```
+
+Python adapters can pass a configured `Environment` to
+`kida.inspection.diagnose_roots()` and `inspect_components()` so their filters,
+globals, tests, and extensions participate without ambient discovery or a new
+configuration-file surface.
+
 </details>
 
 <details>

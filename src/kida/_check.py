@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import TYPE_CHECKING, final
 
 from kida import Environment, FileSystemLoader
@@ -45,9 +46,8 @@ from kida.lexer import Lexer, LexerError
 from kida.parser import Parser
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from kida.exceptions import TemplateWarning
+    from kida.inspection import _RootInventory
     from kida.nodes import Template as TemplateNode
     from kida.template import Template
 
@@ -117,14 +117,37 @@ class CheckResult:
         )
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class _CheckEntry:
+    name: str
+    source_path: Path
+    owner: str | None = None
+    validate_call_types: bool = True
+
+
 class _Collector:
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self,
+        root: str | Path,
+        *,
+        source_metadata: dict[str, tuple[str, str]] | None = None,
+    ) -> None:
         self.root = root
         self.events: list[CheckEvent] = []
         self.keys: set[tuple[object, ...]] = set()
         self.partial = False
+        self.source_metadata = source_metadata or {}
 
     def add(self, diagnostic: Diagnostic, *, phase: str, text: str) -> bool:
+        path = diagnostic.span.path
+        metadata = self.source_metadata.get(path) if path is not None else None
+        if metadata is not None:
+            diagnostic = _with_inventory_metadata(
+                diagnostic,
+                owner=metadata[0],
+                source_path=metadata[1],
+            )
         key = _diagnostic_key(diagnostic)
         if key in self.keys:
             return False
@@ -169,6 +192,18 @@ def _with_path(diagnostic: Diagnostic, path: str) -> Diagnostic:
         diagnostic,
         span=SourceSpan(path=path, start=diagnostic.span.start, end=diagnostic.span.end),
     )
+
+
+def _with_inventory_metadata(
+    diagnostic: Diagnostic,
+    *,
+    owner: str,
+    source_path: str,
+) -> Diagnostic:
+    """Attach root ownership without changing the logical diagnostic path."""
+    metadata = dict(diagnostic.metadata)
+    metadata.update({"owner": owner, "source_path": source_path})
+    return replace(diagnostic, metadata=tuple(sorted(metadata.items())))
 
 
 def _compiler_warning_text(diagnostic: Diagnostic) -> str:
@@ -237,6 +272,46 @@ def _exception_diagnostic(exc: Exception, path: str | None) -> Diagnostic:
         title=type(exc).__name__,
         kind="check-failure",
         confidence=DiagnosticConfidence.RUNTIME_ONLY,
+        documentation_url=code.docs_url,
+    )
+
+
+def _exception_template_path(
+    exc: Exception,
+    fallback: str,
+    source_names: dict[str, str] | None = None,
+) -> str:
+    """Prefer the actual failing imported template over its caller."""
+    for attribute in ("name", "template_name", "template"):
+        value = getattr(exc, attribute, None)
+        if isinstance(value, str) and value:
+            if source_names is not None:
+                logical_name = source_names.get(str(Path(value).resolve()))
+                if logical_name is not None:
+                    return logical_name
+            return value
+    return fallback
+
+
+def _loader_ownership_diagnostic(
+    *,
+    name: str,
+    expected_path: Path,
+    actual_path: str | None,
+) -> Diagnostic:
+    """Reject an adapter loader that resolves an inventoried name elsewhere."""
+    code = ErrorCode.TEMPLATE_ROOT_CONFIGURATION
+    actual = actual_path or "<no source path>"
+    return Diagnostic(
+        code=code.value,
+        category=code.category,
+        severity=DiagnosticSeverity.ERROR,
+        message=(f"loader resolved '{name}' to {actual}, expected {expected_path.resolve()}"),
+        span=SourceSpan(path=name),
+        title="Template root ownership mismatch",
+        kind="template-root-ownership",
+        suggestion="Configure the adapter environment loader with the same namespaced roots.",
+        confidence=DiagnosticConfidence.PROVEN,
         documentation_url=code.docs_url,
     )
 
@@ -464,8 +539,6 @@ def collect_check_diagnostics(
     root = template_dir.resolve()
     if not root.is_dir():
         return _invalid_root_result(root)
-
-    collector = _Collector(root)
     # Diagnostics need producer records, which are not serialized in bytecode
     # cache entries. Compile deterministically so cache hits cannot drop
     # TemplateWarning findings between otherwise identical checks.
@@ -474,13 +547,102 @@ def collect_check_diagnostics(
         validate_calls=False,
         bytecode_cache=False,
     )
+    entries = tuple(
+        _CheckEntry(
+            name=path.relative_to(root).as_posix(),
+            source_path=path,
+            validate_call_types=path.suffix == ".html",
+        )
+        for path in _iter_templates(root)
+    )
+    return _collect_diagnostics(
+        str(root),
+        entries,
+        environment=env,
+        configuration_diagnostics=(),
+        strict=strict,
+        validate_calls=validate_calls,
+        a11y=a11y,
+        typed=typed,
+        lint_fragile_paths=lint_fragile_paths,
+    )
+
+
+def collect_inventory_diagnostics(
+    inventory: _RootInventory,
+    *,
+    environment: Environment,
+    strict: bool,
+    validate_calls: bool,
+    a11y: bool,
+    typed: bool,
+    lint_fragile_paths: bool,
+) -> CheckResult:
+    """Collect diagnostics from a validated explicit root inventory."""
+    from os.path import commonpath
+
+    raw_entries = inventory.entries
+    entries = tuple(
+        _CheckEntry(
+            name=entry.name,
+            source_path=entry.source_path,
+            owner=entry.owner,
+        )
+        for entry in raw_entries
+    )
+    paths = [str(root.path.resolve()) for root in inventory.roots]
+    root_label = commonpath(paths) if paths else str(Path.cwd().resolve())
+    return _collect_diagnostics(
+        root_label,
+        entries,
+        environment=environment,
+        configuration_diagnostics=inventory.diagnostics,
+        strict=strict,
+        validate_calls=validate_calls,
+        a11y=a11y,
+        typed=typed,
+        lint_fragile_paths=lint_fragile_paths,
+    )
+
+
+def _collect_diagnostics(
+    root: str,
+    entries: tuple[_CheckEntry, ...],
+    *,
+    environment: Environment,
+    configuration_diagnostics: tuple[Diagnostic, ...],
+    strict: bool,
+    validate_calls: bool,
+    a11y: bool,
+    typed: bool,
+    lint_fragile_paths: bool,
+) -> CheckResult:
+    """Run the shared single- and multi-root diagnostic pipeline."""
+    source_metadata = {
+        entry.name: (entry.owner, str(entry.source_path))
+        for entry in entries
+        if entry.owner is not None
+    }
+    source_names = {str(entry.source_path.resolve()): entry.name for entry in entries}
+    collector = _Collector(root, source_metadata=source_metadata)
+    for diagnostic in configuration_diagnostics:
+        collector.add(
+            diagnostic,
+            phase="configuration",
+            text=f"kida check: {diagnostic.code}: {diagnostic.message}",
+        )
+    if configuration_diagnostics:
+        collector.partial = True
+    configuration_failed = bool(configuration_diagnostics)
+    env = environment
     failed_loads: set[str] = set()
     templates: dict[str, Template] = {}
     strict_warnings = 0
     call_issues = 0
 
-    for path in _iter_templates(root):
-        rel = path.relative_to(root).as_posix()
+    for entry in entries:
+        path = entry.source_path
+        rel = entry.name
         try:
             # Compiler warnings are collected below as structured diagnostics.
             # Suppress their legacy Python-warning mirror only within this load
@@ -492,12 +654,32 @@ def collect_check_diagnostics(
                 warnings.simplefilter("ignore", MigrationWarning)
                 warnings.simplefilter("ignore", PrecedenceWarning)
                 tpl = env.get_template(rel)
+            if entry.owner is not None:
+                actual_path = tpl._filename
+                if actual_path is None or Path(actual_path).resolve() != path.resolve():
+                    collector.add(
+                        _loader_ownership_diagnostic(
+                            name=rel,
+                            expected_path=path,
+                            actual_path=actual_path,
+                        ),
+                        phase="configuration",
+                        text=(
+                            f"kida check: {ErrorCode.TEMPLATE_ROOT_CONFIGURATION.value}: "
+                            f"loader ownership mismatch for {rel}"
+                        ),
+                    )
+                    collector.partial = True
+                    configuration_failed = True
+                    failed_loads.add(rel)
+                    continue
             templates[rel] = tpl
         except Exception as exc:
+            error_path = _exception_template_path(exc, rel, source_names)
             collector.add(
-                _exception_diagnostic(exc, rel),
+                _exception_diagnostic(exc, error_path),
                 phase="load",
-                text=f"{rel}: {exc}",
+                text=f"{error_path}: {exc}",
             )
             collector.partial = True
             failed_loads.add(rel)
@@ -574,11 +756,10 @@ def collect_check_diagnostics(
 
     type_mismatches = 0
     if validate_calls:
-        for path in sorted(root.rglob("*.html")):
-            rel = path.relative_to(root).as_posix()
-            if rel in failed_loads:
+        call_type_names = {entry.name for entry in entries if entry.validate_call_types}
+        for rel, tpl in templates.items():
+            if rel in failed_loads or rel not in call_type_names:
                 continue
-            tpl = templates[rel]
             if tpl._optimized_ast is None:
                 continue
             imported_defs = env._collect_imported_def_metadata(tpl._optimized_ast, rel)
@@ -687,7 +868,8 @@ def collect_check_diagnostics(
     total = len(collector.keys)
     if total:
         collector.summary(phase="final", text=f"kida check: {total} problem(s)")
-    return collector.build(exit_code=1 if total else 0)
+    exit_code = 2 if configuration_failed else 1 if total else 0
+    return collector.build(exit_code=exit_code)
 
 
 def collect_source_diagnostics(
