@@ -309,6 +309,13 @@ Compiled bytecode is persisted to disk and loaded on subsequent runs. Treat the
 cache directory as trusted application-owned state, just like Python bytecode:
 do not place it on a shared or user-writable path.
 
+Kida also persists compiler-warning facts with the bytecode, so
+`Template.warnings` and emitted Python warnings are identical whether a template
+is compiled from source or loaded from cache. Component call-validation warnings
+are recomputed against the current imported component signatures. Cache records
+are versioned; incompatible or malformed records are treated as misses and
+replaced atomically.
+
 ## See Also
 
 - [[docs/reference/api|API Reference]] — Environment, loaders

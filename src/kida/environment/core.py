@@ -90,6 +90,28 @@ def _component_call_warning(issue: Any, template_name: str | None) -> Any:
     )
 
 
+def _emit_template_warnings(template_warnings: list[Any]) -> None:
+    """Emit structured template warnings through Python's warning surface."""
+    if not template_warnings:
+        return
+    import warnings as warnings_module
+
+    from kida.exceptions import (
+        ComponentWarning,
+        ErrorCode,
+        MigrationWarning,
+        PrecedenceWarning,
+    )
+
+    warning_categories = {
+        ErrorCode.COMPONENT_CALL_SIGNATURE: ComponentWarning,
+        ErrorCode.JINJA2_SET_SCOPING: MigrationWarning,
+    }
+    for template_warning in template_warnings:
+        category = warning_categories.get(template_warning.code, PrecedenceWarning)
+        warnings_module.warn(template_warning.format_message(), category, stacklevel=3)
+
+
 def _iter_nodes(root: Any) -> Any:
     """Yield AST nodes depth-first without depending on a visitor class."""
     yield root
@@ -573,6 +595,21 @@ class Environment:
                     imported[alias or original] = def_meta
         return imported
 
+    def _collect_component_call_warnings(
+        self,
+        ast: TemplateNode,
+        name: str | None,
+    ) -> list[Any]:
+        """Recompute import-sensitive call diagnostics from the current loader state."""
+        if not self.validate_calls:
+            return []
+        from kida.analysis.analyzer import BlockAnalyzer
+
+        analyzer = BlockAnalyzer()
+        imported_defs = self._collect_imported_def_metadata(ast, name)
+        call_issues = analyzer.validate_calls_with_external_defs(ast, imported_defs)
+        return [_component_call_warning(issue, name or "<string>") for issue in call_issues]
+
     def install_translations(self, translations: Any) -> None:
         """Install a gettext translations object.
 
@@ -892,6 +929,55 @@ class Environment:
         resolved_static = static_context if static_context is not None else self.static_context
         return self._compile(source, name, None, static_context=resolved_static)
 
+    def _prepare_template_ast(
+        self,
+        source: str,
+        name: str | None,
+        filename: str | None,
+        *,
+        static_context: dict[str, Any] | None,
+        should_escape: bool,
+    ) -> TemplateNode:
+        """Parse and optimize source identically for cold and cache fallback paths."""
+        from kida.parser import Parser
+
+        lexer = Lexer(source, self._lexer_config)
+        tokens = list(lexer.tokenize())
+        parser = Parser(
+            tokens,
+            name,
+            filename,
+            source,
+            autoescape=should_escape,
+            extension_tags=self._extension_tags or None,
+        )
+        ast = parser.parse()
+
+        from kida.compiler.partial_eval import eliminate_dead_code
+
+        ast = eliminate_dead_code(ast)
+        if not static_context:
+            return ast
+
+        from kida.compiler.partial_eval import partial_evaluate
+
+        escape_fn = None
+        if should_escape:
+            from kida.utils.html import Markup
+
+            escape_fn = Markup.escape
+
+        from kida.utils.constants import PURE_FILTERS_ALL
+
+        return partial_evaluate(
+            ast,
+            static_context,
+            escape_func=escape_fn,
+            pure_filters=PURE_FILTERS_ALL | frozenset(self.pure_filters),
+            filter_callables=self._filters,
+            inline_components=self.inline_components,
+        )
+
     def _compile(
         self,
         source: str,
@@ -908,10 +994,14 @@ class Environment:
         When ``static_context`` is provided, runs a partial evaluation pass
         before compilation to replace static expressions with constants.
         """
-        # Check bytecode cache first (for fast cold-start). If static_context
-        # is used for partial evaluation, include a deterministic context hash.
+        # Check bytecode cache first (for fast cold-start). Static context and
+        # warning-affecting compiler configuration participate in the key.
         source_hash = None
-        context_hash = _hash_static_context(static_context)
+        context_hash = _hash_compile_context(
+            static_context,
+            jinja2_compat_warnings=self.jinja2_compat_warnings,
+        )
+        should_escape = self.select_autoescape(name)
         if self._bytecode_cache is not None and name is None:
             from kida.bytecode_cache import hash_source
 
@@ -929,107 +1019,51 @@ class Environment:
             from kida.bytecode_cache import hash_source
 
             source_hash = hash_source(source)
-            cached_code, cached_ast, cached_precomputed = self._bytecode_cache.get(
+            cached_artifact = self._bytecode_cache._get_artifact(
                 name, source_hash, context_hash=context_hash
             )
-            if cached_code is not None:
-                # Resolve AST for introspection when preserve_ast is enabled.
-                # Prefer the cached (pickled) AST to avoid a full re-parse.
-                # Fall back to re-parsing when the cached AST is absent (old
-                # cache entry) or if pickle.loads raised an exception (the
-                # cache's get() already handled that and returned None).
-                optimized_ast = None
-                if self.preserve_ast:
-                    if cached_ast is not None:
-                        optimized_ast = cast("TemplateNode", cached_ast)
-                    else:
-                        from kida.parser import Parser
-
-                        lexer = Lexer(source, self._lexer_config)
-                        tokens = list(lexer.tokenize())
-                        should_escape = self.select_autoescape(name)
-                        parser = Parser(
-                            tokens,
-                            name,
-                            filename,
-                            source,
-                            autoescape=should_escape,
-                            extension_tags=self._extension_tags or None,
-                        )
-                        optimized_ast = parser.parse()
-
-                return Template(
+            if cached_artifact is not None and cached_artifact.compiler_warnings is not None:
+                analysis_ast = (
+                    cast("TemplateNode", cached_artifact.ast)
+                    if cached_artifact.ast is not None
+                    else None
+                )
+                if (self.preserve_ast or self.validate_calls) and analysis_ast is None:
+                    analysis_ast = self._prepare_template_ast(
+                        source,
+                        name,
+                        filename,
+                        static_context=static_context,
+                        should_escape=should_escape,
+                    )
+                validation_warnings = (
+                    self._collect_component_call_warnings(analysis_ast, name)
+                    if analysis_ast is not None
+                    else []
+                )
+                template = Template(
                     self,
-                    cached_code,
+                    cached_artifact.code,
                     name,
                     filename,
-                    optimized_ast=optimized_ast,
+                    optimized_ast=analysis_ast if self.preserve_ast else None,
                     source=source,
-                    precomputed=cached_precomputed,
+                    precomputed=cached_artifact.precomputed,
                 )
+                all_warnings = validation_warnings + list(cached_artifact.compiler_warnings)
+                template._compile_warnings = all_warnings
+                _emit_template_warnings(all_warnings)
+                return template
 
-        # Tokenize
-        from kida.parser import Parser
-
-        lexer = Lexer(source, self._lexer_config)
-        tokens = list(lexer.tokenize())
-
-        # Determine autoescape setting for this template
-        # Terminal mode uses its own escape function; the parser just needs a bool
-        should_escape = self.select_autoescape(name)
-
-        # Parse (pass source for rich error messages)
-        parser = Parser(
-            tokens,
+        ast = self._prepare_template_ast(
+            source,
             name,
             filename,
-            source,
-            autoescape=should_escape,
-            extension_tags=self._extension_tags or None,
+            static_context=static_context,
+            should_escape=should_escape,
         )
-        ast = parser.parse()
 
-        # Dead code elimination: remove const-only dead branches (always runs)
-        from kida.compiler.partial_eval import eliminate_dead_code
-
-        ast = eliminate_dead_code(ast)
-
-        # Partial evaluation: replace static expressions with constants
-        if static_context:
-            from kida.compiler.partial_eval import partial_evaluate
-
-            # Provide the escape function so folded Output nodes are
-            # correctly escaped at compile time (prevents XSS from
-            # static_context strings bypassing runtime escaping).
-            escape_fn = None
-            if should_escape:
-                from kida.utils.html import Markup
-
-                escape_fn = Markup.escape
-
-            from kida.utils.constants import PURE_FILTERS_ALL
-
-            ast = partial_evaluate(
-                ast,
-                static_context,
-                escape_func=escape_fn,
-                pure_filters=PURE_FILTERS_ALL | frozenset(self.pure_filters),
-                filter_callables=self._filters,
-                inline_components=self.inline_components,
-            )
-
-        validation_warnings: list[Any] = []
-
-        # Call-site validation (RFC: typed-def-parameters)
-        if self.validate_calls:
-            from kida.analysis.analyzer import BlockAnalyzer
-
-            analyzer = BlockAnalyzer()
-            imported_defs = self._collect_imported_def_metadata(ast, name)
-            call_issues = analyzer.validate_calls_with_external_defs(ast, imported_defs)
-            validation_warnings.extend(
-                _component_call_warning(issue, name or "<string>") for issue in call_issues
-            )
+        validation_warnings = self._collect_component_call_warnings(ast, name)
 
         # Preserve AST for introspection if enabled
         optimized_ast = ast if self.preserve_ast else None
@@ -1049,18 +1083,18 @@ class Environment:
                 seen.add(key)
                 compile_warnings.append(w)
 
-        # Cache bytecode (and AST when available) for future cold-starts.
-        # Serialising the AST avoids re-lexing/re-parsing on cache hits when
-        # preserve_ast=True.  optimized_ast is None when preserve_ast is False,
-        # in which case the cache entry simply contains no AST section.
+        # Cache compiler warnings with bytecode. Call-validation warnings are
+        # intentionally recomputed because imported signatures can change
+        # independently of this template's source hash.
         if self._bytecode_cache is not None and name is not None and source_hash is not None:
-            self._bytecode_cache.set(
+            self._bytecode_cache._set_artifact(
                 name,
                 source_hash,
                 code,
                 context_hash=context_hash,
-                ast=optimized_ast,
+                ast=ast if self.preserve_ast or self.validate_calls else None,
                 precomputed=precomputed,
+                compiler_warnings=tuple(compile_warnings),
             )
 
         tmpl = Template(
@@ -1074,25 +1108,8 @@ class Environment:
         )
         tmpl._compile_warnings = validation_warnings + compile_warnings
 
-        # Emit Python warnings for integration with pytest and logging
         all_warnings = validation_warnings + compile_warnings
-        if all_warnings:
-            import warnings as _warnings_mod
-
-            from kida.exceptions import (
-                ComponentWarning,
-                ErrorCode,
-                MigrationWarning,
-                PrecedenceWarning,
-            )
-
-            _warning_categories = {
-                ErrorCode.COMPONENT_CALL_SIGNATURE: ComponentWarning,
-                ErrorCode.JINJA2_SET_SCOPING: MigrationWarning,
-            }
-            for w in all_warnings:
-                category = _warning_categories.get(w.code, PrecedenceWarning)
-                _warnings_mod.warn(w.format_message(), category, stacklevel=2)
+        _emit_template_warnings(all_warnings)
 
         return tmpl
 
@@ -1402,4 +1419,23 @@ def _hash_static_context(static_context: dict[str, Any] | None) -> str | None:
         )
     except TypeError, ValueError:
         canonical = repr(static_context)
+    return sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def _hash_compile_context(
+    static_context: dict[str, Any] | None,
+    *,
+    jinja2_compat_warnings: bool,
+) -> str | None:
+    """Hash code- and compiler-warning-affecting cache configuration."""
+    static_hash = _hash_static_context(static_context)
+    # Preserve the established artifact path for the default configuration so
+    # direct cache consumers can continue to locate Environment-written code.
+    if jinja2_compat_warnings:
+        return static_hash
+    payload = {
+        "jinja2_compat_warnings": False,
+        "static_context": static_hash,
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return sha256(canonical.encode("utf-8")).hexdigest()[:16]
