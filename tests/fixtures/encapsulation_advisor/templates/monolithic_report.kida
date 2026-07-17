@@ -1,0 +1,29 @@
+{% template report: dict, rows: list %}
+<header>
+  <h1>{{ report.title }}</h1>
+  <p>Generated {{ report.generated_at }} for {{ report.owner }}</p>
+</header>
+<table>
+  <thead>
+    <tr><th scope="col">Item</th><th scope="col">Status</th><th scope="col">Value</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+      <tr>
+        <th scope="row">{{ row.label }}</th>
+        <td>
+          {% if row.failed %}
+            <strong>Failed</strong>
+          {% elif row.warning %}
+            <span>Warning</span>
+          {% else %}
+            <span>Passed</span>
+          {% endif %}
+        </td>
+        <td>{{ row.value }} {{ row.unit }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="3">No report rows.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

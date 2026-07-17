@@ -1,0 +1,3 @@
+{% def app_button(label: str, variant: str = "primary", disabled: bool = false) %}
+  {{ button(label=label, variant=variant, disabled=disabled) }}
+{% enddef %}

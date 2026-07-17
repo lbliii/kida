@@ -1,0 +1,148 @@
+{
+  "cases": {
+    "healthy-component": {
+      "ast_repeated_shape_groups": 0,
+      "branch_count": 2,
+      "component_call_count": 0,
+      "context_dependencies": [],
+      "definition_count": 1,
+      "dynamic_density_basis_points": 3056,
+      "dynamic_expression_count": 11,
+      "interactive_element_count": 1,
+      "loop_count": 0,
+      "markup_repeated_shape_groups": 0,
+      "max_depth": 5,
+      "node_count": 36,
+      "slot_count": 2,
+      "source_lines": 13
+    },
+    "healthy-layout": {
+      "ast_repeated_shape_groups": 0,
+      "branch_count": 2,
+      "component_call_count": 0,
+      "context_dependencies": [
+        "body_html",
+        "footer_links",
+        "navigation",
+        "site.description",
+        "site.name",
+        "site.notice",
+        "site.title"
+      ],
+      "definition_count": 0,
+      "dynamic_density_basis_points": 4407,
+      "dynamic_expression_count": 26,
+      "interactive_element_count": 3,
+      "loop_count": 2,
+      "markup_repeated_shape_groups": 0,
+      "max_depth": 4,
+      "node_count": 59,
+      "slot_count": 0,
+      "source_lines": 31
+    },
+    "message-row-candidate": {
+      "ast_repeated_shape_groups": 1,
+      "branch_count": 3,
+      "component_call_count": 0,
+      "context_dependencies": [
+        "current_user.id",
+        "messages"
+      ],
+      "definition_count": 0,
+      "dynamic_density_basis_points": 4918,
+      "dynamic_expression_count": 30,
+      "interactive_element_count": 4,
+      "loop_count": 1,
+      "markup_repeated_shape_groups": 0,
+      "max_depth": 6,
+      "node_count": 61,
+      "slot_count": 0,
+      "source_lines": 29
+    },
+    "monolithic-report": {
+      "ast_repeated_shape_groups": 0,
+      "branch_count": 4,
+      "component_call_count": 0,
+      "context_dependencies": [
+        "report.generated_at",
+        "report.owner",
+        "report.title",
+        "rows"
+      ],
+      "definition_count": 0,
+      "dynamic_density_basis_points": 4286,
+      "dynamic_expression_count": 18,
+      "interactive_element_count": 0,
+      "loop_count": 1,
+      "markup_repeated_shape_groups": 0,
+      "max_depth": 4,
+      "node_count": 42,
+      "slot_count": 0,
+      "source_lines": 29
+    },
+    "pass-through-component": {
+      "ast_repeated_shape_groups": 0,
+      "branch_count": 0,
+      "component_call_count": 1,
+      "context_dependencies": [
+        "button"
+      ],
+      "definition_count": 1,
+      "dynamic_density_basis_points": 3125,
+      "dynamic_expression_count": 5,
+      "interactive_element_count": 0,
+      "loop_count": 0,
+      "markup_repeated_shape_groups": 0,
+      "max_depth": 4,
+      "node_count": 16,
+      "slot_count": 0,
+      "source_lines": 3
+    },
+    "repeated-actions-candidate": {
+      "ast_repeated_shape_groups": 0,
+      "branch_count": 0,
+      "component_call_count": 0,
+      "context_dependencies": [
+        "account.archive_url",
+        "account.name",
+        "workspace.delete_url",
+        "workspace.name"
+      ],
+      "definition_count": 0,
+      "dynamic_density_basis_points": 4211,
+      "dynamic_expression_count": 8,
+      "interactive_element_count": 2,
+      "loop_count": 0,
+      "markup_repeated_shape_groups": 1,
+      "max_depth": 3,
+      "node_count": 19,
+      "slot_count": 0,
+      "source_lines": 16
+    },
+    "route-composition": {
+      "ast_repeated_shape_groups": 1,
+      "branch_count": 0,
+      "component_call_count": 2,
+      "context_dependencies": [
+        "account.name",
+        "account.summary",
+        "activity",
+        "activity_feed",
+        "project_summary",
+        "projects"
+      ],
+      "definition_count": 0,
+      "dynamic_density_basis_points": 4762,
+      "dynamic_expression_count": 10,
+      "interactive_element_count": 0,
+      "loop_count": 0,
+      "markup_repeated_shape_groups": 0,
+      "max_depth": 3,
+      "node_count": 21,
+      "slot_count": 0,
+      "source_lines": 17
+    }
+  },
+  "contract": "kida.encapsulation-advisor-profiles",
+  "contract_version": 1
+}

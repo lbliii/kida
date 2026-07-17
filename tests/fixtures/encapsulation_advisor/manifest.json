@@ -1,0 +1,62 @@
+{
+  "cases": [
+    {
+      "classification": "keep-component",
+      "expected_boundary": "project_card(project, compact=false); slots: actions, details",
+      "file": "healthy_component.kida",
+      "id": "healthy-component",
+      "protects_against": "existing meaningful interfaces being re-recommended",
+      "rationale": "Typed props, a visible default, named slots, accessibility structure, and a stable product concept already form a useful boundary."
+    },
+    {
+      "classification": "keep-inline",
+      "expected_boundary": null,
+      "file": "healthy_layout.kida",
+      "id": "healthy-layout",
+      "protects_against": "large-template and loop-count false positives",
+      "rationale": "The document shell is a single layout boundary; its navigation and footer loops do not independently prove another reusable interface."
+    },
+    {
+      "classification": "extract-candidate",
+      "expected_boundary": "MessageRow(message, current_user); slot: actions",
+      "file": "message_row_candidate.kida",
+      "id": "message-row-candidate",
+      "protects_against": "missing a substantial iterated product pattern",
+      "rationale": "The loop body owns repeated interactive and accessibility structure with a small lexical input boundary."
+    },
+    {
+      "classification": "keep-inline",
+      "expected_boundary": null,
+      "file": "monolithic_report.kida",
+      "id": "monolithic-report",
+      "protects_against": "branch-density and loop-body false positives",
+      "rationale": "This is a one-off tabular report whose branches express local cell state rather than a stable reusable product concept."
+    },
+    {
+      "classification": "flatten-candidate",
+      "expected_boundary": "Call button directly",
+      "file": "pass_through_component.kida",
+      "id": "pass-through-component",
+      "protects_against": "rewarding every small def as encapsulation",
+      "rationale": "The definition mirrors another call's values and default without adding behavior, policy, slots, accessibility, or reuse evidence."
+    },
+    {
+      "classification": "extract-candidate",
+      "expected_boundary": "DestructiveAction(action, title, explanation, button_label)",
+      "file": "repeated_actions_candidate.kida",
+      "id": "repeated-actions-candidate",
+      "protects_against": "missing repeated accessible interaction shapes",
+      "rationale": "Two sibling forms repeat behavior and accessibility relationships while varying a narrow set of values."
+    },
+    {
+      "classification": "keep-inline",
+      "expected_boundary": null,
+      "file": "route_composition.kida",
+      "id": "route-composition",
+      "protects_against": "turning one-off page arrangement into a wrapper component",
+      "rationale": "The route explicitly arranges existing product components and adds no reusable interface of its own."
+    }
+  ],
+  "contract": "kida.encapsulation-advisor-corpus",
+  "contract_version": 1
+}
