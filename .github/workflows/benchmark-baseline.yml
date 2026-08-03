@@ -43,3 +43,4 @@ jobs:
         with:
           name: benchmark-baseline-linux
           path: benchmarks/
+          retention-days: 14
