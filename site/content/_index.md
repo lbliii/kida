@@ -1,6 +1,6 @@
 ---
 title: Kida
-description: Server-side components for Python with typed props, named slots, and static validation — no npm or build step
+description: Pure-Python server-side components with typed props, named slots, and static validation
 template: home.html
 weight: 100
 type: page
@@ -26,12 +26,15 @@ show_recent_posts: false
 
 ## Server-Side Components for Python
 
-**Typed props. Named slots. Static validation. No npm. No build step.**
+**Typed. Composable. Checked before render.**
 
-Kida gives server-rendered Python apps a real component model. Define components
-with typed props, compose them with named slots, and catch broken calls before a
-request reaches production. The rendering substrate is pure Python 3.14+ with no
-runtime dependencies or JavaScript toolchain.
+Kida gives Python applications a real component model. Define components with
+typed props, compose them with named and scoped slots, and catch broken calls
+before a request reaches production. The same pure-Python engine renders HTML,
+Markdown, terminal output, and CI reports—with no npm, no build step, and no
+runtime dependencies.
+
+![Kida, a cross-eyed snow-lynx Bengal cat, actively assembling jungle components that become web, terminal, Markdown, and CI output](https://raw.githubusercontent.com/lbliii/kida/main/site/assets/images/kida-jungle-components-hero.webp)
 
 ```kida
 {% def card(title: str, variant: str = "default") %}
@@ -97,7 +100,7 @@ K-CMP-002: param 'count' expects int, got str ('five')
 
 ---
 
-## Use Kida Where You Are
+## One System, Many Surfaces
 
 - Add typed components to an existing Flask, Django, FastAPI, or Starlette app.
 - Render full pages, HTMX fragments, streamed responses, or static sites.
@@ -124,18 +127,19 @@ Includes a native `Markup` class for safe HTML handling—no markupsafe required
 
 ## Python Components Ecosystem
 
-Kida is the component layer in a broader pure-Python stack for 3.14t
-free-threading. Bengal remains a legacy integration rather than the identity of
-the stack.
+Kida is the component layer in a personal, pure-Python stack built for Python
+3.14t. Each project stands on its own; together they cover the path from content
+and components to applications, servers, sites, terminals, and developer tools.
 
 | | | | |
 |--:|---|---|---|
-| **ᓚᘏᗢ** | [Bengal](https://github.com/lbliii/bengal) | Legacy static-site integration | [Docs](https://lbliii.github.io/bengal/) |
-| **∿∿** | [Purr](https://github.com/lbliii/purr) | Content runtime | — |
 | **⌁⌁** | [Chirp](https://github.com/lbliii/chirp) | Web framework | [Docs](https://lbliii.github.io/chirp/) |
 | **=^..^=** | [Pounce](https://github.com/lbliii/pounce) | ASGI server | [Docs](https://lbliii.github.io/pounce/) |
 | **)彡** | **Kida** | Server-side component system ← You are here | [Docs](https://lbliii.github.io/kida/) |
+| **∿∿** | [Purr](https://github.com/lbliii/purr) | Content runtime | — |
+| **ᓚᘏᗢ** | [Bengal](https://github.com/lbliii/bengal) | Static-site integration | [Docs](https://lbliii.github.io/bengal/) |
 | **ฅᨐฅ** | [Patitas](https://github.com/lbliii/patitas) | Markdown parser | [Docs](https://lbliii.github.io/patitas/) |
 | **⌾⌾⌾** | [Rosettes](https://github.com/lbliii/rosettes) | Syntax highlighter | [Docs](https://lbliii.github.io/rosettes/) |
+| **ᓃ‿ᓃ** | [Milo](https://github.com/lbliii/milo-cli) | Terminal UI framework | [Docs](https://lbliii.github.io/milo-cli/) |
 
 Python-native. Free-threading ready. No npm required.

@@ -15,3 +15,4 @@ For user-facing documentation, see [`site/content/docs/`](../site/content/docs/)
 - **terminal-api-contract.md** — Terminal rendering API stability contract (v0.3.0+)
 - **downstream-pilot-policy.md** — Change-specific consumer pilot classification and evidence policy
 - **marketplace-listing.md** — GitHub Actions marketplace listing guide
+- **product-positioning.md** — Product category, message hierarchy, proof points, and editorial standard

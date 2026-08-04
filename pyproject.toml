@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kida-templates"
 version = "0.12.0"
-description = "Server-side components for Python with typed props, named slots, and static validation — no npm or build step"
+description = "Pure-Python server-side components with typed props, named slots, and static validation"
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MIT"
