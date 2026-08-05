@@ -175,6 +175,20 @@ def test_release_workflow_keeps_exact_free_threaded_python_setup():
     assert "allow-prereleases: true" in setup_python_step
 
 
+def test_pypi_publish_does_not_inherit_python_gil():
+    """pypa upload container is not free-threaded; GIL=0 belongs on our jobs only."""
+    workflow = (WORKFLOWS_DIR / "python-publish.yml").read_text(encoding="utf-8")
+
+    assert "\nenv:\n  PYTHON_GIL:" not in workflow
+    assert "Never set PYTHON_GIL at workflow scope" in workflow
+    gate_env = workflow.split("release-gate:", 1)[1].split("steps:", 1)[0]
+    build_env = workflow.split("release-build:", 1)[1].split("steps:", 1)[0]
+    publish_job = workflow.split("pypi-publish:", 1)[1]
+    assert 'PYTHON_GIL: "0"' in gate_env
+    assert 'PYTHON_GIL: "0"' in build_env
+    assert "PYTHON_GIL" not in publish_job
+
+
 def test_local_ruff_targets_use_the_same_repository_scope_as_ci():
     """Local lint, fix, format, and format-check targets cover the whole repo."""
     makefile = (ROOT_DIR / "Makefile").read_text(encoding="utf-8")
