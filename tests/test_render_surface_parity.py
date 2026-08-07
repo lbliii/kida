@@ -6,8 +6,8 @@ Invariant (sync-compatible trusted templates):
                        == "".join(render_stream_async(C))
     render_block(b, C) == "".join(render_block_stream_async(b, C))
 
-See plan/epic-render-surface-hardening.md and
-plan/design-render-surface-hardening.md for the corpus rationale.
+See docs/audit/epic-render-surface-hardening.md and
+docs/design/design-render-surface-hardening.md for the corpus rationale.
 
 Regression guard: reverting the render_block_stream_async preamble-setup fix
 (commit adding ``self._run_globals_setup_chain(ctx)`` inside
@@ -90,7 +90,7 @@ def _ctx(case: ParityCase) -> dict[str, Any]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Corpus (per plan/design-render-surface-hardening.md)
+# Corpus (per docs/design/design-render-surface-hardening.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
 CORPUS: list[ParityCase] = [
@@ -618,7 +618,7 @@ class TestFragmentScaffoldGate:
                 "_fragment_scaffold / _fragment_scaffold_async. Fragment "
                 "methods must use a scaffold so top-level let/def/region/import "
                 "setup is not silently skipped (see "
-                "plan/epic-render-surface-hardening.md, Sprint 2)."
+                "docs/audit/epic-render-surface-hardening.md, Sprint 2)."
             )
 
     def test_run_globals_setup_chain_callers_are_scaffolds_only(self) -> None:

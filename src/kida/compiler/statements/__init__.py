@@ -14,7 +14,7 @@ The statements package is organized into logical modules:
 - special_blocks: Remaining special blocks (raw, capture, spaceless, embed)
 
 Uses inline TYPE_CHECKING declarations for host attributes.
-See: plan/rfc-mixin-protocol-typing.md
+See: docs/design/rfc-mixin-protocol-typing.md
 
 """
 

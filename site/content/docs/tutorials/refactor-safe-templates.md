@@ -260,4 +260,4 @@ Render a page. It should just work.
 
 - [[docs/syntax/includes|Includes]] — Full include syntax including `Relative Paths` and `Namespace Aliases` sections.
 - [[docs/syntax/inheritance|Inheritance]] — `{% extends %}` accepts the same relative and alias forms.
-- `plan/rfc-relative-template-resolution.md` — Design document for the resolution system.
+- `docs/design/rfc-relative-template-resolution.md` — Design document for the resolution system.

@@ -1,44 +1,37 @@
-# Planning Index
+# Planning Policy
 
-`plan/` preserves both active direction and historical design evidence. A
-status such as **Implemented**, **Complete**, **Superseded**, **Rejected**, or
-**Historical** means the document body is a record, not current operational
-guidance. Commands and unchecked task lists inside those documents may describe
-the toolchain that existed when the decision was made.
+GitHub is Kida's source of truth for planning. The repository keeps only this
+policy, scoped instructions, and durable technical records needed to understand
+or maintain shipped behavior.
 
-Current contributor commands and invariants live in `AGENTS.md`, `CLAUDE.md`,
-`pyproject.toml`, `Makefile`, and the closest scoped `AGENTS.md`.
+## Hierarchy and execution
+
+- A **saga** states a cross-cutting strategic thesis and links its epics.
+- An **epic** owns one bounded outcome, its decisions, risks, evidence, and
+  child tasks.
+- A **task** is PR-sized work with explicit scope, proof, collateral, and
+  downstream-pilot classification where applicable.
+- Only one epic enters the active queue at a time. Its next child is labeled
+  `status/ready`; deferred work is `status/not-now`; a named external or
+  product gate is `status/blocked`.
+
+## Plan end state
+
+A task closes with its implementation or research result, verification,
+collateral, and linked PR—or an explicit `not planned` decision. An epic closes
+when its child tasks are resolved and its issue records the outcome, evidence,
+remaining risks, and any follow-up. A saga closes or is superseded when its
+strategic thesis is resolved.
+
+Do not leave evolving backlogs, unchecked implementation lists, or active
+roadmaps in the repository. Move a record into `docs/design/` or `docs/audit/`
+only when it explains maintained behavior or durable evidence; otherwise retain
+its history in Git and its decision trail in GitHub.
 
 ## Open Kida Work
 
-GitHub sagas and epics are strategic rollups, not direct implementation
-tickets. The executable queue is the set of open `task` issues labeled
-`status/ready`. Move one epic into execution at a time by marking it
-`status/active` and giving it a bounded ready child; preserve approved ideas
-outside the current queue as `status/not-now`.
+Inspect the [GitHub issue backlog](https://github.com/lbliii/kida/issues) for
+the active saga, `status/ready` task, deferred ideas, and named blockers. This
+repository deliberately does not duplicate that queue.
 
-| Work | Status | Tracker |
-|---|---|---|
-| Pre-1.0 stability rituals | Active upkeep | `plan/epic-pre-1.0-stabilization.md` |
-| Bounded execution queue | Active: critical-path sandbox policy proof; imported call/slot streaming is the next preserved leaf | [#304](https://github.com/lbliii/kida/issues/304), [#305](https://github.com/lbliii/kida/issues/305) |
-| Downstream canary promotion evidence | Blocked until the fourteen-day observation gate and reverse-canary evidence are available | [#244](https://github.com/lbliii/kida/issues/244) |
-| Deferred product epics | Preserved as `status/not-now`; require a new grooming and stop-and-ask decision before implementation | [GitHub backlog](https://github.com/lbliii/kida/issues?q=is%3Aissue%20is%3Aopen%20label%3Astatus%2Fnot-now) |
-| Downstream pilot evidence policy | Complete; adopted into root steward guidance | [#245](https://github.com/lbliii/kida/issues/245) |
-| Kida/Milo marketplace and external dogfooding | Active; external publication and PR work remains | `plan/epic-kida-milo-integration.md` |
-| Large-app ergonomics | Proposed; stop-and-ask items are not approved by the plan | `plan/epic-large-app-ergonomics.md` |
-| Runtime-helper `Any` reduction | Complete; tracker closed | [#146](https://github.com/lbliii/kida/issues/146) |
-
-## Historical Type-Checking Sequence
-
-The type-checking plans record three distinct stages:
-
-1. `rfc-type-checking-strategy.md` records the completed Pyright-to-mypy
-   migration.
-2. `rfc-type-suppression-reduction.md` and
-   `rfc-mixin-protocol-typing.md` record the mypy-era cleanup and protocol
-   design.
-3. Kida later migrated to ty. `pyproject.toml` is authoritative for current
-   overrides, and `make ty` is the current verification command.
-
-Do not execute historical mypy/Pyright commands or reopen their unchecked
-checklists without first reconciling them with the linked current issue.
+Current work: [GitHub issues](https://github.com/lbliii/kida/issues).

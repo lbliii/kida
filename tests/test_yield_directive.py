@@ -1,6 +1,6 @@
 """Tests for {% yield %} directive — context-independent slot rendering.
 
-RFC: plan/rfc-yield-directive.md
+RFC: docs/design/rfc-yield-directive.md
 """
 
 from __future__ import annotations

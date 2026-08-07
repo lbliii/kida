@@ -4,7 +4,7 @@ Provides mixin for compiling special block statements (raw, capture, spaceless, 
 
 With-blocks are in with_blocks.py; cache/filter_block are in caching.py.
 Uses inline TYPE_CHECKING declarations for host attributes.
-See: plan/rfc-mixin-protocol-typing.md
+See: docs/design/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations

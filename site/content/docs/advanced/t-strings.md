@@ -188,7 +188,7 @@ token = r(t"{ident_pat}|{string_pat}")
 
 ## Performance: T-Strings vs F-Strings
 
-T-string tag functions (`k()`, `plain()`) have measurable overhead compared to f-strings due to the function call and per-interpolation attribute access on `Interpolation` objects. Benchmarking from the [t-string dogfooding epic](https://github.com/lbliii/kida/blob/main/plan/epic-tstring-dogfooding.md) measured this on real internal code:
+T-string tag functions (`k()`, `plain()`) have measurable overhead compared to f-strings due to the function call and per-interpolation attribute access on `Interpolation` objects. Benchmarking from the [t-string dogfooding epic](https://github.com/lbliii/kida/blob/main/docs/audit/epic-tstring-dogfooding.md) measured this on real internal code:
 
 | Pattern | f-string | t-string | Slowdown |
 |---------|----------|----------|----------|

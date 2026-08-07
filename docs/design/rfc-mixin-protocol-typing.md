@@ -1,6 +1,9 @@
-# RFC: Type-Safe Mixin Patterns via Hybrid Protocol + Inline Declarations
+# Historical Design Record: Type-Safe Mixin Patterns via Hybrid Protocol + Inline Declarations
 
 **Status**: Implemented — core ty override debt removed in #142/#176
+
+> Historical technical rationale for maintained parser/compiler protocols. Active
+> planning and task tracking live in GitHub issues.
 
 | Field | Value |
 |-------|-------|

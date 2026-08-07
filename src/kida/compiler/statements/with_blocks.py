@@ -5,7 +5,7 @@ simple form ({% with var=expr %}) and the conditional form ({% with expr as targ
 
 Extracted from special_blocks.py for module focus (RFC: compiler decomposition).
 Uses inline TYPE_CHECKING declarations for host attributes.
-See: plan/rfc-mixin-protocol-typing.md
+See: docs/design/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations

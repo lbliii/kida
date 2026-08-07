@@ -1,11 +1,12 @@
-# Design Note: Render Surface Hardening (Sprint 0)
+# Historical Design Record: Render Surface Hardening
 
-**Epic**: [epic-render-surface-hardening.md](./epic-render-surface-hardening.md)
-**Status**: Complete — Sprint 0 design for completed `plan/epic-render-surface-hardening.md`
+**Delivery record**: [render-surface hardening](../audit/epic-render-surface-hardening.md)
+**Status**: Complete — historical design for the shipped parity corpus
 **Created**: 2026-04-17
 **Author**: Lawrence Lane
 
-Three decisions must land before Sprints 1–3 ship code. This note records them.
+This historical note records the decisions that shaped the shipped parity corpus.
+Active planning and task tracking live in GitHub issues.
 
 ---
 
@@ -209,6 +210,6 @@ If a property fails on hypothesis-shrunk input, the test **must not be hot-fixed
 
 ## Acceptance
 
-- [ ] This file exists at `plan/design-render-surface-hardening.md` (✓ with this commit).
+- [ ] This file exists at `docs/design/design-render-surface-hardening.md` (✓ with this commit).
 - [ ] Reviewed by the Sprint 1 implementer before code starts.
 - [ ] Any deviation in Sprint 1–3 execution is recorded as an amendment to this note, not as silent drift.
