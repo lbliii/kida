@@ -10,7 +10,7 @@ This hybrid approach:
 3. Enables IDE autocomplete and compile-time safety
 4. Has zero runtime cost (protocols erased at runtime)
 
-See: plan/rfc-mixin-protocol-typing.md
+See: docs/design/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations

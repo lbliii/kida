@@ -1,12 +1,15 @@
-# Epic: t-string Dogfooding — Eat Our Own Cooking
+# Historical Delivery Record: t-string Dogfooding
 
 **Status**: Complete (Sprint 0-4 delivered)
+
+> This is durable benchmark and adoption evidence, not an active epic. Active
+> planning and task tracking live in GitHub issues.
 **Created**: 2026-04-12
 **Completed**: 2026-04-12
 **Target**: v0.5.0
 **Estimated Effort**: 8–14 hours
 **Dependencies**: Python 3.14+ (already in use — `.python-version` is `3.14.2t`)
-**Source**: `plan/rfc-tstring-dogfooding.md`, codebase audit of string-building patterns
+**Source**: Historical RFC (available in Git history), codebase audit of string-building patterns
 
 ---
 

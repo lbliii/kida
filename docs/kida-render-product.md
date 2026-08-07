@@ -1,10 +1,10 @@
-# kida render — CI/CD Reporting as a Product
+# Historical Product Record: Kida Render — CI/CD Reporting
 
-**Status**: Historical product plan. Markdown rendering, the GitHub Action, fixture-backed
+**Status**: Historical product record. Markdown rendering, the GitHub Action, fixture-backed
 report templates, AMP schemas, and report contract tests have shipped. Current
-user-facing behavior lives in `site/content/docs/usage/github-action.md`; use
-this document for future bets such as gallery, teams, trend tracking, and
-broader transform coverage.
+user-facing behavior lives in `site/content/docs/usage/github-action.md`.
+Future bets belong in GitHub issues; no unchecked scope in this record is
+approved for implementation.
 
 ## One-liner
 

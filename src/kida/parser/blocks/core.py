@@ -3,7 +3,7 @@
 Provides base mixin for managing block stack and unified {% end %} syntax.
 
 Uses inline TYPE_CHECKING declarations for host attributes.
-See: plan/rfc-mixin-protocol-typing.md
+See: docs/design/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations

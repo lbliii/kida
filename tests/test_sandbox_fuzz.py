@@ -5,7 +5,7 @@ below is a differential or inclusive invariant that the sandbox must hold
 under arbitrary attribute-chain / loop-count / output-size input.
 
 Design rationale and property list:
-    plan/design-render-surface-hardening.md (Decision 3).
+    docs/design/design-render-surface-hardening.md (Decision 3).
 
 Protocol for a real finding:
     A property failure on hypothesis-shrunken input is a security signal,

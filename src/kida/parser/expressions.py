@@ -3,7 +3,7 @@
 Provides mixin for parsing expressions (ternary, binary, unary, primary, etc.).
 
 Uses inline TYPE_CHECKING declarations for host attributes and cross-mixin
-dependencies. See: plan/rfc-mixin-protocol-typing.md
+dependencies. See: docs/design/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ class ExpressionParsingMixin:
     """Mixin for parsing expressions.
 
     Host attributes accessed via inline TYPE_CHECKING declarations.
-    See: plan/rfc-mixin-protocol-typing.md
+    See: docs/design/rfc-mixin-protocol-typing.md
 
     """
 

@@ -3,7 +3,7 @@
 Provides minimal type contracts for compiler mixins to enable
 type-safe mixin patterns without exposing implementation details.
 
-See: plan/rfc-mixin-protocol-typing.md
+See: docs/design/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations

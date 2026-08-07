@@ -24,7 +24,7 @@ Design:
 - Detect backslashes in expressions (f-strings don't allow them)
 
 Uses inline TYPE_CHECKING declarations for host attributes.
-See: plan/rfc-mixin-protocol-typing.md
+See: docs/design/rfc-mixin-protocol-typing.md
 
 """
 

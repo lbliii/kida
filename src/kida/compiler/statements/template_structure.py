@@ -3,7 +3,7 @@
 Provides mixin for compiling template structure statements (block, include, from_import).
 
 Uses inline TYPE_CHECKING declarations for host attributes.
-See: plan/rfc-mixin-protocol-typing.md
+See: docs/design/rfc-mixin-protocol-typing.md
 """
 
 from __future__ import annotations

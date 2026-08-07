@@ -1,7 +1,7 @@
 # External References Configuration
 # ==================================
 # Enables cross-project documentation linking via [[ext:project:target]] syntax.
-# See: Bengal RFC plan/rfc-external-references.md
+# See the Bengal external-references RFC in that repository's Git history.
 
 external_refs:
   enabled: true

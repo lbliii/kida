@@ -1,6 +1,9 @@
-# RFC: Relative Template Resolution — Refactor-Safe Includes & Imports
+# Historical Design Record: Relative Template Resolution — Refactor-Safe Includes & Imports
 
 **Status**: Implemented — shipped in v0.8.0 (`CHANGELOG.md`)
+
+> Historical technical rationale for the maintained resolution contract. Active
+> planning and task tracking live in GitHub issues.
 **Created**: 2026-04-23
 **Target**: v0.8.0
 **Estimated Effort**: 14–22 hours
@@ -144,7 +147,7 @@ Decide and document:
 - **Adapter**: `Environment` wraps loaders and detects via `inspect.signature` whether they accept `caller`. Old loaders called with `(name,)`. New loaders called with `(name, caller=…)`. Benchmark: signature introspection happens once at loader registration, not per-call.
 - **Deprecation policy**: Old signature is *not* deprecated. It's a supported variant forever; loader authors opt in.
 
-**Acceptance**: Protocol change documented in `plan/rfc-relative-template-resolution.md` (this doc) and a code sketch in the RFC body. PR review on this RFC alone.
+**Acceptance**: Protocol change documented in `docs/design/rfc-relative-template-resolution.md` (this doc) and a code sketch in the RFC body. PR review on this RFC alone.
 
 ### 0.2 — Security model for `..` traversal
 
@@ -373,8 +376,7 @@ Optional: `kida check --lint` flags `{% include "x/y.html" %}` if `x/` exists as
 
 ## Relationship to Existing Work
 
-- **`plan/rfc-scoped-slots.md`** — parallel — both are "make Kida a real framework" DX improvements; no resolution-layer overlap.
-- **`plan/epic-template-framework-gaps.md`** (complete) — precedent for additive framework-completion work.
+- Historical scoped-slot and template-framework work — parallel framework-completion context with no resolution-layer overlap; details remain in Git history.
 - **Chirp `url_for` feedback (items 2–5 from user)** — out of scope here; belongs in Chirp repo. Cross-link from this RFC to the Chirp ticket once filed.
 - **Bengal SSG** — downstream consumer; invariant 1 means no migration needed. Bengal templates keep working.
 - **chirp-ui** — downstream consumer with heavy `{% def %}` / `{% call %}` use; will benefit from Sprint 1 immediately if it adopts relative imports in new components.
