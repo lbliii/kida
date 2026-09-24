@@ -19,3 +19,19 @@ def test_baseline_artifact_has_bounded_retention() -> None:
 
     assert "name: benchmark-baseline-linux" in workflow
     assert "retention-days: 14" in workflow
+
+
+def test_full_suite_coverage_artifact_has_bounded_best_effort_retention() -> None:
+    workflow = (ROOT / ".github/workflows/tests.yml").read_text()
+    slow_tests = workflow.split("  slow-tests:\n", maxsplit=1)[1].split(
+        "\n  # Benchmark regression check", maxsplit=1
+    )[0]
+    upload = slow_tests.split("- name: Upload full-suite coverage JSON\n", maxsplit=1)[1]
+
+    assert "--cov-report=json:reports/coverage.json" in slow_tests
+    assert "name: coverage-${{ github.sha }}" in upload
+    assert "path: reports/coverage.json" in upload
+    assert "retention-days: 14" in upload
+    assert "if-no-files-found: warn" in upload
+    assert "if: always()" in upload
+    assert "continue-on-error: true" in upload
