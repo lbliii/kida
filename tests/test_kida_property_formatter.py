@@ -53,6 +53,13 @@ class TestFormatterProperties:
     @settings(max_examples=100)
     @example(source="{% if outer -%}\nplain42\n{%- end -%}")
     @example(source=("{% if outer -%}\n{% if inner -%}\n{{- value -}}\n{%- end -%}\n{%- end -%}"))
+    @example(source="{% if outer -%}\n{{- first -}}\n{{- second -}}\n{%- end -%}")
+    @example(
+        source=(
+            "{% if outer -%}\n{{- then_value -}}\n{%- else -%}\n{{- else_value -}}\n{%- end -%}"
+        )
+    )
+    @example(source="{%if   outer   -%}\n{{-  value   -}}\n{%-  end   -%}")
     def test_parse_format_parse_preserves_ast(self, source: str) -> None:
         original_ast = _ast_shape(_parse_template(source))
         formatted_source = format_template(source)
