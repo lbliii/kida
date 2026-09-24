@@ -3,11 +3,16 @@
 RFC: kida-contextvar-patterns
 """
 
+import asyncio
 import threading
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
 from kida import Environment
+from kida.environment.exceptions import UndefinedError
+from kida.environment.loaders import DictLoader
 from kida.render_context import (
     RenderContext,
     get_render_context,
@@ -16,6 +21,7 @@ from kida.render_context import (
     reset_render_context,
     set_render_context,
 )
+from kida.template.render_helpers import make_render_helpers
 
 
 class TestRenderContext:
@@ -557,3 +563,89 @@ class TestCompilerEmittedProfiling:
         assert result == "BOB"
         assert summary["filters"]["upper"] == 1
         assert summary["filters"]["trim"] == 1
+
+
+def _assert_include_failure_restores_parent_context(
+    invoke_include: Callable[[dict[str, Any]], None],
+) -> None:
+    """Run a failing include helper and verify the caller context survives."""
+    env = Environment(
+        loader=DictLoader({"broken.html": "before {{ missing }} after"}),
+    )
+    helpers = make_render_helpers(lambda: env)
+    cached_blocks = {"header": "<header>"}
+    cache_stats = {"hits": 2, "misses": 1}
+
+    with render_context(
+        template_name="parent.html",
+        filename="/templates/parent.html",
+        source="parent source",
+        cached_blocks=cached_blocks,
+        cache_stats=cache_stats,
+        max_include_depth=12,
+    ) as parent:
+        parent.line = 17
+        parent.include_depth = 3
+        parent.template_stack.append(("ancestor.html", 8))
+        parent.component_stack.append(("parent.html", 17, "layout"))
+        parent.import_stack.append("macros.html")
+        parent.set_meta("request_id", "req-17")
+
+        template_stack = parent.template_stack
+        template_stack_value = template_stack.copy()
+        component_stack = parent.component_stack
+        component_stack_value = component_stack.copy()
+        import_stack = parent.import_stack
+        import_stack_value = import_stack.copy()
+        meta = parent._meta
+        meta_value = meta.copy()
+
+        invoke_include(helpers)
+
+        assert get_render_context() is parent
+        assert parent.template_name == "parent.html"
+        assert parent.filename == "/templates/parent.html"
+        assert parent.source == "parent source"
+        assert parent.line == 17
+        assert parent.include_depth == 3
+        assert parent.max_include_depth == 12
+        assert parent.cached_blocks is cached_blocks
+        assert parent.cached_block_names == frozenset({"header"})
+        assert parent.cache_stats is cache_stats
+        assert parent.template_stack is template_stack
+        assert parent.template_stack == template_stack_value
+        assert parent.component_stack is component_stack
+        assert parent.component_stack == component_stack_value
+        assert parent.import_stack is import_stack
+        assert parent.import_stack == import_stack_value
+        assert parent._meta is meta
+        assert parent._meta == meta_value
+
+
+def test_include_failure_restores_parent_render_context() -> None:
+    def invoke_include(helpers: dict[str, Any]) -> None:
+        with pytest.raises(UndefinedError, match="missing"):
+            helpers["_include"]("broken.html", {})
+
+    _assert_include_failure_restores_parent_context(invoke_include)
+
+
+def test_include_stream_failure_restores_parent_render_context() -> None:
+    def invoke_include(helpers: dict[str, Any]) -> None:
+        with pytest.raises(UndefinedError, match="missing"):
+            for _ in helpers["_include_stream"]("broken.html", {}):
+                pass
+
+    _assert_include_failure_restores_parent_context(invoke_include)
+
+
+def test_include_stream_async_failure_restores_parent_render_context() -> None:
+    def invoke_include(helpers: dict[str, Any]) -> None:
+        async def consume_stream() -> None:
+            with pytest.raises(UndefinedError, match="missing"):
+                async for _ in helpers["_include_stream_async"]("broken.html", {}):
+                    pass
+
+        asyncio.run(consume_stream())
+
+    _assert_include_failure_restores_parent_context(invoke_include)
