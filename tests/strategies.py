@@ -147,6 +147,74 @@ parser_fuzz_source = st.text(
     max_size=500,
 )
 
+# Parser/formatter round-trip sources use explicit trim markers so that
+# formatter-inserted indentation and line breaks do not become template data.
+_format_roundtrip_text = st.text(
+    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    min_size=1,
+    max_size=24,
+)
+_format_roundtrip_output = st.one_of(
+    safe_identifier.map(lambda name: f"{{{{- {name} -}}}}"),
+    safe_identifier.map(lambda name: f"{{{{-  {name}   -}}}}"),
+)
+
+
+def _format_roundtrip_sibling_outputs(names: list[str]) -> str:
+    """Join output statements whose trim markers discard formatter layout."""
+    return "\n".join(f"{{{{- {name} -}}}}" for name in names)
+
+
+_format_roundtrip_siblings = st.lists(
+    safe_identifier,
+    min_size=2,
+    max_size=3,
+).map(_format_roundtrip_sibling_outputs)
+
+
+def _wrap_format_roundtrip_if(
+    condition: str,
+    body: str,
+    else_body: str | None = None,
+    noncanonical_spacing: bool = False,
+) -> str:
+    """Wrap parser-valid bodies in trim-controlled if/else blocks."""
+    opening = f"{{%if   {condition}   -%}}" if noncanonical_spacing else f"{{% if {condition} -%}}"
+
+    if else_body is None:
+        return f"{opening}\n{body}\n{{%- end -%}}"
+    return f"{opening}\n{body}\n{{%- else -%}}\n{else_body}\n{{%- end -%}}"
+
+
+FORMAT_ROUNDTRIP_MAX_NESTING = 4
+_format_roundtrip_body = st.one_of(
+    _format_roundtrip_text, _format_roundtrip_output, _format_roundtrip_siblings
+)
+for _ in range(FORMAT_ROUNDTRIP_MAX_NESTING - 1):
+    _format_roundtrip_body = st.one_of(
+        _format_roundtrip_body,
+        st.builds(
+            _wrap_format_roundtrip_if,
+            safe_identifier,
+            _format_roundtrip_body,
+            noncanonical_spacing=st.booleans(),
+        ),
+        st.builds(
+            _wrap_format_roundtrip_if,
+            safe_identifier,
+            _format_roundtrip_body,
+            else_body=_format_roundtrip_body,
+            noncanonical_spacing=st.booleans(),
+        ),
+    )
+
+format_roundtrip_source = st.builds(
+    _wrap_format_roundtrip_if,
+    safe_identifier,
+    _format_roundtrip_body,
+    noncanonical_spacing=st.booleans(),
+)
+
 # ---------------------------------------------------------------------------
 # E2E fuzz strategies (source -> compile -> render)
 # ---------------------------------------------------------------------------
