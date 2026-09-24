@@ -501,10 +501,10 @@ not by a claim that every uncovered branch is a defect:
 | 7 | Escaping | 94 / 18 / 112 | 83.9% |
 | 8 | Diagnostic selection/rendering | 137 / 23 / 160 | 85.6% |
 
-The terminal lifecycle proof slice from #337 now closes the cursor,
-signal/atexit, transient cleanup, redraw/resize/fallback, and non-TTY output
-cases. Auto-refresh teardown remains gated on the owner decision in #338, so
-this does not mark the whole terminal contract complete.
+The PR #339/#341 sequence closes the TTY cursor/signal/atexit, transient
+cleanup, redraw, resize, and fallback proofs. Exact non-TTY output assertions
+and auto-refresh teardown remain open; the latter is gated on the owner
+decision in #338. This does not mark the whole terminal contract complete.
 
 Next bounded proof: assert that a failing included child restores the caller's
 `RenderContext` through `_include`, `_include_stream`, and
