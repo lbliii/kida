@@ -588,12 +588,13 @@ Status: current full-suite evidence for `main` after PR #343.
 Measured revision: `ce8d8491dcdbb87da9321278c316bdc7b3e4d21f`.
 
 The preceding post-#329 / #330 snapshot is preserved above as historical
-evidence. This run uses the same full-suite command, configured test paths,
-Python build, GIL state, coverage.py version, and OS/architecture as #330. The
-statement and branch denominators are unchanged. Covered counts increased by
-39 statements and 14 branches after the intervening test-only slices. This is a
-comparable point-to-point measurement, not evidence that a coverage percentage
-proves behavioral closure or that future changes will follow a trend.
+evidence. Except for the fresh JSON report path, this run uses the same
+full-suite pytest command/options, configured test paths, Python build and GIL
+state, coverage.py version, and OS/architecture as #330. The statement and
+branch denominators are unchanged. Covered counts increased by 39 statements
+and 14 branches after the intervening test-only slices. This is a comparable
+point-to-point measurement, not evidence that a coverage percentage proves
+behavioral closure or that future changes will follow a trend.
 
 ### Measurement protocol
 
