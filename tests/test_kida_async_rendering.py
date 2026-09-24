@@ -366,7 +366,7 @@ class TestAwaitExpression:
 
 
 class TestAsyncInheritance:
-    """Test async blocks in child templates with sync parents."""
+    """Test async blocks in child templates with sync and async parents."""
 
     @pytest.mark.asyncio
     async def test_child_async_block_with_sync_parent(
@@ -388,6 +388,66 @@ class TestAsyncInheritance:
         assert "hello" in result
         assert "<html>" in result
         assert "</html>" in result
+
+    @pytest.mark.asyncio
+    async def test_async_child_block_with_async_base_streams_exactly(
+        self,
+    ) -> None:
+        """Async child blocks keep exact order and see the render context."""
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "async_base.html": (
+                        "base:before|"
+                        "{% async for item in base_items %}base-item={{ item }}|{% end %}"
+                        "{% block body %}base-default|{% end %}|base:after"
+                    ),
+                    "async_child.html": (
+                        "{% extends 'async_base.html' %}{% block body %}"
+                        "child:before:{{ marker }}|"
+                        "{% async for item in child_items %}child-item={{ item }}|{% end %}"
+                        "child:after{% endblock %}"
+                    ),
+                }
+            )
+        )
+        base = env.get_template("async_base.html")
+        child = env.get_template("async_child.html")
+        assert base.is_async is True
+        assert child.is_async is True
+
+        chunks = [
+            chunk
+            async for chunk in child.render_stream_async(
+                marker="visible",
+                child_items=async_items(["c1", "c2"]),
+                base_items=async_items(["b1", "b2"]),
+            )
+        ]
+
+        assert chunks == [
+            "base:before|",
+            "base-item=",
+            "b1",
+            "|",
+            "base-item=",
+            "b2",
+            "|",
+            "child:before:visible|",
+            "child-item=",
+            "c1",
+            "|",
+            "child-item=",
+            "c2",
+            "|",
+            "child:after",
+            "|base:after",
+        ]
+        assert "".join(chunks) == (
+            "base:before|base-item=b1|base-item=b2|"
+            "child:before:visible|child-item=c1|child-item=c2|"
+            "child:after|base:after"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -412,6 +472,65 @@ class TestAsyncInclude:
         result = "".join(chunks)
         assert "sync partial" in result
         assert "x" in result
+
+    @pytest.mark.asyncio
+    async def test_async_page_includes_async_partial_with_exact_chunks_and_context(
+        self,
+    ) -> None:
+        """Async partial output is ordered and sees the page context."""
+        env = Environment(
+            loader=DictLoader(
+                {
+                    "async_page.html": (
+                        "page:before|{% include 'async_partial.html' %}|page:after|"
+                        "{% async for item in page_items %}page-item={{ item }}|{% end %}"
+                        "page:done"
+                    ),
+                    "async_partial.html": (
+                        "partial:before:{{ label }}|"
+                        "{% async for item in partial_items %}partial-item={{ item }}|{% end %}"
+                        "partial:done"
+                    ),
+                }
+            )
+        )
+        page = env.get_template("async_page.html")
+        partial = env.get_template("async_partial.html")
+        assert page.is_async is True
+        assert partial.is_async is True
+
+        chunks = [
+            chunk
+            async for chunk in page.render_stream_async(
+                label="visible",
+                partial_items=async_items(["p1", "p2"]),
+                page_items=async_items(["x", "y"]),
+            )
+        ]
+
+        assert chunks == [
+            "page:before|",
+            "partial:before:visible|",
+            "partial-item=",
+            "p1",
+            "|",
+            "partial-item=",
+            "p2",
+            "|",
+            "partial:done",
+            "|page:after|",
+            "page-item=",
+            "x",
+            "|",
+            "page-item=",
+            "y",
+            "|",
+            "page:done",
+        ]
+        assert "".join(chunks) == (
+            "page:before|partial:before:visible|partial-item=p1|partial-item=p2|"
+            "partial:done|page:after|page-item=x|page-item=y|page:done"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
