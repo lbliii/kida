@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `FileSystemLoader.list_templates()` now includes `.kida` files alongside
+  `.html` and `.xml`, returning recursively discovered, sorted, deduplicated
+  relative POSIX paths across search paths. (#360)
+
 ## [0.12.0] - 2026-07-13
 
 ### Added

@@ -222,6 +222,43 @@ class TestFileSystemLoader:
         tmpl = env.get_template("templates/test.html")
         assert tmpl.render() == "Subdir template"
 
+    def test_list_templates_for_supported_suffixes(self, tmp_path):
+        """List supported templates recursively and load each listed name."""
+        first_root = tmp_path / "first"
+        second_root = tmp_path / "second"
+        templates = {
+            first_root / "components/card.kida": "Kida component",
+            first_root / "guides/reference.xml": "XML guide",
+            first_root / "pages/home.html": "HTML page",
+            first_root / "shared/item.html": "First root",
+            first_root / "ignored.txt": "Text file",
+            first_root / "ignored.jinja": "Unsupported suffix",
+            second_root / "nested/fallback.kida": "Fallback Kida",
+            second_root / "shared/item.html": "Second root",
+        }
+        for path, source in templates.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(source)
+
+        loader = FileSystemLoader([first_root, second_root])
+        env = Environment(loader=loader)
+        names = loader.list_templates()
+
+        assert names == [
+            "components/card.kida",
+            "guides/reference.xml",
+            "nested/fallback.kida",
+            "pages/home.html",
+            "shared/item.html",
+        ]
+        assert {name: env.get_template(name).render() for name in names} == {
+            "components/card.kida": "Kida component",
+            "guides/reference.xml": "XML guide",
+            "nested/fallback.kida": "Fallback Kida",
+            "pages/home.html": "HTML page",
+            "shared/item.html": "First root",
+        }
+
 
 class TestTemplateCaching:
     """Template caching tests."""
