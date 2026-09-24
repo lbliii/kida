@@ -132,8 +132,8 @@ class TestLiveRenderer:
             live.update(status="building")
             live.update(status="done")
         output = buf.getvalue()
-        assert "building" in output
-        assert "done" in output
+        assert output == "Status: building\n\nStatus: done\n"
+        assert "\x1b" not in output
 
     def test_context_accumulates(self):
         env = terminal_env()
