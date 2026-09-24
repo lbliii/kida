@@ -147,6 +147,38 @@ parser_fuzz_source = st.text(
     max_size=500,
 )
 
+# Parser/formatter round-trip sources use explicit trim markers so that
+# formatter-inserted indentation and line breaks do not become template data.
+_format_roundtrip_text = st.text(
+    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    min_size=1,
+    max_size=24,
+)
+_format_roundtrip_leaf = st.one_of(
+    _format_roundtrip_text,
+    safe_identifier.map(lambda name: f"{{{{- {name} -}}}}"),
+)
+
+
+def _wrap_format_roundtrip_if(condition: str, body: str) -> str:
+    """Wrap one parser-valid body in a trim-controlled if block."""
+    return f"{{% if {condition} -%}}\n{body}\n{{%- end -%}}"
+
+
+FORMAT_ROUNDTRIP_MAX_NESTING = 4
+_format_roundtrip_body = _format_roundtrip_leaf
+for _ in range(FORMAT_ROUNDTRIP_MAX_NESTING - 1):
+    _format_roundtrip_body = st.one_of(
+        _format_roundtrip_body,
+        st.builds(_wrap_format_roundtrip_if, safe_identifier, _format_roundtrip_body),
+    )
+
+format_roundtrip_source = st.builds(
+    _wrap_format_roundtrip_if,
+    safe_identifier,
+    _format_roundtrip_body,
+)
+
 # ---------------------------------------------------------------------------
 # E2E fuzz strategies (source -> compile -> render)
 # ---------------------------------------------------------------------------
