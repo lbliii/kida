@@ -501,13 +501,24 @@ not by a claim that every uncovered branch is a defect:
 | 7 | Escaping | 94 / 18 / 112 | 83.9% |
 | 8 | Diagnostic selection/rendering | 137 / 23 / 160 | 85.6% |
 
-Candidate for the next bounded research slice: map `terminal/live.py`'s
-uncovered lifecycle branches to the intended cursor, signal, cleanup, and
-refresh contracts before proposing tests. Confidence is **medium** that this is
-a substantial proof gap because it is the lowest measured group; confidence in
-behavioral risk is **low until those branches are traced**. The terminal
-steward's branch-to-contract mapping is the dependency. Coverage alone does not
-justify a runtime, API, threshold, or workflow change.
+The terminal lifecycle proof slice from #337 now closes the cursor,
+signal/atexit, transient cleanup, redraw/resize/fallback, and non-TTY output
+cases. Auto-refresh teardown remains gated on the owner decision in #338, so
+this does not mark the whole terminal contract complete.
+
+Next bounded proof: assert that a failing included child restores the caller's
+`RenderContext` through `_include`, `_include_stream`, and
+`_include_stream_async` (#342). The Render helpers signal is 58/100 branches
+(58.0%, 42 missed) from the coverage run on code SHA
+`0cf8763d18d5cdfb4964792b2b7640876c96ce30`; the helper source and focused test
+modules did not drift through `02dfd9966be405854ab22f1352c8345c3f6e43d0`.
+These are historical file-level counts, not a current-main measurement. The
+global coverage ranking also predates #339/#341, so treat it as a targeting
+signal rather than a current coverage trend. Confidence is **high** that this
+specific proof gap exists and **medium-high** that it is a worthwhile next
+leaf. Refresh the broader assurance measurement after #342 before selecting
+another implementation slice. Coverage alone does not justify a runtime, API,
+threshold, or workflow change.
 
 Downstream pilot classification:
 
