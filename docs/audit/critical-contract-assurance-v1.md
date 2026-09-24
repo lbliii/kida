@@ -798,3 +798,220 @@ No downstream pilot: no downstream-observable contract changed; replacement proo
 Downstream pilot classification for this inventory refresh:
 
 No downstream pilot: documentation or planning changed without changing normative behavior; replacement proof: the provenance-complete full-suite coverage report at /private/tmp/kida-344-post-343-full-suite-coverage.json and make verify-stability; affected contracts: the internal assurance inventory.
+
+## Post-#347 snapshot — 2026-09-24
+
+Status: current full-suite evidence for `main` after PR #347. This refresh
+preserves the preceding #330 and post-#343/#344 records as historical snapshots.
+
+Measured revision: `8746b62b6f71830554e11512f69694e4153431fa`.
+
+### Measurement protocol
+
+Environment:
+
+- macOS 26.6.2, arm64 (`macOS-26.6.2-arm64-arm-64bit-Mach-O`);
+- CPython 3.14.2 free-threading build, `Py_GIL_DISABLED=1` (build stamp
+  `main`, Jan 27 2026, 23:31:54, Clang 21.1.4);
+- `PYTHON_GIL=0`; verified `sys._is_gil_enabled() is False`;
+- coverage.py 7.13.5.
+
+Exact full-suite command:
+
+```bash
+PYTHON_GIL=0 .venv/bin/python -m pytest -q --tb=short --cov=kida --cov-branch --cov-report=json:/private/tmp/kida-348-post-347-full-suite-coverage.json --cov-report=term --cov-fail-under=83 --timeout=300
+```
+
+The configured test scope is `tests/` and `examples/` (`testpaths` in
+[`pyproject.toml`](../../pyproject.toml)). Result: 4,902 passed, 6 skipped,
+141 warnings in 31.72 seconds. The single raw report used for every total
+below is `/private/tmp/kida-348-post-347-full-suite-coverage.json`; its
+metadata records coverage format 3, coverage.py 7.13.5, branch measurement,
+and timestamp `2026-09-24T15:03:39.275542`. The report does not contain source
+SHA or host provenance; those are recorded above from the measured checkout
+and environment probe.
+
+| Metric | Covered / total | Missed | Coverage |
+|---|---:|---:|---:|
+| Statements | 16,329 / 17,985 | 1,656 | 90.8% |
+| Branches | 5,606 / 6,906 | 1,300 | 81.2% |
+| Combined statements + branches | 21,935 / 24,891 | 2,956 | 88.12% |
+
+Combined coverage is coverage.py's covered statements plus covered branches
+over all statements plus branches. The same final JSON supplies every group
+total below. The existing 83% gate remains unchanged. `make verify-stability`,
+`make lint`, `make format-check`, and `make ty` passed on this revision. No
+threshold or workflow changed.
+
+A prior same-checkout invocation during this refresh reported 16,333 covered
+statements and 5,609 covered branches. The final named report above is the
+sole source for the snapshot totals and group table. This small within-revision
+variation means a two-branch delta from the preceding snapshot should not be
+read as a directional coverage trend.
+
+### Current critical-contract group coverage
+
+Numerators and denominators below are aggregated from the one final raw report
+above. Statement and branch misses are explicit. Combined percentages describe
+the measured file groups; they are not closure criteria.
+
+| Contract | Source scope | Statements covered / missed / total | Branches covered / missed / total | Combined |
+|---|---|---:|---:|---:|
+| Escaping | `utils/html.py`, `utils/markdown_escape.py`, `utils/terminal_escape.py`, `environment/filters/_html_security.py` | 325 / 41 / 366 (88.8%) | 94 / 18 / 112 (83.9%) | 87.7% |
+| Sandbox policy | `sandbox.py` | 176 / 0 / 176 (100.0%) | 56 / 0 / 56 (100.0%) | 100.0% |
+| Template resolution | `environment/loaders.py`, `utils/template_keys.py` | 160 / 10 / 170 (94.1%) | 48 / 14 / 62 (77.4%) | 89.7% |
+| Cache contracts | `bytecode_cache.py`, `utils/lru_cache.py`, `template/cached_blocks.py` | 420 / 119 / 539 (77.9%) | 113 / 43 / 156 (72.4%) | 76.7% |
+| Component validation | `analysis/analyzer.py` | 316 / 27 / 343 (92.1%) | 167 / 35 / 202 (82.7%) | 88.6% |
+| Diagnostic selection/rendering | `diagnostics.py`, `_diagnostic_adapters.py`, `_diagnostic_renderers.py` | 397 / 16 / 413 (96.1%) | 137 / 23 / 160 (85.6%) | 93.2% |
+| Render helpers | `template/render_helpers.py` | 236 / 40 / 276 (85.5%) | 62 / 38 / 100 (62.0%) | 79.3% |
+| Terminal live lifecycle | `terminal/live.py` | 121 / 15 / 136 (89.0%) | 26 / 10 / 36 (72.2%) | 85.5% |
+| Worker decisions | `utils/workers.py` | 65 / 32 / 97 (67.0%) | 21 / 17 / 38 (55.3%) | 63.7% |
+| Public composition helpers | `composition.py` | 25 / 0 / 25 (100.0%) | 8 / 0 / 8 (100.0%) | 100.0% |
+
+The full-suite group results supersede earlier values only for this separately
+labeled snapshot. Focused-ticket measurements remain scoped to their own
+commands and fixture sets. From post-#343, overall statement hits are
+unchanged and branch hits are two higher; the repeated-run variation above is
+larger than that difference. In particular, the changed `render_helpers.py`
+counts reflect merged #347 coverage but do not establish a coverage trend.
+
+### Completed evidence and scope boundaries
+
+- [#337](https://github.com/lbliii/kida/issues/337) and
+  [#340](https://github.com/lbliii/kida/issues/340) close bounded TTY lifecycle
+  and manual-redraw cases: cursor restoration and transient cleanup, redraw and
+  stale-line clearing, terminal width refresh, and expected TTY-size error
+  fallback. They do not resolve the owner-gated automatic-refresh shutdown
+  contract in #338.
+- [#342](https://github.com/lbliii/kida/issues/342) adds failure-path proof
+  that a child include error propagates and the exact parent `RenderContext`
+  object/state is restored across sync, stream, and async-stream helpers.
+- [#346](https://github.com/lbliii/kida/issues/346) was implemented by
+  [#347](https://github.com/lbliii/kida/pull/347), a test-only end-to-end
+  async-stream proof for an async include and async-child/async-base
+  inheritance. It asserts chunk order, final output, and context visibility.
+  Focused evidence was 120 passed; the full-suite report measures the merged
+  main revision above. No runtime behavior changed.
+- [#274](https://github.com/lbliii/kida/issues/274) completes its stated
+  source/cache differential scope, not every cache invalidation, corrupt
+  record, eviction, or a general optimized-versus-unoptimized oracle.
+- [#328](https://github.com/lbliii/kida/issues/328) proves AST preservation
+  for its bounded trim-controlled parser-valid generator, not arbitrary
+  whitespace or render-output equivalence.
+- [#158](https://github.com/lbliii/kida/issues/158) closes its named repeated
+  no-GIL race matrix and scheduled stress proof; this full-suite run was also
+  verified with the GIL disabled.
+
+### #192 checklist reconciliation at this snapshot
+
+| Item | Post-#347 disposition | Current evidence and remaining gap |
+|---|---|---|
+| 1. Raise overall branch coverage to a justified 90%+ | **Open** | The report measures 5,606/6,906 branches (81.2%), with 1,300 missed. `make verify-stability` passes the unchanged 83% floor; neither closes the 90% branch target. |
+| 2. Reach 95%+ for six critical contracts | **Open; sandbox slice closed** | Sandbox is 56/56 branches. Escaping (83.9%), resolution (77.4%), caches (72.4%), component validation (82.7%), and diagnostics (85.6%) remain below 95%. |
+| 3. Cover every documented helper and retained top-level export | **Open; composition slice closed** | #257 proves the four composition helpers and the current group is 8/8 branches. Behavior evidence for every retained top-level export remains open. |
+| 4. Add bounded mutation testing | **Not started; gated** | No mutation run or surviving-mutant triage exists. Tool choice, dependencies, thresholds, and scheduling remain separate decisions. |
+| 5. Add differential tests across optimization, caches, render modes, and surfaces | **Partial; #274 and #347 slices closed** | The declared source/cache fixture and mode matrix is complete. #347 adds end-to-end async include/inheritance evidence. A general optimization oracle and owner-gated #305 streaming behavior remain separate gaps. |
+| 6. Add parser/formatter AST-equivalence property tests | **Bounded target complete** | #328 proves its trim-controlled generated subset; whitespace-bearing templates and render-output preservation are outside that proof. |
+| 7. Expand malformed/hostile-source fuzzing with stable code and location | **Partial** | Existing malformed-source properties still do not establish stable code, path, location, and next action for every lexer/parser failure. |
+| 8. Add repeated no-GIL race scenarios | **Complete for the named matrix** | Closed #158 supplies repeated race and scheduled stress evidence. The remaining lifecycle/environment branch gaps are distinct. |
+| 9. Schedule expensive mutation/fuzz/stress while keeping bounded PR smoke | **Partial** | Scheduled no-GIL stress exists; mutation proof and an expanded scheduled fuzz profile remain unproven. |
+| 10. Commission an independent security/concurrency review | **Not started; gated by order** | Internal proof gaps remain open or partial, so the epic's stated prerequisite is not met. |
+
+### Re-ranked next work
+
+The measurements identify proof gaps, not defects. The rank combines raw
+coverage signals, user-visible contract consequence, dependencies, and whether
+a bounded proof is supported by source and existing tests. It is not a rank by
+percentage alone.
+
+1. **Next candidate — exact non-TTY `LiveRenderer` output assertion.** The
+   terminal-live group measures 26/36 branches (10 missed), but this candidate
+   is specifically an assertion-quality gap, not a claim that a branch is
+   missing. The public terminal contract says non-TTY output appends each render
+   separated by a blank line and remains log-safe. In
+   `src/kida/terminal/live.py`, the two-update non-TTY path appends the
+   separator, and `_write_output()` emits a final newline while bypassing TTY
+   cursor controls. `tests/terminal/test_live.py::TestLiveRenderer::test_non_tty_fallback`
+   currently checks that `building` and `done` occur, but not their exact
+   serialized output. Add an exact assertion for
+   `"Status: building\n\nStatus: done\n"`, including the final newline,
+   and assert that no ESC/cursor control sequence appears. This is a focused
+   `StringIO` user-path test; the source path is already exercised, and no
+   runtime defect is demonstrated. Dependencies: #192 only. Keep automatic
+   refresh, late writes, and shutdown semantics blocked on the owner decision
+   in #338; this candidate is independent of #338 and #305. Confidence is
+   **high** that the proof is incomplete and **medium-high** that this is the
+   best next bounded leaf.
+2. **Worker weight estimation.** The worker group is 21/38 branches; the
+   module-level `estimate_template_weight()` helper has 0/31 covered statements
+   and 0/16 covered branches. It is a concrete later test candidate, but no
+   in-repository caller or top-level export surfaced in the scoped review; do
+   not treat it as evidence for #311 multicore demand or scaling.
+3. **Cache transitions.** The cache group has 113/156 branches (43 missed).
+   #274 completes its stated source/cache differential scope, not every
+   invalidation, corrupt-record, or eviction path. Narrow a source-backed leaf
+   before activation.
+4. **Residual async render helper paths.** The group has 62/100 branches
+   (38 missed) after #347. The async include success path has new end-to-end
+   evidence; the `_extends_stream_async` async-parent arc `[421,422]` is
+   executed in the full suite, while fallback `[421,425]` is the unexecuted
+   arc. Do not present the executed async-parent arc as a coverage gap; seek a
+   narrower source-backed assertion only if it improves proof beyond #347.
+5. **Template resolution.** The group has 48/62 branches (14 missed); retain
+   traversal, aliases, relative resolution, and actionable missing-template
+   context as the steward's P0 evidence boundary.
+
+Component validation, escaping, and diagnostic selection/rendering remain
+open below the 95% epic goal at the current values above. Keep those gaps in
+#192 until a source-level leaf is identified; the aggregate alone does not
+name an assertion to add.
+
+**Steward and portfolio notes.** Cross-domain review consulted every scoped
+steward map: root, action, analysis, benchmarks, cli, compiler, contrib, docs,
+environment, examples, github, markdown, nodes, plan, public, readme, schemas,
+site, syntax, template, templates, terminal, tests, and utils. Terminal and
+tests provide the direct contract and assertion evidence for the selected
+candidate; docs confirms the inventory-only update boundary; benchmarks
+confirms no performance claim or benchmark applies to this Darwin coverage
+run. The broader stewards found no material contrary signal. In particular,
+contrib's async adapter compatibility guard does not create a competing
+runtime issue; GitHub's report-only canaries do not replace change-specific
+pilots; and syntax/nodes owner gates do not apply because this work changes no
+syntax or AST behavior. The #347 async render work is complete and informs the
+residual ranking above. The steward synthesis converged on the
+exact non-TTY output/no-ANSI assertion because it is user-path, source-backed,
+bounded, and independent of #338. A docs build was not applicable because
+only this internal audit changed; no published site content or configuration
+changed. There is no unresolved owner decision for this test-only candidate;
+#338 remains an explicitly deferred shutdown-contract decision.
+
+Raw signals and confidence: the final report is high-confidence current-main
+measurement for its exact run; the within-revision repeat delta lowers
+confidence in interpreting small coverage changes as trend. The observed
+non-TTY test asserts only substrings while implementation and docs specify
+separator and log-safe output, so the candidate proof gap is high-confidence.
+Its priority is medium-high: the terminal contract is user-visible, but the
+current behavior is not shown to be defective. Worker weight is a high-
+confidence coverage gap with lower product priority because no repository
+caller was found. Cache, resolution, and render-helper aggregates remain
+lower-confidence prioritization signals until narrowed to specific assertions.
+
+Portfolio convergence is to complete bounded contract proof before changing
+runtime behavior. Preserve the minority strategic case from the
+[cross-domain grooming synthesis](https://github.com/lbliii/kida/issues/190#issuecomment-5819604754):
+multicore rendering (#311) and CI reporting (#318) could become adoption
+wedges, but remain hypotheses until workload or sourced-demand evidence
+exists. #154 has no ready child. #305 remains blocked on owner authorization
+and its Chirp pilot; #338 remains blocked on the owner's LiveRenderer
+shutdown-contract choice. #333 stays a separate not-now artifact-retention
+proposal; #244 remains blocked on its run ledger and reverse-canary evidence.
+The latest #192 reconciliation makes #348 the next bounded child; no other
+portfolio item is silently promoted by this snapshot.
+
+Downstream pilot classification for the proposed test-only candidate:
+
+No downstream pilot: no downstream-observable contract changed; replacement proof: focused exact-output and no-ANSI StringIO test plus make verify-stability; affected contracts: non-TTY LiveRenderer log-safe output.
+
+Downstream pilot classification for this inventory refresh:
+
+No downstream pilot: documentation or planning changed without changing normative behavior; replacement proof: the provenance-complete full-suite coverage report at /private/tmp/kida-348-post-347-full-suite-coverage.json and make verify-stability; affected contracts: the internal assurance inventory.
