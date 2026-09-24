@@ -262,6 +262,57 @@ class TestLiveRenderer:
             ("atexit.unregister", registered[0]),
         ]
 
+    def test_tty_update_clears_multiline_output_before_shorter_redraw(self, monkeypatch):
+        buf = _FakeTTY()
+        _capture_live_hooks(monkeypatch, buf)
+        env = terminal_env()
+        tpl = env.from_string("{{ status }}", name="test")
+
+        with LiveRenderer(tpl, file=buf) as live:
+            live.update(status="first\nsecond\nthird")
+            live.update(status="ready")
+
+            assert buf.getvalue() == (
+                "\033[?25lfirst\nsecond\nthird\n\r\033[A\033[2K\033[A\033[2K\033[A\033[2K\rready\n"
+            )
+
+        assert buf.getvalue().endswith("\033[?25h")
+
+    def test_tty_update_refreshes_terminal_width(self, monkeypatch):
+        buf = _FakeTTY()
+        _capture_live_hooks(monkeypatch, buf)
+        env = terminal_env()
+        tpl = env.from_string("{{ columns }}", name="test")
+        widths = iter((80, 120))
+        monkeypatch.setattr(
+            live_module.os,
+            "get_terminal_size",
+            lambda _fd=None: live_module.os.terminal_size((next(widths), 24)),
+        )
+
+        with LiveRenderer(tpl, file=buf) as live:
+            live.update()
+            live.update()
+
+        assert buf.getvalue() == ("\033[?25l80\n\r\033[A\033[2K\r120\n\033[?25h")
+
+    @pytest.mark.parametrize("error", [OSError, ValueError])
+    def test_tty_update_renders_when_terminal_size_lookup_fails(self, monkeypatch, error):
+        buf = _FakeTTY()
+        _capture_live_hooks(monkeypatch, buf)
+        env = terminal_env()
+        tpl = env.from_string("rendered", name="test")
+
+        def fail_terminal_size(_fd=None):
+            raise error("terminal size unavailable")
+
+        monkeypatch.setattr(live_module.os, "get_terminal_size", fail_terminal_size)
+
+        with LiveRenderer(tpl, file=buf) as live:
+            live.update()
+
+        assert buf.getvalue() == "\033[?25lrendered\n\033[?25h"
+
     def test_no_crash_on_empty_template(self):
         env = terminal_env()
         tpl = env.from_string("", name="test")
