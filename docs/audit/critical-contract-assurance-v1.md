@@ -515,3 +515,57 @@ No downstream pilot: documentation or planning changed without changing normativ
 replacement proof: the provenance-complete full-suite coverage report at
 `/private/tmp/kida-330-full-suite-coverage.json` and `make verify-stability`;
 affected contracts: the internal assurance inventory.
+
+### #335 LiveRenderer lifecycle map (current-main inspection)
+
+Inspected source SHA: `e27e09bd6a56e4a8e25d017c70a5423c1a23ea1b`. The
+`13/36` branch result (36.1%, 23 missed) above belongs to #330's coverage run
+on code SHA `0cf8763d18d5cdfb4964792b2b7640876c96ce30`; it is not a new
+measurement of this source SHA. Comparing `src/kida/terminal/live.py` at those
+revisions shows no source drift. Branch misses identify unproved paths, not
+runtime defects.
+
+| Lifecycle promise and source | Contract/documentation | Existing test evidence | Gap and deterministic next proof |
+|---|---|---|---|
+| Cursor hide/show and normal exit: `src/kida/terminal/live.py:211-215,227-235` | `docs/terminal-api-contract.md:65-70`; `site/content/docs/usage/terminal-rendering.md:463-468` | `tests/terminal/test_live.py::TestLiveRenderer::test_non_tty_fallback` uses `StringIO`; it does not enter the TTY branch. | No TTY cursor lifecycle proof. Use a fake TTY stream and direct enter/exit; assert hide on enter and show on exit without timing. |
+| Ctrl+C and atexit restoration: `src/kida/terminal/live.py:217-244,324-339` | `docs/terminal-api-contract.md:65-75`; `site/content/docs/usage/terminal-rendering.md:463-468` | No focused test captures signal or atexit registration. | Capture registrations with monkeypatched `signal`/`atexit`; invoke callbacks directly and assert cursor-show, prior-handler restoration, and unregister on exit. Do not send a process signal. |
+| Transient output cleanup: `src/kida/terminal/live.py:227-234,308-314` | Constructor option in `site/content/docs/usage/terminal-rendering.md:470-478`; `transient` is also in the stable API signature at `docs/terminal-api-contract.md:51-57`. | `tests/terminal/test_live.py::TestLiveRenderer::test_transient_mode` covers only non-TTY `StringIO`, where cleanup is skipped. | No TTY cleanup proof. Render multiple lines to a fake TTY, exit transient mode, and assert each prior line is erased before cursor-show. |
+| TTY redraw, resize, and size-query fallback: `src/kida/terminal/live.py:246-275,308-322` | `docs/terminal-api-contract.md:67-72`; `site/content/docs/usage/terminal-rendering.md:463-468` | `test_context_accumulates`, `test_update_holds_lock_through_render`, and `tests/test_randomized_thread_stress.py::test_randomized_supported_operations` use non-TTY `StringIO`; the stress case calls `update()`, not the auto loop. | No TTY overwrite, stale-line clearing, resize, or `OSError`/`ValueError` query-failure proof. With a fake TTY and monkeypatched `os.get_terminal_size`, make direct updates and assert redraw/width behavior and that a size-query error does not prevent rendering. |
+| Auto-refresh start/stop and teardown: `src/kida/terminal/live.py:227-229,276-305,330-333` | `docs/terminal-api-contract.md:60-75`; `site/content/docs/usage/terminal-rendering.md:479-490` | No focused `start_auto()`/`stop_auto()` test. The randomized stress case covers concurrent manual updates only. | Use `threading.Event` gates around a fake render to coordinate start and stop without sleeps. A controlled current-main probe reproduced a render writing after context exit when `stop_auto()`'s two-second join timed out; see the owner-decision note below before choosing an assertion. |
+| Documented non-TTY fallback: `src/kida/terminal/live.py:194-200,271-274,316-322` | `docs/terminal-api-contract.md:65-69`; `site/content/docs/usage/terminal-rendering.md:514-516,683-690` | `test_non_tty_fallback`, `test_context_accumulates`, and `test_transient_mode` use `StringIO`; the randomized stress case also uses `StringIO`. | Basic append behavior is directly exercised, but tests only check included text, not the exact blank-line separator or absence of cursor escapes. Assert the exact two-render log output and no cursor controls using `StringIO`; no sleeps or platform dependency. |
+
+#### Reproduced teardown observation and follow-up boundary
+
+At the inspected source SHA, a no-source-change probe used a fake template whose
+`render()` waited on an event. After `start_auto()` entered that render,
+`stop_auto()` returned after its two-second join timeout with the worker still
+alive. Context exit completed with no output; releasing the render then wrote
+`late-render\n` to the stream after exit. The event gates establish ordering and
+the probe uses no sleeps. This confirms the late-write behavior. Whether the
+bounded join is intended to permit that write or violates the lifecycle
+contract remains an owner decision; resolve that before setting a regression
+expectation or changing runtime behavior.
+
+The smallest deterministic test-only candidate is a fake-TTY lifecycle slice
+for cursor, transient cleanup, redraw, and resize/error handling, plus direct
+StringIO assertions for the documented non-TTY output. Signal and atexit
+callbacks can be tested by capturing their registrations. The auto-refresh
+teardown assertion stays gated on the owner decision above; coordinate it with
+events rather than sleeps.
+
+**Steward notes.** Consulted stewards: root, terminal, docs, site, and tests.
+Risk: confusing the measured branch gap or observed timeout behavior with an
+already-decided public contract. Evidence: #330's coverage snapshot, current
+main source and contract paths in the matrix, focused/stress tests, and the
+controlled no-change teardown probe. Collateral: this internal inventory only;
+no runtime, test, or published-site files changed, so a site build is not
+applicable. Unresolved tradeoff: whether shutdown must prevent a render from
+writing after context exit or may return after the existing bounded join. The
+downstream behavior classification for any eventual runtime change remains
+unresolved until the owner chooses that contract.
+
+Downstream pilot classification:
+
+No downstream pilot: no downstream-observable contract changed;
+replacement proof: current-main source-to-contract/test matrix and deterministic test proposal;
+affected contracts: none.
