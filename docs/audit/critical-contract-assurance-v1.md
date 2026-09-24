@@ -511,6 +511,7 @@ justify a runtime, API, threshold, or workflow change.
 
 Downstream pilot classification:
 
-No downstream pilot: no consumer-visible contract changes; replacement proof
-is the provenance-complete full-suite report and linked assurance evidence;
-affected contract is the internal assurance inventory.
+No downstream pilot: documentation or planning changed without changing normative behavior;
+replacement proof: the provenance-complete full-suite coverage report at
+`/private/tmp/kida-330-full-suite-coverage.json` and `make verify-stability`;
+affected contracts: the internal assurance inventory.
