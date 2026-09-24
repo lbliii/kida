@@ -284,15 +284,16 @@ class TestLiveRenderer:
         env = terminal_env()
         tpl = env.from_string("{{ columns }}", name="test")
         widths = iter((80, 120))
-        monkeypatch.setattr(
-            live_module.os,
-            "get_terminal_size",
-            lambda _fd=None: live_module.os.terminal_size((next(widths), 24)),
-        )
+        with monkeypatch.context() as terminal_patch:
+            terminal_patch.setattr(
+                live_module.os,
+                "get_terminal_size",
+                lambda _fd=None: live_module.os.terminal_size((next(widths), 24)),
+            )
 
-        with LiveRenderer(tpl, file=buf) as live:
-            live.update()
-            live.update()
+            with LiveRenderer(tpl, file=buf) as live:
+                live.update()
+                live.update()
 
         assert buf.getvalue() == ("\033[?25l80\n\r\033[A\033[2K\r120\n\033[?25h")
 
