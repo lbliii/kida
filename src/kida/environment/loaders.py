@@ -121,13 +121,16 @@ class FileSystemLoader:
         )
 
     def list_templates(self) -> list[str]:
-        """List all templates in search paths."""
+        """Recursively list supported templates as sorted relative POSIX paths.
+
+        Includes .html, .xml, and .kida files, deduplicated across search paths.
+        """
         templates = set()
         for base in self._paths:
             if base.is_dir():
-                for ext in ("*.html", "*.xml"):
+                for ext in ("*.html", "*.xml", "*.kida"):
                     for path in base.rglob(ext):
-                        templates.add(str(path.relative_to(base)))
+                        templates.add(path.relative_to(base).as_posix())
         return sorted(templates)
 
 

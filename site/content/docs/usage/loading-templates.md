@@ -56,10 +56,15 @@ loader = FileSystemLoader([
 
 ### List Templates
 
+`FileSystemLoader.list_templates()` recursively lists files ending in `.html`,
+`.xml`, or `.kida`. It returns sorted, deduplicated relative POSIX paths across
+all search directories; when loading a name found in multiple directories,
+the first matching directory still wins.
+
 ```python
 loader = FileSystemLoader("templates/")
 templates = loader.list_templates()
-# ['base.html', 'components/card.html', 'pages/home.html']
+# ['base.html', 'components/card.kida', 'docs/reference.xml', 'pages/home.html']
 ```
 
 ## DictLoader

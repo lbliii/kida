@@ -592,7 +592,9 @@ loader = FileSystemLoader(["templates/", "shared/"])
 #### Methods
 
 - `get_source(name)` → `tuple[str, str]`
-- `list_templates()` → `list[str]`
+- `list_templates()` → `list[str]` — Recursively lists `.html`, `.xml`, and
+  `.kida` files as sorted, deduplicated relative POSIX paths across search
+  paths.
 
 ### DictLoader
 
