@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import pickle
 import struct
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -208,6 +209,64 @@ def test_corrupt_warning_metadata_is_a_miss_and_is_replaced(tmp_path: Path) -> N
     )
     assert repaired_artifact is not None
     assert list(repaired_artifact.compiler_warnings or ()) == repaired_template.warnings
+
+
+def test_non_list_precomputed_values_are_a_miss_and_are_recompiled(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    cache = BytecodeCache(cache_dir)
+    env = Environment(bytecode_cache=cache)
+    source = "{% let s = config.site %}{{ s[field] }}"
+
+    def compile_template() -> Template:
+        return env.from_string(
+            source,
+            name="static.html",
+            static_context={"config": {"site": {"title": "Cached"}}},
+        )
+
+    source_template = compile_template()
+    assert source_template.render(field="title") == "Cached"
+
+    artifact_path = next(cache_dir.glob("*.pyc"))
+    original = artifact_path.read_bytes()
+    assert original.startswith(_FRAMED_MAGIC_V4)
+
+    offset = len(_FRAMED_MAGIC_V4)
+    (code_len,) = struct.unpack_from("<I", original, offset)
+    offset += 4 + code_len
+    (precomputed_len,) = struct.unpack_from("<I", original, offset)
+    offset += 4
+    precomputed_start = offset
+    precomputed_end = precomputed_start + precomputed_len
+    assert precomputed_len > 0
+    original_precomputed = pickle.loads(original[precomputed_start:precomputed_end])
+    assert original_precomputed == [{"title": "Cached"}]
+
+    replacement_mapping = None
+    replacement_payload = None
+    for fill in range(precomputed_len + 1):
+        candidate = {"other": "x" * fill}
+        candidate_payload = pickle.dumps(candidate, protocol=5)
+        if len(candidate_payload) == precomputed_len:
+            replacement_mapping = candidate
+            replacement_payload = candidate_payload
+            break
+
+    assert replacement_mapping is not None
+    assert replacement_payload is not None
+    assert set(replacement_mapping) != set(original_precomputed[0])
+    corrupted = original[:precomputed_start] + replacement_payload + original[precomputed_end:]
+    assert len(corrupted) == len(original)
+    assert corrupted[:precomputed_start] == original[:precomputed_start]
+    assert corrupted[precomputed_end:] == original[precomputed_end:]
+    assert pickle.loads(corrupted[precomputed_start:precomputed_end]) == replacement_mapping
+    artifact_path.write_bytes(corrupted)
+    corrupted = artifact_path.read_bytes()
+
+    repaired_template = compile_template()
+
+    assert repaired_template.render(field="title") == "Cached"
+    assert artifact_path.read_bytes() != corrupted
 
 
 def test_public_cache_signatures_and_three_value_result_remain_unchanged(
