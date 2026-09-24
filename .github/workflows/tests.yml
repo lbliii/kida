@@ -364,7 +364,19 @@ jobs:
           CI: true
           PYTHON_GIL: "0"
         run: |
-          uv run pytest -v --tb=short --cov=kida --cov-report=term-missing --timeout=300
+          mkdir -p reports
+          uv run pytest -v --tb=short --cov=kida --cov-report=term-missing --cov-report=json:reports/coverage.json --timeout=300
+
+      # This raw assurance artifact expires after 14 days; the tracked inventory remains durable.
+      - name: Upload full-suite coverage JSON
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ github.sha }}
+          path: reports/coverage.json
+          retention-days: 14
+          if-no-files-found: warn
+        continue-on-error: true
 
   # Benchmark regression check (runs on PR and main; fails if >threshold slower than baseline)
   benchmark-regression:
