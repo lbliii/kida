@@ -385,9 +385,8 @@ class TestAsyncInheritance:
 
         chunks = [chunk async for chunk in tmpl.render_stream_async(items=async_items(["hello"]))]
         result = "".join(chunks)
-        assert "hello" in result
-        assert "<html>" in result
-        assert "</html>" in result
+        assert chunks == ["<html><body>", "hello", "</body></html>"]
+        assert result == "<html><body>hello</body></html>"
 
     @pytest.mark.asyncio
     async def test_async_child_block_with_async_base_streams_exactly(
