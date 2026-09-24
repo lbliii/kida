@@ -43,6 +43,17 @@ def test_framework_guides_keep_horizontal_quickstart_contract() -> None:
         assert "render_block(" in text
 
 
+def test_flask_tutorial_documents_opt_in_call_validation() -> None:
+    """The Flask guide makes component validation opt-in and shows both paths."""
+    text = (DOCS_DIR / "tutorials" / "flask-integration.md").read_text(encoding="utf-8")
+
+    assert "Call-site validation is opt-in" in text
+    assert "`validate_calls` defaults to `False`" in text
+    assert "init_kida(app, validate_calls=True)" in text
+    assert "kida check templates/ --validate-calls" in text
+    assert "compile-time diagnostics" in text
+
+
 def test_free_threading_badge_links_to_tested_support_contract() -> None:
     """The public no-GIL badge retains its evidence and limitation contract."""
     readme = README_PATH.read_text(encoding="utf-8")

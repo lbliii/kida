@@ -106,10 +106,25 @@ Save this as `templates/components.html`:
 {% endblock %}
 ```
 
-The component call is checked against the typed `def` signature. The `/`
-route renders the full template; `/preview` renders only the named block for
-HTMX, Turbo, or another HTML-over-the-wire client. Both paths use the same
-autoescaping rules.
+Call-site validation is opt-in: `validate_calls` defaults to `False`, so the
+`init_kida(app)` setup above does not report typed component call diagnostics.
+To enable them for this Flask environment, pass the supported `Environment`
+option through `init_kida()`:
+
+```python
+kida_env = init_kida(app, validate_calls=True)
+```
+
+You can also preflight the templates directory before starting Flask:
+
+```bash
+kida check templates/ --validate-calls
+```
+
+This command reports compile-time diagnostics for invalid component calls.
+The `/` route renders the full template; `/preview` renders only the named
+block for HTMX, Turbo, or another HTML-over-the-wire client. Both paths use
+the same autoescaping rules.
 
 ## 4. Run it
 
